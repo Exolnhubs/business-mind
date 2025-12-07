@@ -1,0 +1,31 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://alnawar.com/admincp/index.php/rest/:path*"
+    },
+    {
+      "source": "/uploads/:path*",
+      "destination": "https://alnawar.com/admincp/uploads/:path*"
+    },
+    {
+      "source": "/private-uploads/:path*",
+      "destination": "https://alnawar.com/admincp/uploads/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=300, s-maxage=600"
+        }
+      ]
+    }
+  ]
+}
