@@ -1,28 +1,51 @@
-import { useState, useEffect } from "react";
-import {
-  VStack
-} from "@chakra-ui/react";
-// import { OurValues } from "@/components/home-components/OurValues.tsx";
-// import { OurServices } from "@/components/home-components/OurServices.tsx";
-// import { Whyus } from "@/components/home-components/WhyUs.tsx";
-// import { OurPartners } from "@/components/home-components/OurPartners.tsx";
-import { useSelector } from "react-redux";
-import { selectLanguage } from "@/store/slices/languageSlice.ts";
-
+import { VStack } from "@chakra-ui/react";
+import { HeroSection } from "@/components/home-components/HeroSection";
+import { AboutSection } from "@/components/home-components/AboutSection";
+import { FeaturesSection } from "@/components/home-components/FeaturesSection";
+import { WhyChooseUsSection } from "@/components/home-components/WhyChooseUsSection";
+import { CTABannerSection } from "@/components/home-components/CTABannerSection";
+import { OrangeBannerSection } from "@/components/home-components/OrangeBannerSection";
+import { AboutUsDarkSection } from "@/components/home-components/AboutUsDarkSection";
+import { TestimonialsSection } from "@/components/home-components/TestimonialsSection";
+import { PartnersSection } from "@/components/home-components/PartnersSection";
+import { BlogSection } from "@/components/home-components/BlogSection";
+import { FeaturedBlogSection } from "@/components/home-components/FeaturedBlogSection";
 
 export const Home = () => {
-  const [loading, setLoading] = useState(true);
-  const lang = useSelector(selectLanguage);
-
-  // Simulate loading images & content
-  useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 100);
-    return () => clearTimeout(timer);
-  }, []);
-
   return (
-    <VStack w="100vw" position="relative">
+    <VStack w="100vw" position="relative" gap={0}>
+      {/* Hero Section */}
+      <HeroSection />
 
+      {/* About Section */}
+      <AboutSection />
+
+      {/* Features Section */}
+      <FeaturesSection />
+
+      {/* Why Choose Us Section */}
+      <WhyChooseUsSection />
+
+      {/* CTA Banner Section */}
+      <CTABannerSection />
+
+      {/* Orange Banner Section */}
+      <OrangeBannerSection />
+
+      {/* About Us Dark Section */}
+      <AboutUsDarkSection />
+
+      {/* Testimonials Section */}
+      <TestimonialsSection />
+
+      {/* Partners Section */}
+      <PartnersSection />
+
+      {/* Blog Section */}
+      <BlogSection />
+
+      {/* Featured Blog Section */}
+      <FeaturedBlogSection />
     </VStack>
   );
 };
