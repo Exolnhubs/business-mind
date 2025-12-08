@@ -1,0 +1,324 @@
+{
+  "shared": {
+    "title": {
+      "en": "",
+      "ar": ""
+    },
+    "description": {
+      "en": "",
+      "ar": ""
+    },
+    "keywords": {
+      "en": "",
+      "ar": ""
+    },
+    "readmore": {
+      "en": "Read More",
+      "ar": " قراءة المزيد"
+    },
+    "readless": {
+      "en": "Read Less",
+      "ar": " قراءة اقل"
+    },
+    "moredetails": {
+      "en": "show details",
+      "ar": "عرض التفاصيل"
+    },
+    "mission": {
+      "en": " The legal mind is your first line of defense",
+      "ar": " الوعي القانوني هو خط دفاعك الأول"
+    },
+    "discoverknowledge": {
+      "en": "Discover our knowledge center",
+      "ar": "اكتشف مركز المعرفة"
+    },
+    "email": {
+      "en": "Email",
+      "ar": "البريد الالكتروني"
+    },
+    "followus": {
+      "en": " Your follow supports us",
+      "ar": "متابعتك دعم لنا"
+    },
+    "respect": {
+      "en": "We respect your time and privacy — all your conversations and information are kept and encrypted, and only experts can access them.",
+      "ar": "نحن نحترم وقتك وخصوصيتك — جميع محادثاتك ومعلوماتك محفوظة ومشفرة، ولا يتم الاطلاع عليها إلا من قبل المختصين."
+    },
+    "sendmsg": {
+      "en": "Send your message and we'll get back to you within 24 hours",
+      "ar": "أرسل استفسارك وسنرد عليك خلال 24 ساعة"
+    },
+    "fullname": {
+      "en": "Full Name",
+      "ar": "الاسم الكامل"
+    },
+    "phone": {
+      "en": "Phone number",
+      "ar": "رقم الهاتف"
+    },
+    "msg": {
+      "en": "Message",
+      "ar": "الرسالة"
+    },
+    "send": {
+      "en": "Send",
+      "ar": "ارسل"
+    },
+    "ContactTitle": {
+      "en": "Reach out… because we don’t just listen — we understand.",
+      "ar": "تواصل معنا... لأننا لا نكتفي بالاستماع، بل نفهم الاحتياج"
+    },
+    "ContactsubTitle": {
+      "en": "At Musanadah, there are no “small” questions or “unimportant” inquiries. Every message we receive means that someone is looking for clarity, support, or simply legal peace of mind.",
+      "ar": "في مساندة لا توجد أسئلة صغيرة أو استفسارات غير مهمة, كل تواصل يعني لنا أن هناك من يبحث عن فهم، عن دعم، أو حتى عن طمأنينة قانونية."
+    }
+  },
+  "home": {
+    "heroSection": {
+      "title": {
+        "en": "ONE PARTNER. FIVE SOLUTIONS. INFINITE GROWTH.",
+        "ar": "شريك واحد. خمسة حلول. نمو لا محدود."
+      },
+      "subtitle": {
+        "en": "Exoln is your all-in-one strategic partner, integrating five specialized divisions . Finance, Marketing, Technology, Consulting, and Storytelling — to streamline your operations, amplify your brand, and drive sustainable, limitless growth.",
+        "ar": "إكسولن هو شريكك الإستراتيجي الشامل، الذي يدمج خمسة أقسام متخصصة: الحلول الماليه، التسويق، التكنولوجيا، الاستشارات، وسرد القصص. لتبسيط عملياتك، تضخيم علامتك التجارية، وتحقيق نمو مستدام لا محدود"
+      }
+    },
+    "ourvalues": {
+      "title": {
+        "en": "INTEGRATED VALUE DELIVERY",
+        "ar": "تقديم القيمة المتكاملة"
+      },
+      "subtitle": {
+        "en": "At Exoln, we believe in a seamless and well-structured process — one that not only overcomes challenges but also transforms them into powerful opportunities for sustainable growth and long-term success.",
+        "ar": "في إكسولن، نؤمن بعملية سلسة ومنظمة - لا تتخطى التحديات فحسب، بل تحولها إلى فرص قوية للنمو المستدام والنجاح طويل الأمد"
+      },
+      "1stvalue": {
+        "title": {
+          "en": "LISTEN & ANALYZE",
+          "ar": "استماع وتحليل"
+        },
+        "subtitle": {
+          "en": "We start by deeply understanding your unique challenges and goals to identify core opportunities.",
+          "ar": "نبدأ بفهم عميق لتحدياتك وأهدافك الفريدة لتحديد الفرص الجوهرية"
+        }
+      },
+      "2ndvalue": {
+        "title": {
+          "en": "DESIGN & INTEGRATE",
+          "ar": "التصميم والتكامل"
+        },
+        "subtitle": {
+          "en": "Our experts craft a unified strategy that connects financial, technical, creative, and operational solutions.",
+          "ar": "يحرف خبراؤنا إستراتيجية موحدة تدمج الحلول المالية والتقنية والإبداعية والتشغيلية"
+        }
+      },
+      "3rdvalue": {
+        "title": {
+          "en": "EXECUTE & MEASURE",
+          "ar": "التنفيذ والقياس"
+        },
+        "subtitle": {
+          "en": "We implement focused solutions and deliver tangible, measurable results that drive your business forward.",
+          "ar": "ننفذ حلولًا مركزة ونقدم نتائج ملموسة وقابلة للقياس تدفع عملك نحو الأمام"
+        }
+      }
+    }
+  },
+  "footer": {
+    "text": {
+      "en": "YOUR STRATEGIC PARTNER IN GROWTH AND DEVELOPMENT",
+      "ar": "شريكك الإستراتيجي في النمو والتطوير"
+    },
+    "address": {
+      "en": "  2930, First Floor Office 98 - Northern Ring Road, Branch Street Al Wadi District - Riyadh 13313 - 6137 Kingdom of Saudi Arabia",
+      "ar": "المملكة العربية السعودية - الرياض 13315 - 6137 - حي الوادي - شارع الفرع - الطريق الشمالي الدائري، مكتب 98، الطابق الأول، 2930"
+    }
+  },
+  "contact": {
+    "title": {
+      "en": "CONTACT US",
+      "ar": "أتصل بنا"
+    },
+    "subtitle": {
+      "en": "Behind every success story is a conversation, that started somewhere. Start yours today.",
+      "ar": " وراء كل قصة نجاح محادثة بدأت في مكان ما. ابدأ محادثتك اليوم"
+    },
+    "selectServices": {
+      "en": "Select Services",
+      "ar": "حدد الخدمات"
+    },
+    "SendMessage": {
+      "en": "Send Message",
+      "ar": "تواصل معنا"
+    },
+    "Sending": {
+      "en": "Sending...",
+      "ar": "جاري الارسال..."
+    },
+    "Name": {
+      "en": "Name",
+      "ar": "الاسم"
+    },
+    "email": {
+      "en": "Email",
+      "ar": "البريد الالكتروني"
+    },
+    "company": {
+      "en": "Company",
+      "ar": "الشركة"
+    },
+    "message": {
+      "en": "Message",
+      "ar": "الرسالة"
+    },
+    "phone": {
+      "en": "Phone",
+      "ar": "الهاتف"
+    }
+  },
+  "blog": {
+    "title": {
+      "en": "INSIGHTS \n BEYOND SERVICES",
+      "ar": "رؤى \n تتجاوز الخدمات"
+    },
+    "description": {
+      "en": "Our blog brings strategy and creativity together — sharing fresh ideas and stories across finance, branding, technology, and more, with insights that inspire growth and spark innovation.",
+      "ar": "مدونتنا تجمع بين الإستراتيجية والإبداع - تشارك أفكاراً وقصصاً جديدة في مجال التمويل، العلامات التجارية، التكنولوجيا، والمزيد، مع رؤى تلهم النمو وتشعل الإبداع"
+    }
+  },
+  "about": {
+    "title": {
+      "en": "About",
+      "ar": "حول"
+    },
+    "body": {
+      "title": {
+        "en": "Abou us",
+        "ar": "معلومات عنا"
+      },
+      "description": {
+        "en": "Exoln was founded to be more than just a service provider; it is a comprehensive ecosystem that enables businesses and entrepreneurs to manage their operations efficiently, develop organizational structures, embrace digital transformation, build strong brands, and reach their customers in the most creative and effective ways.",
+        "ar": "تأسست إكسولن لتكون أكثر من مجرد مزود للخدمات؛ فهي نظام متكامل يمكن الشركات ورواد الأعمال من إدارة عملياتهم بكفاءة، وتطوير الهياكل التنظيمية، وتبني التحول الرقمي، وبناء علامات تجارية قوية، والوصول إلى عملائهم بأكثر الطرق إبداعاً وفعالية"
+      },
+      "subdescription": {
+        "en": "With Exoln, you will find a single partner that combines financial insight, marketing creativity, advanced technology, organizational expertise, and the power of storytelling — offering your business the opportunity for sustainable and balanced growth.",
+        "ar": "مع إكسولن، ستجد شريكاً واحداً يجمع بين البصيرة المالية، والإبداع التسويقي، والتكنولوجيا المتقدمة، والخبرة التنظيمية، وقوة سرد القصص - مما يمنح عملك فرصة للنمو المستدام والمتوازن"
+      },
+      "vision": {
+        "en": "Vision",
+        "ar": "الرؤية"
+      },
+      "text1": {
+        "en": "To become the trusted partner that empowers businesses with innovative solutions for sustainable growth.",
+        "ar": "أن نصبح الشريك الموثوق الذي يمكن الشركات من خلال الحلول المبتكرة لتحقيق نمو مستدام"
+      },
+      "mission": {
+        "en": "Mission",
+        "ar": "الرسالة"
+      },
+      "text2": {
+        "en": "To integrate finance, technology, creativity, and consulting into one ecosystem that enables clients to focus on growth while we simplify the complexity behind the scenes.",
+        "ar": "دمج التمويل، التكنولوجيا، الإبداع، والاستشارات في نظام بيئي واحد يمكن العملاء من التركيز على النمو بينما نبسط التعقيد وراء الكواليس"
+      }
+    },
+    "description": {
+      "en": "",
+      "ar": ""
+    },
+    "readmore": {
+      "en": "Read More",
+      "ar": " قراءة المزيد"
+    },
+    "readless": {
+      "en": "Read Less",
+      "ar": " قراءة اقل"
+    },
+    "moredetails": {
+      "en": "show details",
+      "ar": "عرض التفاصيل"
+    }
+  },
+  "terms": {
+    "title": {
+      "en": "",
+      "ar": ""
+    },
+    "important": {
+      "en": "This document constitutes a legally binding agreement between the user (whether an individual or a legal entity) and the “Legal Support Center Platform”, and defines the terms governing the use of the platform, whether through browsing, registering, or subscribing to its services. By accessing or using the platform in any form, the user expressly agrees to be fully bound by these terms and conditions. If the user does not agree with any of these provisions, they must immediately stop using the platform.",
+      "ar": "  تُعد هذه الوثيقة اتفاقية قانونية ملزمة بين المستخدم (سواء كان فردًا أو جهة اعتبارية) ومنصة مركز المساندة القانوني، وتحدد الشروط التي تحكم استخدام المنصة، سواء كان ذلك من خلال التصفح أو التسجيل أو الاشتراك في الخدمات. ويُعد الدخول إلى المنصة أو استخدامها بأي شكل من الأشكال موافقة صريحة من المستخدم على الالتزام الكامل بالشروط والأحكام المذكورة. وفي حال عدم الموافقة على أي من بنود هذه الاتفاقية، يتوجب على المستخدم التوقف الفوري عن استخدام المنصة."
+    }
+  },
+  "services": {
+    "exolnix": {
+      "title": {
+        "en": "EXOLNIX",
+        "ar": "اكسولنكس"
+      },
+      "description": {
+        "en": "Smart Financial & Accounting Management.",
+        "ar": "الإدارة المالية والمحاسبية الذكية."
+      },
+      "about": {
+        "en": "",
+        "ar": ""
+      }
+    },
+    "exobiz": {
+      "title": {
+        "en": "EXOBIZ",
+        "ar": "اكسوبيز"
+      },
+      "description": {
+        "en": " BUSINESS CONSULTING & ORGANIZATIONAL DEVELOPMENT DIVISION",
+        "ar": "الاستشارات الإدارية وتطوير المؤسسات."
+      },
+      "about": {
+        "en": "",
+        "ar": ""
+      }
+    },
+    "exomark": {
+      "title": {
+        "en": "EXOMARK",
+        "ar": "اكسومارك"
+      },
+      "description": {
+        "en": " MARKETING & CREATIVE DIVISION",
+        "ar": "الهوية التسويقية والعلامة التجارية الإبداعية"
+      },
+      "about": {
+        "en": "",
+        "ar": ""
+      }
+    },
+    "exonext": {
+      "title": {
+        "en": "EXONEXT",
+        "ar": "اكسونكست"
+      },
+      "description": {
+        "en": "DIGITAL TRANSFORMATION & TECHNOLOGY DIVISION",
+        "ar": "حلول التحول الرقمي والتكنولوجيا"
+      },
+      "about": {
+        "en": "",
+        "ar": ""
+      }
+    },
+    "exotale": {
+      "title": {
+        "en": "EXOTALE",
+        "ar": "اكسوتيل"
+      },
+      "description": {
+        "en": "BRAND AND CREATIVE STRATEGY DIVISION",
+        "ar": "استراتيجية العلامة التجارية والإبداع"
+      },
+      "about": {
+        "en": "",
+        "ar": ""
+      }
+    }
+  }
+}
