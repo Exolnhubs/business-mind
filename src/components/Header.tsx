@@ -25,6 +25,9 @@ export const Header = () => {
   return (
     <Box
       as="header"
+      bg={"white"}
+      p={4}
+      borderRadius={"2xl"}
       zIndex={10}
       color={isHomePage ? "white" : "gray.800"}
       position="absolute"
@@ -39,7 +42,7 @@ export const Header = () => {
         {/* Logo */}
         <ChakraLink href="/">
           <Image
-            src={isHomePage ? "/logo.webp" : "/logo2.webp"}
+            src={ "/logo.webp" }
             alt="Business Mind Logo"
             h={{ base: "2rem", lg: "2.5rem" }}
           />
@@ -61,6 +64,7 @@ export const Header = () => {
                 _hover={{ opacity: 0.8 }}
                 fontWeight="500"
                 fontSize="1rem"
+                color={"black"}
               >
                 {lang === "ar" ? "AR" : "EN"}
                 <FaAngleDown size="0.8rem" />
@@ -133,7 +137,7 @@ export const Header = () => {
           aria-label={menuOpen ? "Close menu" : "Open menu"}
           display={{ base: "flex", xl: "none" }}
           variant="ghost"
-          color={isHomePage ? "white" : "gray.800"}
+          color={isHomePage ? "black" : "gray.800"}
           onClick={() => setMenuOpen((s) => !s)}
           zIndex={15}
           _hover={{ bg: "transparent" }}
@@ -199,17 +203,17 @@ export const Header = () => {
             </svg>
           </Box>
 
-          <HStack w="100%" justify="center" gap={2}>
+          <HStack w="100%" justify="center" gap={2} color={"red !important"}>
             <Menu.Root>
               <Menu.Trigger asChild>
-                <HStack cursor="pointer" fontWeight="500">
+                <HStack color="black" cursor="pointer" fontWeight="500">
                   {lang === "ar" ? "AR" : "EN"}
                   <FaAngleDown size="0.8rem" />
                 </HStack>
               </Menu.Trigger>
               <Portal>
                 <Menu.Positioner>
-                  <Menu.Content bg="white" borderRadius="md" boxShadow="lg">
+                  <Menu.Content  bg="white" borderRadius="md" boxShadow="lg">
                     <Menu.Item
                       value="en"
                       onClick={() => dispatch(setLanguage('en'))}

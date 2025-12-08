@@ -56,7 +56,7 @@ export const Navbar = () => {
       <Stack
         direction={{ base: "column", md: "column", xl: "row" }}
         gap={{ base: "1rem", md: "2rem", xl: "3.5rem" }}
-        color={"white"}
+        color={"black"}
       >
         {links.map((link) => {
           const isDropdownOpen = openDropdown === link.href;
@@ -76,10 +76,10 @@ export const Navbar = () => {
                   bg={useColorModeValue("transparent", "gray.400")}
                   color={
                     activeLink === link.href
-                      ? useColorModeValue("#b3b3b3ff", "gray.100")
-                      : useColorModeValue("white", "gray.400")
+                      ? useColorModeValue("rgba(255, 123, 57, 1)", "gray.100")
+                      : useColorModeValue("black", "gray.400")
                   }
-                  _hover={{ color: useColorModeValue("#226CFF", "gray.100") }}
+                  // _hover={{ color: useColorModeValue("#226CFF", "gray.100") }}
                   _active={{ color: useColorModeValue("#226CFF", "gray.100") }}
                   display="inline-flex"
                   alignItems="center"

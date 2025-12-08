@@ -50,7 +50,7 @@ export const HeroSection = () => {
     >
       {/* Background Image */}
       <Image
-        src="/1920x775.jpeg"
+        src="/homepage.webp"
         alt="Hero Background"
         position="absolute"
         top={0}

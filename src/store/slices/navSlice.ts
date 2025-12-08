@@ -18,19 +18,13 @@ interface NavState {
 const initialState: NavState = {
   links: [
     { href: "/", label: "Home", en: "Home", ar: "الرئيسية" },
+    { href: "/blogs", label: "Blogs", en: "Blogs", ar: "المدونات" },
     {
       href: "/Services", label: "Services", en: "Services", ar: "خدماتنا", subNav: [
         { href: "/exolnix", label: "EXOLNIX", en: "EXOLNIX", ar: "اكسولنكس" },
-        { href: "/exomark", label: "EXOMARK", en: "EXOMARK", ar: "اكسومارك" },
-        { href: "/exonext", label: "EXONEXT", en: "EXONEXT", ar: "اكسونكست" },
-        { href: "/exobiz", label: "EXOBIZ", en: "EXOBIZ", ar: "اكسوبيز" },
-        { href: "/exotale", label: "EXOTALE", en: "EXOTALE", ar: "اكسوتيل" },
       ]
     },
-    { href: "/blogs", label: "Blogs", en: "Blogs", ar: "المدونات" },
-    { href: "/about", label: "About", en: "About", ar: "من نحن" },
-    { href: "/profile", label: "Company Profile", en: "Company Profile", ar: "هوية الشركة" },
-    { href: "/contact", label: "Contact", en: "Contact", ar: "اتصل بنا" },
+    { href: "/career", label: "Join Us", en: "Join Us", ar: "انضم لنا" },
   ],
   activeLink: "/",
   isArabic: false,
