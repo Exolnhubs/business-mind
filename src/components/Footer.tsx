@@ -1,188 +1,284 @@
 import { selectLanguage } from "@/store/slices/languageSlice";
 import {
-  Circle,
-  HStack,
   VStack,
+  HStack,
+  Image,
+  Box,
+  Text,
+  SimpleGrid,
 } from "@chakra-ui/react";
-import { Image, Box, Text } from "@chakra-ui/react";
 import { Link as ChakraLink } from "@chakra-ui/react";
 import { type FC } from "react";
-import { useColorModeValue } from "@chakra-ui/color-mode";
 import { Link as RouterLink } from "react-router-dom";
-import { FaFacebookF, FaInstagram, FaPinterestP } from "react-icons/fa";
+import { FaFacebookF, FaInstagram, FaTwitter, FaLinkedinIn } from "react-icons/fa";
 import { TfiLocationPin } from "react-icons/tfi";
 import { MdOutlinePhoneInTalk } from "react-icons/md";
 import { IoMail } from "react-icons/io5";
 import { useSelector, useDispatch } from "react-redux";
 import { setActiveLink } from "@/store/slices/navSlice";
 import type { RootState } from "@/store";
-import { useTranslation } from "@/hooks/useTranslation";
-import footerBg from "/website-footer.webp"; // vite will optimize & cache
 
 export const Footer: FC = () => {
   const lang = useSelector(selectLanguage);
-  const t = useTranslation;
   const { links } = useSelector((state: RootState) => state.nav);
   const dispatch = useDispatch();
+
+  const socialLinks = [
+    { icon: FaFacebookF, url: "https://www.facebook.com/profile.php?id=61579313723527" },
+    { icon: FaInstagram, url: "https://www.instagram.com/exolnsa/" },
+    { icon: FaTwitter, url: "#" },
+    { icon: FaLinkedinIn, url: "#" },
+  ];
 
   return (
     <VStack
       as="footer"
-      mt={"auto"}
-      display={"flex"}
-      w={"100%"}
-      p={8}
-      pt={8}
-      bg={"transparent"}
-      bgPos={"center"}
-      bgSize={"cover"}
-      bgRepeat={"no-repeat"}
-      bgImage={`url(${footerBg})`}
-      bgColor="gray.700"  // fallback if image is loading
-      color={'white'}
+      mt="auto"
+      w="100%"
+      bg="gray.900"
+      color="white"
+      position="relative"
+      overflow="hidden"
     >
+      {/* Background Pattern */}
+      <Box
+        position="absolute"
+        top={0}
+        left={0}
+        w="100%"
+        h="100%"
+        opacity={0.03}
+        bgImage="url('/pattern.webp')"
+        bgRepeat="repeat"
+        zIndex={0}
+      />
 
-      <HStack
-        borderBottom={"1px solid white"}
-        w={"90%"}
-        mt="auto"
-        display="flex"
-        justifyContent="space-between"
-        // align={"stretch"}
-        alignItems={{ base: "center", lg: "flex-start" }}
-        p={4}
-        pb={8}
-        flexDir={{ base: "column", md: "row" }} // 🔹 Stack vertically on mobile
-        gap={{ base: 8, md: 0 }} // 🔹 Add spacing on mobile
+      {/* Main Footer Content */}
+      <SimpleGrid
+        columns={{ base: 1, md: 2, lg: 4 }}
+        gap={{ base: 8, lg: 12 }}
+        w="100%"
+        maxW="1400px"
+        mx="auto"
+        px={{ base: 6, lg: 8 }}
+        py={{ base: 12, lg: 16 }}
+        position="relative"
+        zIndex={1}
       >
-        {/* Logo Section */}
-        <VStack justifyContent={"space-between"} align={{ base: "center", md: "flex-start" }} gap={8} maxW={{ base: "100%", md: "15%" }}>
+        {/* Logo & Description */}
+        <VStack
+          align={{ base: "center", lg: "flex-start" }}
+          gap={6}
+          textAlign={{ base: "center", lg: lang === "ar" ? "right" : "left" }}
+        >
           <ChakraLink href="/">
             <Image
-              src={`/logo2.webp`}
-              alt="Logo"
-              width={{ base: "8rem", md: "6rem", lg: "10rem" }}
+              src="/logo.webp"
+              alt="Business Mind Logo"
+              h={{ base: "50px", lg: "60px" }}
             />
           </ChakraLink>
-          <Text textAlign={{ base: "center", md: "start" }} fontWeight={"600"} fontSize={{ base: "1rem", md: "1.2rem", lg: "1.8rem" }}  > {t("footer.text")} </Text>
-          <HStack align={{ base: "center", md: "flex-start" }}>
 
-            <Circle bgColor={"transparent"} border={" 2px solid white"} _hover={{ cursor: "pointer" }} onClick={() => window.open("https://www.facebook.com/profile.php?id=61579313723527 ", "_blank")} size={"3rem"}>
-              <FaFacebookF />
-            </Circle>
-            <Circle bgColor={"transparent"} border={" 2px solid white"} _hover={{ cursor: "pointer" }} onClick={() => window.open("https://www.instagram.com/exolnsa/", "_blank")} size={"3rem"}>
-              <FaInstagram />
-            </Circle>
-            <Circle bgColor={"transparent"} border={" 2px solid white"} _hover={{ cursor: "pointer" }} size={"3rem"}>
-              <FaPinterestP />
-            </Circle>
+          <Text
+            fontSize={{ base: "0.95rem", lg: "1rem" }}
+            color="gray.400"
+            lineHeight="1.8"
+            maxW="280px"
+          >
+            {lang === "ar"
+              ? "شريكك الاستراتيجي في النمو والتطوير الرقمي. نقدم حلولاً متكاملة لتحقيق نجاحك."
+              : "Your strategic partner in digital growth and development. We provide integrated solutions to achieve your success."}
+          </Text>
+
+          {/* Social Links */}
+          <HStack gap={3}>
+            {socialLinks.map((social, index) => (
+              <Box
+                key={index}
+                as="button"
+                w="40px"
+                h="40px"
+                borderRadius="full"
+                border="1px solid"
+                borderColor="gray.600"
+                display="flex"
+                alignItems="center"
+                justifyContent="center"
+                transition="all 0.3s ease"
+                _hover={{
+                  bg: "#E86A33",
+                  borderColor: "#E86A33",
+                  transform: "translateY(-3px)",
+                }}
+                onClick={() => window.open(social.url, "_blank")}
+              >
+                <social.icon size="16px" />
+              </Box>
+            ))}
           </HStack>
         </VStack>
 
+        {/* Quick Links */}
+        <VStack
+          align={{ base: "center", lg: "flex-start" }}
+          gap={4}
+          textAlign={{ base: "center", lg: lang === "ar" ? "right" : "left" }}
+        >
+          <Text
+            fontSize={{ base: "1.1rem", lg: "1.25rem" }}
+            fontWeight="bold"
+            color="white"
+            mb={2}
+          >
+            {lang === "ar" ? "روابط سريعة" : "Quick Links"}
+          </Text>
+
+          {links
+            .filter((link) => !link.subNav)
+            .map((link, index) => (
+              <RouterLink
+                key={index}
+                to={link.href}
+                onClick={() => dispatch(setActiveLink(link.href))}
+              >
+                <Text
+                  fontSize={{ base: "0.95rem", lg: "1rem" }}
+                  color="gray.400"
+                  transition="all 0.3s ease"
+                  _hover={{ color: "#E86A33" }}
+                >
+                  {lang === "ar" ? link.ar : link.en}
+                </Text>
+              </RouterLink>
+            ))}
+        </VStack>
+
+        {/* Services */}
+        <VStack
+          align={{ base: "center", lg: "flex-start" }}
+          gap={4}
+          textAlign={{ base: "center", lg: lang === "ar" ? "right" : "left" }}
+        >
+          <Text
+            fontSize={{ base: "1.1rem", lg: "1.25rem" }}
+            fontWeight="bold"
+            color="white"
+            mb={2}
+          >
+            {lang === "ar" ? "خدماتنا" : "Our Services"}
+          </Text>
+
+          {links
+            .find((link) => link.subNav)
+            ?.subNav?.map((service, index) => (
+              <RouterLink
+                key={index}
+                to={`/services${service.href}`}
+                onClick={() => dispatch(setActiveLink(service.href))}
+              >
+                <Text
+                  fontSize={{ base: "0.95rem", lg: "1rem" }}
+                  color="gray.400"
+                  transition="all 0.3s ease"
+                  _hover={{ color: "#E86A33" }}
+                >
+                  {lang === "ar" ? service.ar : service.en}
+                </Text>
+              </RouterLink>
+            ))}
+        </VStack>
 
         {/* Contact Info */}
-        <VStack height={"100%"} alignItems={{ base: "flex-start" }} w={{ base: "100%", md: "40%" }} justifyContent={"space-between"} align={{ base: "center", md: "flex-start" }}>
-          <Text fontSize="30px" w={"100%"} fontWeight="bold" pb={4} textAlign={{ base: "center", md: "start" }}>
-            {lang === "ar" ? "اتصل بنا" : "CONTACT US"}
+        <VStack
+          align={{ base: "center", lg: "flex-start" }}
+          gap={4}
+          textAlign={{ base: "center", lg: lang === "ar" ? "right" : "left" }}
+        >
+          <Text
+            fontSize={{ base: "1.1rem", lg: "1.25rem" }}
+            fontWeight="bold"
+            color="white"
+            mb={2}
+          >
+            {lang === "ar" ? "اتصل بنا" : "Contact Us"}
           </Text>
-          <HStack justifyContent={"space-between"} align={{ base: "start", md: "flex-start" }} >
-            <TfiLocationPin size={"2rem"} />
+
+          <HStack
+            gap={3}
+            align="flex-start"
+            flexDir={{ base: "column", lg: "row" }}
+          >
+            <Box color="#E86A33" mt={1}>
+              <TfiLocationPin size="18px" />
+            </Box>
             <Text
-              display="flex"
-              alignItems="center"
-              gap="0.5rem"
-              fontSize={{ base: ".9rem", md: "1.1rem" }}
-              fontWeight="400"
-              textAlign="start"
-              w={{ base: "80%", md: "90%" }}
+              fontSize={{ base: "0.9rem", lg: "0.95rem" }}
+              color="gray.400"
+              lineHeight="1.6"
+              maxW="250px"
             >
-              {t("footer.address")}
+              {lang === "ar"
+                ? "المملكة العربية السعودية - الرياض، حي الوادي"
+                : "Saudi Arabia - Riyadh, Al Wadi District"}
             </Text>
           </HStack>
-          <HStack justifyContent={"space-between"} w={"100%"} align={{ base: "start", md: "flex-start" }} gap={4}>
-            <MdOutlinePhoneInTalk size={"2rem"} />
 
+          <HStack gap={3} align="center">
+            <Box color="#E86A33">
+              <MdOutlinePhoneInTalk size="18px" />
+            </Box>
             <Text
-              display="flex"
-              alignItems="center"
-              gap="0.5rem"
-              fontSize={{ base: ".9rem", md: "1.1rem" }}
-              fontWeight="400"
-              textAlign="start"
-              w={{ base: "80%", md: "90%" }}
-
+              fontSize={{ base: "0.9rem", lg: "0.95rem" }}
+              color="gray.400"
+              dir="ltr"
             >
-              0573641125
+              +966 573 641 125
             </Text>
           </HStack>
-          <HStack justifyContent={"space-between"} w={"100%"} align={{ base: "start", md: "flex-start" }} gap={4}>
-            <IoMail size={"2rem"} />
 
+          <HStack gap={3} align="center">
+            <Box color="#E86A33">
+              <IoMail size="18px" />
+            </Box>
             <Text
-              display="flex"
-              alignItems="center"
-              gap="0.5rem"
-              fontSize={{ base: ".9rem", md: "1.1rem" }}
-              fontWeight="400"
-              textAlign="start"
-              w={{ base: "80%", md: "90%" }}
-
+              fontSize={{ base: "0.9rem", lg: "0.95rem" }}
+              color="gray.400"
             >
-              Info@exoln.com
+              info@exoln.com
             </Text>
           </HStack>
         </VStack>
+      </SimpleGrid>
 
-        {/* Links */}
-        <VStack gap={2} flexDir={"column"} alignItems={{ base: "center", md: "flex-start" }} flexWrap={{ base: "nowrap", md: "wrap" }} >
-          <Text fontSize="30px" w={"100%"} fontWeight="bold" pb={4} textAlign={{ base: "center", md: "start" }}>
-            {lang === "ar" ? "روابط سريعة" : "Useful Links"}
+      {/* Bottom Bar */}
+      <Box
+        w="100%"
+        borderTop="1px solid"
+        borderColor="gray.800"
+        py={6}
+        position="relative"
+        zIndex={1}
+      >
+        <HStack
+          maxW="1400px"
+          mx="auto"
+          px={{ base: 6, lg: 8 }}
+          justify="center"
+          align="center"
+          flexWrap="wrap"
+          gap={4}
+        >
+          <Text
+            fontSize={{ base: "0.85rem", lg: "0.9rem" }}
+            color="gray.500"
+            textAlign="center"
+          >
+            {lang === "ar"
+              ? "© 2025 بزنس مايند. جميع الحقوق محفوظة."
+              : "© 2025 Business Mind. All Rights Reserved."}
           </Text>
-          {links?.map((link) =>
-          (
-            link.subNav ? null :
-              <Box key={link.href}>
-                <RouterLink
-                  to={link.href}
-                  onClick={() => dispatch(setActiveLink(link.href))}
-                >
-                  <Text
-                    textAlign="start"
-                    width="100%"
-                    fontSize={{ base: "1rem", md: "1.2rem" }}
-                    fontWeight={400}
-                    _hover={{
-                      color: useColorModeValue("#4d7cb1", "gray.100"),
-                      textDecoration: "underline",
-                    }}
-                    color={useColorModeValue("white", "gray.400")}
-                    m={2}
-                  >
-                    {lang === "en" ? link.en : link.ar}
-                  </Text>
-                </RouterLink>
-              </Box>
-          ))}
-        </VStack>
-
-
-        {/* Social */}
-
-      </HStack>
-
-      <HStack
-        color={"white"}
-        width={"70vw"}
-        mt={"auto"}
-        display={"flex"}
-        justifyContent={"space-around"}
-        p={4}
-      >{
-          lang === "en"
-            ? "Copyright © 2025 Exoln Company . All Rights Reserved."
-            : "© 2025 شركة إكسولن. جميع الحقوق محفوظة."
-        }
-      </HStack>
+        </HStack>
+      </Box>
     </VStack>
   );
 };
