@@ -10,6 +10,16 @@
 -- ============================================================
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 
+-- Allow the handle_new_user trigger (SECURITY DEFINER / service role)
+-- to create a profile row on every new sign-up.
+-- The FK profiles.id → auth.users(id) ensures only real auth users get a row;
+-- the PK prevents duplicates. Without this policy, Supabase cloud's postgres
+-- role can still have RLS enforced, blocking the trigger insert and causing
+-- "Database error creating new user".
+CREATE POLICY "profiles: insert on signup"
+  ON profiles FOR INSERT
+  WITH CHECK (TRUE);
+
 -- Anyone can read public profiles (needed for event pages, mentions)
 CREATE POLICY "profiles: public read"
   ON profiles FOR SELECT
