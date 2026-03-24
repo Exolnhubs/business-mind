@@ -83,19 +83,41 @@ export async function POST(req: NextRequest) {
       throw new ForbiddenException('This event is for women only.')
     }
 
-    // Insert booking — capacity guard and duplicate check handled by DB triggers
-    const { data: booking, error } = await supabase
+    // Check for an existing cancelled booking — let user rebook the same event
+    const { data: existing } = await supabase
       .from('bookings')
-      .insert({
-        user_id: ctx.userId,
-        event_id: input.event_id,
-        notes: input.notes,
-        status: 'confirmed',
-      })
-      .select()
-      .single()
+      .select('id')
+      .eq('user_id', ctx.userId)
+      .eq('event_id', input.event_id)
+      .eq('status', 'cancelled')
+      .maybeSingle()
 
-    if (error) throw error
+    let booking
+    if (existing) {
+      // Reactivate the cancelled booking instead of inserting a duplicate
+      const { data, error } = await supabase
+        .from('bookings')
+        .update({ status: 'confirmed', notes: input.notes ?? null })
+        .eq('id', existing.id)
+        .select()
+        .single()
+      if (error) throw error
+      booking = data
+    } else {
+      // Insert new booking — capacity guard handled by DB trigger
+      const { data, error } = await supabase
+        .from('bookings')
+        .insert({
+          user_id: ctx.userId,
+          event_id: input.event_id,
+          notes: input.notes,
+          status: 'confirmed',
+        })
+        .select()
+        .single()
+      if (error) throw error
+      booking = data
+    }
 
     // Notify user (fire-and-forget)
     sendNotification({
