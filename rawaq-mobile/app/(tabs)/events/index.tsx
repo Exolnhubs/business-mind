@@ -71,12 +71,21 @@ export default function EventsScreen() {
       setGeoLoading(false); return
     }
     const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
-    setGeoCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+    const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude }
+    setGeoCoords(coords)
     setNearMe(true)
     setGeoLoading(false)
+    // Call immediately with fresh coords — don't wait for state→useEffect chain
+    // (avoids stale closure race condition where nearMe is still false on first render)
+    fetchEvents(coords)
   }
 
-  const fetchEvents = useCallback(async () => {
+  const fetchEvents = useCallback(async (coordsOverride?: { lat: number; lng: number } | null) => {
+    // coordsOverride: fresh coords from toggleNearMe, bypassing stale closure
+    // When undefined: derive from state as normal
+    const geoActive = coordsOverride !== undefined
+      ? coordsOverride
+      : (nearMe ? geoCoords : null)
     let query = supabase
       .from('events')
       .select(`
@@ -102,17 +111,20 @@ export default function EventsScreen() {
     if (categoryId)       query = query.eq('category_id', categoryId)
 
     // Geo filter
-    if (nearMe && geoCoords) {
-      const { data: geoEvents } = await supabase.rpc('events_within_radius', {
-        user_lat: geoCoords.lat,
-        user_lng: geoCoords.lng,
+    if (geoActive) {
+      const { data: geoEvents, error: rpcErr } = await supabase.rpc('events_within_radius', {
+        user_lat: geoActive.lat,
+        user_lng: geoActive.lng,
         radius_meters: 25000,
       })
-      if (geoEvents) {
-        const ids = (geoEvents as { id: string }[]).map((e) => e.id)
-        if (ids.length === 0) { setEvents([]); setLoading(false); setRefreshing(false); return }
-        query = query.in('id', ids)
+      if (rpcErr) {
+        Alert.alert('Location error', 'Could not find events near you. Please try again.')
+        setNearMe(false); setGeoCoords(null)
+        setLoading(false); setRefreshing(false); return
       }
+      const ids = ((geoEvents ?? []) as { id: string }[]).map((e) => e.id)
+      if (ids.length === 0) { setEvents([]); setLoading(false); setRefreshing(false); return }
+      query = query.in('id', ids)
     }
 
     const { data } = await query
@@ -160,31 +172,29 @@ export default function EventsScreen() {
         </View>
       </View>
 
-      {/* Category chips */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.chipRow}
-      >
-        <TouchableOpacity
-          key="all"
-          onPress={() => setCategoryId(null)}
-          style={[styles.chip, !categoryId && styles.chipActive]}
-        >
-          <Text style={[styles.chipText, !categoryId && styles.chipTextActive]}>All</Text>
-        </TouchableOpacity>
-        {categories.map((c) => (
+      {/* Category chips — wrapped in View to give the ScrollView a defined height,
+           matching the city-chips pattern (no contentContainerStyle needed) */}
+      <View style={styles.categoryRow}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           <TouchableOpacity
-            key={c.id}
-            onPress={() => setCategoryId(categoryId === c.id ? null : c.id)}
-            style={[styles.chip, categoryId === c.id && styles.chipActive]}
+            onPress={() => setCategoryId(null)}
+            style={[styles.chip, !categoryId && styles.chipActive]}
           >
-            <Text style={[styles.chipText, categoryId === c.id && styles.chipTextActive]}>
-              {c.icon ? `${c.icon} ` : ''}{c.name_en}
-            </Text>
+            <Text style={[styles.chipText, !categoryId && styles.chipTextActive]}>All</Text>
           </TouchableOpacity>
-        ))}
-      </ScrollView>
+          {categories.map((c) => (
+            <TouchableOpacity
+              key={c.id}
+              onPress={() => setCategoryId(categoryId === c.id ? null : c.id)}
+              style={[styles.chip, categoryId === c.id && styles.chipActive]}
+            >
+              <Text style={[styles.chipText, categoryId === c.id && styles.chipTextActive]} numberOfLines={1}>
+                {c.icon ? `${c.icon} ` : ''}{c.name_en}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
 
       {/* City + free filter row */}
       <View style={styles.filterRow}>
@@ -251,7 +261,7 @@ const styles = StyleSheet.create({
   searchRow: { backgroundColor: Colors.white, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.gray[100] },
   searchBox: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: Colors.gray[100], borderRadius: Radius.lg, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2 },
   searchInput: { flex: 1, fontSize: FontSize.base, color: Colors.gray[900] },
-  chipRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, backgroundColor: Colors.white },
+  categoryRow: { backgroundColor: Colors.white, paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.gray[100], paddingLeft: Spacing.lg },
   chip: { flexShrink: 0, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: Radius.full, backgroundColor: Colors.gray[100], marginRight: Spacing.sm },
   chipActive: { backgroundColor: Colors.brand[500] },
   chipText: { fontSize: FontSize.sm, color: Colors.gray[600], fontWeight: FontWeight.medium },
