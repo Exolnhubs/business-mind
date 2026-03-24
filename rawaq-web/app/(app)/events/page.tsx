@@ -67,17 +67,7 @@ async function EventsGrid({ searchParams }: { searchParams: SearchParams }) {
   
   // Handle category filter
   if (searchParams.category) {
-    const { data: cat } = await supabase
-      .from('event_categories')
-      .select('id')
-      .ilike('name_en', searchParams.category)
-      .single()
-    
-    if (cat) {
-      query = query.eq('category_id', cat.id)
-    } else {
-      return <EmptyState icon="🔍" title="No events found" description="Try adjusting your filters" />
-    }
+    query = query.eq('category_id', searchParams.category)
   }
 
   // Geo filter — PostGIS radius query

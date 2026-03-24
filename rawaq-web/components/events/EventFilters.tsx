@@ -1,13 +1,15 @@
 'use client'
 
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useLocale } from '@/contexts/locale-context'
 
-const CATEGORIES = [
-  'sports', 'art', 'music', 'tech', 'food',
-  'community', 'education', 'health', 'business', 'entertainment',
-]
+interface Category {
+  id: string
+  name_en: string
+  name_ar: string
+  icon: string | null
+}
 
 const CITIES = [
   'Riyadh', 'Jeddah', 'Dammam', 'Mecca', 'Medina',
@@ -20,6 +22,14 @@ export function EventFilters() {
   const pathname = usePathname()
   const params = useSearchParams()
   const [geoLoading, setGeoLoading] = useState(false)
+  const [categories, setCategories] = useState<Category[]>([])
+
+  useEffect(() => {
+    fetch('/api/categories')
+      .then((r) => r.json())
+      .then((json) => setCategories(json.data ?? []))
+      .catch(() => {})
+  }, [])
 
   const setParam = useCallback(
     (key: string, value: string | null) => {
@@ -87,8 +97,10 @@ export function EventFilters() {
         className="input w-auto h-9 text-xs py-1.5 pe-8 cursor-pointer"
       >
         <option value="">{t('events.filter.all_categories')}</option>
-        {CATEGORIES.map((c) => (
-          <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>
+        {categories.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.icon ? `${c.icon} ` : ''}{c.name_en}
+          </option>
         ))}
       </select>
 

@@ -13,8 +13,9 @@ import { useLocale } from '@/contexts/locale-context'
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '@/theme'
 import type { EventWithOrganizer } from '@/types/database'
 
-const CATEGORIES = ['All', 'Sports', 'Art', 'Music', 'Tech', 'Food', 'Community', 'Education']
-const CITIES     = ['All', 'Riyadh', 'Jeddah', 'Dammam', 'Mecca', 'Medina', 'Khobar']
+interface Category { id: string; name_en: string; name_ar: string; icon: string | null }
+
+const CITIES = ['All', 'Riyadh', 'Jeddah', 'Dammam', 'Mecca', 'Medina', 'Khobar']
 
 export default function EventsScreen() {
   const { t, locale } = useLocale()
@@ -24,12 +25,22 @@ export default function EventsScreen() {
   const [loading, setLoading]       = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [search, setSearch]         = useState('')
-  const [category, setCategory]     = useState('All')
+  const [categories, setCategories] = useState<Category[]>([])
+  const [categoryId, setCategoryId] = useState<string | null>(null)
   const [city, setCity]             = useState('All')
   const [freeOnly, setFreeOnly]     = useState(false)
   const [nearMe, setNearMe]         = useState(false)
   const [geoCoords, setGeoCoords]   = useState<{ lat: number; lng: number } | null>(null)
   const [geoLoading, setGeoLoading] = useState(false)
+
+  useEffect(() => {
+    supabase
+      .from('event_categories')
+      .select('id, name_en, name_ar, icon')
+      .eq('is_active', true)
+      .order('sort_order')
+      .then(({ data }) => setCategories((data ?? []) as Category[]))
+  }, [])
 
   async function toggleNearMe() {
     if (nearMe) { setNearMe(false); setGeoCoords(null); return }
@@ -67,15 +78,7 @@ export default function EventsScreen() {
     }
     if (city !== 'All')   query = query.eq('city', city)
     if (freeOnly)         query = query.eq('is_free', true)
-    if (category !== 'All') {
-      const { data: cat } = await supabase
-        .from('event_categories')
-        .select('id')
-        .ilike('name_en', category)
-        .single()
-      if (cat) query = query.eq('category_id', cat.id)
-      else { setEvents([]); setLoading(false); return }
-    }
+    if (categoryId)       query = query.eq('category_id', categoryId)
 
     // Geo filter
     if (nearMe && geoCoords) {
@@ -105,7 +108,7 @@ export default function EventsScreen() {
 
     setLoading(false)
     setRefreshing(false)
-  }, [search, category, city, freeOnly, nearMe, geoCoords, user])
+  }, [search, categoryId, city, freeOnly, nearMe, geoCoords, user])
 
   useEffect(() => { fetchEvents() }, [fetchEvents])
 
@@ -142,13 +145,22 @@ export default function EventsScreen() {
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.chipRow}
       >
-        {CATEGORIES.map((c) => (
+        <TouchableOpacity
+          key="all"
+          onPress={() => setCategoryId(null)}
+          style={[styles.chip, !categoryId && styles.chipActive]}
+        >
+          <Text style={[styles.chipText, !categoryId && styles.chipTextActive]}>All</Text>
+        </TouchableOpacity>
+        {categories.map((c) => (
           <TouchableOpacity
-            key={c}
-            onPress={() => setCategory(c)}
-            style={[styles.chip, category === c && styles.chipActive]}
+            key={c.id}
+            onPress={() => setCategoryId(categoryId === c.id ? null : c.id)}
+            style={[styles.chip, categoryId === c.id && styles.chipActive]}
           >
-            <Text style={[styles.chipText, category === c && styles.chipTextActive]}>{c}</Text>
+            <Text style={[styles.chipText, categoryId === c.id && styles.chipTextActive]}>
+              {c.icon ? `${c.icon} ` : ''}{c.name_en}
+            </Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
