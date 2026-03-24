@@ -15,10 +15,16 @@ BEGIN
   INSERT INTO public.profiles (id, display_name, avatar_url, role)
   VALUES (
     NEW.id,
-    COALESCE(NEW.raw_user_meta_data->>'display_name', split_part(NEW.email, '@', 1)),
+    -- Three-level fallback: metadata → email prefix → 'User'
+    COALESCE(
+      NULLIF(TRIM(NEW.raw_user_meta_data->>'display_name'), ''),
+      NULLIF(split_part(NEW.email, '@', 1), ''),
+      'User'
+    ),
     NEW.raw_user_meta_data->>'avatar_url',
-    COALESCE((NEW.raw_user_meta_data->>'role')::user_role, 'user')
-  );
+    COALESCE((NEW.raw_user_meta_data->>'role')::user_role, 'user'::user_role)
+  )
+  ON CONFLICT (id) DO NOTHING;   -- seed may have pre-inserted the profile
   RETURN NEW;
 END;
 $$;

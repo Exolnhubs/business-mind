@@ -29,7 +29,7 @@ COMMENT ON TABLE profiles IS 'Public profile for every authenticated user.';
 -- Extra info for users with role = organizer
 -- ----------------------------------------------------------
 CREATE TABLE organizer_profiles (
-  id             UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id        UUID NOT NULL UNIQUE REFERENCES profiles(id) ON DELETE CASCADE,
   business_name  TEXT NOT NULL,
   business_name_ar TEXT,
@@ -52,7 +52,7 @@ COMMENT ON TABLE organizer_profiles IS 'Additional details for organizer account
 -- EVENT CATEGORIES
 -- ----------------------------------------------------------
 CREATE TABLE event_categories (
-  id        UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name_en   TEXT NOT NULL UNIQUE,
   name_ar   TEXT NOT NULL UNIQUE,
   icon      TEXT,                    -- icon name / emoji slug
@@ -66,7 +66,7 @@ COMMENT ON TABLE event_categories IS 'Bilingual event categories.';
 -- EVENTS
 -- ----------------------------------------------------------
 CREATE TABLE events (
-  id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   organizer_id        UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   category_id         UUID REFERENCES event_categories(id) ON DELETE SET NULL,
 
@@ -122,7 +122,7 @@ COMMENT ON TABLE events IS 'Core events table. Supports geo-queries via PostGIS.
 -- BOOKINGS
 -- ----------------------------------------------------------
 CREATE TABLE bookings (
-  id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id     UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   event_id    UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
   status      booking_status NOT NULL DEFAULT 'confirmed',
@@ -139,7 +139,7 @@ COMMENT ON TABLE bookings IS 'Event registrations. Enforces capacity and unique 
 -- TIPS
 -- ----------------------------------------------------------
 CREATE TABLE tips (
-  id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id           UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   event_id          UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
   organizer_id      UUID NOT NULL REFERENCES profiles(id),
@@ -158,7 +158,7 @@ COMMENT ON TABLE tips IS 'Organizer tips. MVP uses simulated payments.';
 -- COMMENTS
 -- ----------------------------------------------------------
 CREATE TABLE comments (
-  id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id       UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   event_id      UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
   parent_id     UUID REFERENCES comments(id) ON DELETE CASCADE, -- nullable = top-level
@@ -178,7 +178,7 @@ COMMENT ON TABLE comments IS 'Threaded event comments with mention support.';
 -- COMMENT REPORTS
 -- ----------------------------------------------------------
 CREATE TABLE comment_reports (
-  id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   comment_id  UUID NOT NULL REFERENCES comments(id) ON DELETE CASCADE,
   reporter_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   reason      report_reason NOT NULL,
@@ -194,7 +194,7 @@ CREATE TABLE comment_reports (
 -- Separate from event comments — platform-wide feed
 -- ----------------------------------------------------------
 CREATE TABLE global_chat (
-  id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id     UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   content     TEXT NOT NULL CHECK (char_length(content) BETWEEN 1 AND 1000),
   mentions    UUID[] NOT NULL DEFAULT '{}',
@@ -208,7 +208,7 @@ COMMENT ON TABLE global_chat IS 'Platform-wide real-time chat feed.';
 -- NOTIFICATIONS
 -- ----------------------------------------------------------
 CREATE TABLE notifications (
-  id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id     UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   type        notification_type NOT NULL,
   -- flexible payload: event_id, comment_id, actor_id, etc.
@@ -224,7 +224,7 @@ COMMENT ON TABLE notifications IS 'In-app notification inbox per user.';
 -- DEVICE TOKENS  (FCM push notifications)
 -- ----------------------------------------------------------
 CREATE TABLE device_tokens (
-  id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id     UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   token       TEXT NOT NULL,
   platform    TEXT NOT NULL CHECK (platform IN ('ios', 'android', 'web')),
@@ -239,7 +239,7 @@ CREATE TABLE device_tokens (
 -- EVENT VIEWS  (analytics)
 -- ----------------------------------------------------------
 CREATE TABLE event_views (
-  id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   event_id    UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
   user_id     UUID REFERENCES profiles(id) ON DELETE SET NULL, -- NULL = anonymous
   ip_hash     TEXT,          -- hashed for privacy
