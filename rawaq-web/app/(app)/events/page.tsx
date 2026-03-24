@@ -27,13 +27,30 @@ async function EventsGrid({ searchParams }: { searchParams: SearchParams }) {
   const from = (page - 1) * PAGE_SIZE
   const to = from + PAGE_SIZE - 1
 
+  // Fix: Correct nested select syntax for relations
   let query = supabase
     .from('events')
     .select(`
       *,
-      organizer:profiles!organizer_id(id, display_name, avatar_url),
-      organizer_profile:organizer_profiles!organizer_id(business_name, business_name_ar, logo_url, verified),
-      category:event_categories(id, name_en, name_ar, icon)
+      organizer:organizer_id (
+        id,
+        display_name,
+        avatar_url
+      ),
+      organizer_profile:organizer_id (
+        organizer_profiles!user_id (
+          business_name,
+          business_name_ar,
+          logo_url,
+          verified
+        )
+      ),
+      category:category_id (
+        id,
+        name_en,
+        name_ar,
+        icon
+      )
     `)
     .eq('is_published', true)
     .eq('is_cancelled', false)
@@ -41,25 +58,32 @@ async function EventsGrid({ searchParams }: { searchParams: SearchParams }) {
     .order('start_at', { ascending: true })
     .range(from, to)
 
+  // Apply filters
   if (searchParams.q) query = query.ilike('title', `%${searchParams.q}%`)
   if (searchParams.city) query = query.eq('city', searchParams.city)
   if (searchParams.gender) query = query.eq('gender_restriction', searchParams.gender)
   if (searchParams.free === 'true') query = query.eq('is_free', true)
   if (searchParams.family === 'true') query = query.eq('is_family_friendly', true)
+  
+  // Handle category filter
   if (searchParams.category) {
-    // Filter by category name via join — fetch category id first
     const { data: cat } = await supabase
       .from('event_categories')
       .select('id')
       .ilike('name_en', searchParams.category)
       .single()
-    if (cat) query = query.eq('category_id', cat.id)
-    else return <EmptyState icon="🔍" title="No events found" description="Try adjusting your filters" />
+    
+    if (cat) {
+      query = query.eq('category_id', cat.id)
+    } else {
+      return <EmptyState icon="🔍" title="No events found" description="Try adjusting your filters" />
+    }
   }
 
   const { data: events, error } = await query
 
   if (error) {
+    console.error('Supabase query error:', error)
     return (
       <div className="text-center py-16 text-red-500 text-sm">
         Failed to load events: {error.message}
@@ -71,9 +95,15 @@ async function EventsGrid({ searchParams }: { searchParams: SearchParams }) {
     return <EmptyState icon="📭" title="No events found" description="Try adjusting your filters" />
   }
 
+  // Transform the data to match EventWithOrganizer type
+  const transformedEvents = events.map((event: any) => ({
+    ...event,
+    organizer_profile: event.organizer_profile?.[0]?.organizer_profiles?.[0] || null
+  }))
+
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-      {(events as EventWithOrganizer[]).map((event) => (
+      {transformedEvents.map((event: EventWithOrganizer) => (
         <EventCard key={event.id} event={event} />
       ))}
     </div>

@@ -19,19 +19,37 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
   const { id } = await params
   const supabase = await createSupabaseServerClient()
 
-  // Fetch event
-  const { data: event, error } = await supabase
-    .from('events')
-    .select(`
-      *,
-      organizer:profiles!organizer_id(id, display_name, avatar_url),
-      organizer_profile:organizer_profiles!organizer_id(business_name, business_name_ar, logo_url, verified),
-      category:event_categories(id, name_en, name_ar, icon)
-    `)
-    .eq('id', id)
-    .single()
+  // Fetch event with explicit relationship paths
+const { data: event, error } = await supabase
+  .from('events')
+  .select(`
+    *,
+    organizer:organizer_id (
+      id,
+      display_name,
+      avatar_url,
+      city,
+      organizer_profile:organizer_profiles!user_id (
+        business_name,
+        business_name_ar,
+        logo_url,
+        verified,
+        description,
+        website,
+        phone
+      )
+    ),
+    category:category_id (
+      id,
+      name_en,
+      name_ar,
+      icon
+    )
+  `)
+  .eq('id', id)
+  .single();
 
-  if (error || !event) notFound()
+  if (!event) notFound()
 
   const ev = event as EventWithOrganizer
 
