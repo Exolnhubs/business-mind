@@ -28,6 +28,7 @@ export interface Profile {
   bio: string | null
   preferences: Record<string, unknown>
   is_banned: boolean
+  plan_id: string
   created_at: string
   updated_at: string
 }
@@ -46,6 +47,7 @@ export interface OrganizerProfile {
   verified: boolean
   reviewed_by: string | null
   reviewed_at: string | null
+  plan_id: string
   created_at: string
   updated_at: string
 }
@@ -84,6 +86,7 @@ export interface Event {
   gender_restriction: GenderType
   is_family_friendly: boolean
   is_private: boolean
+  is_premium_only: boolean
   is_published: boolean
   is_cancelled: boolean
   cancelled_reason: string | null
@@ -103,6 +106,8 @@ export interface Booking {
   ticket_id: string | null
   seat: string | null
   scanned_at: string | null
+  platform_fee_pct: number
+  platform_fee_amount: number
   created_at: string
   updated_at: string
 }
@@ -117,6 +122,8 @@ export interface Tip {
   payment_ref: string | null
   is_simulated: boolean
   message: string | null
+  platform_fee_pct: number
+  platform_fee_amount: number
   created_at: string
 }
 

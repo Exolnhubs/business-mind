@@ -70,6 +70,16 @@ export async function POST(req: NextRequest) {
     // In production: call payment gateway here, store transaction ref
     const paymentRef = `mock_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
 
+    // Look up organizer's platform fee from their plan
+    const { data: orgProfile } = await supabase
+      .from('organizer_profiles')
+      .select('plan:plan_definitions(platform_fee_pct)')
+      .eq('user_id', event.organizer_id)
+      .single()
+
+    const feePct: number = (orgProfile?.plan as { platform_fee_pct?: number } | null)?.platform_fee_pct ?? 0.10
+    const feeAmount = Math.round(input.amount * feePct * 100) / 100
+
     const { data: tip, error } = await supabase
       .from('tips')
       .insert({
@@ -81,6 +91,8 @@ export async function POST(req: NextRequest) {
         message: input.message,
         payment_ref: paymentRef,
         is_simulated: true,
+        platform_fee_pct: feePct,
+        platform_fee_amount: feeAmount,
       })
       .select()
       .single()
