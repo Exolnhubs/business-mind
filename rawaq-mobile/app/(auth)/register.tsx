@@ -2,7 +2,7 @@ import { useState } from 'react'
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, KeyboardAvoidingView, Platform,
-  ScrollView, ActivityIndicator,
+  ScrollView, ActivityIndicator, Linking,
 } from 'react-native'
 import { Link } from 'expo-router'
 import { supabase } from '@/lib/supabase'
@@ -16,6 +16,7 @@ export default function RegisterScreen() {
   const [form, setForm] = useState({
     email: '', password: '', name: '', city: '', role: 'user' as 'user' | 'organizer',
   })
+  const [termsAccepted, setTermsAccepted] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState<string | null>(null)
   const [done, setDone]       = useState(false)
@@ -120,13 +121,40 @@ export default function RegisterScreen() {
             </View>
           </View>
 
+          {/* Terms & Conditions */}
+          <TouchableOpacity
+            style={styles.termsRow}
+            onPress={() => setTermsAccepted((v) => !v)}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.checkbox, termsAccepted && styles.checkboxChecked]}>
+              {termsAccepted && <Text style={styles.checkmark}>✓</Text>}
+            </View>
+            <Text style={styles.termsText}>
+              I agree to the{' '}
+              <Text
+                style={styles.termsLink}
+                onPress={() => Linking.openURL('https://rawaq.app/terms')}
+              >
+                Terms of Service
+              </Text>
+              {' '}and{' '}
+              <Text
+                style={styles.termsLink}
+                onPress={() => Linking.openURL('https://rawaq.app/privacy')}
+              >
+                Privacy Policy
+              </Text>
+            </Text>
+          </TouchableOpacity>
+
           {error && (
             <View style={styles.errorBox}>
               <Text style={styles.errorText}>{error}</Text>
             </View>
           )}
 
-          <TouchableOpacity style={[styles.btn, loading && styles.btnDisabled]} onPress={handleRegister} disabled={loading} activeOpacity={0.8}>
+          <TouchableOpacity style={[styles.btn, (loading || !termsAccepted) && styles.btnDisabled]} onPress={handleRegister} disabled={loading || !termsAccepted} activeOpacity={0.8}>
             {loading
               ? <ActivityIndicator color={Colors.white} />
               : <Text style={styles.btnText}>{t('auth.register')}</Text>
@@ -171,6 +199,12 @@ const styles = StyleSheet.create({
   footer: { flexDirection: 'row', justifyContent: 'center', marginTop: Spacing.xl },
   footerText: { color: Colors.gray[500], fontSize: FontSize.sm },
   link: { color: Colors.brand[600], fontWeight: FontWeight.semibold, fontSize: FontSize.sm },
+  termsRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm, marginBottom: Spacing.lg },
+  checkbox: { width: 18, height: 18, borderWidth: 1.5, borderColor: Colors.gray[300], borderRadius: 4, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
+  checkboxChecked: { borderColor: Colors.brand[500], backgroundColor: Colors.brand[500] },
+  checkmark: { color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold },
+  termsText: { flex: 1, fontSize: FontSize.xs, color: Colors.gray[500], lineHeight: 18 },
+  termsLink: { color: Colors.brand[600], fontWeight: FontWeight.medium },
   doneContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: Spacing['3xl'], backgroundColor: Colors.brand[50] },
   doneTitle: { fontSize: FontSize.xl, fontWeight: FontWeight.bold, marginTop: Spacing.lg, color: Colors.gray[900] },
   doneSub: { fontSize: FontSize.base, color: Colors.gray[500], textAlign: 'center', marginTop: Spacing.sm },
