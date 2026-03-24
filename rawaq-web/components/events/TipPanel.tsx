@@ -29,15 +29,17 @@ export function TipPanel({ eventId, organizerId }: TipPanelProps) {
     setLoading(true)
     setError(null)
 
+    const body: Record<string, unknown> = {
+      event_id: eventId,
+      amount: Number(amount),
+      currency: 'SAR',
+    }
+    if (message) body.message = message
+
     const res = await fetch('/api/tips', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        event_id: eventId,
-        amount: Number(amount),
-        currency: 'SAR',
-        message: message || null,
-      }),
+      body: JSON.stringify(body),
     })
 
     const json = await res.json().catch(() => ({}))
