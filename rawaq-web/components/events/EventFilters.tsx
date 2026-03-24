@@ -12,8 +12,32 @@ interface Category {
 }
 
 const CITIES = [
-  'Riyadh', 'Jeddah', 'Dammam', 'Mecca', 'Medina',
-  'Khobar', 'Tabuk', 'Abha', 'Taif',
+  // Saudi Arabia
+  'Riyadh', 'Jeddah', 'Dammam', 'Mecca', 'Medina', 'Khobar', 'Tabuk', 'Abha', 'Taif',
+  // UAE
+  'Dubai', 'Abu Dhabi', 'Sharjah',
+  // Egypt
+  'Cairo', 'Alexandria', 'Giza',
+  // Jordan
+  'Amman', 'Aqaba',
+  // Kuwait
+  'Kuwait City',
+  // Qatar
+  'Doha',
+  // Bahrain
+  'Manama',
+  // Oman
+  'Muscat', 'Salalah',
+  // Lebanon
+  'Beirut',
+  // Morocco
+  'Casablanca', 'Marrakech',
+  // Tunisia
+  'Tunis',
+  // Iraq
+  'Baghdad',
+  // Palestine
+  'Ramallah',
 ]
 
 export function EventFilters() {
