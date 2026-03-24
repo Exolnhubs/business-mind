@@ -28,7 +28,7 @@ export async function sendNotifications(notifications: SendNotificationParams[])
 async function pushFcmNotification({ userId, type, payload }: SendNotificationParams) {
   const admin = createSupabaseAdminClient()
 
-  // Fetch active device tokens
+  // Fetch active Expo push tokens
   const { data: tokens } = await admin
     .from('device_tokens')
     .select('token')
@@ -37,41 +37,33 @@ async function pushFcmNotification({ userId, type, payload }: SendNotificationPa
 
   if (!tokens?.length) return
 
-  const fcmTokens = tokens.map((t) => t.token)
   const title = getFcmTitle(type)
   const body = getFcmBody(type, payload)
 
-  // Lazy-init Firebase Admin SDK
-  const messaging = await getFirebaseMessaging()
-  if (!messaging) return
-
-  const { messaging: fcmMessaging } = await import('firebase-admin')
-
-  await fcmMessaging().sendEachForMulticast({
-    tokens: fcmTokens,
-    notification: { title, body },
+  // Expo Push Service — accepts ExponentPushToken[...] values directly,
+  // handles both FCM (Android) and APNs (iOS) transparently.
+  // Docs: https://docs.expo.dev/push-notifications/sending-notifications/
+  const messages = tokens.map((t) => ({
+    to: t.token,
+    title,
+    body,
+    sound: 'default',
     data: { type, ...Object.fromEntries(Object.entries(payload).map(([k, v]) => [k, String(v)])) },
-    android: { priority: 'high' },
-    apns: { payload: { aps: { sound: 'default' } } },
-  })
-}
+    priority: 'high',
+  }))
 
-async function getFirebaseMessaging() {
-  if (!process.env.FIREBASE_PROJECT_ID) return null
-
-  const firebaseAdmin = await import('firebase-admin')
-
-  if (!firebaseAdmin.apps.length) {
-    firebaseAdmin.initializeApp({
-      credential: firebaseAdmin.credential.cert({
-        projectId: process.env.FIREBASE_PROJECT_ID,
-        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-        privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-      }),
+  // Expo accepts up to 100 messages per request; chunk just in case
+  for (let i = 0; i < messages.length; i += 100) {
+    await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Accept-Encoding': 'gzip, deflate',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(messages.slice(i, i + 100)),
     })
   }
-
-  return firebaseAdmin
 }
 
 function getFcmTitle(type: NotificationType): string {
