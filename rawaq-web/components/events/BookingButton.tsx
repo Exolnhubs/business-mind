@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createSupabaseBrowserClient } from '@/lib/supabase/client'
 import { useAuth } from '@/contexts/auth-context'
 import { Spinner } from '@/components/ui/Spinner'
+import Link from 'next/link'
 
 interface BookingButtonProps {
   eventId: string
@@ -21,14 +22,16 @@ export function BookingButton({ eventId, isFull, isBooked: initialBooked, isFree
   const [booked, setBooked] = useState(initialBooked)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [needsProfile, setNeedsProfile] = useState(false)
 
   async function handleBook() {
     if (!user) { router.push('/login'); return }
     setError(null)
+    setNeedsProfile(false)
     setLoading(true)
 
     if (booked) {
-      // Cancel booking
+      // Cancel booking — direct DB update is fine; no server-side restrictions apply
       const { error } = await supabase
         .from('bookings')
         .update({ status: 'cancelled' })
@@ -40,14 +43,25 @@ export function BookingButton({ eventId, isFull, isBooked: initialBooked, isFree
       setBooked(false)
       router.refresh()
     } else {
-      // Create booking
-      const { error } = await supabase
-        .from('bookings')
-        .upsert({ event_id: eventId, user_id: user.id, status: 'confirmed' }, { onConflict: 'event_id,user_id' })
+      // Create booking via API so server-side profile/gender checks run
+      const res = await fetch('/api/bookings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event_id: eventId }),
+      })
 
-      if (error) { setError(error.message); setLoading(false); return }
-      setBooked(true)
-      router.refresh()
+      if (res.ok) {
+        setBooked(true)
+        router.refresh()
+      } else {
+        const json = await res.json().catch(() => ({}))
+        const msg: string = json.error ?? 'Failed to book event.'
+        if (msg.toLowerCase().includes('complete your profile')) {
+          setNeedsProfile(true)
+        } else {
+          setError(msg)
+        }
+      }
     }
 
     setLoading(false)
@@ -78,6 +92,17 @@ export function BookingButton({ eventId, isFull, isBooked: initialBooked, isFree
           `Book Now — SAR ${price ?? 0}`
         )}
       </button>
+
+      {needsProfile && (
+        <div className="mt-2 text-sm rounded-xl px-4 py-3 bg-yellow-50 text-yellow-800 border border-yellow-200">
+          Please{' '}
+          <Link href="/profile" className="font-semibold underline">
+            complete your profile
+          </Link>{' '}
+          (name, gender, city) before booking.
+        </div>
+      )}
+
       {error && <p className="text-xs text-red-600 mt-2">{error}</p>}
     </div>
   )

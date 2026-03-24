@@ -38,7 +38,7 @@ export default function EventDetailScreen() {
     Promise.all([
       supabase
         .from('events')
-        .select(`*,
+        .select(`*, gender_restriction,
           organizer:profiles!organizer_id(
             id, display_name, avatar_url,
             organizer_profile:organizer_profiles!user_id(business_name, logo_url, verified)
@@ -77,6 +77,7 @@ export default function EventDetailScreen() {
   async function handleBooking() {
     if (!user) { router.push('/(auth)/login'); return }
     setBL(true)
+
     if (isBooked) {
       await supabase
         .from('bookings')
@@ -85,12 +86,42 @@ export default function EventDetailScreen() {
         .eq('user_id', user.id)
         .eq('status', 'confirmed')
       setIsBooked(false)
-    } else {
-      const { error } = await supabase
-        .from('bookings')
-        .upsert({ event_id: id, user_id: user.id, status: 'confirmed' }, { onConflict: 'event_id,user_id' })
-      if (!error) setIsBooked(true)
+      setBL(false)
+      return
     }
+
+    // Pre-booking checks: fetch current profile
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('display_name, gender, city')
+      .eq('id', user.id)
+      .single()
+
+    if (!profile?.display_name || !profile?.gender || !profile?.city) {
+      setBL(false)
+      Alert.alert(
+        'Profile incomplete',
+        'Please complete your profile (name, gender, and city) before booking an event.\n\nGo to the Profile tab to update your info.',
+        [{ text: 'OK' }],
+      )
+      return
+    }
+
+    if (event?.gender_restriction === 'male' && profile.gender !== 'male') {
+      setBL(false)
+      Alert.alert('Men only', 'This event is for men only.')
+      return
+    }
+    if (event?.gender_restriction === 'female' && profile.gender !== 'female') {
+      setBL(false)
+      Alert.alert('Women only', 'This event is for women only.')
+      return
+    }
+
+    const { error } = await supabase
+      .from('bookings')
+      .upsert({ event_id: id, user_id: user.id, status: 'confirmed' }, { onConflict: 'event_id,user_id' })
+    if (!error) setIsBooked(true)
     setBL(false)
   }
 

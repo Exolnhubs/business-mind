@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
     // Verify event exists and is bookable
     const { data: event, error: eventErr } = await supabase
       .from('events')
-      .select('id, title, is_published, is_cancelled, start_at, organizer_id')
+      .select('id, title, is_published, is_cancelled, start_at, organizer_id, gender_restriction')
       .eq('id', input.event_id)
       .single()
 
@@ -59,6 +59,28 @@ export async function POST(req: NextRequest) {
     if (event.is_cancelled) throw new ForbiddenException('Event has been cancelled')
     if (new Date(event.start_at) < new Date()) {
       throw new ForbiddenException('Event has already started')
+    }
+
+    // Fetch user profile — required for completion check and gender restriction
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('display_name, gender, city')
+      .eq('id', ctx.userId)
+      .single()
+
+    // Profile must be complete before booking
+    if (!profile?.display_name || !profile?.gender || !profile?.city) {
+      throw new ForbiddenException(
+        'Please complete your profile (name, gender, city) before booking an event.'
+      )
+    }
+
+    // Gender restriction check
+    if (event.gender_restriction === 'male' && profile.gender !== 'male') {
+      throw new ForbiddenException('This event is for men only.')
+    }
+    if (event.gender_restriction === 'female' && profile.gender !== 'female') {
+      throw new ForbiddenException('This event is for women only.')
     }
 
     // Insert booking — capacity guard and duplicate check handled by DB triggers
