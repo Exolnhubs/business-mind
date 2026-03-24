@@ -119,11 +119,16 @@ export async function POST(req: NextRequest) {
       booking = data
     }
 
-    // Notify user (fire-and-forget)
+    // Notify user (fire-and-forget) — include ticket_id so email can embed the QR code
     sendNotification({
       userId: ctx.userId,
       type: 'booking_confirmed',
-      payload: { event_id: event.id, event_title: event.title, booking_id: booking.id },
+      payload: {
+        event_id: event.id,
+        event_title: event.title,
+        booking_id: booking.id,
+        ticket_id: booking.ticket_id ?? undefined,
+      },
     }).catch(() => {})
 
     return created(booking)

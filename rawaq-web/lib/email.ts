@@ -1,5 +1,6 @@
 import { Resend } from 'resend'
 import type { NotificationType } from '@/types/database'
+import { generateTicketQR } from './qr'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -50,11 +51,29 @@ function p(text: string): string {
 
 // ─── Templates ───────────────────────────────────────────────────────────────
 
-function bookingConfirmed(eventTitle: string, eventId: string): string {
+async function bookingConfirmed(
+  eventTitle: string, eventId: string,
+  bookingId?: string, ticketId?: string,
+): Promise<string> {
+  const ticketUrl = bookingId ? `${APP_URL}/bookings/${bookingId}/ticket` : null
+  let qrBlock = ''
+  if (ticketId) {
+    const qrDataUrl = await generateTicketQR(ticketId)
+    qrBlock = `
+      <div style="margin:24px 0;text-align:center">
+        <div style="display:inline-block;background:#fff;border:2px solid #f3f4f6;border-radius:16px;padding:12px">
+          <img src="${qrDataUrl}" alt="Ticket QR Code" width="200" height="200" style="display:block" />
+        </div>
+        <p style="margin:12px 0 0;font-size:14px;font-weight:700;color:#111827;letter-spacing:0.12em;font-family:monospace">${ticketId}</p>
+        <p style="margin:4px 0 0;font-size:12px;color:#9ca3af">Present this QR code at the venue entrance</p>
+        ${ticketUrl ? `<div style="margin-top:16px">${btn(ticketUrl, '🎟️ View & Download Ticket')}</div>` : ''}
+      </div>`
+  }
   return layout(`
     ${h1('Booking Confirmed ✅')}
     ${p(`Your spot for <strong>${eventTitle}</strong> is confirmed. We'll see you there!`)}
-    ${btn(`${APP_URL}/events/${eventId}`, 'View Event')}
+    ${qrBlock}
+    ${!ticketUrl ? btn(`${APP_URL}/events/${eventId}`, 'View Event') : ''}
   `)
 }
 
@@ -150,13 +169,20 @@ interface EmailParams {
   toName: string
 }
 
-function buildEmail(type: NotificationType, payload: Record<string, unknown>): { subject: string; html: string } | null {
+async function buildEmail(type: NotificationType, payload: Record<string, unknown>): Promise<{ subject: string; html: string } | null> {
   const str = (k: string) => String(payload[k] ?? '')
   const num = (k: string) => Number(payload[k] ?? 0)
 
   switch (type) {
     case 'booking_confirmed':
-      return { subject: `Booking confirmed: ${str('event_title')}`, html: bookingConfirmed(str('event_title'), str('event_id')) }
+      return {
+        subject: `Booking confirmed: ${str('event_title')}`,
+        html: await bookingConfirmed(
+          str('event_title'), str('event_id'),
+          payload.booking_id ? str('booking_id') : undefined,
+          payload.ticket_id ? str('ticket_id') : undefined,
+        ),
+      }
     case 'booking_cancelled':
       return { subject: `Booking cancelled: ${str('event_title')}`, html: bookingCancelled(str('event_title'), str('event_id')) }
     case 'organizer_approved':
@@ -183,7 +209,7 @@ function buildEmail(type: NotificationType, payload: Record<string, unknown>): {
 export async function sendNotificationEmail({ type, payload, toEmail, toName }: EmailParams) {
   if (!process.env.RESEND_API_KEY) return  // graceful no-op in dev without key
 
-  const email = buildEmail(type, payload)
+  const email = await buildEmail(type, payload)
   if (!email) return
 
   await resend.emails.send({

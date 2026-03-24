@@ -26,7 +26,7 @@ export default function BookingsScreen() {
     if (!user) { setLoading(false); return }
     const { data } = await supabase
       .from('bookings')
-      .select(`*, event:events!event_id(id, title, title_ar, start_at, cover_image_url, city, is_free, price, is_cancelled)`)
+      .select(`id, status, ticket_id, seat, scanned_at, created_at, updated_at, user_id, event_id, notes, event:events!event_id(id, title, title_ar, start_at, cover_image_url, city, is_free, price, is_cancelled)`)
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
     setBookings((data ?? []) as BookingWithEvent[])
@@ -74,6 +74,7 @@ export default function BookingsScreen() {
         }
         const b = item.booking!
         const title = locale === 'ar' && b.event?.title_ar ? b.event.title_ar : b.event?.title ?? 'Event'
+        const isActive = b.status === 'confirmed' && !b.event?.is_cancelled
         return (
           <TouchableOpacity
             style={styles.card}
@@ -88,6 +89,15 @@ export default function BookingsScreen() {
               <Text style={styles.cardMeta}>
                 {b.event ? `${formatDate(b.event.start_at, locale)} · ${b.event.city}` : ''}
               </Text>
+              {isActive && b.ticket_id && (
+                <TouchableOpacity
+                  style={styles.ticketBtn}
+                  onPress={() => router.push(`/bookings/${b.id}/ticket`)}
+                  hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+                >
+                  <Text style={styles.ticketBtnText}>🎟️ {t('ticket.view_ticket')}</Text>
+                </TouchableOpacity>
+              )}
             </View>
             <Badge
               label={b.event?.is_cancelled || b.status === 'cancelled' ? t('bookings.cancelled') : t('bookings.confirmed')}
@@ -120,4 +130,10 @@ const styles = StyleSheet.create({
   cardBody: { flex: 1, minWidth: 0 },
   cardTitle: { fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.gray[900] },
   cardMeta: { fontSize: FontSize.xs, color: Colors.gray[500], marginTop: 2 },
+  ticketBtn: {
+    marginTop: 6, alignSelf: 'flex-start',
+    borderWidth: 1, borderColor: Colors.brand[300],
+    borderRadius: Radius.md, paddingHorizontal: Spacing.sm, paddingVertical: 3,
+  },
+  ticketBtnText: { fontSize: FontSize.xs, color: Colors.brand[600], fontWeight: FontWeight.semibold },
 })
