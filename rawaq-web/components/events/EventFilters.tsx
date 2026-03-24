@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import { useLocale } from '@/contexts/locale-context'
 
 const CATEGORIES = [
@@ -19,6 +19,7 @@ export function EventFilters() {
   const router = useRouter()
   const pathname = usePathname()
   const params = useSearchParams()
+  const [geoLoading, setGeoLoading] = useState(false)
 
   const setParam = useCallback(
     (key: string, value: string | null) => {
@@ -34,6 +35,32 @@ export function EventFilters() {
   const toggleBool = (key: string) => {
     const current = params.get(key)
     setParam(key, current ? null : 'true')
+  }
+
+  const hasGeo = !!(params.get('lat') && params.get('lng'))
+
+  function useNearMe() {
+    if (hasGeo) {
+      // Clear geo filter
+      const p = new URLSearchParams(params.toString())
+      p.delete('lat'); p.delete('lng'); p.delete('radius_km'); p.delete('page')
+      router.push(`${pathname}?${p.toString()}`)
+      return
+    }
+    if (!navigator.geolocation) return
+    setGeoLoading(true)
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const p = new URLSearchParams(params.toString())
+        p.set('lat', String(pos.coords.latitude))
+        p.set('lng', String(pos.coords.longitude))
+        p.set('radius_km', '25')
+        p.delete('page')
+        router.push(`${pathname}?${p.toString()}`)
+        setGeoLoading(false)
+      },
+      () => setGeoLoading(false),
+    )
   }
 
   const category = params.get('category') ?? ''
@@ -112,8 +139,21 @@ export function EventFilters() {
         {t('events.filter.family_friendly')}
       </button>
 
+      {/* Near me */}
+      <button
+        onClick={useNearMe}
+        disabled={geoLoading}
+        className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${
+          hasGeo
+            ? 'bg-brand-50 border-brand-200 text-brand-700'
+            : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+        } disabled:opacity-50`}
+      >
+        {geoLoading ? '⌛' : '📍'} {hasGeo ? 'Near me ✕' : 'Near me'}
+      </button>
+
       {/* Clear all */}
-      {(category || city || gender || freeOnly || familyFriendly || params.get('q')) && (
+      {(category || city || gender || freeOnly || familyFriendly || params.get('q') || hasGeo) && (
         <button
           onClick={() => router.push(pathname)}
           className="text-xs text-gray-400 hover:text-gray-600 underline"

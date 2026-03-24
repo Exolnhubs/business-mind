@@ -207,6 +207,7 @@ export function Navbar() {
         {/* Desktop links */}
         <div className="hidden md:flex items-center gap-6">
           {navLink('/events', t('nav.events'))}
+          {user && navLink('/saved', '🤍 Saved')}
           {user && navLink('/chat', t('nav.chat'))}
         </div>
 
@@ -261,6 +262,10 @@ export function Navbar() {
                           🛡️ Admin Panel
                         </Link>
                       )}
+                      <Link href="/saved" onClick={() => setMenuOpen(false)}
+                        className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50">
+                        🤍 Saved Events
+                      </Link>
                       <Link href="/bookings" onClick={() => setMenuOpen(false)}
                         className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50">
                         🎟️ {t('nav.my_bookings')}

@@ -1,0 +1,144 @@
+import { notFound } from 'next/navigation'
+import type { Metadata } from 'next'
+import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { EventCard } from '@/components/events/EventCard'
+import { Badge } from '@/components/ui/Badge'
+import { EmptyState } from '@/components/ui/EmptyState'
+import { formatDate } from '@/lib/utils'
+import type { EventWithOrganizer } from '@/types/database'
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params
+  const supabase = await createSupabaseServerClient()
+  const { data } = await supabase
+    .from('organizer_profiles')
+    .select('business_name')
+    .eq('user_id', id)
+    .single()
+  return { title: data?.business_name ?? 'Organizer' }
+}
+
+export default async function OrganizerProfilePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const supabase = await createSupabaseServerClient()
+
+  const [{ data: profile }, { data: orgProfile }, { data: events }, { data: { user } }] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('id, display_name, avatar_url, city, bio, created_at')
+      .eq('id', id)
+      .single(),
+    supabase
+      .from('organizer_profiles')
+      .select('business_name, business_name_ar, description, description_ar, logo_url, website, phone, verified, status')
+      .eq('user_id', id)
+      .single(),
+    supabase
+      .from('events')
+      .select(`
+        *,
+        organizer:profiles!organizer_id(
+          id, display_name, avatar_url,
+          organizer_profile:organizer_profiles!user_id(business_name, business_name_ar, logo_url, verified)
+        ),
+        category:event_categories(id, name_en, name_ar, icon)
+      `)
+      .eq('organizer_id', id)
+      .eq('is_published', true)
+      .eq('is_cancelled', false)
+      .gte('start_at', new Date().toISOString())
+      .order('start_at', { ascending: true })
+      .limit(12),
+    supabase.auth.getUser(),
+  ])
+
+  if (!profile || !orgProfile || orgProfile.status !== 'approved') notFound()
+
+  // Check saved IDs for the logged-in user
+  let savedIds = new Set<string>()
+  if (user && events?.length) {
+    const { data: saves } = await supabase
+      .from('saved_events')
+      .select('event_id')
+      .eq('user_id', user.id)
+      .in('event_id', events.map((e) => e.id))
+    savedIds = new Set((saves ?? []).map((s) => s.event_id))
+  }
+
+  const displayName = orgProfile.business_name ?? profile.display_name
+  const initials = displayName.split(' ').slice(0, 2).map((w: string) => w[0]).join('').toUpperCase()
+
+  return (
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-8">
+      {/* Header card */}
+      <div className="card p-6 flex flex-col sm:flex-row items-start sm:items-center gap-5">
+        <div className="w-20 h-20 rounded-2xl bg-brand-100 flex items-center justify-center text-2xl font-bold text-brand-700 shrink-0 overflow-hidden">
+          {orgProfile.logo_url
+            ? <img src={orgProfile.logo_url} alt={displayName} className="w-full h-full object-cover" />
+            : initials
+          }
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-2 mb-1">
+            <h1 className="text-xl font-bold text-gray-900">{displayName}</h1>
+            {orgProfile.verified && <Badge variant="green">✅ Verified</Badge>}
+          </div>
+          {orgProfile.business_name_ar && (
+            <p className="text-sm text-gray-500 mb-1" dir="rtl">{orgProfile.business_name_ar}</p>
+          )}
+          {profile.city && <p className="text-sm text-gray-500">📍 {profile.city}</p>}
+          <p className="text-xs text-gray-400 mt-1">Member since {formatDate(profile.created_at)}</p>
+        </div>
+
+        <div className="flex flex-col gap-2 text-sm shrink-0">
+          {orgProfile.website && (
+            <a href={orgProfile.website} target="_blank" rel="noopener noreferrer"
+              className="text-brand-600 hover:underline flex items-center gap-1">
+              🌐 Website
+            </a>
+          )}
+          {orgProfile.phone && (
+            <a href={`tel:${orgProfile.phone}`} className="text-gray-600 flex items-center gap-1">
+              📞 {orgProfile.phone}
+            </a>
+          )}
+        </div>
+      </div>
+
+      {/* Description */}
+      {orgProfile.description && (
+        <div className="card p-5">
+          <h2 className="font-semibold text-gray-900 mb-2">About</h2>
+          <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">{orgProfile.description}</p>
+          {orgProfile.description_ar && (
+            <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line mt-3" dir="rtl">
+              {orgProfile.description_ar}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Upcoming events */}
+      <div>
+        <h2 className="font-semibold text-gray-900 mb-4">
+          Upcoming Events {events?.length ? `(${events.length})` : ''}
+        </h2>
+        {!events?.length ? (
+          <EmptyState icon="📭" title="No upcoming events" description="Check back soon" />
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {(events as EventWithOrganizer[]).map((event) => (
+              <EventCard
+                key={event.id}
+                event={event}
+                isSaved={savedIds.has(event.id)}
+                showSave={!!user}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}

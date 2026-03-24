@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { Badge } from '@/components/ui/Badge'
+import { SaveButton } from '@/components/events/SaveButton'
 import { formatDate, formatCurrency } from '@/lib/utils'
 import type { EventWithOrganizer } from '@/types/database'
 
@@ -11,9 +12,11 @@ const CATEGORY_EMOJI: Record<string, string> = {
 interface EventCardProps {
   event: EventWithOrganizer
   locale?: string
+  isSaved?: boolean
+  showSave?: boolean
 }
 
-export function EventCard({ event, locale = 'en' }: EventCardProps) {
+export function EventCard({ event, locale = 'en', isSaved = false, showSave = false }: EventCardProps) {
   const icon = CATEGORY_EMOJI[event.category?.name_en?.toLowerCase() ?? ''] ?? '📅'
   const spotsLeft = event.capacity ? event.capacity - event.bookings_count : null
   const isFull = spotsLeft !== null && spotsLeft <= 0
@@ -31,6 +34,7 @@ export function EventCard({ event, locale = 'en' }: EventCardProps) {
         ) : (
           <span className="text-5xl">{icon}</span>
         )}
+        {showSave && <SaveButton eventId={event.id} initialSaved={isSaved} />}
 
         <div className="absolute top-3 start-3 flex flex-wrap gap-1.5 z-10">
           {event.is_free && <Badge variant="green">Free</Badge>}

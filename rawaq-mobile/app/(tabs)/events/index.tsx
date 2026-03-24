@@ -1,10 +1,12 @@
 import { useEffect, useState, useCallback } from 'react'
 import {
   View, Text, FlatList, TextInput, StyleSheet,
-  TouchableOpacity, ScrollView, RefreshControl,
+  TouchableOpacity, ScrollView, RefreshControl, Alert,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
+import * as Location from 'expo-location'
 import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/contexts/auth-context'
 import { EventCard, EventCardSkeleton } from '@/components/events/EventCard'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { useLocale } from '@/contexts/locale-context'
@@ -16,13 +18,32 @@ const CITIES     = ['All', 'Riyadh', 'Jeddah', 'Dammam', 'Mecca', 'Medina', 'Kho
 
 export default function EventsScreen() {
   const { t, locale } = useLocale()
+  const { user } = useAuth()
   const [events, setEvents]         = useState<EventWithOrganizer[]>([])
+  const [savedIds, setSavedIds]     = useState<Set<string>>(new Set())
   const [loading, setLoading]       = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [search, setSearch]         = useState('')
   const [category, setCategory]     = useState('All')
   const [city, setCity]             = useState('All')
   const [freeOnly, setFreeOnly]     = useState(false)
+  const [nearMe, setNearMe]         = useState(false)
+  const [geoCoords, setGeoCoords]   = useState<{ lat: number; lng: number } | null>(null)
+  const [geoLoading, setGeoLoading] = useState(false)
+
+  async function toggleNearMe() {
+    if (nearMe) { setNearMe(false); setGeoCoords(null); return }
+    setGeoLoading(true)
+    const { status } = await Location.requestForegroundPermissionsAsync()
+    if (status !== 'granted') {
+      Alert.alert('Location denied', 'Enable location access to find events near you.')
+      setGeoLoading(false); return
+    }
+    const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
+    setGeoCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+    setNearMe(true)
+    setGeoLoading(false)
+  }
 
   const fetchEvents = useCallback(async () => {
     let query = supabase
@@ -41,7 +62,9 @@ export default function EventsScreen() {
       .order('start_at', { ascending: true })
       .limit(30)
 
-    if (search)           query = query.ilike('title', `%${search}%`)
+    if (search) {
+      query = query.textSearch('fts', search, { type: 'websearch', config: 'simple' })
+    }
     if (city !== 'All')   query = query.eq('city', city)
     if (freeOnly)         query = query.eq('is_free', true)
     if (category !== 'All') {
@@ -54,11 +77,35 @@ export default function EventsScreen() {
       else { setEvents([]); setLoading(false); return }
     }
 
+    // Geo filter
+    if (nearMe && geoCoords) {
+      const { data: geoEvents } = await supabase.rpc('events_within_radius', {
+        user_lat: geoCoords.lat,
+        user_lng: geoCoords.lng,
+        radius_meters: 25000,
+      })
+      if (geoEvents) {
+        const ids = (geoEvents as { id: string }[]).map((e) => e.id)
+        if (ids.length === 0) { setEvents([]); setLoading(false); setRefreshing(false); return }
+        query = query.in('id', ids)
+      }
+    }
+
     const { data } = await query
-    setEvents((data ?? []) as EventWithOrganizer[])
+    const list = (data ?? []) as EventWithOrganizer[]
+    setEvents(list)
+
+    // Fetch saved IDs for logged-in user
+    if (user && list.length) {
+      const { data: saves } = await supabase
+        .from('saved_events').select('event_id').eq('user_id', user.id)
+        .in('event_id', list.map((e) => e.id))
+      setSavedIds(new Set((saves ?? []).map((s) => s.event_id)))
+    }
+
     setLoading(false)
     setRefreshing(false)
-  }, [search, category, city, freeOnly])
+  }, [search, category, city, freeOnly, nearMe, geoCoords, user])
 
   useEffect(() => { fetchEvents() }, [fetchEvents])
 
@@ -131,6 +178,19 @@ export default function EventsScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Near me chip */}
+      <View style={styles.geoRow}>
+        <TouchableOpacity
+          onPress={toggleNearMe}
+          disabled={geoLoading}
+          style={[styles.miniChip, nearMe && styles.miniChipActive]}
+        >
+          <Text style={[styles.miniChipText, nearMe && styles.miniChipTextActive]}>
+            {geoLoading ? '⌛' : '📍'} {nearMe ? 'Near me ✕' : 'Near me'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
       {/* List */}
       {loading ? (
         <View style={styles.list}>
@@ -140,7 +200,7 @@ export default function EventsScreen() {
         <FlatList
           data={events}
           keyExtractor={(e) => e.id}
-          renderItem={({ item }) => <EventCard event={item} />}
+          renderItem={({ item }) => <EventCard event={item} isSaved={savedIds.has(item.id)} />}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.brand[500]} />}
@@ -163,7 +223,8 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: Colors.brand[500] },
   chipText: { fontSize: FontSize.sm, color: Colors.gray[600], fontWeight: FontWeight.medium },
   chipTextActive: { color: Colors.white },
-  filterRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, backgroundColor: Colors.white, borderBottomWidth: 1, borderBottomColor: Colors.gray[100], marginBottom: Spacing.xs },
+  filterRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, backgroundColor: Colors.white, borderBottomWidth: 1, borderBottomColor: Colors.gray[100] },
+  geoRow: { paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, backgroundColor: Colors.white, borderBottomWidth: 1, borderBottomColor: Colors.gray[100], marginBottom: Spacing.xs },
   miniChip: { paddingHorizontal: Spacing.md, paddingVertical: 5, borderRadius: Radius.full, borderWidth: 1, borderColor: Colors.gray[200], marginRight: Spacing.xs, backgroundColor: Colors.white },
   miniChipActive: { borderColor: Colors.brand[400], backgroundColor: Colors.brand[50] },
   miniChipActiveGreen: { borderColor: Colors.green.DEFAULT, backgroundColor: Colors.green.light },

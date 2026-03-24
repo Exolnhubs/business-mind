@@ -177,6 +177,12 @@ export interface EventView {
   created_at: string
 }
 
+export interface SavedEvent {
+  user_id: string
+  event_id: string
+  created_at: string
+}
+
 // ── Join shapes used in API responses ──────────────────────
 export interface EventWithOrganizer extends Event {
   organizer: Pick<Profile, 'id' | 'display_name' | 'avatar_url'> & {
