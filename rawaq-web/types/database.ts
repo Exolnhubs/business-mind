@@ -179,8 +179,9 @@ export interface EventView {
 
 // ── Join shapes used in API responses ──────────────────────
 export interface EventWithOrganizer extends Event {
-  organizer: Pick<Profile, 'id' | 'display_name' | 'avatar_url'>
-  organizer_profile: Pick<OrganizerProfile, 'business_name' | 'business_name_ar' | 'logo_url' | 'verified'> | null
+  organizer: Pick<Profile, 'id' | 'display_name' | 'avatar_url'> & {
+    organizer_profile: Pick<OrganizerProfile, 'business_name' | 'business_name_ar' | 'logo_url' | 'verified'> | null
+  }
   category: Pick<EventCategory, 'id' | 'name_en' | 'name_ar' | 'icon'> | null
 }
 
