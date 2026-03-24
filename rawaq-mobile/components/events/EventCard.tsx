@@ -1,8 +1,11 @@
 import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native'
+import { useState } from 'react'
 import { useRouter } from 'expo-router'
 import { Badge } from '@/components/ui/Badge'
 import { formatDate, formatCurrency } from '@/lib/utils'
 import { useLocale } from '@/contexts/locale-context'
+import { useAuth } from '@/contexts/auth-context'
+import { supabase } from '@/lib/supabase'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
 import type { EventWithOrganizer } from '@/types/database'
 
@@ -11,13 +14,37 @@ const CATEGORY_EMOJI: Record<string, string> = {
   community: '🤝', education: '📚', health: '💪', business: '💼', entertainment: '🎭',
 }
 
-export function EventCard({ event }: { event: EventWithOrganizer }) {
+interface EventCardProps {
+  event: EventWithOrganizer
+  isSaved?: boolean
+  onUnsave?: (id: string) => void
+}
+
+export function EventCard({ event, isSaved: initialSaved = false, onUnsave }: EventCardProps) {
   const router = useRouter()
   const { locale } = useLocale()
+  const { user } = useAuth()
+  const [saved, setSaved] = useState(initialSaved)
 
   const icon = CATEGORY_EMOJI[event.category?.name_en?.toLowerCase() ?? ''] ?? '📅'
   const spotsLeft = event.capacity ? event.capacity - event.bookings_count : null
   const isFull = spotsLeft !== null && spotsLeft <= 0
+
+  async function toggleSave() {
+    if (!user) return
+    const next = !saved
+    setSaved(next)
+    if (next) {
+      await supabase.from('saved_events').upsert(
+        { user_id: user.id, event_id: event.id },
+        { onConflict: 'user_id,event_id' }
+      )
+    } else {
+      await supabase.from('saved_events').delete()
+        .eq('user_id', user.id).eq('event_id', event.id)
+      onUnsave?.(event.id)
+    }
+  }
   const title = locale === 'ar' && event.title_ar ? event.title_ar : event.title
 
   return (
@@ -32,6 +59,11 @@ export function EventCard({ event }: { event: EventWithOrganizer }) {
           ? <Image source={{ uri: event.cover_image_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
           : <Text style={styles.coverEmoji}>{icon}</Text>
         }
+        {user && (
+          <TouchableOpacity style={styles.heartBtn} onPress={toggleSave} hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}>
+            <Text style={styles.heartIcon}>{saved ? '❤️' : '🤍'}</Text>
+          </TouchableOpacity>
+        )}
         <View style={styles.badges}>
           {event.is_free && <Badge label="Free" variant="green" />}
           {event.is_family_friendly && <Badge label="👨‍👩‍👧 Family" variant="blue" />}
@@ -101,6 +133,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   coverEmoji: { fontSize: 48 },
+  heartBtn: { position: 'absolute', top: Spacing.sm, right: Spacing.sm, zIndex: 10, width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.9)', justifyContent: 'center', alignItems: 'center' },
+  heartIcon: { fontSize: 14 },
   badges: {
     position: 'absolute',
     top: Spacing.sm,

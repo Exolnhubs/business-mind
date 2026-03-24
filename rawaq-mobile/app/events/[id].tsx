@@ -185,7 +185,11 @@ export default function EventDetailScreen() {
         )}
 
         {/* Organizer */}
-        <View style={[styles.section, styles.orgCard]}>
+        <TouchableOpacity
+          style={[styles.section, styles.orgCard]}
+          activeOpacity={0.7}
+          onPress={() => router.push(`/organizer/${event.organizer_id}`)}
+        >
           <View style={styles.orgAvatar}>
             <Text style={{ fontSize: 22, fontWeight: FontWeight.bold, color: Colors.brand[700] }}>
               {(event.organizer?.organizer_profile?.business_name ?? event.organizer?.display_name ?? '?')[0].toUpperCase()}
@@ -198,9 +202,9 @@ export default function EventDetailScreen() {
               </Text>
               {event.organizer?.organizer_profile?.verified && <Text>✅</Text>}
             </View>
-            <Text style={styles.orgSub}>Event Organizer</Text>
+            <Text style={styles.orgSub}>Event Organizer · View profile →</Text>
           </View>
-        </View>
+        </TouchableOpacity>
 
         {/* Booking CTA */}
         {!event.is_cancelled && (

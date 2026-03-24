@@ -16,6 +16,9 @@ interface SearchParams {
   free?: string
   family?: string
   page?: string
+  lat?: string
+  lng?: string
+  radius_km?: string
 }
 
 const PAGE_SIZE = 12
@@ -26,6 +29,17 @@ async function EventsGrid({ searchParams }: { searchParams: SearchParams }) {
   const page = Math.max(1, Number(searchParams.page ?? 1))
   const from = (page - 1) * PAGE_SIZE
   const to = from + PAGE_SIZE - 1
+
+  // Fetch user's saved event IDs (for heart buttons)
+  const { data: { user } } = await supabase.auth.getUser()
+  let savedIds = new Set<string>()
+  if (user) {
+    const { data: saves } = await supabase
+      .from('saved_events')
+      .select('event_id')
+      .eq('user_id', user.id)
+    savedIds = new Set((saves ?? []).map((s) => s.event_id))
+  }
 
   let query = supabase
     .from('events')
@@ -43,13 +57,14 @@ async function EventsGrid({ searchParams }: { searchParams: SearchParams }) {
     .order('start_at', { ascending: true })
     .range(from, to)
 
-  if (searchParams.q) query = query.ilike('title', `%${searchParams.q}%`)
+  if (searchParams.q) {
+    query = query.textSearch('fts', searchParams.q, { type: 'websearch', config: 'simple' })
+  }
   if (searchParams.city) query = query.eq('city', searchParams.city)
   if (searchParams.gender) query = query.eq('gender_restriction', searchParams.gender)
   if (searchParams.free === 'true') query = query.eq('is_free', true)
   if (searchParams.family === 'true') query = query.eq('is_family_friendly', true)
   if (searchParams.category) {
-    // Filter by category name via join — fetch category id first
     const { data: cat } = await supabase
       .from('event_categories')
       .select('id')
@@ -57,6 +72,20 @@ async function EventsGrid({ searchParams }: { searchParams: SearchParams }) {
       .single()
     if (cat) query = query.eq('category_id', cat.id)
     else return <EmptyState icon="🔍" title="No events found" description="Try adjusting your filters" />
+  }
+
+  // Geo filter — PostGIS radius query
+  if (searchParams.lat && searchParams.lng) {
+    const { data: geoEvents } = await supabase.rpc('events_within_radius', {
+      user_lat: Number(searchParams.lat),
+      user_lng: Number(searchParams.lng),
+      radius_meters: Number(searchParams.radius_km ?? 25) * 1000,
+    })
+    if (geoEvents) {
+      const ids = (geoEvents as { id: string }[]).map((e) => e.id)
+      if (ids.length === 0) return <EmptyState icon="📍" title="No events nearby" description="Try a larger radius or explore all events" />
+      query = query.in('id', ids)
+    }
   }
 
   const { data: events, error } = await query
@@ -76,7 +105,12 @@ async function EventsGrid({ searchParams }: { searchParams: SearchParams }) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
       {(events as EventWithOrganizer[]).map((event) => (
-        <EventCard key={event.id} event={event} />
+        <EventCard
+          key={event.id}
+          event={event}
+          isSaved={savedIds.has(event.id)}
+          showSave={!!user}
+        />
       ))}
     </div>
   )

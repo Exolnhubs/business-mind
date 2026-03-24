@@ -1,8 +1,10 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { Badge } from '@/components/ui/Badge'
 import { BookingButton } from '@/components/events/BookingButton'
+import { SaveButton } from '@/components/events/SaveButton'
 import { TipPanel } from '@/components/events/TipPanel'
 import { CommentThread } from '@/components/comments/CommentThread'
 import { formatDate, formatTime, formatCurrency } from '@/lib/utils'
@@ -37,18 +39,27 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
 
   const ev = event as EventWithOrganizer
 
-  // Get current user booking status
   const { data: { user } } = await supabase.auth.getUser()
   let isBooked = false
+  let isSaved = false
   if (user) {
-    const { data: booking } = await supabase
-      .from('bookings')
-      .select('id')
-      .eq('event_id', id)
-      .eq('user_id', user.id)
-      .eq('status', 'confirmed')
-      .single()
+    const [{ data: booking }, { data: save }] = await Promise.all([
+      supabase
+        .from('bookings')
+        .select('id')
+        .eq('event_id', id)
+        .eq('user_id', user.id)
+        .eq('status', 'confirmed')
+        .single(),
+      supabase
+        .from('saved_events')
+        .select('event_id')
+        .eq('user_id', user.id)
+        .eq('event_id', id)
+        .single(),
+    ])
     isBooked = !!booking
+    isSaved = !!save
   }
 
   // Fetch top-level comments with authors
@@ -207,6 +218,21 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
           {/* Tip panel — only show if user has booked */}
           {isBooked && ev.organizer_id && (
             <TipPanel eventId={id} organizerId={ev.organizer_id} />
+          )}
+
+          {/* Save button */}
+          {user && (
+            <SaveButton eventId={id} initialSaved={isSaved} size="lg" />
+          )}
+
+          {/* Organizer profile link */}
+          {ev.organizer_id && (
+            <Link
+              href={`/organizer/${ev.organizer_id}`}
+              className="block card p-3 text-xs text-brand-600 font-medium hover:bg-brand-50 text-center"
+            >
+              View organizer profile →
+            </Link>
           )}
         </div>
       </div>
