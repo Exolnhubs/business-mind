@@ -21,6 +21,7 @@ export default function RegisterPage() {
     city: '',
     role: 'user' as 'user' | 'organizer',
   })
+  const [termsAccepted, setTermsAccepted] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
@@ -167,13 +168,34 @@ export default function RegisterPage() {
             )}
           </div>
 
+          {/* Terms & Conditions */}
+          <label className="flex items-start gap-3 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={termsAccepted}
+              onChange={(e) => setTermsAccepted(e.target.checked)}
+              className="mt-0.5 rounded accent-brand-500"
+            />
+            <span className="text-xs text-gray-500 leading-relaxed">
+              I have read and agree to the{' '}
+              <Link href="/terms" target="_blank" className="text-brand-600 hover:underline font-medium">
+                Terms of Service
+              </Link>
+              {' '}and acknowledge the{' '}
+              <Link href="/privacy" target="_blank" className="text-brand-600 hover:underline font-medium">
+                Privacy Policy
+              </Link>
+              .
+            </span>
+          </label>
+
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">
               {error}
             </div>
           )}
 
-          <button type="submit" disabled={loading} className="btn-primary w-full">
+          <button type="submit" disabled={loading || !termsAccepted} className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed">
             {loading ? <Spinner size="sm" /> : t('auth.register_btn')}
           </button>
         </form>
