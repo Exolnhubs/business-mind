@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { createSupabaseBrowserClient } from '@/lib/supabase/client'
 import { useAuth } from '@/contexts/auth-context'
 import { useRouter } from 'next/navigation'
 import { Spinner } from '@/components/ui/Spinner'
@@ -16,7 +15,6 @@ interface TipPanelProps {
 export function TipPanel({ eventId, organizerId }: TipPanelProps) {
   const { user } = useAuth()
   const router = useRouter()
-  const supabase = createSupabaseBrowserClient()
 
   const [amount, setAmount] = useState<number | ''>('')
   const [message, setMessage] = useState('')
@@ -31,18 +29,20 @@ export function TipPanel({ eventId, organizerId }: TipPanelProps) {
     setLoading(true)
     setError(null)
 
-    const { error } = await supabase.from('tips').insert({
-      user_id: user.id,
-      event_id: eventId,
-      organizer_id: organizerId,
-      amount: Number(amount),
-      currency: 'SAR',
-      is_simulated: true,
-      message: message || null,
+    const res = await fetch('/api/tips', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        event_id: eventId,
+        amount: Number(amount),
+        currency: 'SAR',
+        message: message || null,
+      }),
     })
 
-    if (error) {
-      setError(error.message)
+    const json = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      setError(json.error ?? 'Failed to send tip.')
     } else {
       setSuccess(true)
       router.refresh()
