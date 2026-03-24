@@ -95,19 +95,20 @@ export function CommentThread({ eventId, initialComments, currentUserId }: Comme
   async function postComment(content: string, parentId: string | null = null) {
     if (!user) return
 
-    const { data, error } = await supabase
-      .from('comments')
-      .insert({
+    const res = await fetch('/api/comments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         event_id: eventId,
-        user_id: user.id,
-        parent_id: parentId,
         content,
+        parent_id: parentId,
         mentions: [],
-      })
-      .select()
-      .single()
+      }),
+    })
 
-    if (error || !data) return
+    if (!res.ok) return
+    const json = await res.json()
+    const data = json.data
 
     // Optimistically add before realtime fires
     const newComment: CommentWithAuthor = {
