@@ -98,6 +98,9 @@ export interface Booking {
   event_id: string
   status: BookingStatus
   notes: string | null
+  ticket_id: string | null
+  seat: string | null
+  scanned_at: string | null
   created_at: string
   updated_at: string
 }

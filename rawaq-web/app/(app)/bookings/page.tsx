@@ -13,22 +13,29 @@ export default async function BookingsPage() {
 
   if (!user) redirect('/login')
 
-  const { data: bookings } = await supabase
+  type BookingRow = {
+    id: string; status: string; ticket_id: string | null
+    event: { id: string; title: string; start_at: string; city: string; is_free: boolean; price: number | null; is_cancelled: boolean } | null
+  }
+
+  const { data: bookingsRaw } = await supabase
     .from('bookings')
     .select(`
-      *,
-      event:events!event_id(id, title, start_at, cover_image_url, city, is_free, price, is_cancelled)
+      id, status, ticket_id,
+      event:events!event_id(id, title, start_at, city, is_free, price, is_cancelled)
     `)
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
 
-  const upcoming = bookings?.filter(
+  const bookings = (bookingsRaw ?? []) as BookingRow[]
+
+  const upcoming = bookings.filter(
     (b) => b.status === 'confirmed' && b.event && new Date(b.event.start_at) > new Date(),
-  ) ?? []
-  const past = bookings?.filter(
+  )
+  const past = bookings.filter(
     (b) => b.event && new Date(b.event.start_at) <= new Date(),
-  ) ?? []
-  const cancelled = bookings?.filter((b) => b.status === 'cancelled') ?? []
+  )
+  const cancelled = bookings.filter((b) => b.status === 'cancelled')
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 space-y-8">
@@ -50,7 +57,7 @@ function BookingSection({
   emptyText,
 }: {
   title: string
-  bookings: Array<{ id: string; status: string; event: { id: string; title: string; start_at: string; city: string; is_free: boolean; price: number | null; is_cancelled: boolean } | null }>
+  bookings: Array<{ id: string; status: string; ticket_id?: string | null; event: { id: string; title: string; start_at: string; city: string; is_free: boolean; price: number | null; is_cancelled: boolean } | null }>
   emptyIcon?: string
   emptyText?: string
 }) {
@@ -63,32 +70,43 @@ function BookingSection({
       ) : (
         <div className="space-y-3">
           {bookings.map((booking) => (
-            <Link
+            <div
               key={booking.id}
-              href={`/events/${booking.event?.id}`}
               className="card p-4 flex items-center gap-4 hover:shadow-md transition-shadow"
             >
-              <div className="w-12 h-12 rounded-xl bg-brand-100 flex items-center justify-center text-2xl shrink-0">
+              <Link href={`/events/${booking.event?.id}`} className="w-12 h-12 rounded-xl bg-brand-100 flex items-center justify-center text-2xl shrink-0">
                 📅
-              </div>
+              </Link>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-900 truncate">
-                  {booking.event?.title ?? 'Event'}
-                </p>
+                <Link href={`/events/${booking.event?.id}`}>
+                  <p className="text-sm font-semibold text-gray-900 truncate hover:underline">
+                    {booking.event?.title ?? 'Event'}
+                  </p>
+                </Link>
                 <p className="text-xs text-gray-500 mt-0.5">
                   {booking.event ? `${formatDate(booking.event.start_at)} · ${booking.event.city}` : ''}
                 </p>
               </div>
-              <Badge
-                variant={
-                  booking.status === 'cancelled' ? 'red' :
-                  booking.event?.is_cancelled ? 'red' :
-                  'green'
-                }
-              >
-                {booking.event?.is_cancelled ? 'Event Cancelled' : booking.status}
-              </Badge>
-            </Link>
+              <div className="flex items-center gap-2 shrink-0">
+                <Badge
+                  variant={
+                    booking.status === 'cancelled' ? 'red' :
+                    booking.event?.is_cancelled ? 'red' :
+                    'green'
+                  }
+                >
+                  {booking.event?.is_cancelled ? 'Event Cancelled' : booking.status}
+                </Badge>
+                {booking.status === 'confirmed' && !booking.event?.is_cancelled && (
+                  <Link
+                    href={`/bookings/${booking.id}/ticket`}
+                    className="text-xs font-semibold text-brand-600 border border-brand-200 px-2.5 py-1 rounded-lg hover:bg-brand-50 transition"
+                  >
+                    🎟️ Ticket
+                  </Link>
+                )}
+              </div>
+            </div>
           ))}
         </div>
       )}
