@@ -68,9 +68,9 @@ export default function RegisterPage() {
       <div className="w-full max-w-sm">
         <div className="card p-8 text-center animate-fade-in">
           <div className="text-5xl mb-4">✉️</div>
-          <h2 className="text-lg font-bold text-gray-900 mb-2">Check your email</h2>
+          <h2 className="text-lg font-bold text-gray-900 mb-2">{t('auth.check_email_title')}</h2>
           <p className="text-sm text-gray-500">
-            We sent a confirmation link to <strong>{form.email}</strong>. Click it to activate your account.
+            {t('auth.check_email_sub')}
           </p>
           <Link href="/login" className="btn-primary mt-6 w-full">{t('auth.sign_in')}</Link>
         </div>
@@ -131,7 +131,7 @@ export default function RegisterPage() {
           <div>
             <label className="label">{t('auth.city')}</label>
             <select value={form.city} onChange={set('city')} className="input cursor-pointer">
-              <option value="">Select your city</option>
+              <option value="">{t('auth.select_city')}</option>
               {CITIES.map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
@@ -163,7 +163,7 @@ export default function RegisterPage() {
             </div>
             {form.role === 'organizer' && (
               <p className="text-xs text-amber-600 mt-2 bg-amber-50 rounded-lg px-3 py-2">
-                ⏳ Organizer accounts require admin approval before you can create events.
+                {t('auth.organizer_note')}
               </p>
             )}
           </div>
@@ -177,13 +177,13 @@ export default function RegisterPage() {
               className="mt-0.5 rounded accent-brand-500"
             />
             <span className="text-xs text-gray-500 leading-relaxed">
-              I have read and agree to the{' '}
+              {t('auth.terms_agree')}{' '}
               <Link href="/terms" target="_blank" className="text-brand-600 hover:underline font-medium">
-                Terms of Service
+                {t('auth.terms_of_service')}
               </Link>
-              {' '}and acknowledge the{' '}
+              {' '}{t('auth.and_acknowledge')}{' '}
               <Link href="/privacy" target="_blank" className="text-brand-600 hover:underline font-medium">
-                Privacy Policy
+                {t('auth.privacy_policy')}
               </Link>
               .
             </span>
