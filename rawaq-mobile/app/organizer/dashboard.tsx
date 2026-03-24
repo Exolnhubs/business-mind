@@ -27,12 +27,16 @@ export default function OrganizerDashboard() {
   const [events,     setEvents]     = useState<OrgEvent[]>([])
   const [orgName,    setOrgName]    = useState('')
   const [totalTips,  setTotalTips]  = useState(0)
+  const [planId,     setPlanId]     = useState('org_basic')
+  const [eventsUsed, setEventsUsed] = useState(0)
+  const [eventsLimit, setEventsLimit] = useState<number | null>(3)
   const [loading,    setLoading]    = useState(true)
   const [refreshing, setRefreshing] = useState(false)
 
   const load = useCallback(async () => {
     if (!user) return
-    const [evRes, orgRes, tipRes] = await Promise.all([
+    const monthStr = new Date().toISOString().slice(0, 7) + '-01'
+    const [evRes, orgRes, tipRes, usageRes] = await Promise.all([
       supabase
         .from('events')
         .select('id, title, start_at, is_published, is_cancelled, bookings_count, capacity, tips_total')
@@ -41,18 +45,28 @@ export default function OrganizerDashboard() {
         .limit(30),
       supabase
         .from('organizer_profiles')
-        .select('business_name')
+        .select('business_name, plan_id, plan:plan_definitions(events_per_month, platform_fee_pct)')
         .eq('user_id', user.id)
         .single(),
       supabase
         .from('tips')
         .select('amount')
         .eq('organizer_id', user.id),
+      supabase
+        .from('organizer_monthly_usage')
+        .select('events_created')
+        .eq('organizer_id', user.id)
+        .eq('month', monthStr)
+        .maybeSingle(),
     ])
 
     setEvents((evRes.data ?? []) as OrgEvent[])
     setOrgName(orgRes.data?.business_name ?? '')
     setTotalTips((tipRes.data ?? []).reduce((s, t) => s + t.amount, 0))
+    setPlanId(orgRes.data?.plan_id ?? 'org_basic')
+    const planData = orgRes.data?.plan as { events_per_month: number | null; platform_fee_pct: number } | null
+    setEventsLimit(planData?.events_per_month ?? 3)
+    setEventsUsed(usageRes.data?.events_created ?? 0)
     setLoading(false)
     setRefreshing(false)
   }, [user])
@@ -138,6 +152,32 @@ export default function OrganizerDashboard() {
           </View>
         ))}
       </View>
+
+      {/* Plan card */}
+      <TouchableOpacity style={styles.planCard} onPress={() => router.push('/plans')} activeOpacity={0.85}>
+        <View style={styles.planCardLeft}>
+          <Text style={styles.planCardTitle}>
+            {{
+              org_basic: '🔵 Basic Plan',
+              org_pro:   '🟣 Pro Plan',
+              org_elite: '🟡 Elite Plan',
+            }[planId] ?? '🔵 Basic Plan'}
+          </Text>
+          <Text style={styles.planCardSub}>
+            {eventsLimit !== null
+              ? `${eventsUsed} / ${eventsLimit} events this month`
+              : `${eventsUsed} events this month (unlimited)`}
+          </Text>
+        </View>
+        {planId === 'org_basic' && (
+          <View style={styles.upgradeBadge}>
+            <Text style={styles.upgradeBadgeText}>Upgrade ›</Text>
+          </View>
+        )}
+        {planId !== 'org_basic' && (
+          <Text style={styles.planArrow}>›</Text>
+        )}
+      </TouchableOpacity>
 
       {/* Events list */}
       <Text style={styles.sectionTitle}>Your Events</Text>
@@ -232,4 +272,11 @@ const styles = StyleSheet.create({
   actionRow: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.md, paddingTop: Spacing.md, borderTopWidth: 1, borderTopColor: Colors.gray[100] },
   actionBtn: { flex: 1, borderRadius: Radius.md, paddingVertical: Spacing.sm, alignItems: 'center' },
   actionBtnText: { fontSize: FontSize.sm, fontWeight: FontWeight.medium },
+  planCard:      { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.white, borderRadius: Radius.lg, padding: Spacing.lg, marginBottom: Spacing.lg, ...Shadow.card },
+  planCardLeft:  { flex: 1 },
+  planCardTitle: { fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.gray[900] },
+  planCardSub:   { fontSize: FontSize.xs, color: Colors.gray[500], marginTop: 3 },
+  upgradeBadge:  { backgroundColor: Colors.brand[500], borderRadius: Radius.full, paddingHorizontal: Spacing.md, paddingVertical: 4 },
+  upgradeBadgeText: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.white },
+  planArrow:     { fontSize: 22, color: Colors.gray[400] },
 })

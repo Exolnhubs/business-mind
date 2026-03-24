@@ -311,6 +311,29 @@ export default function ProfileScreen() {
           </View>
         )}
 
+        {/* My Plan */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Subscription</Text>
+          <TouchableOpacity style={styles.row} onPress={() => router.push('/plans')}>
+            <View style={styles.rowLeft}>
+              <Text style={styles.rowIcon}>💎</Text>
+              <View>
+                <Text style={styles.rowLabel}>My Plan</Text>
+                <Text style={[styles.rowValue, { fontSize: 11 }]}>
+                  {{
+                    user_free: 'Free',
+                    user_premium: 'Premium',
+                    org_basic: 'Basic',
+                    org_pro: 'Pro',
+                    org_elite: 'Elite',
+                  }[(profile as Record<string, unknown>)?.plan_id as string] ?? 'Free'}
+                </Text>
+              </View>
+            </View>
+            <Text style={styles.rowArrow}>›</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Settings */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t('profile.settings')}</Text>

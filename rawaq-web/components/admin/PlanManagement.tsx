@@ -44,23 +44,40 @@ function PlanBadge({ planId, planName }: { planId: string; planName: string }) {
   )
 }
 
-function AssignPlanSelect({
+// Inline Change → Save flow per row — no ambiguity about what "save" does
+function PlanCell({
   userId,
   currentPlanId,
   options,
-  onAssigned,
+  onSaved,
 }: {
   userId: string
   currentPlanId: string
   options: PlanDefinition[]
-  onAssigned: (userId: string, planId: string, planName: string) => void
+  onSaved: (userId: string, planId: string) => void
 }) {
+  const [editing, setEditing]   = useState(false)
   const [selected, setSelected] = useState(currentPlanId)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading]   = useState(false)
+  const [error, setError]       = useState<string | null>(null)
+  const [savedMsg, setSavedMsg] = useState(false)
 
-  async function handleAssign() {
-    if (selected === currentPlanId) return
+  const current = options.find((p) => p.id === currentPlanId)
+
+  function startEdit() {
+    setSelected(currentPlanId)
+    setError(null)
+    setEditing(true)
+  }
+
+  function cancel() {
+    setSelected(currentPlanId)
+    setEditing(false)
+    setError(null)
+  }
+
+  async function save() {
+    if (selected === currentPlanId) { setEditing(false); return }
     setLoading(true)
     setError(null)
     try {
@@ -70,8 +87,11 @@ function AssignPlanSelect({
         body: JSON.stringify({ plan_id: selected }),
       })
       const json = await res.json()
-      if (!res.ok) throw new Error(json.error ?? 'Failed to assign plan')
-      onAssigned(userId, selected, json.data?.plan_name ?? selected)
+      if (!res.ok) throw new Error(json.error ?? 'Failed to save')
+      onSaved(userId, selected)
+      setEditing(false)
+      setSavedMsg(true)
+      setTimeout(() => setSavedMsg(false), 2500)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error')
     } finally {
@@ -79,8 +99,25 @@ function AssignPlanSelect({
     }
   }
 
+  if (!editing) {
+    return (
+      <div className="flex items-center gap-2 flex-wrap">
+        <PlanBadge planId={currentPlanId} planName={current?.name ?? currentPlanId} />
+        <button
+          onClick={startEdit}
+          className="text-xs text-brand-600 hover:text-brand-700 hover:underline font-medium"
+        >
+          Change
+        </button>
+        {savedMsg && (
+          <span className="text-xs text-green-600 font-medium">✓ Saved</span>
+        )}
+      </div>
+    )
+  }
+
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 flex-wrap">
       <select
         value={selected}
         onChange={(e) => setSelected(e.target.value)}
@@ -93,11 +130,18 @@ function AssignPlanSelect({
         ))}
       </select>
       <button
-        onClick={handleAssign}
-        disabled={loading || selected === currentPlanId}
-        className="px-3 py-1 text-xs font-medium rounded bg-brand text-white disabled:opacity-40 hover:bg-brand/90 transition-colors"
+        onClick={save}
+        disabled={loading}
+        className="px-3 py-1 text-xs font-medium rounded bg-brand text-white disabled:opacity-50 hover:bg-brand/90 transition-colors"
       >
-        {loading ? '...' : 'Assign'}
+        {loading ? 'Saving…' : 'Save'}
+      </button>
+      <button
+        onClick={cancel}
+        disabled={loading}
+        className="text-xs text-gray-500 hover:text-gray-700 hover:underline"
+      >
+        Cancel
       </button>
       {error && <span className="text-xs text-red-500">{error}</span>}
     </div>
@@ -105,16 +149,16 @@ function AssignPlanSelect({
 }
 
 export function PlanManagement({ plans, organizers, users }: Props) {
-  const [orgRows, setOrgRows] = useState(organizers)
+  const [orgRows, setOrgRows]   = useState(organizers)
   const [userRows, setUserRows] = useState(users)
 
   const orgPlans  = plans.filter((p) => p.type === 'organizer')
   const userPlans = plans.filter((p) => p.type === 'user')
 
-  function handleOrgAssigned(userId: string, planId: string) {
+  function handleOrgSaved(userId: string, planId: string) {
     setOrgRows((prev) => prev.map((r) => r.user_id === userId ? { ...r, plan_id: planId } : r))
   }
-  function handleUserAssigned(id: string, planId: string) {
+  function handleUserSaved(id: string, planId: string) {
     setUserRows((prev) => prev.map((r) => r.id === id ? { ...r, plan_id: planId } : r))
   }
 
@@ -156,9 +200,8 @@ export function PlanManagement({ plans, organizers, users }: Props) {
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
                 <th className="text-left px-4 py-2.5 font-medium text-gray-600">Organizer</th>
-                <th className="text-left px-4 py-2.5 font-medium text-gray-600">Current Plan</th>
                 <th className="text-left px-4 py-2.5 font-medium text-gray-600">Status</th>
-                <th className="text-left px-4 py-2.5 font-medium text-gray-600">Assign Plan</th>
+                <th className="text-left px-4 py-2.5 font-medium text-gray-600">Plan</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -169,33 +212,27 @@ export function PlanManagement({ plans, organizers, users }: Props) {
                     <div className="text-xs text-gray-400">{org.user?.display_name}</div>
                   </td>
                   <td className="px-4 py-3">
-                    <PlanBadge
-                      planId={org.plan_id}
-                      planName={orgPlans.find((p) => p.id === org.plan_id)?.name ?? org.plan_id}
-                    />
-                  </td>
-                  <td className="px-4 py-3">
                     <span className={`text-xs font-medium capitalize ${
-                      org.status === 'approved' ? 'text-green-600' :
-                      org.status === 'suspended' ? 'text-red-500' :
+                      org.status === 'approved'  ? 'text-green-600' :
+                      org.status === 'suspended' ? 'text-red-500'   :
                       'text-gray-500'
                     }`}>
                       {org.status}
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <AssignPlanSelect
+                    <PlanCell
                       userId={org.user_id}
                       currentPlanId={org.plan_id}
                       options={orgPlans}
-                      onAssigned={(uid, pid) => handleOrgAssigned(uid, pid)}
+                      onSaved={handleOrgSaved}
                     />
                   </td>
                 </tr>
               ))}
               {orgRows.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-4 py-6 text-center text-sm text-gray-400">
+                  <td colSpan={3} className="px-4 py-6 text-center text-sm text-gray-400">
                     No organizers yet
                   </td>
                 </tr>
@@ -215,8 +252,7 @@ export function PlanManagement({ plans, organizers, users }: Props) {
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
                 <th className="text-left px-4 py-2.5 font-medium text-gray-600">User</th>
-                <th className="text-left px-4 py-2.5 font-medium text-gray-600">Current Plan</th>
-                <th className="text-left px-4 py-2.5 font-medium text-gray-600">Assign Plan</th>
+                <th className="text-left px-4 py-2.5 font-medium text-gray-600">Plan</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -229,24 +265,18 @@ export function PlanManagement({ plans, organizers, users }: Props) {
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    <PlanBadge
-                      planId={user.plan_id}
-                      planName={userPlans.find((p) => p.id === user.plan_id)?.name ?? user.plan_id}
-                    />
-                  </td>
-                  <td className="px-4 py-3">
-                    <AssignPlanSelect
+                    <PlanCell
                       userId={user.id}
                       currentPlanId={user.plan_id}
                       options={userPlans}
-                      onAssigned={(uid, pid) => handleUserAssigned(uid, pid)}
+                      onSaved={handleUserSaved}
                     />
                   </td>
                 </tr>
               ))}
               {userRows.length === 0 && (
                 <tr>
-                  <td colSpan={3} className="px-4 py-6 text-center text-sm text-gray-400">
+                  <td colSpan={2} className="px-4 py-6 text-center text-sm text-gray-400">
                     No users yet
                   </td>
                 </tr>
