@@ -42,6 +42,19 @@ export async function PATCH(req: NextRequest) {
 
     const supabase = await createSupabaseServerClient()
 
+    // Lock gender: fetch current value — if already set, strip it from the update
+    if (input.gender !== undefined) {
+      const { data: current } = await supabase
+        .from('profiles')
+        .select('gender')
+        .eq('id', ctx.userId)
+        .single()
+
+      if (current?.gender) {
+        delete input.gender
+      }
+    }
+
     const { data, error } = await supabase
       .from('profiles')
       .update(input)

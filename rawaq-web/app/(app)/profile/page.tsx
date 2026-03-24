@@ -222,11 +222,23 @@ export default function ProfilePage() {
           {/* Gender */}
           <div>
             <label className="label">Gender</label>
-            <select value={profileForm.gender} onChange={setP('gender')} className="input cursor-pointer">
-              <option value="">Prefer not to say</option>
-              <option value="male">Male</option>
-              <option value="female">Female</option>
-            </select>
+            {profile?.gender ? (
+              <div>
+                <input
+                  type="text"
+                  value={profileForm.gender === 'male' ? 'Male' : profileForm.gender === 'female' ? 'Female' : profileForm.gender}
+                  readOnly
+                  className="input bg-gray-50 text-gray-500 cursor-default capitalize"
+                />
+                <p className="text-xs text-gray-400 mt-1">Gender cannot be changed after it has been set.</p>
+              </div>
+            ) : (
+              <select value={profileForm.gender} onChange={setP('gender')} className="input cursor-pointer">
+                <option value="">Prefer not to say</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+              </select>
+            )}
           </div>
 
           {/* Bio */}
