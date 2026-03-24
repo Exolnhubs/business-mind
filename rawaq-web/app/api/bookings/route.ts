@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
     // Verify event exists and is bookable
     const { data: event, error: eventErr } = await supabase
       .from('events')
-      .select('id, title, is_published, is_cancelled, start_at, organizer_id, gender_restriction')
+      .select('id, title, is_published, is_cancelled, start_at, organizer_id, gender_restriction, is_premium_only, is_free, price, currency')
       .eq('id', input.event_id)
       .single()
 
@@ -61,10 +61,10 @@ export async function POST(req: NextRequest) {
       throw new ForbiddenException('Event has already started')
     }
 
-    // Fetch user profile — required for completion check and gender restriction
+    // Fetch user profile — required for completion check, gender restriction, and plan check
     const { data: profile } = await supabase
       .from('profiles')
-      .select('display_name, gender, city')
+      .select('display_name, gender, city, plan_id')
       .eq('id', ctx.userId)
       .single()
 
@@ -83,6 +83,27 @@ export async function POST(req: NextRequest) {
       throw new ForbiddenException('This event is for women only.')
     }
 
+    // Premium-only event check
+    if (event.is_premium_only && profile.plan_id !== 'user_premium') {
+      throw new ForbiddenException(
+        'This event is for Premium members only. Upgrade your plan to book.'
+      )
+    }
+
+    // Calculate platform fee for paid events (stored for future real-payment splits)
+    let platformFeePct = 0
+    let platformFeeAmount = 0
+    if (!event.is_free && event.price) {
+      const { data: orgProfile } = await supabase
+        .from('organizer_profiles')
+        .select('plan:plan_definitions(platform_fee_pct)')
+        .eq('user_id', event.organizer_id)
+        .single()
+
+      platformFeePct = (orgProfile?.plan as { platform_fee_pct?: number } | null)?.platform_fee_pct ?? 0.10
+      platformFeeAmount = Math.round(event.price * platformFeePct * 100) / 100
+    }
+
     // Check for an existing cancelled booking — let user rebook the same event
     const { data: existing } = await supabase
       .from('bookings')
@@ -97,7 +118,12 @@ export async function POST(req: NextRequest) {
       // Reactivate the cancelled booking instead of inserting a duplicate
       const { data, error } = await supabase
         .from('bookings')
-        .update({ status: 'confirmed', notes: input.notes ?? null })
+        .update({
+          status: 'confirmed',
+          notes: input.notes ?? null,
+          platform_fee_pct: platformFeePct,
+          platform_fee_amount: platformFeeAmount,
+        })
         .eq('id', existing.id)
         .select()
         .single()
@@ -112,6 +138,8 @@ export async function POST(req: NextRequest) {
           event_id: input.event_id,
           notes: input.notes,
           status: 'confirmed',
+          platform_fee_pct: platformFeePct,
+          platform_fee_amount: platformFeeAmount,
         })
         .select()
         .single()

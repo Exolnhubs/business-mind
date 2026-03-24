@@ -23,6 +23,7 @@ export const CreateEventSchema = z.object({
   gender_restriction: z.enum(['male', 'female', 'mixed']).default('mixed'),
   is_family_friendly: z.boolean().default(true),
   is_private: z.boolean().default(false),
+  is_premium_only: z.boolean().default(false),
   is_published: z.boolean().default(false),
 }).refine(
   (d) => d.is_free || (d.price !== undefined && d.price > 0),

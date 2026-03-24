@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { requireOrganizer, optionalAuth } from '@/lib/auth'
-import { handleApiError, ok, created } from '@/lib/errors'
+import { handleApiError, ok, created, ForbiddenException } from '@/lib/errors'
 import { CreateEventSchema, ListEventsSchema } from '@/lib/validations/events'
 
 // GET /api/events — public browsable event list with filters
@@ -97,6 +97,49 @@ export async function POST(req: NextRequest) {
     const input = CreateEventSchema.parse(body)
 
     const supabase = await createSupabaseServerClient()
+
+    // ── Plan enforcement ─────────────────────────────────────
+    const { data: orgProfile, error: opErr } = await supabase
+      .from('organizer_profiles')
+      .select('plan_id, plan:plan_definitions(events_per_month, attendees_per_event)')
+      .eq('user_id', ctx.userId)
+      .single()
+
+    if (opErr || !orgProfile) throw new ForbiddenException('Organizer profile not found')
+
+    const plan = orgProfile.plan as { events_per_month: number | null; attendees_per_event: number | null } | null
+
+    // Check monthly quota only when publishing (drafts are free)
+    if (input.is_published && plan?.events_per_month !== null && plan?.events_per_month !== undefined) {
+      const monthStr = new Date().toISOString().slice(0, 7) + '-01'
+      const { data: usage } = await supabase
+        .from('organizer_monthly_usage')
+        .select('events_created')
+        .eq('organizer_id', ctx.userId)
+        .eq('month', monthStr)
+        .maybeSingle()
+
+      const used = usage?.events_created ?? 0
+      if (used >= plan.events_per_month) {
+        throw new ForbiddenException(
+          `Monthly event limit reached (${plan.events_per_month} events/month on your current plan). Upgrade to publish more events.`
+        )
+      }
+    }
+
+    // Enforce attendee cap — if plan has a limit, cap or reject over-limit capacity
+    if (plan?.attendees_per_event !== null && plan?.attendees_per_event !== undefined) {
+      if (input.capacity !== undefined && input.capacity !== null && input.capacity > plan.attendees_per_event) {
+        throw new ForbiddenException(
+          `Your plan allows a maximum of ${plan.attendees_per_event} attendees per event. Upgrade your plan or reduce the event capacity.`
+        )
+      }
+      // If capacity not set (unlimited), auto-cap to plan limit
+      if (input.capacity === undefined || input.capacity === null) {
+        input.capacity = plan.attendees_per_event
+      }
+    }
+    // ── End plan enforcement ──────────────────────────────────
 
     const { data, error } = await supabase
       .from('events')
