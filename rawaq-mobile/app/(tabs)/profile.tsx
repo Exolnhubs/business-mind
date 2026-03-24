@@ -6,6 +6,7 @@ import {
 import { useRouter } from 'expo-router'
 import * as Device from 'expo-device'
 import * as Notifications from 'expo-notifications'
+import Constants from 'expo-constants'
 import { Platform } from 'react-native'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/auth-context'
@@ -63,7 +64,19 @@ export default function ProfileScreen() {
         return
       }
 
-      const token = await Notifications.getExpoPushTokenAsync()
+      const projectId =
+        Constants.expoConfig?.extra?.eas?.projectId ??
+        (Constants as Record<string, Record<string, Record<string, string>>>).easConfig?.projectId
+
+      let token: Awaited<ReturnType<typeof Notifications.getExpoPushTokenAsync>>
+      try {
+        token = await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : {})
+      } catch {
+        Alert.alert('Push notifications unavailable', 'Could not register this device.')
+        setPushLoading(false)
+        return
+      }
+
       await supabase.from('device_tokens').upsert({
         user_id: user.id,
         token: token.data,
