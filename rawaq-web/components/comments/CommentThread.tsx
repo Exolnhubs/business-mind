@@ -106,7 +106,7 @@ export function CommentThread({ eventId, initialComments, currentUserId }: Comme
       body: JSON.stringify({
         event_id: eventId,
         content,
-        parent_id: parentId,
+        ...(parentId ? { parent_id: parentId } : {}),
         mentions: [],
       }),
     })

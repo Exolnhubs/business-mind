@@ -50,7 +50,7 @@ async function EventsGrid({ searchParams }: { searchParams: SearchParams }) {
         organizer_profile:organizer_profiles!user_id(business_name, business_name_ar, logo_url, verified)
       ),
       category:event_categories(id, name_en, name_ar, icon)
-    `)
+    `, { count: 'exact' })
     .eq('is_published', true)
     .eq('is_cancelled', false)
     .gte('start_at', new Date().toISOString())
@@ -58,7 +58,8 @@ async function EventsGrid({ searchParams }: { searchParams: SearchParams }) {
     .range(from, to)
 
   if (searchParams.q) {
-    query = query.textSearch('fts', searchParams.q, { type: 'websearch', config: 'simple' })
+    const q = searchParams.q.replace(/'/g, "''") // escape single quotes
+    query = query.or(`title.ilike.%${q}%,title_ar.ilike.%${q}%,description.ilike.%${q}%`)
   }
   if (searchParams.city) query = query.eq('city', searchParams.city)
   if (searchParams.gender) query = query.eq('gender_restriction', searchParams.gender)
@@ -84,7 +85,7 @@ async function EventsGrid({ searchParams }: { searchParams: SearchParams }) {
     }
   }
 
-  const { data: events, error } = await query
+  const { data: events, error, count } = await query
 
   if (error) {
     console.error('Supabase query error:', error)
@@ -99,22 +100,64 @@ async function EventsGrid({ searchParams }: { searchParams: SearchParams }) {
     return <EmptyState icon="📭" title="No events found" description="Try adjusting your filters" />
   }
 
-  // Transform the data to match EventWithOrganizer type
-  const transformedEvents = events.map((event: any) => ({
-    ...event,
-    organizer_profile: event.organizer_profile?.[0]?.organizer_profiles?.[0] || null
-  }))
+  const totalPages = Math.ceil((count ?? 0) / PAGE_SIZE)
+
+  // Build a URL that preserves all current filters but changes ?page
+  function pageUrl(p: number) {
+    const sp = new URLSearchParams(
+      Object.entries(searchParams).filter(([, v]) => v != null) as [string, string][]
+    )
+    if (p === 1) sp.delete('page')
+    else sp.set('page', String(p))
+    const qs = sp.toString()
+    return `/events${qs ? `?${qs}` : ''}`
+  }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-      {(events as EventWithOrganizer[]).map((event) => (
-        <EventCard
-          key={event.id}
-          event={event}
-          isSaved={savedIds.has(event.id)}
-          showSave={!!user}
-        />
-      ))}
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        {(events as EventWithOrganizer[]).map((event) => (
+          <EventCard
+            key={event.id}
+            event={event}
+            isSaved={savedIds.has(event.id)}
+            showSave={!!user}
+          />
+        ))}
+      </div>
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 pt-2">
+          <a
+            href={pageUrl(page - 1)}
+            aria-disabled={page <= 1}
+            className={`px-4 py-2 text-sm rounded-xl border font-medium transition-colors ${
+              page <= 1
+                ? 'pointer-events-none border-gray-100 text-gray-300 bg-white'
+                : 'border-gray-200 text-gray-700 bg-white hover:bg-gray-50'
+            }`}
+          >
+            ← Previous
+          </a>
+
+          <span className="text-sm text-gray-500 px-2">
+            Page {page} of {totalPages}
+            <span className="text-gray-400 ml-1">({count} events)</span>
+          </span>
+
+          <a
+            href={pageUrl(page + 1)}
+            aria-disabled={page >= totalPages}
+            className={`px-4 py-2 text-sm rounded-xl border font-medium transition-colors ${
+              page >= totalPages
+                ? 'pointer-events-none border-gray-100 text-gray-300 bg-white'
+                : 'border-gray-200 text-gray-700 bg-white hover:bg-gray-50'
+            }`}
+          >
+            Next →
+          </a>
+        </div>
+      )}
     </div>
   )
 }

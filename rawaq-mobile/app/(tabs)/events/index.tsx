@@ -15,7 +15,27 @@ import type { EventWithOrganizer } from '@/types/database'
 
 interface Category { id: string; name_en: string; name_ar: string; icon: string | null }
 
-const CITIES = ['All', 'Riyadh', 'Jeddah', 'Dammam', 'Mecca', 'Medina', 'Khobar']
+const CITIES = [
+  'All',
+  // Saudi Arabia
+  'Riyadh', 'Jeddah', 'Dammam', 'Mecca', 'Medina', 'Khobar',
+  // UAE
+  'Dubai', 'Abu Dhabi',
+  // Egypt
+  'Cairo', 'Alexandria', 'Giza',
+  // Jordan
+  'Amman', 'Aqaba',
+  // Kuwait & Gulf
+  'Kuwait City', 'Doha', 'Manama',
+  // Oman
+  'Muscat', 'Salalah',
+  // Levant
+  'Beirut', 'Ramallah',
+  // North Africa
+  'Casablanca', 'Marrakech', 'Tunis',
+  // Iraq
+  'Baghdad',
+]
 
 export default function EventsScreen() {
   const { t, locale } = useLocale()
@@ -74,7 +94,8 @@ export default function EventsScreen() {
       .limit(30)
 
     if (search) {
-      query = query.textSearch('fts', search, { type: 'websearch', config: 'simple' })
+      const q = search.replace(/'/g, "''")
+      query = query.or(`title.ilike.%${q}%,title_ar.ilike.%${q}%,description.ilike.%${q}%`)
     }
     if (city !== 'All')   query = query.eq('city', city)
     if (freeOnly)         query = query.eq('is_free', true)
@@ -230,8 +251,8 @@ const styles = StyleSheet.create({
   searchRow: { backgroundColor: Colors.white, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.gray[100] },
   searchBox: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: Colors.gray[100], borderRadius: Radius.lg, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2 },
   searchInput: { flex: 1, fontSize: FontSize.base, color: Colors.gray[900] },
-  chipRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, gap: Spacing.sm, backgroundColor: Colors.white },
-  chip: { flexShrink: 0, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, borderRadius: Radius.full, backgroundColor: Colors.gray[100] },
+  chipRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, backgroundColor: Colors.white },
+  chip: { flexShrink: 0, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: Radius.full, backgroundColor: Colors.gray[100], marginRight: Spacing.sm },
   chipActive: { backgroundColor: Colors.brand[500] },
   chipText: { fontSize: FontSize.sm, color: Colors.gray[600], fontWeight: FontWeight.medium },
   chipTextActive: { color: Colors.white },
