@@ -340,14 +340,35 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* Quick links */}
+        {/* Organizer links */}
         {profile?.role === 'organizer' && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Organizer</Text>
-            <TouchableOpacity style={styles.row} onPress={() => {}}>
+            <TouchableOpacity style={styles.row} onPress={() => router.push('/organizer/dashboard')}>
               <View style={styles.rowLeft}>
                 <Text style={styles.rowIcon}>📊</Text>
-                <Text style={styles.rowLabel}>Dashboard (Web)</Text>
+                <Text style={styles.rowLabel}>My Dashboard</Text>
+              </View>
+              <Text style={styles.rowArrow}>›</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.row} onPress={() => router.push('/organizer/event-form')}>
+              <View style={styles.rowLeft}>
+                <Text style={styles.rowIcon}>➕</Text>
+                <Text style={styles.rowLabel}>Create Event</Text>
+              </View>
+              <Text style={styles.rowArrow}>›</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Admin links */}
+        {profile?.role === 'admin' && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Admin</Text>
+            <TouchableOpacity style={styles.row} onPress={() => router.push('/admin/dashboard')}>
+              <View style={styles.rowLeft}>
+                <Text style={styles.rowIcon}>🛡️</Text>
+                <Text style={styles.rowLabel}>Admin Dashboard</Text>
               </View>
               <Text style={styles.rowArrow}>›</Text>
             </TouchableOpacity>
