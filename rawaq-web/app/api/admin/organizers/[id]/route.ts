@@ -64,6 +64,12 @@ export async function PATCH(
         .from('profiles')
         .update({ role: 'user' })
         .eq('id', organizer.user_id)
+
+      sendNotification({
+        userId: organizer.user_id,
+        type: input.status === 'rejected' ? 'organizer_rejected' : 'organizer_suspended',
+        payload: { note: input.note ?? '' },
+      }).catch(() => {})
     }
 
     return ok(data)

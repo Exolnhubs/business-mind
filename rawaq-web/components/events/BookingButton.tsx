@@ -31,15 +31,23 @@ export function BookingButton({ eventId, isFull, isBooked: initialBooked, isFree
     setLoading(true)
 
     if (booked) {
-      // Cancel booking — direct DB update is fine; no server-side restrictions apply
-      const { error } = await supabase
+      // Fetch the booking id, then cancel via API so notification fires
+      const { data: booking } = await supabase
         .from('bookings')
-        .update({ status: 'cancelled' })
+        .select('id')
         .eq('event_id', eventId)
         .eq('user_id', user.id)
         .eq('status', 'confirmed')
+        .single()
 
-      if (error) { setError(error.message); setLoading(false); return }
+      if (!booking) { setLoading(false); return }
+
+      const res = await fetch(`/api/bookings/${booking.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'cancelled' }),
+      })
+      if (!res.ok) { const j = await res.json().catch(() => ({})); setError(j.error ?? 'Failed to cancel.'); setLoading(false); return }
       setBooked(false)
       router.refresh()
     } else {

@@ -1,8 +1,10 @@
 import { NextRequest } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireAuth } from '@/lib/auth'
 import { handleApiError, ok, NotFoundException, ForbiddenException } from '@/lib/errors'
 import { UpdateBookingSchema } from '@/lib/validations/bookings'
+import { sendNotification } from '@/lib/notifications'
 
 // PATCH /api/bookings/:id — cancel or update booking status
 export async function PATCH(
@@ -11,30 +13,46 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params
-    const ctx = await requireAuth()
     const body = await req.json()
     const input = UpdateBookingSchema.parse(body)
 
-    const supabase = await createSupabaseServerClient()
+    // Internal DB trigger path — skip auth, use admin client
+    const isInternalTrigger = req.headers.get('x-supabase-trigger') === '1'
 
-    // Fetch booking — RLS ensures only owner can see their booking
+    let supabase: ReturnType<typeof createSupabaseAdminClient>
+    let actingUserId: string | null = null
+
+    if (isInternalTrigger) {
+      supabase = createSupabaseAdminClient()
+    } else {
+      const ctx = await requireAuth()
+      actingUserId = ctx.userId
+      // requireAuth returns a server client via cookies; use admin for consistency
+      supabase = createSupabaseAdminClient()
+
+      // Non-admins can only cancel their own bookings
+      const { data: check } = await supabase
+        .from('bookings')
+        .select('user_id')
+        .eq('id', id)
+        .single()
+
+      if (check && ctx.role !== 'admin' && check.user_id !== ctx.userId) {
+        throw new ForbiddenException()
+      }
+      if (ctx.role === 'user' && input.status !== 'cancelled') {
+        throw new ForbiddenException('Users can only cancel bookings')
+      }
+    }
+
+    // Fetch booking + event title for notification
     const { data: booking, error: fetchErr } = await supabase
       .from('bookings')
-      .select('id, user_id, event_id, status')
+      .select('id, user_id, event_id, status, event:events(id, title)')
       .eq('id', id)
       .single()
 
     if (fetchErr || !booking) throw new NotFoundException('Booking')
-
-    // Non-admins can only cancel their own bookings
-    if (ctx.role !== 'admin' && booking.user_id !== ctx.userId) {
-      throw new ForbiddenException()
-    }
-
-    // Regular users can only cancel
-    if (ctx.role === 'user' && input.status !== 'cancelled') {
-      throw new ForbiddenException('Users can only cancel bookings')
-    }
 
     const { data, error } = await supabase
       .from('bookings')
@@ -44,6 +62,20 @@ export async function PATCH(
       .single()
 
     if (error) throw error
+
+    // Fire booking_cancelled notification when status changes to cancelled
+    if (input.status === 'cancelled') {
+      const event = (booking.event as { id: string; title: string } | null)
+      sendNotification({
+        userId: booking.user_id,
+        type: 'booking_cancelled',
+        payload: {
+          booking_id: id,
+          event_id: event?.id ?? booking.event_id,
+          event_title: event?.title ?? '',
+        },
+      }).catch(() => {})
+    }
 
     return ok(data)
   } catch (err) {
