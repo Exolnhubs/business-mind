@@ -20,21 +20,30 @@ async function getUserInfo(userId: string): Promise<{ email: string; name: strin
   return { email, name: profile?.display_name ?? email.split('@')[0] }
 }
 
-// Persist notification in DB + deliver via push and email (both fire-and-forget)
+// Persist notification in DB + deliver via push and email (fully independent, fire-and-forget)
 export async function sendNotification({ userId, type, payload }: SendNotificationParams) {
   const admin = createSupabaseAdminClient()
 
-  // 1. Persist in DB (always)
-  await admin.from('notifications').insert({ user_id: userId, type, payload })
+  // 1. Persist in DB (always, awaited)
+  const { error: dbErr } = await admin
+    .from('notifications')
+    .insert({ user_id: userId, type, payload })
+  if (dbErr) console.error('[Notification] DB insert failed:', type, userId, dbErr.message)
 
-  // 2. Push + email (parallel, non-blocking)
-  Promise.all([
-    pushExpoNotification({ userId, type, payload }),
-    getUserInfo(userId).then((info) => {
+  // 2. Push — independent, never blocked by email
+  pushExpoNotification({ userId, type, payload }).catch((err) =>
+    console.error('[Push] Delivery failed:', type, userId, err?.message ?? err)
+  )
+
+  // 3. Email — independent, never blocks push
+  getUserInfo(userId)
+    .then((info) => {
       if (!info) return
       return sendNotificationEmail({ type, payload, toEmail: info.email, toName: info.name })
-    }),
-  ]).catch((err) => console.error('[Notification] Delivery failed:', err))
+    })
+    .catch((err) =>
+      console.error('[Email] Delivery failed:', type, userId, err?.message ?? err)
+    )
 }
 
 // Send to multiple users (e.g. event cancellation to all attendees)
@@ -47,13 +56,21 @@ export async function sendNotifications(notifications: SendNotificationParams[])
 async function pushExpoNotification({ userId, type, payload }: SendNotificationParams) {
   const admin = createSupabaseAdminClient()
 
-  const { data: tokens } = await admin
+  const { data: tokens, error: tokenErr } = await admin
     .from('device_tokens')
     .select('token')
     .eq('user_id', userId)
     .eq('is_active', true)
 
-  if (!tokens?.length) return
+  if (tokenErr) {
+    console.error('[Push] Failed to fetch tokens:', type, userId, tokenErr.message)
+    return
+  }
+  if (!tokens?.length) {
+    console.log(`[Push] No device tokens for user ${userId} (${type}) — skipping`)
+    return
+  }
+  console.log(`[Push] Sending "${type}" to user ${userId} (${tokens.length} token(s))`)
 
   const title = getPushTitle(type)
   const body  = getPushBody(type, payload)
@@ -68,7 +85,7 @@ async function pushExpoNotification({ userId, type, payload }: SendNotificationP
   }))
 
   for (let i = 0; i < messages.length; i += 100) {
-    await fetch('https://exp.host/--/api/v2/push/send', {
+    const res = await fetch('https://exp.host/--/api/v2/push/send', {
       method: 'POST',
       headers: {
         'Accept': 'application/json',
@@ -77,6 +94,15 @@ async function pushExpoNotification({ userId, type, payload }: SendNotificationP
       },
       body: JSON.stringify(messages.slice(i, i + 100)),
     })
+    const json = await res.json().catch(() => null)
+    if (!res.ok || json?.errors?.length) {
+      console.error('[Push] Expo API error:', JSON.stringify(json))
+    } else {
+      const tickets: Array<{ status: string; id?: string; message?: string }> = json?.data ?? []
+      const failed = tickets.filter((t) => t.status !== 'ok')
+      if (failed.length) console.warn('[Push] Some tickets failed:', JSON.stringify(failed))
+      else console.log(`[Push] "${type}" delivered OK (${tickets.length} ticket(s))`)
+    }
   }
 }
 
