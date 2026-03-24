@@ -39,8 +39,10 @@ export default function EventDetailScreen() {
       supabase
         .from('events')
         .select(`*,
-          organizer:profiles!organizer_id(id, display_name, avatar_url),
-          organizer_profile:organizer_profiles!organizer_id(business_name, logo_url, verified),
+          organizer:profiles!organizer_id(
+            id, display_name, avatar_url,
+            organizer_profile:organizer_profiles!user_id(business_name, logo_url, verified)
+          ),
           category:event_categories(id, name_en, name_ar, icon)
         `)
         .eq('id', id)
@@ -186,15 +188,15 @@ export default function EventDetailScreen() {
         <View style={[styles.section, styles.orgCard]}>
           <View style={styles.orgAvatar}>
             <Text style={{ fontSize: 22, fontWeight: FontWeight.bold, color: Colors.brand[700] }}>
-              {(event.organizer_profile?.business_name ?? event.organizer?.display_name ?? '?')[0].toUpperCase()}
+              {(event.organizer?.organizer_profile?.business_name ?? event.organizer?.display_name ?? '?')[0].toUpperCase()}
             </Text>
           </View>
           <View style={{ flex: 1 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
               <Text style={styles.orgName}>
-                {event.organizer_profile?.business_name ?? event.organizer?.display_name}
+                {event.organizer?.organizer_profile?.business_name ?? event.organizer?.display_name}
               </Text>
-              {event.organizer_profile?.verified && <Text>✅</Text>}
+              {event.organizer?.organizer_profile?.verified && <Text>✅</Text>}
             </View>
             <Text style={styles.orgSub}>Event Organizer</Text>
           </View>

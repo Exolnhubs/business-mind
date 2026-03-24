@@ -32,25 +32,11 @@ async function EventsGrid({ searchParams }: { searchParams: SearchParams }) {
     .from('events')
     .select(`
       *,
-      organizer:organizer_id (
-        id,
-        display_name,
-        avatar_url
+      organizer:profiles!organizer_id(
+        id, display_name, avatar_url,
+        organizer_profile:organizer_profiles!user_id(business_name, business_name_ar, logo_url, verified)
       ),
-      organizer_profile:organizer_id (
-        organizer_profiles!user_id (
-          business_name,
-          business_name_ar,
-          logo_url,
-          verified
-        )
-      ),
-      category:category_id (
-        id,
-        name_en,
-        name_ar,
-        icon
-      )
+      category:event_categories(id, name_en, name_ar, icon)
     `)
     .eq('is_published', true)
     .eq('is_cancelled', false)

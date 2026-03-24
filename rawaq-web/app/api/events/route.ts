@@ -24,8 +24,10 @@ export async function GET(req: NextRequest) {
          venue_name, city, country, lat, lng, capacity, is_free, price, currency,
          gender_restriction, is_family_friendly, bookings_count, views_count,
          organizer_id, category_id, is_published, is_cancelled,
-         organizer:profiles!organizer_id(id, display_name, avatar_url),
-         organizer_profile:organizer_profiles!user_id(business_name, business_name_ar, logo_url, verified),
+         organizer:profiles!organizer_id(
+           id, display_name, avatar_url,
+           organizer_profile:organizer_profiles!user_id(business_name, business_name_ar, logo_url, verified)
+         ),
          category:event_categories(id, name_en, name_ar, icon)`,
         { count: 'exact' }
       )

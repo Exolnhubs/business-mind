@@ -20,8 +20,10 @@ export async function GET(
       .from('events')
       .select(
         `*,
-         organizer:profiles!organizer_id(id, display_name, avatar_url),
-         organizer_profile:organizer_profiles!user_id(business_name, business_name_ar, logo_url, verified, description, description_ar),
+         organizer:profiles!organizer_id(
+           id, display_name, avatar_url,
+           organizer_profile:organizer_profiles!user_id(business_name, business_name_ar, logo_url, verified, description, description_ar)
+         ),
          category:event_categories(id, name_en, name_ar, icon)`
       )
       .eq('id', id)

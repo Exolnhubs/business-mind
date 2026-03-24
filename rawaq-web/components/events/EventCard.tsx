@@ -68,7 +68,7 @@ export function EventCard({ event, locale = 'en' }: EventCardProps) {
 
         <div className="flex items-center justify-between mt-auto pt-2 border-t border-gray-50">
           <span className="text-xs text-gray-500 truncate max-w-[120px]">
-            {event.organizer_profile?.business_name ?? event.organizer?.display_name ?? 'Organizer'}
+            {event.organizer?.organizer_profile?.business_name ?? event.organizer?.display_name ?? 'Organizer'}
           </span>
           <span className={`text-sm font-semibold ${event.is_free ? 'text-green-600' : 'text-brand-600'}`}>
             {event.is_free ? 'Free' : formatCurrency(event.price ?? 0, locale)}

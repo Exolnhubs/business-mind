@@ -57,7 +57,7 @@ export function EventCard({ event }: { event: EventWithOrganizer }) {
 
         <View style={styles.footer}>
           <Text style={styles.organizer} numberOfLines={1}>
-            {event.organizer_profile?.business_name ?? event.organizer?.display_name ?? ''}
+            {event.organizer?.organizer_profile?.business_name ?? event.organizer?.display_name ?? ''}
           </Text>
           <Text style={[styles.price, event.is_free && styles.priceGreen]}>
             {event.is_free ? 'Free' : formatCurrency(event.price ?? 0, locale)}
