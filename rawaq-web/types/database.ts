@@ -11,6 +11,8 @@ export type NotificationType =
   | 'comment_reply'
   | 'mention'
   | 'organizer_approved'
+  | 'organizer_rejected'
+  | 'organizer_suspended'
   | 'event_cancelled'
   | 'tip_received'
 export type ReportReason = 'spam' | 'inappropriate' | 'harassment' | 'misinformation' | 'other'
