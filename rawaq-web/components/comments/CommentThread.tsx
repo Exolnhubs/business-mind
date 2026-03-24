@@ -49,10 +49,15 @@ export function CommentThread({ eventId, initialComments, currentUserId }: Comme
           startTransition(() => {
             setComments((prev) => {
               if (payload.new.parent_id) {
-                // It's a reply — append to parent
+                // It's a reply — append to parent, skip if already added optimistically
                 return prev.map((c) =>
                   c.id === payload.new.parent_id
-                    ? { ...c, replies: [newComment, ...(c.replies ?? [])] }
+                    ? {
+                        ...c,
+                        replies: (c.replies ?? []).some((r) => r.id === newComment.id)
+                          ? c.replies
+                          : [newComment, ...(c.replies ?? [])],
+                      }
                     : c,
                 )
               }
