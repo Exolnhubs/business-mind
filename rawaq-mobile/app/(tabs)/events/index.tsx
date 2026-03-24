@@ -180,7 +180,7 @@ export default function EventsScreen() {
             onPress={() => setCategoryId(null)}
             style={[styles.chip, !categoryId && styles.chipActive]}
           >
-            <Text style={[styles.chipText, !categoryId && styles.chipTextActive]}>All</Text>
+            <Text style={[styles.chipText, !categoryId && styles.chipTextActive]}>{t('events.all')}</Text>
           </TouchableOpacity>
           {categories.map((c) => (
             <TouchableOpacity
@@ -189,7 +189,7 @@ export default function EventsScreen() {
               style={[styles.chip, categoryId === c.id && styles.chipActive]}
             >
               <Text style={[styles.chipText, categoryId === c.id && styles.chipTextActive]} numberOfLines={1}>
-                {c.icon ? `${c.icon} ` : ''}{c.name_en}
+                {c.icon ? `${c.icon} ` : ''}{locale === 'ar' && c.name_ar ? c.name_ar : c.name_en}
               </Text>
             </TouchableOpacity>
           ))}
@@ -206,7 +206,7 @@ export default function EventsScreen() {
               style={[styles.miniChip, city === c && styles.miniChipActive]}
             >
               <Text style={[styles.miniChipText, city === c && styles.miniChipTextActive]}>
-                {c === 'All' ? '📍 All cities' : c}
+                {c === 'All' ? t('events.all_cities') : c}
               </Text>
             </TouchableOpacity>
           ))}
@@ -216,7 +216,7 @@ export default function EventsScreen() {
           style={[styles.miniChip, freeOnly && styles.miniChipActiveGreen, { marginLeft: Spacing.sm }]}
         >
           <Text style={[styles.miniChipText, freeOnly && { color: Colors.green.text }]}>
-            Free
+            {t('events.free_filter')}
           </Text>
         </TouchableOpacity>
       </View>
@@ -229,7 +229,7 @@ export default function EventsScreen() {
           style={[styles.miniChip, nearMe && styles.miniChipActive]}
         >
           <Text style={[styles.miniChipText, nearMe && styles.miniChipTextActive]}>
-            {geoLoading ? '⌛' : '📍'} {nearMe ? 'Near me ✕' : 'Near me'}
+            {geoLoading ? '⌛' : ''} {nearMe ? t('events.near_me_active') : t('events.near_me')}
           </Text>
         </TouchableOpacity>
       </View>
@@ -248,7 +248,7 @@ export default function EventsScreen() {
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.brand[500]} />}
           ListEmptyComponent={
-            <EmptyState icon="📭" title={t('events.empty')} description="Try different filters" />
+            <EmptyState icon="📭" title={t('events.empty')} description={t('events.try_filters')} />
           }
         />
       )}

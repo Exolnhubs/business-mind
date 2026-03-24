@@ -42,13 +42,11 @@ export default function RegisterScreen() {
     return (
       <View style={styles.doneContainer}>
         <Text style={{ fontSize: 52 }}>✉️</Text>
-        <Text style={styles.doneTitle}>Check your email</Text>
-        <Text style={styles.doneSub}>
-          We sent a confirmation link to {form.email}.
-        </Text>
+        <Text style={styles.doneTitle}>{t('auth.check_email')}</Text>
+        <Text style={styles.doneSub}>{t('auth.check_email_sub')}</Text>
         <Link href="/(auth)/login" asChild>
           <TouchableOpacity style={[styles.btn, { marginTop: Spacing['3xl'] }]}>
-            <Text style={styles.btnText}>Back to Sign In</Text>
+            <Text style={styles.btnText}>{t('auth.back_to_signin')}</Text>
           </TouchableOpacity>
         </Link>
       </View>
@@ -60,7 +58,7 @@ export default function RegisterScreen() {
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
           <Text style={styles.logo}>🪄</Text>
-          <Text style={styles.title}>Join Rawaq</Text>
+          <Text style={styles.title}>{t('auth.join')}</Text>
         </View>
 
         <View style={styles.card}>
@@ -104,7 +102,7 @@ export default function RegisterScreen() {
 
           {/* Role */}
           <View style={styles.field}>
-            <Text style={styles.label}>{isRTL ? 'أنا' : 'I am a'}</Text>
+            <Text style={styles.label}>{t('auth.i_am_a')}</Text>
             <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
               {(['user', 'organizer'] as const).map((r) => (
                 <TouchableOpacity
@@ -131,20 +129,7 @@ export default function RegisterScreen() {
               {termsAccepted && <Text style={styles.checkmark}>✓</Text>}
             </View>
             <Text style={styles.termsText}>
-              I agree to the{' '}
-              <Text
-                style={styles.termsLink}
-                onPress={() => Linking.openURL('https://rawaq.app/terms')}
-              >
-                Terms of Service
-              </Text>
-              {' '}and{' '}
-              <Text
-                style={styles.termsLink}
-                onPress={() => Linking.openURL('https://rawaq.app/privacy')}
-              >
-                Privacy Policy
-              </Text>
+              {t('auth.terms_agree')}
             </Text>
           </TouchableOpacity>
 

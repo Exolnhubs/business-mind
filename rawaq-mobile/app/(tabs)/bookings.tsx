@@ -39,7 +39,7 @@ export default function BookingsScreen() {
   if (!user) {
     return (
       <View style={styles.container}>
-        <EmptyState icon="🔐" title="Sign in to see your bookings" />
+        <EmptyState icon="🔐" title={t('bookings.sign_in')} />
       </View>
     )
   }
@@ -54,9 +54,9 @@ export default function BookingsScreen() {
   )
 
   const all = [
-    ...(upcoming.length ? [{ type: 'header', id: 'h1', label: `Upcoming (${upcoming.length})` }] : []),
+    ...(upcoming.length ? [{ type: 'header', id: 'h1', label: `${t('bookings.upcoming')} (${upcoming.length})` }] : []),
     ...upcoming.map((b) => ({ type: 'item', id: b.id, booking: b })),
-    ...(past.length ? [{ type: 'header', id: 'h2', label: `Past (${past.length})` }] : []),
+    ...(past.length ? [{ type: 'header', id: 'h2', label: `${t('bookings.past')} (${past.length})` }] : []),
     ...past.map((b) => ({ type: 'item', id: b.id, booking: b })),
   ]
 
@@ -67,7 +67,7 @@ export default function BookingsScreen() {
       keyExtractor={(item) => item.id}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetch() }} tintColor={Colors.brand[500]} />}
       contentContainerStyle={styles.content}
-      ListEmptyComponent={<EmptyState icon="🎟️" title={t('bookings.empty')} description="Join some events to see them here" />}
+      ListEmptyComponent={<EmptyState icon="🎟️" title={t('bookings.empty')} description={t('bookings.join_hint')} />}
       renderItem={({ item }) => {
         if (item.type === 'header') {
           return <Text style={styles.sectionHeader}>{item.label}</Text>
@@ -90,7 +90,7 @@ export default function BookingsScreen() {
               </Text>
             </View>
             <Badge
-              label={b.event?.is_cancelled ? 'Cancelled' : b.status === 'cancelled' ? 'Cancelled' : 'Confirmed'}
+              label={b.event?.is_cancelled || b.status === 'cancelled' ? t('bookings.cancelled') : t('bookings.confirmed')}
               variant={b.event?.is_cancelled || b.status === 'cancelled' ? 'red' : 'green'}
             />
           </TouchableOpacity>

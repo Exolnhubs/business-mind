@@ -22,23 +22,24 @@ const NOTIF_ICONS: Partial<Record<NotificationType, string>> = {
   tip_received:       '💰',
 }
 
-function notifTitle(n: Notification): string {
+function notifTitle(n: Notification, t: (k: string) => string): string {
   const p = n.payload as Record<string, string>
   switch (n.type) {
-    case 'booking_confirmed':   return `Booking confirmed: ${p.event_title ?? ''}`
-    case 'booking_cancelled':   return `Booking cancelled: ${p.event_title ?? ''}`
-    case 'event_reminder':      return `Reminder: ${p.event_title ?? ''} is starting soon`
-    case 'comment_reply':       return 'Someone replied to your comment'
-    case 'mention':             return 'You were mentioned in a comment'
-    case 'organizer_approved':  return 'Your organizer account was approved! 🎉'
-    case 'event_cancelled':     return `Event cancelled: ${p.event_title ?? ''}`
-    case 'tip_received':        return `You received a SAR ${p.amount ?? ''} tip`
+    case 'booking_confirmed':   return `${t('notif.booking_confirmed')}: ${p.event_title ?? ''}`
+    case 'booking_cancelled':   return `${t('notif.booking_cancelled')}: ${p.event_title ?? ''}`
+    case 'event_reminder':      return `${p.event_title ?? ''} — ${t('notif.event_reminder')}`
+    case 'comment_reply':       return t('notif.comment_reply')
+    case 'mention':             return t('notif.mention')
+    case 'organizer_approved':  return t('notif.organizer_approved')
+    case 'event_cancelled':     return `${t('notif.event_cancelled')}: ${p.event_title ?? ''}`
+    case 'tip_received':        return `${t('notif.tip_received')} — SAR ${p.amount ?? ''}`
     default: return n.type
   }
 }
 
 function NotificationBell({ userId }: { userId: string }) {
   const supabase = createSupabaseBrowserClient()
+  const { t } = useLocale()
   const [open, setOpen] = useState(false)
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [unread, setUnread] = useState(0)
@@ -116,10 +117,10 @@ function NotificationBell({ userId }: { userId: string }) {
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
           <div className="absolute end-0 mt-2 w-80 bg-white rounded-xl shadow-lg border border-gray-100 z-20 overflow-hidden animate-fade-in">
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-              <span className="text-sm font-semibold text-gray-900">Notifications</span>
+              <span className="text-sm font-semibold text-gray-900">{t('notif.title')}</span>
               {unread > 0 && (
                 <button onClick={markAllRead} className="text-xs text-brand-600 hover:underline">
-                  Mark all read
+                  {t('notif.mark_all_read')}
                 </button>
               )}
             </div>
@@ -127,7 +128,7 @@ function NotificationBell({ userId }: { userId: string }) {
             {loading ? (
               <div className="flex justify-center py-6"><Spinner /></div>
             ) : notifications.length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-6">No notifications yet</p>
+              <p className="text-sm text-gray-400 text-center py-6">{t('notif.empty')}</p>
             ) : (
               <div>
                 {notifications.map((n) => (
@@ -140,7 +141,7 @@ function NotificationBell({ userId }: { userId: string }) {
                     <span className="text-lg shrink-0 mt-0.5">{NOTIF_ICONS[n.type] ?? '🔔'}</span>
                     <div className="flex-1 min-w-0">
                       <p className={`text-xs leading-snug ${n.is_read ? 'text-gray-600' : 'font-medium text-gray-900'}`}>
-                        {notifTitle(n)}
+                        {notifTitle(n, t)}
                       </p>
                       <p className="text-[11px] text-gray-400 mt-0.5">{formatRelativeTime(n.created_at)}</p>
                     </div>
@@ -156,7 +157,7 @@ function NotificationBell({ userId }: { userId: string }) {
                 onClick={() => setOpen(false)}
                 className="text-xs text-brand-600 font-medium hover:underline"
               >
-                View all notifications →
+                {t('notif.view_all')}
               </Link>
             </div>
           </div>
@@ -207,7 +208,7 @@ export function Navbar() {
         {/* Desktop links */}
         <div className="hidden md:flex items-center gap-6">
           {navLink('/events', t('nav.events'))}
-          {user && navLink('/saved', '🤍 Saved')}
+          {user && navLink('/saved', `🤍 ${t('nav.saved')}`)}
           {user && navLink('/chat', t('nav.chat'))}
         </div>
 
@@ -259,12 +260,12 @@ export function Navbar() {
                       {profile?.role === 'admin' && (
                         <Link href="/admin" onClick={() => setMenuOpen(false)}
                           className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50">
-                          🛡️ Admin Panel
+                          🛡️ {t('nav.admin')}
                         </Link>
                       )}
                       <Link href="/saved" onClick={() => setMenuOpen(false)}
                         className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50">
-                        🤍 Saved Events
+                        🤍 {t('nav.saved_events')}
                       </Link>
                       <Link href="/bookings" onClick={() => setMenuOpen(false)}
                         className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50">
@@ -272,7 +273,7 @@ export function Navbar() {
                       </Link>
                       <Link href="/profile" onClick={() => setMenuOpen(false)}
                         className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50">
-                        ⚙️ Profile Settings
+                        ⚙️ {t('nav.profile_settings')}
                       </Link>
                       <div className="border-t border-gray-100" />
                       <button

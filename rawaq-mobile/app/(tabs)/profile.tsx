@@ -88,7 +88,7 @@ export default function ProfileScreen() {
       setSaveMsg({ ok: false, text: error.message })
     } else {
       await refreshProfile()
-      setSaveMsg({ ok: true, text: 'Profile saved!' })
+      setSaveMsg({ ok: true, text: t('profile.saved') })
       setEditing(false)
     }
     setSaving(false)
@@ -150,10 +150,10 @@ export default function ProfileScreen() {
   }
 
   async function handleSignOut() {
-    Alert.alert('Sign Out', 'Are you sure?', [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('profile.logout'), t('profile.signout_confirm'), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Sign Out',
+        text: t('profile.logout'),
         style: 'destructive',
         onPress: async () => {
           setSigningOut(true)
@@ -168,7 +168,7 @@ export default function ProfileScreen() {
     return (
       <View style={styles.centered}>
         <Text style={{ fontSize: 48 }}>👤</Text>
-        <Text style={styles.guestTitle}>You're not signed in</Text>
+        <Text style={styles.guestTitle}>{t('profile.not_signed_in')}</Text>
         <TouchableOpacity style={styles.btn} onPress={() => router.push('/(auth)/login')}>
           <Text style={styles.btnText}>{t('auth.login')}</Text>
         </TouchableOpacity>
@@ -193,37 +193,37 @@ export default function ProfileScreen() {
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>{initials}</Text>
           </View>
-          <Text style={styles.displayName}>{profile?.display_name ?? 'User'}</Text>
+          <Text style={styles.displayName}>{profile?.display_name ?? t('profile.title')}</Text>
           <Text style={styles.email}>{user.email}</Text>
           {profile?.city && <Text style={styles.city}>📍 {profile.city}</Text>}
           {profile?.gender && (
-            <Text style={styles.city}>{profile.gender === 'male' ? '👨 Male' : '👩 Female'}</Text>
+            <Text style={styles.city}>{profile.gender === 'male' ? `👨 ${t('profile.male')}` : `👩 ${t('profile.female')}`}</Text>
           )}
           {profile?.role === 'organizer' && (
             <View style={styles.roleBadge}>
-              <Text style={styles.roleBadgeText}>🏢 Organizer</Text>
+              <Text style={styles.roleBadgeText}>{t('profile.organizer_badge')}</Text>
             </View>
           )}
           {profile?.role === 'admin' && (
             <View style={[styles.roleBadge, { backgroundColor: Colors.red.light }]}>
-              <Text style={[styles.roleBadgeText, { color: Colors.red.text }]}>🛡️ Admin</Text>
+              <Text style={[styles.roleBadgeText, { color: Colors.red.text }]}>{t('profile.admin_badge')}</Text>
             </View>
           )}
           <TouchableOpacity
             style={styles.editToggle}
             onPress={() => { setEditing((v) => !v); setSaveMsg(null) }}
           >
-            <Text style={styles.editToggleText}>{editing ? 'Cancel' : '✏️ Edit Profile'}</Text>
+            <Text style={styles.editToggleText}>{editing ? t('profile.cancel') : t('profile.edit')}</Text>
           </TouchableOpacity>
         </View>
 
         {/* Edit form */}
         {editing && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Edit Profile</Text>
+            <Text style={styles.sectionTitle}>{t('profile.edit_title')}</Text>
 
             <View style={styles.fieldWrap}>
-              <Text style={styles.fieldLabel}>Display Name *</Text>
+              <Text style={styles.fieldLabel}>{t('profile.display_name')}</Text>
               <TextInput
                 style={styles.input}
                 value={displayName}
@@ -235,7 +235,7 @@ export default function ProfileScreen() {
             </View>
 
             <View style={styles.fieldWrap}>
-              <Text style={styles.fieldLabel}>City</Text>
+              <Text style={styles.fieldLabel}>{t('profile.city')}</Text>
               <View style={styles.chipRow}>
                 {CITIES.map((c) => (
                   <TouchableOpacity
@@ -251,14 +251,14 @@ export default function ProfileScreen() {
 
             <View style={styles.fieldWrap}>
               <Text style={styles.fieldLabel}>
-                Gender{genderLocked ? ' (locked)' : ''}
+                {genderLocked ? t('profile.gender_locked') : t('profile.gender')}
               </Text>
               {genderLocked ? (
                 <View style={styles.lockedRow}>
                   <Text style={styles.lockedText}>
-                    {gender === 'male' ? 'Male' : 'Female'}
+                    {gender === 'male' ? t('profile.male') : t('profile.female')}
                   </Text>
-                  <Text style={styles.lockedNote}>Cannot be changed after it's been set</Text>
+                  <Text style={styles.lockedNote}>{t('profile.gender_locked_note')}</Text>
                 </View>
               ) : (
                 <View style={styles.chipRow}>
@@ -268,7 +268,9 @@ export default function ProfileScreen() {
                       style={[styles.chip, gender === g.value && styles.chipActive]}
                       onPress={() => setGender(gender === g.value ? '' : g.value)}
                     >
-                      <Text style={[styles.chipText, gender === g.value && styles.chipTextActive]}>{g.label}</Text>
+                      <Text style={[styles.chipText, gender === g.value && styles.chipTextActive]}>
+                        {g.value === 'male' ? t('profile.male') : t('profile.female')}
+                      </Text>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -276,7 +278,7 @@ export default function ProfileScreen() {
             </View>
 
             <View style={styles.fieldWrap}>
-              <Text style={styles.fieldLabel}>Bio</Text>
+              <Text style={styles.fieldLabel}>{t('profile.bio')}</Text>
               <TextInput
                 style={[styles.input, styles.inputMulti]}
                 value={bio}
@@ -303,7 +305,7 @@ export default function ProfileScreen() {
             >
               {saving
                 ? <ActivityIndicator color={Colors.white} />
-                : <Text style={styles.saveBtnText}>Save Profile</Text>
+                : <Text style={styles.saveBtnText}>{t('profile.save')}</Text>
               }
             </TouchableOpacity>
           </View>
@@ -311,13 +313,13 @@ export default function ProfileScreen() {
 
         {/* Settings */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Settings</Text>
+          <Text style={styles.sectionTitle}>{t('profile.settings')}</Text>
 
           {/* Language */}
           <TouchableOpacity style={styles.row} onPress={toggleLocale}>
             <View style={styles.rowLeft}>
               <Text style={styles.rowIcon}>🌐</Text>
-              <Text style={styles.rowLabel}>Language</Text>
+              <Text style={styles.rowLabel}>{t('profile.language')}</Text>
             </View>
             <Text style={styles.rowValue}>{locale === 'en' ? 'English' : 'العربية'}</Text>
           </TouchableOpacity>
@@ -326,7 +328,7 @@ export default function ProfileScreen() {
           <View style={styles.row}>
             <View style={styles.rowLeft}>
               <Text style={styles.rowIcon}>🔔</Text>
-              <Text style={styles.rowLabel}>Push Notifications</Text>
+              <Text style={styles.rowLabel}>{t('profile.push_notifications')}</Text>
             </View>
             {pushLoading
               ? <ActivityIndicator size="small" color={Colors.brand[500]} />
@@ -343,18 +345,18 @@ export default function ProfileScreen() {
         {/* Organizer links */}
         {profile?.role === 'organizer' && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Organizer</Text>
+            <Text style={styles.sectionTitle}>{t('profile.organizer_section')}</Text>
             <TouchableOpacity style={styles.row} onPress={() => router.push('/organizer/dashboard')}>
               <View style={styles.rowLeft}>
                 <Text style={styles.rowIcon}>📊</Text>
-                <Text style={styles.rowLabel}>My Dashboard</Text>
+                <Text style={styles.rowLabel}>{t('profile.my_dashboard')}</Text>
               </View>
               <Text style={styles.rowArrow}>›</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.row} onPress={() => router.push('/organizer/event-form')}>
               <View style={styles.rowLeft}>
                 <Text style={styles.rowIcon}>➕</Text>
-                <Text style={styles.rowLabel}>Create Event</Text>
+                <Text style={styles.rowLabel}>{t('profile.create_event')}</Text>
               </View>
               <Text style={styles.rowArrow}>›</Text>
             </TouchableOpacity>
@@ -364,11 +366,11 @@ export default function ProfileScreen() {
         {/* Admin links */}
         {profile?.role === 'admin' && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Admin</Text>
+            <Text style={styles.sectionTitle}>{t('profile.admin_section')}</Text>
             <TouchableOpacity style={styles.row} onPress={() => router.push('/admin/dashboard')}>
               <View style={styles.rowLeft}>
                 <Text style={styles.rowIcon}>🛡️</Text>
-                <Text style={styles.rowLabel}>Admin Dashboard</Text>
+                <Text style={styles.rowLabel}>{t('profile.admin_dashboard')}</Text>
               </View>
               <Text style={styles.rowArrow}>›</Text>
             </TouchableOpacity>
@@ -383,7 +385,7 @@ export default function ProfileScreen() {
           }
         </TouchableOpacity>
 
-        <Text style={styles.version}>Rawaq v1.0.0</Text>
+        <Text style={styles.version}>{t('profile.version')}</Text>
       </ScrollView>
     </KeyboardAvoidingView>
   )
