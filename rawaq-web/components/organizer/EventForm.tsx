@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createSupabaseBrowserClient } from '@/lib/supabase/client'
 import { useAuth } from '@/contexts/auth-context'
 import { Spinner } from '@/components/ui/Spinner'
+import { FileUpload } from '@/components/ui/FileUpload'
 import type { Event, EventCategory } from '@/types/database'
 
 interface EventFormProps {
@@ -59,6 +60,7 @@ export function EventForm({ categories, event }: EventFormProps) {
     title_ar:           event?.title_ar ?? '',
     description:        event?.description ?? '',
     description_ar:     event?.description_ar ?? '',
+    cover_image_url:    event?.cover_image_url ?? '',
     category_id:        event?.category_id ?? '',
     city:               event?.city ?? '',
     venue_name:         event?.venue_name ?? '',
@@ -251,6 +253,7 @@ export function EventForm({ categories, event }: EventFormProps) {
       title_ar:           form.title_ar || null,
       description:        form.description || null,
       description_ar:     form.description_ar || null,
+      cover_image_url:    form.cover_image_url || null,
       category_id:        form.category_id || null,
       city:               form.city,
       country:            'SA',
@@ -373,6 +376,13 @@ export function EventForm({ categories, event }: EventFormProps) {
             <label className="label">Description</label>
             <textarea rows={4} value={form.description} onChange={set('description')} className="input resize-none" placeholder="What's this event about?" />
           </div>
+
+          <FileUpload
+            type="event-cover"
+            label="Cover Image / Video"
+            value={form.cover_image_url || null}
+            onChange={(url) => setForm((f) => ({ ...f, cover_image_url: url }))}
+          />
 
           <div className="grid grid-cols-2 gap-4">
             <div>

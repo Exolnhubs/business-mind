@@ -88,16 +88,21 @@ export async function POST(req: NextRequest) {
       parentAuthorId = parent.user_id
     }
 
+    if (!input.content?.trim() && !input.media_url) {
+      throw new ForbiddenException('Comment must have text or an attachment')
+    }
+
     const { data: comment, error } = await supabase
       .from('comments')
       .insert({
-        user_id: ctx.userId,
-        event_id: input.event_id,
-        content: input.content,
+        user_id:   ctx.userId,
+        event_id:  input.event_id,
+        content:   input.content ?? '',
         parent_id: input.parent_id ?? null,
-        mentions: input.mentions,
+        mentions:  input.mentions,
+        media_url: input.media_url ?? null,
       })
-      .select(`id, content, created_at, parent_id, mentions,
+      .select(`id, content, media_url, created_at, parent_id, mentions,
                author:profiles!user_id(id, display_name, avatar_url)`)
       .single()
 

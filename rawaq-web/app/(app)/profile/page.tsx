@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/auth-context'
 import { createSupabaseBrowserClient } from '@/lib/supabase/client'
 import { Spinner } from '@/components/ui/Spinner'
+import { FileUpload } from '@/components/ui/FileUpload'
 import type { GenderType } from '@/types/database'
 
 const CITIES = ['Riyadh', 'Jeddah', 'Dammam', 'Mecca', 'Medina', 'Khobar', 'Tabuk', 'Abha', 'Taif']
@@ -200,18 +201,24 @@ export default function ProfilePage() {
         <form onSubmit={saveProfile} className="space-y-4">
           {/* Avatar */}
           <div className="flex items-center gap-4 mb-2">
-            <div className="w-14 h-14 rounded-full bg-brand-100 text-brand-700 text-xl font-bold flex items-center justify-center uppercase shrink-0">
-              {profileForm.display_name?.[0] ?? user.email?.[0] ?? '?'}
-            </div>
-            <div className="flex-1">
-              <label className="label">Avatar URL</label>
-              <input
-                type="url"
-                value={profileForm.avatar_url}
-                onChange={setP('avatar_url')}
-                className="input"
-                placeholder="https://…"
-              />
+            <FileUpload
+              type="avatar"
+              compact
+              value={profileForm.avatar_url || null}
+              onChange={(url) => setProfileForm((f) => ({ ...f, avatar_url: url }))}
+            />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-gray-700 mb-1">Profile Photo</p>
+              <p className="text-xs text-gray-400">Click the circle to upload. JPG, PNG, WEBP · max 5 MB</p>
+              {profileForm.avatar_url && (
+                <button
+                  type="button"
+                  onClick={() => setProfileForm((f) => ({ ...f, avatar_url: '' }))}
+                  className="text-xs text-red-500 hover:text-red-700 mt-1"
+                >
+                  Remove photo
+                </button>
+              )}
             </div>
           </div>
 

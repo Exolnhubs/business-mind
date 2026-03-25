@@ -9,9 +9,13 @@ import type { CommentWithAuthor } from '@/types/database'
 interface CommentItemProps {
   comment: CommentWithAuthor
   currentUserId: string | null
-  onReply: (content: string) => Promise<void>
+  onReply: (content: string, mediaUrl?: string) => Promise<void>
   onDelete: (commentId: string) => Promise<void>
   isReply?: boolean
+}
+
+function isVideo(url: string) {
+  return /\.(mp4|mov|webm)$/i.test(url)
 }
 
 export function CommentItem({ comment, currentUserId, onReply, onDelete, isReply }: CommentItemProps) {
@@ -22,8 +26,8 @@ export function CommentItem({ comment, currentUserId, onReply, onDelete, isReply
   const isDeleted = comment.is_deleted
   const replyCount = comment.replies?.length ?? 0
 
-  async function handleReply(content: string) {
-    await onReply(content)
+  async function handleReply(content: string, mediaUrl?: string) {
+    await onReply(content, mediaUrl)
     setShowReply(false)
   }
 
@@ -59,7 +63,21 @@ export function CommentItem({ comment, currentUserId, onReply, onDelete, isReply
         {isDeleted ? (
           <p className="text-sm text-gray-400 italic">[deleted]</p>
         ) : (
-          <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{comment.content}</p>
+          <>
+            {comment.content && (
+              <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{comment.content}</p>
+            )}
+            {comment.media_url && (
+              <div className="mt-2 rounded-xl overflow-hidden max-w-xs">
+                {isVideo(comment.media_url) ? (
+                  <video src={comment.media_url} controls className="w-full max-h-56 object-cover rounded-xl" />
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={comment.media_url} alt="attachment" className="w-full max-h-56 object-cover rounded-xl" />
+                )}
+              </div>
+            )}
+          </>
         )}
 
         {/* Actions */}
