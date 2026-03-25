@@ -29,6 +29,9 @@ export interface Profile {
   preferences: Record<string, unknown>
   is_banned: boolean
   plan_id: string
+  phone: string | null
+  signup_lat: number | null
+  signup_lng: number | null
   created_at: string
   updated_at: string
 }

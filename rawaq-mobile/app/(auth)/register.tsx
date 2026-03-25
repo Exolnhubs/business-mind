@@ -1,28 +1,91 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, KeyboardAvoidingView, Platform,
-  ScrollView, ActivityIndicator, Linking,
+  ScrollView, ActivityIndicator,
 } from 'react-native'
 import { Link } from 'expo-router'
+import * as Location from 'expo-location'
+import * as WebBrowser from 'expo-web-browser'
 import { supabase } from '@/lib/supabase'
 import { useLocale } from '@/contexts/locale-context'
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '@/theme'
 
+WebBrowser.maybeCompleteAuthSession()
+
 const CITIES = ['Riyadh', 'Jeddah', 'Dammam', 'Mecca', 'Medina', 'Khobar', 'Tabuk', 'Abha']
+
+type LocationState =
+  | { status: 'idle' }
+  | { status: 'detecting' }
+  | { status: 'detected'; city: string; lat: number; lng: number }
+  | { status: 'denied' }
 
 export default function RegisterScreen() {
   const { t, isRTL } = useLocale()
   const [form, setForm] = useState({
-    email: '', password: '', name: '', city: '', role: 'user' as 'user' | 'organizer',
+    email: '', password: '', name: '', city: '',
+    lat: null as number | null,
+    lng: null as number | null,
+    role: 'user' as 'user' | 'organizer',
   })
+  const [locationState, setLocationState] = useState<LocationState>({ status: 'idle' })
   const [termsAccepted, setTermsAccepted] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [error, setError]     = useState<string | null>(null)
-  const [done, setDone]       = useState(false)
+  const [loading, setLoading]     = useState(false)
+  const [oauthLoading, setOauthLoading] = useState(false)
+  const [error, setError]         = useState<string | null>(null)
+  const [done, setDone]           = useState(false)
 
   function set(k: keyof typeof form) {
     return (v: string) => setForm((f) => ({ ...f, [k]: v }))
+  }
+
+  // Auto-detect location on mount
+  useEffect(() => {
+    ;(async () => {
+      setLocationState({ status: 'detecting' })
+      const { status } = await Location.requestForegroundPermissionsAsync()
+      if (status !== 'granted') {
+        setLocationState({ status: 'denied' })
+        return
+      }
+      try {
+        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
+        const { latitude: lat, longitude: lng } = pos.coords
+        const [geocode] = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng })
+        const city = geocode?.city ?? geocode?.subregion ?? geocode?.region ?? ''
+        setLocationState({ status: 'detected', city, lat, lng })
+        setForm((f) => ({ ...f, city, lat, lng }))
+      } catch {
+        setLocationState({ status: 'denied' })
+      }
+    })()
+  }, [])
+
+  async function handleGoogleSignIn() {
+    setOauthLoading(true)
+    setError(null)
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: 'rawaq://auth/callback', skipBrowserRedirect: true },
+    })
+    if (error) {
+      setError(error.message)
+      setOauthLoading(false)
+      return
+    }
+    if (data.url) {
+      const result = await WebBrowser.openAuthSessionAsync(data.url, 'rawaq://auth/callback')
+      if (result.type === 'success' && result.url) {
+        const params = new URL(result.url)
+        const accessToken = params.searchParams.get('access_token')
+        const refreshToken = params.searchParams.get('refresh_token')
+        if (accessToken && refreshToken) {
+          await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+        }
+      }
+    }
+    setOauthLoading(false)
   }
 
   async function handleRegister() {
@@ -31,7 +94,15 @@ export default function RegisterScreen() {
     const { data, error } = await supabase.auth.signUp({
       email: form.email,
       password: form.password,
-      options: { data: { display_name: form.name, city: form.city, role: form.role } },
+      options: {
+        data: {
+          display_name: form.name,
+          city: form.city,
+          role: form.role,
+          signup_lat: form.lat,
+          signup_lng: form.lng,
+        },
+      },
     })
     if (error) { setError(error.message); setLoading(false); return }
     if (!data.session) setDone(true)
@@ -62,6 +133,29 @@ export default function RegisterScreen() {
         </View>
 
         <View style={styles.card}>
+          {/* Google Sign-In */}
+          <TouchableOpacity
+            style={styles.googleBtn}
+            onPress={handleGoogleSignIn}
+            disabled={oauthLoading || loading}
+            activeOpacity={0.8}
+          >
+            {oauthLoading ? (
+              <ActivityIndicator color={Colors.gray[600]} />
+            ) : (
+              <>
+                <Text style={styles.googleIcon}>G</Text>
+                <Text style={styles.googleBtnText}>Continue with Google</Text>
+              </>
+            )}
+          </TouchableOpacity>
+
+          <View style={styles.divider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>or</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
           {[
             { key: 'name',     label: t('auth.name'),     type: 'default',       secure: false },
             { key: 'email',    label: t('auth.email'),    type: 'email-address', secure: false },
@@ -82,22 +176,37 @@ export default function RegisterScreen() {
             </View>
           ))}
 
-          {/* City selector (simplified) */}
+          {/* Location auto-detect */}
           <View style={styles.field}>
-            <Text style={styles.label}>{t('auth.city')}</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pillRow}>
-              {CITIES.map((city) => (
-                <TouchableOpacity
-                  key={city}
-                  onPress={() => set('city')(city)}
-                  style={[styles.pill, form.city === city && styles.pillActive]}
-                >
-                  <Text style={[styles.pillText, form.city === city && styles.pillTextActive]}>
-                    {city}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+            <Text style={styles.label}>Location</Text>
+            {locationState.status === 'detecting' && (
+              <View style={styles.locationDetecting}>
+                <ActivityIndicator size="small" color={Colors.brand[500]} />
+                <Text style={styles.locationDetectingText}>Detecting your location…</Text>
+              </View>
+            )}
+            {locationState.status === 'detected' && (
+              <View style={styles.locationDetected}>
+                <Text style={styles.locationDetectedText}>
+                  📍 {locationState.city || 'Location detected'} ✓
+                </Text>
+              </View>
+            )}
+            {locationState.status === 'denied' && (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pillRow}>
+                {CITIES.map((city) => (
+                  <TouchableOpacity
+                    key={city}
+                    onPress={() => set('city')(city)}
+                    style={[styles.pill, form.city === city && styles.pillActive]}
+                  >
+                    <Text style={[styles.pillText, form.city === city && styles.pillTextActive]}>
+                      {city}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
           </View>
 
           {/* Role */}
@@ -119,7 +228,7 @@ export default function RegisterScreen() {
             </View>
           </View>
 
-          {/* Terms & Conditions */}
+          {/* Terms */}
           <TouchableOpacity
             style={styles.termsRow}
             onPress={() => setTermsAccepted((v) => !v)}
@@ -128,9 +237,7 @@ export default function RegisterScreen() {
             <View style={[styles.checkbox, termsAccepted && styles.checkboxChecked]}>
               {termsAccepted && <Text style={styles.checkmark}>✓</Text>}
             </View>
-            <Text style={styles.termsText}>
-              {t('auth.terms_agree')}
-            </Text>
+            <Text style={styles.termsText}>{t('auth.terms_agree')}</Text>
           </TouchableOpacity>
 
           {error && (
@@ -164,9 +271,19 @@ const styles = StyleSheet.create({
   logo: { fontSize: 52 },
   title: { fontSize: 26, fontWeight: FontWeight.bold, color: Colors.brand[600], marginTop: Spacing.sm },
   card: { backgroundColor: Colors.white, borderRadius: Radius.xl, padding: Spacing['2xl'], shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 4, marginBottom: Spacing['3xl'] },
+  googleBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm, borderWidth: 1, borderColor: Colors.gray[200], borderRadius: Radius.lg, paddingVertical: Spacing.md, marginBottom: Spacing.sm },
+  googleIcon: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: '#4285F4' },
+  googleBtnText: { fontSize: FontSize.base, fontWeight: FontWeight.medium, color: Colors.gray[700] },
+  divider: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginVertical: Spacing.md },
+  dividerLine: { flex: 1, height: 1, backgroundColor: Colors.gray[200] },
+  dividerText: { fontSize: FontSize.xs, color: Colors.gray[400], textTransform: 'uppercase', letterSpacing: 1 },
   field: { marginBottom: Spacing.lg },
   label: { fontSize: FontSize.sm, fontWeight: FontWeight.medium, color: Colors.gray[700], marginBottom: 6 },
   input: { borderWidth: 1, borderColor: Colors.gray[200], borderRadius: Radius.lg, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, fontSize: FontSize.base, color: Colors.gray[900] },
+  locationDetecting: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: Colors.gray[50], borderRadius: Radius.lg, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2 },
+  locationDetectingText: { fontSize: FontSize.sm, color: Colors.gray[500] },
+  locationDetected: { backgroundColor: '#f0fdf4', borderWidth: 1, borderColor: '#bbf7d0', borderRadius: Radius.lg, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2 },
+  locationDetectedText: { fontSize: FontSize.sm, color: '#15803d', fontWeight: FontWeight.medium },
   pillRow: { marginTop: Spacing.xs },
   pill: { paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, borderRadius: Radius.full, borderWidth: 1, borderColor: Colors.gray[200], marginRight: Spacing.sm, backgroundColor: Colors.white },
   pillActive: { borderColor: Colors.brand[400], backgroundColor: Colors.brand[50] },
@@ -189,7 +306,6 @@ const styles = StyleSheet.create({
   checkboxChecked: { borderColor: Colors.brand[500], backgroundColor: Colors.brand[500] },
   checkmark: { color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold },
   termsText: { flex: 1, fontSize: FontSize.xs, color: Colors.gray[500], lineHeight: 18 },
-  termsLink: { color: Colors.brand[600], fontWeight: FontWeight.medium },
   doneContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: Spacing['3xl'], backgroundColor: Colors.brand[50] },
   doneTitle: { fontSize: FontSize.xl, fontWeight: FontWeight.bold, marginTop: Spacing.lg, color: Colors.gray[900] },
   doneSub: { fontSize: FontSize.base, color: Colors.gray[500], textAlign: 'center', marginTop: Spacing.sm },

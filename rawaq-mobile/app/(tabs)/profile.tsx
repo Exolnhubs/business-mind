@@ -40,9 +40,15 @@ export default function ProfileScreen() {
   const [displayName, setDisplayName] = useState('')
   const [city, setCity]               = useState('')
   const [bio, setBio]                 = useState('')
+  const [phone, setPhone]             = useState('')
   const [gender, setGender]           = useState<'male' | 'female' | ''>('')
   const [saving, setSaving]           = useState(false)
   const [saveMsg, setSaveMsg]         = useState<{ ok: boolean; text: string } | null>(null)
+
+  // Email change form
+  const [newEmail, setNewEmail]       = useState('')
+  const [emailChanging, setEmailChanging] = useState(false)
+  const [emailMsg, setEmailMsg]       = useState<{ ok: boolean; text: string } | null>(null)
 
   // Populate form from profile
   useEffect(() => {
@@ -51,6 +57,7 @@ export default function ProfileScreen() {
     setCity(profile.city ?? '')
     setBio((profile as Record<string, unknown>).bio as string ?? '')
     setGender((profile.gender as 'male' | 'female' | '') ?? '')
+    setPhone((profile as Record<string, unknown>).phone as string ?? '')
   }, [profile])
 
   useEffect(() => {
@@ -73,6 +80,7 @@ export default function ProfileScreen() {
       display_name: displayName || null,
       city: city || null,
       bio: bio || null,
+      phone: phone || null,
     }
     // Only send gender if not yet set — server also locks it, but avoid unnecessary request
     if (!profile?.gender && gender) {
@@ -92,6 +100,21 @@ export default function ProfileScreen() {
       setEditing(false)
     }
     setSaving(false)
+  }
+
+  async function handleEmailChange() {
+    const trimmed = newEmail.trim()
+    if (!trimmed || trimmed === user?.email) return
+    setEmailChanging(true)
+    setEmailMsg(null)
+    const { error } = await supabase.auth.updateUser({ email: trimmed })
+    if (error) {
+      setEmailMsg({ ok: false, text: error.message })
+    } else {
+      setEmailMsg({ ok: true, text: `Confirmation sent to ${trimmed}. Tap the link in that email to confirm.` })
+      setNewEmail('')
+    }
+    setEmailChanging(false)
   }
 
   async function togglePush(enabled: boolean) {
@@ -292,6 +315,19 @@ export default function ProfileScreen() {
               <Text style={styles.charCount}>{bio.length}/500</Text>
             </View>
 
+            <View style={styles.fieldWrap}>
+              <Text style={styles.fieldLabel}>Phone Number</Text>
+              <TextInput
+                style={styles.input}
+                value={phone}
+                onChangeText={setPhone}
+                placeholder="+966 5x xxx xxxx"
+                placeholderTextColor={Colors.gray[400]}
+                keyboardType="phone-pad"
+                maxLength={20}
+              />
+            </View>
+
             {saveMsg && (
               <View style={[styles.msgBox, saveMsg.ok ? styles.msgOk : styles.msgErr]}>
                 <Text style={saveMsg.ok ? styles.msgOkText : styles.msgErrText}>{saveMsg.text}</Text>
@@ -310,6 +346,41 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </View>
         )}
+
+        {/* Email Change */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Account Security</Text>
+          <View style={styles.fieldWrap}>
+            <Text style={styles.fieldLabel}>Change Email</Text>
+            <Text style={[styles.fieldLabel, { textTransform: 'none', letterSpacing: 0, color: Colors.gray[500], marginTop: 0 }]}>
+              Current: {user.email}
+            </Text>
+            <TextInput
+              style={[styles.input, { marginTop: Spacing.xs }]}
+              value={newEmail}
+              onChangeText={setNewEmail}
+              placeholder="new@example.com"
+              placeholderTextColor={Colors.gray[400]}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+            {emailMsg && (
+              <View style={[styles.msgBox, emailMsg.ok ? styles.msgOk : styles.msgErr, { marginHorizontal: 0, marginTop: Spacing.sm }]}>
+                <Text style={emailMsg.ok ? styles.msgOkText : styles.msgErrText}>{emailMsg.text}</Text>
+              </View>
+            )}
+            <TouchableOpacity
+              style={[styles.saveBtn, { marginHorizontal: 0, marginTop: Spacing.md }, (!newEmail || newEmail === user.email || emailChanging) && styles.saveBtnDisabled]}
+              onPress={handleEmailChange}
+              disabled={!newEmail || newEmail === user.email || emailChanging}
+            >
+              {emailChanging
+                ? <ActivityIndicator color={Colors.white} />
+                : <Text style={styles.saveBtnText}>Send Confirmation</Text>
+              }
+            </TouchableOpacity>
+          </View>
+        </View>
 
         {/* My Plan */}
         <View style={styles.section}>

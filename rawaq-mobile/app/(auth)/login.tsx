@@ -5,16 +5,46 @@ import {
   ScrollView, ActivityIndicator,
 } from 'react-native'
 import { Link } from 'expo-router'
+import * as WebBrowser from 'expo-web-browser'
 import { supabase } from '@/lib/supabase'
 import { useLocale } from '@/contexts/locale-context'
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '@/theme'
 
+WebBrowser.maybeCompleteAuthSession()
+
 export default function LoginScreen() {
   const { t, isRTL } = useLocale()
-  const [email, setEmail]       = useState('')
-  const [password, setPassword] = useState('')
-  const [loading, setLoading]   = useState(false)
-  const [error, setError]       = useState<string | null>(null)
+  const [email, setEmail]           = useState('')
+  const [password, setPassword]     = useState('')
+  const [loading, setLoading]       = useState(false)
+  const [oauthLoading, setOauthLoading] = useState(false)
+  const [error, setError]           = useState<string | null>(null)
+
+  async function handleGoogleSignIn() {
+    setOauthLoading(true)
+    setError(null)
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: 'rawaq://auth/callback', skipBrowserRedirect: true },
+    })
+    if (error) {
+      setError(error.message)
+      setOauthLoading(false)
+      return
+    }
+    if (data.url) {
+      const result = await WebBrowser.openAuthSessionAsync(data.url, 'rawaq://auth/callback')
+      if (result.type === 'success' && result.url) {
+        const params = new URL(result.url)
+        const accessToken = params.searchParams.get('access_token')
+        const refreshToken = params.searchParams.get('refresh_token')
+        if (accessToken && refreshToken) {
+          await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+        }
+      }
+    }
+    setOauthLoading(false)
+  }
 
   async function handleLogin() {
     setError(null)
@@ -37,6 +67,29 @@ export default function LoginScreen() {
         </View>
 
         <View style={styles.card}>
+          {/* Google Sign-In */}
+          <TouchableOpacity
+            style={styles.googleBtn}
+            onPress={handleGoogleSignIn}
+            disabled={oauthLoading || loading}
+            activeOpacity={0.8}
+          >
+            {oauthLoading ? (
+              <ActivityIndicator color={Colors.gray[600]} />
+            ) : (
+              <>
+                <Text style={styles.googleIcon}>G</Text>
+                <Text style={styles.googleBtnText}>Continue with Google</Text>
+              </>
+            )}
+          </TouchableOpacity>
+
+          <View style={styles.divider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>or</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
           <View style={styles.field}>
             <Text style={[styles.label, isRTL && styles.rtlText]}>{t('auth.email')}</Text>
             <TextInput
@@ -73,9 +126,9 @@ export default function LoginScreen() {
           )}
 
           <TouchableOpacity
-            style={[styles.btn, loading && styles.btnDisabled]}
+            style={[styles.btn, (loading || oauthLoading) && styles.btnDisabled]}
             onPress={handleLogin}
-            disabled={loading}
+            disabled={loading || oauthLoading}
             activeOpacity={0.8}
           >
             {loading
@@ -115,6 +168,12 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 4,
   },
+  googleBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm, borderWidth: 1, borderColor: Colors.gray[200], borderRadius: Radius.lg, paddingVertical: Spacing.md, marginBottom: Spacing.sm },
+  googleIcon: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: '#4285F4' },
+  googleBtnText: { fontSize: FontSize.base, fontWeight: FontWeight.medium, color: Colors.gray[700] },
+  divider: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginVertical: Spacing.md },
+  dividerLine: { flex: 1, height: 1, backgroundColor: Colors.gray[200] },
+  dividerText: { fontSize: FontSize.xs, color: Colors.gray[400], textTransform: 'uppercase', letterSpacing: 1 },
   field: { marginBottom: Spacing.lg },
   label: { fontSize: FontSize.sm, fontWeight: FontWeight.medium, color: Colors.gray[700], marginBottom: 6 },
   rtlText: { textAlign: 'right' },

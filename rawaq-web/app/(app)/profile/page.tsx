@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/auth-context'
+import { createSupabaseBrowserClient } from '@/lib/supabase/client'
 import { Spinner } from '@/components/ui/Spinner'
 import type { GenderType } from '@/types/database'
 
@@ -14,6 +15,7 @@ interface ProfileForm {
   bio: string
   gender: GenderType | ''
   avatar_url: string
+  phone: string
 }
 
 interface OrganizerForm {
@@ -29,6 +31,7 @@ interface OrganizerForm {
 export default function ProfilePage() {
   const { user, profile, loading: authLoading, refreshProfile } = useAuth()
   const router = useRouter()
+  const supabase = createSupabaseBrowserClient()
 
   const [profileForm, setProfileForm] = useState<ProfileForm>({
     display_name: '',
@@ -36,7 +39,9 @@ export default function ProfilePage() {
     bio: '',
     gender: '',
     avatar_url: '',
+    phone: '',
   })
+  const [emailForm, setEmailForm] = useState({ newEmail: '', loading: false, msg: null as { ok: boolean; text: string } | null })
   const [orgForm, setOrgForm] = useState<OrganizerForm>({
     business_name: '',
     business_name_ar: '',
@@ -66,6 +71,7 @@ export default function ProfilePage() {
       bio: profile.bio ?? '',
       gender: (profile.gender as GenderType | '') ?? '',
       avatar_url: profile.avatar_url ?? '',
+      phone: profile.phone ?? '',
     })
   }, [profile])
 
@@ -103,6 +109,7 @@ export default function ProfilePage() {
       bio: profileForm.bio || null,
       gender: profileForm.gender || null,
       avatar_url: profileForm.avatar_url || null,
+      phone: profileForm.phone || null,
     }
 
     const res = await fetch('/api/profiles/me', {
@@ -151,6 +158,19 @@ export default function ProfilePage() {
       setOrgMsg({ ok: false, text: error ?? 'Failed to save business profile.' })
     }
     setSavingOrg(false)
+  }
+
+  async function handleEmailChange(e: FormEvent) {
+    e.preventDefault()
+    const newEmail = emailForm.newEmail.trim()
+    if (!newEmail || newEmail === user?.email) return
+    setEmailForm((f) => ({ ...f, loading: true, msg: null }))
+    const { error } = await supabase.auth.updateUser({ email: newEmail })
+    if (error) {
+      setEmailForm((f) => ({ ...f, loading: false, msg: { ok: false, text: error.message } }))
+    } else {
+      setEmailForm((f) => ({ ...f, loading: false, newEmail: '', msg: { ok: true, text: `Confirmation sent to ${newEmail}. Click the link in that email to confirm the change.` } }))
+    }
   }
 
   const setP = (k: keyof ProfileForm) =>
@@ -255,6 +275,19 @@ export default function ProfilePage() {
             <p className="text-xs text-gray-400 mt-1 text-end">{profileForm.bio.length}/500</p>
           </div>
 
+          {/* Phone */}
+          <div>
+            <label className="label">Phone Number</label>
+            <input
+              type="tel"
+              value={profileForm.phone}
+              onChange={setP('phone')}
+              className="input"
+              placeholder="+966 5x xxx xxxx"
+              maxLength={20}
+            />
+          </div>
+
           {/* Email (read-only) */}
           <div>
             <label className="label">Email</label>
@@ -264,7 +297,6 @@ export default function ProfilePage() {
               readOnly
               className="input bg-gray-50 text-gray-400 cursor-default"
             />
-            <p className="text-xs text-gray-400 mt-1">Email can only be changed in account security settings.</p>
           </div>
 
           {profileMsg && (
@@ -419,9 +451,9 @@ export default function ProfilePage() {
         </p>
       </div>
 
-      {/* ── Account ────────────────────────────────────────── */}
+      {/* ── Account Security ───────────────────────────────── */}
       <div className="card p-6">
-        <h2 className="text-base font-semibold text-gray-900 mb-1">Account</h2>
+        <h2 className="text-base font-semibold text-gray-900 mb-1">Account Security</h2>
         <p className="text-sm text-gray-500 mb-4">
           Role: <span className="font-medium capitalize text-gray-700">{profile?.role ?? '—'}</span>
           &nbsp;·&nbsp;
@@ -429,9 +461,43 @@ export default function ProfilePage() {
             {profile?.created_at ? new Date(profile.created_at).toLocaleDateString() : '—'}
           </span>
         </p>
-        <p className="text-xs text-gray-400">
-          To change your email or password, use the Supabase Auth portal or contact support.
-        </p>
+
+        <form onSubmit={handleEmailChange} className="space-y-3">
+          <div>
+            <label className="label">Change Email</label>
+            <p className="text-xs text-gray-400 mb-2">
+              Current: <span className="font-medium text-gray-600">{user.email}</span>
+            </p>
+            <input
+              type="email"
+              value={emailForm.newEmail}
+              onChange={(e) => setEmailForm((f) => ({ ...f, newEmail: e.target.value }))}
+              className="input"
+              placeholder="new@example.com"
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              A confirmation link will be sent to the new address. Your email won&apos;t change until you click it.
+            </p>
+          </div>
+
+          {emailForm.msg && (
+            <div className={`text-sm rounded-xl px-4 py-3 ${
+              emailForm.msg.ok
+                ? 'bg-green-50 text-green-700 border border-green-200'
+                : 'bg-red-50 text-red-700 border border-red-200'
+            }`}>
+              {emailForm.msg.text}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={emailForm.loading || !emailForm.newEmail || emailForm.newEmail === user.email}
+            className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {emailForm.loading ? <Spinner size="sm" /> : 'Send Confirmation'}
+          </button>
+        </form>
       </div>
     </div>
   )
