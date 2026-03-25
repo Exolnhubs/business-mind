@@ -33,7 +33,7 @@ export default function PromoCodesPage() {
   function loadPromos() {
     fetch('/api/promo-codes')
       .then((r) => r.json())
-      .then((j) => { setPromos(j.data ?? []); setLoading(false) })
+      .then((j) => { setPromos(j.data?.data ?? j.data ?? []); setLoading(false) })
       .catch(() => setLoading(false))
   }
 
@@ -42,7 +42,7 @@ export default function PromoCodesPage() {
     // Load organizer's published events for the event dropdown
     fetch('/api/events?organizer_own=true&per_page=100')
       .then((r) => r.json())
-      .then((j) => setEvents((j.data ?? []).map((e: { id: string; title: string }) => ({ id: e.id, title: e.title }))))
+      .then((j) => setEvents((j.data?.data ?? j.data ?? []).map((e: { id: string; title: string }) => ({ id: e.id, title: e.title }))))
       .catch(() => {})
   }, [])
 
