@@ -13,7 +13,23 @@ const EMPTY_FORM = {
   expires_at: '',
 }
 
-function formatDiscount(promo: PromoCode) {
+const PREFIXES = ['SAVE', 'DEAL', 'OFF', 'VIP', 'FLASH', 'PROMO', 'RAWAQ', 'WELCOME', 'SPECIAL']
+const CHARS    = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+
+function generateCode(): string {
+  // 50% chance: PREFIX + 2-digit number (e.g. SAVE20, FLASH50)
+  // 50% chance: 3-letter prefix + 5 random chars (e.g. RWQ-XK7P9)
+  if (Math.random() < 0.5) {
+    const prefix = PREFIXES[Math.floor(Math.random() * PREFIXES.length)]
+    const num    = Math.floor(Math.random() * 81) + 10  // 10–90
+    return `${prefix}${num}`
+  }
+  let code = ''
+  for (let i = 0; i < 8; i++) code += CHARS[Math.floor(Math.random() * CHARS.length)]
+  return code
+}
+
+
   return promo.discount_type === 'percent'
     ? `${promo.discount_value}% off`
     : `SAR ${promo.discount_value} off`
@@ -113,13 +129,23 @@ export default function PromoCodesPage() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="form-label">Code *</label>
-              <input
-                className="input font-mono uppercase"
-                value={form.code}
-                onChange={(e) => setForm((f) => ({ ...f, code: e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, '') }))}
-                placeholder="SUMMER20"
-                maxLength={32}
-              />
+              <div className="flex gap-2">
+                <input
+                  className="input font-mono uppercase flex-1 min-w-0"
+                  value={form.code}
+                  onChange={(e) => setForm((f) => ({ ...f, code: e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, '') }))}
+                  placeholder="SUMMER20"
+                  maxLength={32}
+                />
+                <button
+                  type="button"
+                  title="Generate random code"
+                  onClick={() => setForm((f) => ({ ...f, code: generateCode() }))}
+                  className="shrink-0 px-3 py-2 rounded-xl border border-brand-200 bg-brand-50 hover:bg-brand-100 text-brand-700 text-xs font-semibold transition-colors"
+                >
+                  ✨ Generate
+                </button>
+              </div>
             </div>
             <div>
               <label className="form-label">Event *</label>
