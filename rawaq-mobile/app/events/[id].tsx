@@ -153,7 +153,6 @@ export default function EventDetailScreen() {
     setBL(true)
 
     if (isBooked) {
-      // Cancel via direct supabase call — fetch booking id first
       const { data: booking } = await supabase
         .from('bookings').select('id')
         .eq('event_id', id).eq('user_id', user.id).eq('status', 'confirmed').single()
@@ -165,55 +164,114 @@ export default function EventDetailScreen() {
       return
     }
 
-    // Call booking API — server handles profile checks, gender restriction, capacity
-    try {
-      const res = await fetch(`${process.env.EXPO_PUBLIC_API_URL ?? ''}/api/bookings`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          event_id:       id,
-          ticket_type_id: selectedTypeId ?? null,
-          promo_code:     promoResult?.valid ? promoCode.toUpperCase() : null,
-        }),
-      })
-      if (res.ok) {
-        setIsBooked(true)
-      } else {
-        const json = await res.json().catch(() => ({}))
-        const msg: string = json.error ?? json.message ?? 'Booking failed'
-        if (msg.toLowerCase().includes('complete your profile')) {
-          Alert.alert('Profile incomplete', 'Please complete your profile (name, gender, city) in the Profile tab before booking.')
-        } else {
-          Alert.alert('Booking failed', msg)
-        }
-      }
-    } catch {
-      Alert.alert('Error', 'Network error. Please try again.')
+    // Profile completeness check
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('display_name, gender, city, plan_id')
+      .eq('id', user.id)
+      .single()
+
+    if (!profile?.display_name || !profile?.gender || !profile?.city) {
+      Alert.alert('Profile incomplete', 'Please complete your profile (name, gender, city) in the Profile tab before booking.')
+      setBL(false)
+      return
     }
+
+    // Gender restriction check
+    const ev = event as EventWithOrganizer & { gender_restriction?: string | null; is_premium_only?: boolean }
+    if (ev.gender_restriction === 'male' && profile.gender !== 'male') {
+      Alert.alert('Booking failed', 'This event is for men only.')
+      setBL(false)
+      return
+    }
+    if (ev.gender_restriction === 'female' && profile.gender !== 'female') {
+      Alert.alert('Booking failed', 'This event is for women only.')
+      setBL(false)
+      return
+    }
+
+    // Premium-only check
+    if (ev.is_premium_only && (profile as { plan_id?: string }).plan_id !== 'user_premium') {
+      Alert.alert('Booking failed', 'This event is for Premium members only. Upgrade your plan to book.')
+      setBL(false)
+      return
+    }
+
+    // Ticket type availability check
+    if (selectedType) {
+      const now = new Date()
+      if (selectedType.capacity !== null && selectedType.sold_count >= selectedType.capacity) {
+        Alert.alert('Booking failed', 'This ticket type is sold out.')
+        setBL(false)
+        return
+      }
+      if (selectedType.sale_ends_at && new Date(selectedType.sale_ends_at) < now) {
+        Alert.alert('Booking failed', 'Ticket sales have ended.')
+        setBL(false)
+        return
+      }
+      if (selectedType.sale_starts_at && new Date(selectedType.sale_starts_at) > now) {
+        Alert.alert('Booking failed', 'Ticket sales have not started yet.')
+        setBL(false)
+        return
+      }
+    }
+
+    const discountAmount = promoResult?.valid ? (promoResult.discount_amount ?? 0) : 0
+    const promoCodeId    = promoResult?.valid ? (promoResult.promo_code_id ?? null) : null
+
+    // Reactivate cancelled booking if one exists, otherwise insert
+    const { data: existing } = await supabase
+      .from('bookings').select('id')
+      .eq('user_id', user.id).eq('event_id', id as string).eq('status', 'cancelled')
+      .maybeSingle()
+
+    const bookingFields = {
+      status:          'confirmed',
+      ticket_type_id:  selectedTypeId ?? null,
+      promo_code_id:   promoCodeId,
+      discount_amount: discountAmount,
+    }
+
+    let dbError
+    if (existing) {
+      const { error } = await supabase.from('bookings').update(bookingFields).eq('id', existing.id)
+      dbError = error
+    } else {
+      const { error } = await supabase.from('bookings')
+        .insert({ user_id: user.id, event_id: id as string, ...bookingFields })
+      dbError = error
+    }
+
+    if (dbError) {
+      Alert.alert('Booking failed', dbError.message)
+      setBL(false)
+      return
+    }
+
+    setIsBooked(true)
     setBL(false)
   }
 
   async function handleJoinWaitlist() {
     if (!user) { router.push('/(auth)/login'); return }
     setBL(true)
-    try {
-      const res = await fetch(`${process.env.EXPO_PUBLIC_API_URL ?? ''}/api/waitlist`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ event_id: id }),
-      })
-      if (res.ok) setOnWaitlist(true)
-      else { const j = await res.json().catch(() => ({})); Alert.alert('Error', j.error ?? j.message ?? 'Failed to join waitlist') }
-    } catch { Alert.alert('Error', 'Network error.') }
+    const { error } = await supabase.from('waitlist')
+      .insert({ user_id: user.id, event_id: id as string, status: 'waiting' })
+    if (error) {
+      Alert.alert('Error', error.message)
+    } else {
+      setOnWaitlist(true)
+    }
     setBL(false)
   }
 
   async function handleLeaveWaitlist() {
+    if (!user) return
     setBL(true)
-    try {
-      await fetch(`${process.env.EXPO_PUBLIC_API_URL ?? ''}/api/waitlist?event_id=${id}`, { method: 'DELETE' })
-      setOnWaitlist(false)
-    } catch { /* ignore */ }
+    await supabase.from('waitlist')
+      .delete().eq('user_id', user.id).eq('event_id', id as string)
+    setOnWaitlist(false)
     setBL(false)
   }
 
