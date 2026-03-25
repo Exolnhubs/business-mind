@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { requireAuth } from '@/lib/auth'
-import { handleApiError, ok, created, ForbiddenException, BadRequestException } from '@/lib/errors'
+import { handleApiError, ok, created, ForbiddenException, ConflictException } from '@/lib/errors'
 
 const CreatePromoSchema = z.object({
   code:             z.string().min(3).max(32).regex(/^[A-Z0-9_-]+$/, 'Code must be uppercase alphanumeric'),
@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
     if (input.event_id) {
       const { data: event } = await supabase
         .from('events').select('organizer_id').eq('id', input.event_id).single()
-      if (!event) throw new BadRequestException('Event not found')
+      if (!event) throw new ForbiddenException('Event not found')
       if (event.organizer_id !== ctx.userId && ctx.role !== 'admin') {
         throw new ForbiddenException('Not your event')
       }
@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
       .single()
 
     if (error) {
-      if (error.code === '23505') throw new BadRequestException('Promo code already exists for this event')
+      if (error.code === '23505') throw new ConflictException('Promo code already exists for this event')
       throw error
     }
 
