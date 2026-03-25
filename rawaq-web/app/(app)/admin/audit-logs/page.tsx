@@ -61,8 +61,8 @@ export default function AdminAuditLogsPage() {
     if (action) qs.set('action', action)
     const res  = await fetch(`/api/admin/audit-logs?${qs}`)
     const json = await res.json()
-    setLogs(json.data ?? [])
-    setTotal(json.total ?? 0)
+    setLogs(json.data?.data ?? [])
+    setTotal(json.data?.total ?? 0)
     setLoading(false)
   }, [action, page])
 

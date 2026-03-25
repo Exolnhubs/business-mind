@@ -38,8 +38,8 @@ export default function AdminReportsPage() {
     setLoading(true)
     const res  = await fetch(`/api/admin/reports?status=${status}`)
     const json = await res.json()
-    setReports(json.data ?? [])
-    setTotal(json.total ?? 0)
+    setReports(json.data?.data ?? [])
+    setTotal(json.data?.total ?? 0)
     setLoading(false)
   }, [status])
 
