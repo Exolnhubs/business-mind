@@ -55,11 +55,11 @@ export function CommentThread({ eventId, initialComments, currentUserId }: Props
     return () => { supabase.removeChannel(channel) }
   }, [eventId])
 
-  async function postComment(content: string, parentId: string | null = null) {
+  async function postComment(content: string, parentId: string | null = null, mediaUrl?: string) {
     if (!user) return
     const { data } = await supabase
       .from('comments')
-      .insert({ event_id: eventId, user_id: user.id, parent_id: parentId, content, mentions: [] })
+      .insert({ event_id: eventId, user_id: user.id, parent_id: parentId, content, mentions: [], media_url: mediaUrl ?? null })
       .select()
       .single()
 
@@ -97,7 +97,7 @@ export function CommentThread({ eventId, initialComments, currentUserId }: Props
   return (
     <View>
       {user
-        ? <CommentForm onSubmit={(content) => postComment(content, null)} />
+        ? <CommentForm onSubmit={(content, mediaUrl) => postComment(content, null, mediaUrl)} />
         : <Text style={styles.loginPrompt}>Sign in to comment</Text>
       }
       {comments.length === 0
@@ -107,7 +107,7 @@ export function CommentThread({ eventId, initialComments, currentUserId }: Props
             key={c.id}
             comment={c}
             currentUserId={currentUserId}
-            onReply={(content) => postComment(content, c.id)}
+            onReply={(content, mediaUrl) => postComment(content, c.id, mediaUrl)}
             onDelete={deleteComment}
           />
         ))

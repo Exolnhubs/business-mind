@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react'
 import {
   View, Text, StyleSheet, TouchableOpacity,
   ScrollView, Alert, Switch, ActivityIndicator,
-  TextInput, KeyboardAvoidingView, Platform,
+  TextInput, KeyboardAvoidingView, Platform, Image,
 } from 'react-native'
 import { useRouter } from 'expo-router'
 import * as Device from 'expo-device'
 import * as Notifications from 'expo-notifications'
+import * as ImagePicker from 'expo-image-picker'
 import Constants from 'expo-constants'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/auth-context'
@@ -45,6 +46,8 @@ export default function ProfileScreen() {
   const [saving, setSaving]           = useState(false)
   const [saveMsg, setSaveMsg]         = useState<{ ok: boolean; text: string } | null>(null)
 
+  const [avatarUploading, setAvatarUploading] = useState(false)
+
   // Email change form
   const [newEmail, setNewEmail]       = useState('')
   const [emailChanging, setEmailChanging] = useState(false)
@@ -70,6 +73,45 @@ export default function ProfileScreen() {
       .single()
       .then(({ data }) => setPushEnabled(!!data))
   }, [user])
+
+  async function pickAndUploadAvatar() {
+    if (!user) return
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    })
+    if (result.canceled || !result.assets[0]) return
+
+    setAvatarUploading(true)
+    try {
+      const asset = result.assets[0]
+      const ext = asset.uri.split('.').pop() ?? 'jpg'
+      const path = `${user.id}/${Date.now()}.${ext}`
+      const blob = await fetch(asset.uri).then((r) => r.blob())
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(path, blob, { contentType: `image/${ext}`, upsert: true })
+
+      if (uploadError) { Alert.alert('Upload failed', uploadError.message); return }
+
+      const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path)
+
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ avatar_url: publicUrl })
+        .eq('id', user.id)
+
+      if (updateError) { Alert.alert('Save failed', updateError.message); return }
+      await refreshProfile()
+    } catch {
+      Alert.alert('Upload failed', 'Please try again.')
+    } finally {
+      setAvatarUploading(false)
+    }
+  }
 
   async function saveProfile() {
     if (!user) return
@@ -213,9 +255,19 @@ export default function ProfileScreen() {
       <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {/* Avatar & name */}
         <View style={styles.hero}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{initials}</Text>
-          </View>
+          <TouchableOpacity onPress={pickAndUploadAvatar} disabled={avatarUploading} style={styles.avatarWrap}>
+            {profile?.avatar_url ? (
+              <Image source={{ uri: profile.avatar_url }} style={styles.avatarImage} />
+            ) : (
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>{initials}</Text>
+              </View>
+            )}
+            {avatarUploading
+              ? <ActivityIndicator style={styles.avatarOverlay} color={Colors.white} />
+              : <Text style={styles.avatarEditHint}>📷</Text>
+            }
+          </TouchableOpacity>
           <Text style={styles.displayName}>{profile?.display_name ?? t('profile.title')}</Text>
           <Text style={styles.email}>{user.email}</Text>
           {profile?.city && <Text style={styles.city}>📍 {profile.city}</Text>}
@@ -500,8 +552,12 @@ const styles = StyleSheet.create({
   btn: { backgroundColor: Colors.brand[500], borderRadius: Radius.lg, paddingHorizontal: Spacing['3xl'], paddingVertical: Spacing.md },
   btnText: { color: Colors.white, fontWeight: FontWeight.semibold },
   hero: { backgroundColor: Colors.white, alignItems: 'center', paddingTop: Spacing['3xl'], paddingBottom: Spacing['2xl'], borderBottomWidth: 1, borderBottomColor: Colors.gray[100] },
-  avatar: { width: 80, height: 80, borderRadius: 40, backgroundColor: Colors.brand[100], justifyContent: 'center', alignItems: 'center', marginBottom: Spacing.md },
+  avatarWrap: { position: 'relative', marginBottom: Spacing.md, alignSelf: 'center' },
+  avatar: { width: 80, height: 80, borderRadius: 40, backgroundColor: Colors.brand[100], justifyContent: 'center', alignItems: 'center' },
+  avatarImage: { width: 80, height: 80, borderRadius: 40 },
   avatarText: { fontSize: 28, fontWeight: FontWeight.bold, color: Colors.brand[700] },
+  avatarOverlay: { position: 'absolute', bottom: 0, right: 0 },
+  avatarEditHint: { position: 'absolute', bottom: 0, right: -2, fontSize: 16, backgroundColor: Colors.white, borderRadius: 10, overflow: 'hidden', padding: 1 },
   displayName: { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.gray[900] },
   email: { fontSize: FontSize.sm, color: Colors.gray[500], marginTop: 4 },
   city: { fontSize: FontSize.sm, color: Colors.gray[500], marginTop: 4 },

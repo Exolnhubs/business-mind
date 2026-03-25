@@ -97,7 +97,7 @@ export function CommentThread({ eventId, initialComments, currentUserId }: Comme
     return () => { supabase.removeChannel(channel) }
   }, [eventId, supabase])
 
-  async function postComment(content: string, parentId: string | null = null) {
+  async function postComment(content: string, parentId: string | null = null, mediaUrl?: string) {
     if (!user) return
 
     const res = await fetch('/api/comments', {
@@ -107,6 +107,7 @@ export function CommentThread({ eventId, initialComments, currentUserId }: Comme
         event_id: eventId,
         content,
         ...(parentId ? { parent_id: parentId } : {}),
+        ...(mediaUrl ? { media_url: mediaUrl } : {}),
         mentions: [],
       }),
     })
@@ -163,7 +164,7 @@ export function CommentThread({ eventId, initialComments, currentUserId }: Comme
     <div className="space-y-4">
       {/* Comment input */}
       {user ? (
-        <CommentForm onSubmit={(content) => postComment(content, null)} />
+        <CommentForm onSubmit={(content, mediaUrl) => postComment(content, null, mediaUrl)} />
       ) : (
         <p className="text-sm text-gray-500 text-center py-4">
           <a href="/login" className="text-brand-600 font-medium hover:underline">Sign in</a> to leave a comment.

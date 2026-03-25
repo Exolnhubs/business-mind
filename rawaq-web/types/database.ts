@@ -296,6 +296,7 @@ export interface Comment {
   content: string
   content_html: string | null
   mentions: string[]
+  media_url: string | null
   is_deleted: boolean
   deleted_at: string | null
   is_flagged: boolean

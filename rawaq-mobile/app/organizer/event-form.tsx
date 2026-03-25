@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react'
 import {
   View, Text, StyleSheet, ScrollView, TextInput,
   TouchableOpacity, ActivityIndicator, Alert, Switch,
-  KeyboardAvoidingView, Platform,
+  KeyboardAvoidingView, Platform, Image,
 } from 'react-native'
 import { useRouter, useLocalSearchParams } from 'expo-router'
+import * as ImagePicker from 'expo-image-picker'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/auth-context'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
@@ -48,6 +49,9 @@ export default function EventFormScreen() {
   const [isFamilyFriendly,  setIsFamilyFriendly]  = useState(true)
   const [isPublished,       setIsPublished]       = useState(false)
 
+  const [coverImageUrl, setCoverImageUrl] = useState('')
+  const [coverUploading, setCoverUploading] = useState(false)
+
   // Ticket types (create wizard only)
   const [tickets, setTickets] = useState<TicketDraft[]>([{ ...EMPTY_TICKET, name: 'General Admission' }])
 
@@ -84,6 +88,7 @@ export default function EventFormScreen() {
           setGenderRestriction(ev.gender_restriction as 'mixed' | 'male' | 'female')
           setIsFamilyFriendly(ev.is_family_friendly)
           setIsPublished(ev.is_published)
+          setCoverImageUrl(ev.cover_image_url ?? '')
         }
         setLoading(false)
       }
@@ -94,6 +99,38 @@ export default function EventFormScreen() {
 
   function parseDate(val: string) {
     return new Date(val.includes('T') ? val : val.replace(' ', 'T'))
+  }
+
+  async function pickCoverImage() {
+    if (!user) return
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images', 'videos'],
+      quality: 0.85,
+      videoMaxDuration: 120,
+    })
+    if (result.canceled || !result.assets[0]) return
+
+    setCoverUploading(true)
+    try {
+      const asset = result.assets[0]
+      const ext = asset.uri.split('.').pop() ?? 'jpg'
+      const path = `${user.id}/${Date.now()}.${ext}`
+      const blob = await fetch(asset.uri).then((r) => r.blob())
+      const contentType = asset.type === 'video' ? `video/${ext}` : `image/${ext}`
+
+      const { error } = await supabase.storage
+        .from('event-covers')
+        .upload(path, blob, { contentType, upsert: false })
+
+      if (error) { Alert.alert('Upload failed', error.message); return }
+
+      const { data: { publicUrl } } = supabase.storage.from('event-covers').getPublicUrl(path)
+      setCoverImageUrl(publicUrl)
+    } catch {
+      Alert.alert('Upload failed', 'Please try again.')
+    } finally {
+      setCoverUploading(false)
+    }
   }
 
   // ─── Edit mode: save directly ───────────────────────────────────────────────
@@ -130,6 +167,7 @@ export default function EventFormScreen() {
         gender_restriction: genderRestriction,
         is_family_friendly: isFamilyFriendly,
         is_published:       isPublished,
+        cover_image_url:    coverImageUrl || null,
       })
       .eq('id', id)
       .eq('organizer_id', user!.id)
@@ -171,6 +209,7 @@ export default function EventFormScreen() {
       gender_restriction: genderRestriction,
       is_family_friendly: isFamilyFriendly,
       is_published:       false,
+      cover_image_url:    coverImageUrl || null,
     }
 
     // If user went back from step 2 and re-submitted, update the existing draft
@@ -309,6 +348,21 @@ export default function EventFormScreen() {
 
             <Field label="Description">
               <TextInput style={[styles.input, styles.inputMulti]} value={description} onChangeText={setDescription} placeholder="Describe the event…" placeholderTextColor={Colors.gray[400]} multiline numberOfLines={4} maxLength={2000} />
+            </Field>
+
+            <Field label="Cover Image / Video">
+              <TouchableOpacity onPress={pickCoverImage} disabled={coverUploading} style={styles.coverPicker}>
+                {coverImageUrl ? (
+                  <Image source={{ uri: coverImageUrl }} style={styles.coverPreview} resizeMode="cover" />
+                ) : (
+                  <View style={styles.coverPlaceholder}>
+                    {coverUploading
+                      ? <ActivityIndicator color={Colors.brand[500]} />
+                      : <Text style={styles.coverPlaceholderText}>🖼️  Tap to upload cover</Text>
+                    }
+                  </View>
+                )}
+              </TouchableOpacity>
             </Field>
 
             <Field label="Category">
@@ -555,6 +609,10 @@ const styles = StyleSheet.create({
   // Fields
   input:               { borderWidth: 1, borderColor: Colors.gray[200], borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2, fontSize: FontSize.base, color: Colors.gray[900], backgroundColor: Colors.white },
   inputMulti:          { height: 96, textAlignVertical: 'top' },
+  coverPicker:         { borderRadius: Radius.lg, overflow: 'hidden', borderWidth: 1.5, borderColor: Colors.gray[200], borderStyle: 'dashed' },
+  coverPreview:        { width: '100%', height: 160, borderRadius: Radius.lg },
+  coverPlaceholder:    { height: 100, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.gray[50] },
+  coverPlaceholderText:{ fontSize: FontSize.sm, color: Colors.gray[400] },
   chipRow:             { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs },
   chip:                { paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs + 2, borderRadius: Radius.full, borderWidth: 1.5, borderColor: Colors.gray[200], marginBottom: Spacing.xs, backgroundColor: Colors.white },
   chipActive:          { borderColor: Colors.brand[500], backgroundColor: Colors.brand[50] },

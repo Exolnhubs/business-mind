@@ -1,10 +1,11 @@
 import { z } from 'zod'
 
 export const CreateCommentSchema = z.object({
-  event_id: z.string().uuid(),
-  content: z.string().min(1).max(2000),
+  event_id:  z.string().uuid(),
+  content:   z.string().min(0).max(2000).default(''),
   parent_id: z.string().uuid().optional(),
-  mentions: z.array(z.string().uuid()).max(20).default([]),
+  mentions:  z.array(z.string().uuid()).max(20).default([]),
+  media_url: z.string().url().optional().nullable(),
 })
 
 export const ListCommentsSchema = z.object({

@@ -9,7 +9,7 @@ import type { CommentWithAuthor } from '@/types/database'
 interface Props {
   comment: CommentWithAuthor
   currentUserId: string | null
-  onReply: (content: string) => Promise<void>
+  onReply: (content: string, mediaUrl?: string) => Promise<void>
   onDelete: (id: string) => Promise<void>
   isReply?: boolean
 }
@@ -46,10 +46,20 @@ export function CommentItem({ comment, currentUserId, onReply, onDelete, isReply
           <Text style={styles.time}>{formatRelativeTime(comment.created_at)}</Text>
         </View>
 
-        {comment.is_deleted
-          ? <Text style={styles.deleted}>[deleted]</Text>
-          : <Text style={styles.text}>{comment.content}</Text>
-        }
+        {comment.is_deleted ? (
+          <Text style={styles.deleted}>[deleted]</Text>
+        ) : (
+          <>
+            {!!comment.content && <Text style={styles.text}>{comment.content}</Text>}
+            {!!comment.media_url && (
+              <Image
+                source={{ uri: comment.media_url }}
+                style={styles.mediaImage}
+                resizeMode="cover"
+              />
+            )}
+          </>
+        )}
 
         {!comment.is_deleted && (
           <View style={styles.actions}>
@@ -68,7 +78,7 @@ export function CommentItem({ comment, currentUserId, onReply, onDelete, isReply
 
         {showReply && (
           <CommentForm
-            onSubmit={async (content) => { await onReply(content); setShowReply(false) }}
+            onSubmit={async (content, mediaUrl) => { await onReply(content, mediaUrl); setShowReply(false) }}
             placeholder={`Reply to ${comment.author?.display_name}…`}
             onCancel={() => setShowReply(false)}
             autoFocus
@@ -109,6 +119,7 @@ const styles = StyleSheet.create({
   name: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[900] },
   time: { fontSize: FontSize.xs, color: Colors.gray[400] },
   text: { fontSize: FontSize.sm, color: Colors.gray[700], lineHeight: 20 },
+  mediaImage: { width: '100%', maxWidth: 240, height: 160, borderRadius: Radius.md, marginTop: Spacing.xs },
   deleted: { fontSize: FontSize.sm, color: Colors.gray[400], fontStyle: 'italic' },
   actions: { flexDirection: 'row', gap: Spacing.md, marginTop: 6 },
   action: { fontSize: FontSize.xs, color: Colors.gray[400], fontWeight: FontWeight.medium },
