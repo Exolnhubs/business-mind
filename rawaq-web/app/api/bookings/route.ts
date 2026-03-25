@@ -4,7 +4,6 @@ import { requireAuth } from '@/lib/auth'
 import { handleApiError, ok, created, NotFoundException, ForbiddenException } from '@/lib/errors'
 import { CreateBookingSchema } from '@/lib/validations/bookings'
 import { sendNotification } from '@/lib/notifications'
-import { processPayment } from '@/lib/payments'
 
 // GET /api/bookings — current user's bookings
 export async function GET(req: NextRequest) {
@@ -210,19 +209,9 @@ export async function POST(req: NextRequest) {
       booking = data
     }
 
-    // Process payment for paid bookings
-    if (!isFreeBooking && effectivePrice > 0 && platformFeePct > 0) {
-      processPayment({
-        supabase,
-        userId:         ctx.userId,
-        organizerId:    event.organizer_id,
-        eventId:        event.id,
-        bookingId:      booking.id,
-        type:           'ticket',
-        amount:         effectivePrice,
-        platformFeePct,
-      }).catch(() => {})
-    }
+    // Payment transaction is created automatically by the DB trigger
+    // trg_auto_payment_on_booking (migration 00023) — works for both web
+    // and mobile (direct-Supabase) booking paths without double-counting.
 
     // Notify attendee (fire-and-forget)
     sendNotification({
