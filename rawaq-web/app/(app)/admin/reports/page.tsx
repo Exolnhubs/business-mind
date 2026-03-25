@@ -36,11 +36,17 @@ export default function AdminReportsPage() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    const res  = await fetch(`/api/admin/reports?status=${status}`)
-    const json = await res.json()
-    setReports(json.data?.data ?? [])
-    setTotal(json.data?.total ?? 0)
-    setLoading(false)
+    try {
+      const res  = await fetch(`/api/admin/reports?status=${status}`)
+      const json = await res.json()
+      const rows = json.data?.data
+      setReports(Array.isArray(rows) ? rows : [])
+      setTotal(json.data?.total ?? 0)
+    } catch {
+      setReports([])
+    } finally {
+      setLoading(false)
+    }
   }, [status])
 
   useEffect(() => { load() }, [load])
