@@ -57,13 +57,17 @@ export default function AdminAuditLogsPage() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    const qs  = new URLSearchParams({ page: String(page) })
-    if (action) qs.set('action', action)
-    const res  = await fetch(`/api/admin/audit-logs?${qs}`)
-    const json = await res.json()
-    setLogs(json.data?.data ?? [])
-    setTotal(json.data?.total ?? 0)
-    setLoading(false)
+    try {
+      const res  = await fetch(`/api/admin/audit-logs?${new URLSearchParams({ page: String(page), ...(action ? { action } : {}) })}`)
+      const json = await res.json()
+      const rows = json.data?.data
+      setLogs(Array.isArray(rows) ? rows : [])
+      setTotal(json.data?.total ?? 0)
+    } catch {
+      setLogs([])
+    } finally {
+      setLoading(false)
+    }
   }, [action, page])
 
   useEffect(() => { load() }, [load])
