@@ -30,7 +30,7 @@ export default async function PublicUserProfilePage({ params }: { params: Promis
 
   const [
     { data: profile },
-    { data: statsData },
+    statsData,
     { data: reviews, count: reviewCount },
     viewerReviewRes,
   ] = await Promise.all([
