@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
-import { handleApiError, ok, BadRequestException } from '@/lib/errors'
+import { handleApiError, ok, ForbiddenException } from '@/lib/errors'
 
 // GET /api/promo-codes/validate?code=XX&event_id=YY&order_amount=ZZ
 // Public endpoint — no auth required (used before booking)
@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
     const eventId     = req.nextUrl.searchParams.get('event_id')
     const orderAmount = Number(req.nextUrl.searchParams.get('order_amount') ?? 0)
 
-    if (!code) throw new BadRequestException('code is required')
+    if (!code) throw new ForbiddenException('code is required')
 
     const supabase = await createSupabaseServerClient()
 
