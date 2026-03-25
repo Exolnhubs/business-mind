@@ -4,7 +4,6 @@ import { requireAuth } from '@/lib/auth'
 import { handleApiError, ok, created, NotFoundException, ForbiddenException } from '@/lib/errors'
 import { CreateTipSchema } from '@/lib/validations/tips'
 import { sendNotification } from '@/lib/notifications'
-import { processPayment } from '@/lib/payments'
 
 // GET /api/tips — tips sent by current user (or received, for organizers)
 export async function GET(req: NextRequest) {
@@ -96,18 +95,7 @@ export async function POST(req: NextRequest) {
 
     if (error) throw error
 
-    // Process payment — DB trigger auto-credits the organizer wallet
-    processPayment({
-      supabase,
-      userId:         ctx.userId,
-      organizerId:    event.organizer_id,
-      eventId:        event.id,
-      tipId:          tip.id,
-      type:           'tip',
-      amount:         input.amount,
-      platformFeePct: feePct,
-      currency:       input.currency,
-    }).catch(() => {}) // non-blocking for MVP
+    // Payment transaction created automatically by trg_auto_payment_on_tip (migration 00024)
 
     // Notify organizer
     sendNotification({
