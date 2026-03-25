@@ -271,30 +271,42 @@ export default function OrganizerDashboard() {
                 </View>
               </View>
 
-              {!ev.is_cancelled && (
-                <View style={styles.actionRow}>
-                  <TouchableOpacity
-                    style={[styles.actionBtn, { backgroundColor: ev.is_published ? Colors.gray[100] : Colors.brand[500] }]}
-                    onPress={() => togglePublish(ev)}
-                  >
-                    <Text style={[styles.actionBtnText, { color: ev.is_published ? Colors.gray[700] : Colors.white }]}>
-                      {ev.is_published ? 'Unpublish' : 'Publish'}
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.actionBtn, { backgroundColor: Colors.gray[100] }]}
-                    onPress={() => router.push(`/organizer/event-form?id=${ev.id}`)}
-                  >
-                    <Text style={[styles.actionBtnText, { color: Colors.gray[700] }]}>Edit</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.actionBtn, { backgroundColor: Colors.red.light }]}
-                    onPress={() => cancelEvent(ev)}
-                  >
-                    <Text style={[styles.actionBtnText, { color: Colors.red.text }]}>Cancel</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
+              <View style={styles.actionRow}>
+                  {ev.bookings_count > 0 && (
+                    <TouchableOpacity
+                      style={[styles.actionBtn, { backgroundColor: Colors.brand[50] ?? '#EEF2FF' }]}
+                      onPress={() => router.push(`/organizer/attendees?eventId=${ev.id}&title=${encodeURIComponent(ev.title)}`)}
+                    >
+                      <Text style={[styles.actionBtnText, { color: Colors.brand[600] ?? Colors.brand[500] }]}>
+                        🎟 Attendees ({ev.bookings_count})
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                {!ev.is_cancelled && (
+                  <>
+                    <TouchableOpacity
+                      style={[styles.actionBtn, { backgroundColor: ev.is_published ? Colors.gray[100] : Colors.brand[500] }]}
+                      onPress={() => togglePublish(ev)}
+                    >
+                      <Text style={[styles.actionBtnText, { color: ev.is_published ? Colors.gray[700] : Colors.white }]}>
+                        {ev.is_published ? 'Unpublish' : 'Publish'}
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.actionBtn, { backgroundColor: Colors.gray[100] }]}
+                      onPress={() => router.push(`/organizer/event-form?id=${ev.id}`)}
+                    >
+                      <Text style={[styles.actionBtnText, { color: Colors.gray[700] }]}>Edit</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.actionBtn, { backgroundColor: Colors.red.light }]}
+                      onPress={() => cancelEvent(ev)}
+                    >
+                      <Text style={[styles.actionBtnText, { color: Colors.red.text }]}>Cancel</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+              </View>
             </View>
           )
         })

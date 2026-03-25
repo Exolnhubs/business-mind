@@ -111,12 +111,20 @@ export default async function OrganizerDashboard() {
                       </Badge>
                     </td>
                     <td className="px-4 py-3 text-end">
-                      <Link
-                        href={`/organizer/events/${event.id}/edit`}
-                        className="text-xs text-brand-600 font-medium hover:underline"
-                      >
-                        Edit
-                      </Link>
+                      <div className="flex items-center justify-end gap-3">
+                        <Link
+                          href={`/organizer/events/${event.id}/attendees`}
+                          className="text-xs text-gray-500 font-medium hover:underline"
+                        >
+                          Attendees {event.bookings_count > 0 && `(${event.bookings_count})`}
+                        </Link>
+                        <Link
+                          href={`/organizer/events/${event.id}/edit`}
+                          className="text-xs text-brand-600 font-medium hover:underline"
+                        >
+                          Edit
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 ))}
