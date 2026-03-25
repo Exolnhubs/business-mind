@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
-export const CreateEventSchema = z.object({
+// Base object — keep as ZodObject so .partial() / .extend() work on it
+const EventBaseSchema = z.object({
   category_id: z.string().uuid().optional(),
   title: z.string().min(3).max(200),
   title_ar: z.string().min(3).max(200).optional(),
@@ -25,7 +26,9 @@ export const CreateEventSchema = z.object({
   is_private: z.boolean().default(false),
   is_premium_only: z.boolean().default(false),
   is_published: z.boolean().default(false),
-}).refine(
+})
+
+export const CreateEventSchema = EventBaseSchema.refine(
   (d) => d.is_free || (d.price !== undefined && d.price > 0),
   { message: 'Paid events must have a price', path: ['price'] }
 ).refine(
@@ -33,7 +36,7 @@ export const CreateEventSchema = z.object({
   { message: 'end_at must be after start_at', path: ['end_at'] }
 )
 
-export const UpdateEventSchema = CreateEventSchema.partial().extend({
+export const UpdateEventSchema = EventBaseSchema.partial().extend({
   is_cancelled: z.boolean().optional(),
   cancelled_reason: z.string().max(500).optional(),
 })
@@ -53,6 +56,7 @@ export const ListEventsSchema = z.object({
   lng: z.coerce.number().optional(),
   radius_km: z.coerce.number().positive().max(500).optional(),
   organizer_id: z.string().uuid().optional(),
+  organizer_own: z.coerce.boolean().optional(),
 })
 
 export type CreateEventInput = z.infer<typeof CreateEventSchema>
