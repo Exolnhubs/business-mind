@@ -447,6 +447,13 @@ export default function ProfileScreen() {
               </View>
               <Text style={styles.rowArrow}>›</Text>
             </TouchableOpacity>
+            <TouchableOpacity style={styles.row} onPress={() => router.push('/organizer/earnings')}>
+              <View style={styles.rowLeft}>
+                <Text style={styles.rowIcon}>💰</Text>
+                <Text style={styles.rowLabel}>Earnings & Wallet</Text>
+              </View>
+              <Text style={styles.rowArrow}>›</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={styles.row} onPress={() => router.push('/organizer/event-form')}>
               <View style={styles.rowLeft}>
                 <Text style={styles.rowIcon}>➕</Text>

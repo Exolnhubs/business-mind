@@ -42,9 +42,14 @@ export default async function OrganizerDashboard() {
           </h1>
           <p className="text-sm text-gray-500 mt-0.5">Manage your events and track performance</p>
         </div>
-        <Link href="/organizer/events/new" className="btn-primary">
-          + Create Event
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link href="/organizer/earnings" className="btn-secondary text-sm">
+            💰 Earnings
+          </Link>
+          <Link href="/organizer/events/new" className="btn-primary">
+            + Create Event
+          </Link>
+        </div>
       </div>
 
       {/* Stats */}

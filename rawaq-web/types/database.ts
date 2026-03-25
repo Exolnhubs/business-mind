@@ -15,8 +15,16 @@ export type NotificationType =
   | 'organizer_suspended'
   | 'event_cancelled'
   | 'tip_received'
+  | 'waitlist_promoted'
 export type ReportReason = 'spam' | 'inappropriate' | 'harassment' | 'misinformation' | 'other'
 export type OrganizerStatus = 'pending' | 'approved' | 'rejected' | 'suspended'
+export type PaymentType = 'ticket' | 'tip' | 'refund' | 'payout'
+export type PaymentStatus = 'pending' | 'succeeded' | 'failed' | 'refunded'
+export type PaymentGateway = 'simulated' | 'moyasar' | 'stripe' | 'hyperpay'
+export type WalletLedgerReason = 'tip' | 'ticket_sale' | 'refund_deducted' | 'payout' | 'adjustment'
+export type WaitlistStatus = 'waiting' | 'promoted' | 'expired' | 'cancelled'
+export type PayoutStatus = 'pending' | 'processing' | 'completed' | 'failed'
+export type RefundStatus = 'pending' | 'approved' | 'rejected' | 'completed'
 
 export interface Profile {
   id: string
@@ -104,6 +112,7 @@ export interface Booking {
   id: string
   user_id: string
   event_id: string
+  ticket_type_id: string | null
   status: BookingStatus
   notes: string | null
   ticket_id: string | null
@@ -111,6 +120,114 @@ export interface Booking {
   scanned_at: string | null
   platform_fee_pct: number
   platform_fee_amount: number
+  created_at: string
+  updated_at: string
+}
+
+export interface TicketType {
+  id: string
+  event_id: string
+  name: string
+  name_ar: string | null
+  description: string | null
+  price: number
+  currency: string
+  capacity: number | null
+  sold_count: number
+  is_free: boolean
+  sale_starts_at: string | null
+  sale_ends_at: string | null
+  sort_order: number
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface Waitlist {
+  id: string
+  event_id: string
+  user_id: string
+  position: number
+  notified_at: string | null
+  expires_at: string | null
+  status: WaitlistStatus
+  created_at: string
+}
+
+export interface PaymentTransaction {
+  id: string
+  user_id: string
+  organizer_id: string
+  event_id: string | null
+  booking_id: string | null
+  tip_id: string | null
+  type: PaymentType
+  status: PaymentStatus
+  amount: number
+  platform_fee: number
+  organizer_net: number
+  currency: string
+  gateway: PaymentGateway
+  gateway_ref: string | null
+  gateway_payload: Record<string, unknown> | null
+  is_simulated: boolean
+  failure_reason: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface OrganizerWallet {
+  organizer_id: string
+  balance: number
+  total_earned: number
+  total_withdrawn: number
+  currency: string
+  updated_at: string
+}
+
+export interface WalletLedgerEntry {
+  id: string
+  organizer_id: string
+  payment_transaction_id: string | null
+  type: 'credit' | 'debit'
+  reason: WalletLedgerReason
+  amount: number
+  balance_before: number
+  balance_after: number
+  note: string | null
+  created_at: string
+}
+
+export interface Refund {
+  id: string
+  payment_transaction_id: string
+  booking_id: string | null
+  requested_by: string
+  amount: number
+  reason: string | null
+  status: RefundStatus
+  processed_by: string | null
+  processed_at: string | null
+  gateway_ref: string | null
+  is_simulated: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface Payout {
+  id: string
+  organizer_id: string
+  amount: number
+  currency: string
+  status: PayoutStatus
+  bank_name: string | null
+  iban: string | null
+  requested_at: string
+  processed_by: string | null
+  processed_at: string | null
+  gateway_ref: string | null
+  failure_reason: string | null
+  is_simulated: boolean
   created_at: string
   updated_at: string
 }

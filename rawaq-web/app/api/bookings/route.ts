@@ -4,6 +4,7 @@ import { requireAuth } from '@/lib/auth'
 import { handleApiError, ok, created, NotFoundException, ForbiddenException } from '@/lib/errors'
 import { CreateBookingSchema } from '@/lib/validations/bookings'
 import { sendNotification } from '@/lib/notifications'
+import { processPayment } from '@/lib/payments'
 
 // GET /api/bookings — current user's bookings
 export async function GET(req: NextRequest) {
@@ -145,6 +146,20 @@ export async function POST(req: NextRequest) {
         .single()
       if (error) throw error
       booking = data
+    }
+
+    // Process payment for paid events (fire-and-forget wallet update via DB trigger)
+    if (!event.is_free && event.price && platformFeePct > 0) {
+      processPayment({
+        supabase,
+        userId:         ctx.userId,
+        organizerId:    event.organizer_id,
+        eventId:        event.id,
+        bookingId:      booking.id,
+        type:           'ticket',
+        amount:         event.price,
+        platformFeePct,
+      }).catch(() => {}) // non-blocking for MVP; in production, await and handle failure
     }
 
     // Notify user (fire-and-forget) — include ticket_id so email can embed the QR code
