@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  Linking, ActivityIndicator, FlatList,
+  Linking, ActivityIndicator, Alert,
 } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { supabase } from '@/lib/supabase'
@@ -15,9 +15,11 @@ import type { EventWithOrganizer, OrganizerProfile, Profile } from '@/types/data
 
 type OrganizerData = {
   profile: Pick<Profile, 'id' | 'display_name' | 'avatar_url' | 'city' | 'bio' | 'created_at'>
-  orgProfile: Pick<OrganizerProfile, 'business_name' | 'business_name_ar' | 'description' | 'description_ar' | 'logo_url' | 'website' | 'phone' | 'verified' | 'status'>
+  orgProfile: Pick<OrganizerProfile, 'business_name' | 'business_name_ar' | 'description' | 'description_ar' | 'logo_url' | 'website' | 'phone' | 'verified' | 'status'> & { followers_count: number }
   events: EventWithOrganizer[]
   savedIds: Set<string>
+  isFollowing: boolean
+  isBlocking: boolean
 }
 
 export default function OrganizerProfileScreen() {
@@ -26,15 +28,17 @@ export default function OrganizerProfileScreen() {
   const router = useRouter()
   const [data, setData] = useState<OrganizerData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [followLoading, setFollowLoading] = useState(false)
+  const [blockLoading, setBlockLoading]   = useState(false)
 
   useEffect(() => {
     if (!id) return
 
     async function load() {
-      const [{ data: profile }, { data: orgProfile }, { data: events }] = await Promise.all([
+      const queries: Promise<unknown>[] = [
         supabase.from('profiles').select('id, display_name, avatar_url, city, bio, created_at').eq('id', id).single(),
         supabase.from('organizer_profiles')
-          .select('business_name, business_name_ar, description, description_ar, logo_url, website, phone, verified, status')
+          .select('business_name, business_name_ar, description, description_ar, logo_url, website, phone, verified, status, followers_count')
           .eq('user_id', id).single(),
         supabase.from('events')
           .select(`*,
@@ -45,26 +49,78 @@ export default function OrganizerProfileScreen() {
           .eq('organizer_id', id).eq('is_published', true).eq('is_cancelled', false)
           .gte('start_at', new Date().toISOString())
           .order('start_at', { ascending: true }).limit(12),
-      ])
+      ]
+
+      const [{ data: profile }, { data: orgProfile }, { data: events }] =
+        await Promise.all(queries) as [{ data: OrganizerData['profile'] | null }, { data: (OrganizerData['orgProfile'] & { status: string }) | null }, { data: EventWithOrganizer[] | null }]
 
       if (!profile || !orgProfile || orgProfile.status !== 'approved') {
         setLoading(false); return
       }
 
-      let savedIds = new Set<string>()
-      if (user && events?.length) {
+      let savedIds   = new Set<string>()
+      let isFollowing = false
+      let isBlocking  = false
+
+      if (user && user.id !== id) {
+        const socialQueries = [
+          events?.length
+            ? supabase.from('saved_events').select('event_id').eq('user_id', user.id).in('event_id', events.map((e) => e.id))
+            : Promise.resolve({ data: [] as { event_id: string }[] }),
+          supabase.from('organizer_follows').select('id').eq('follower_id', user.id).eq('organizer_id', id).maybeSingle(),
+          supabase.from('user_blocks').select('id').eq('blocker_id', user.id).eq('blocked_id', id).maybeSingle(),
+        ]
+        const [savesRes, followRes, blockRes] = await Promise.all(socialQueries) as [
+          { data: { event_id: string }[] | null },
+          { data: { id: string } | null },
+          { data: { id: string } | null },
+        ]
+        savedIds    = new Set((savesRes.data ?? []).map((s) => s.event_id))
+        isFollowing = !!followRes.data
+        isBlocking  = !!blockRes.data
+      } else if (user && events?.length) {
         const { data: saves } = await supabase
           .from('saved_events').select('event_id').eq('user_id', user.id)
           .in('event_id', events.map((e) => e.id))
         savedIds = new Set((saves ?? []).map((s) => s.event_id))
       }
 
-      setData({ profile, orgProfile, events: (events ?? []) as EventWithOrganizer[], savedIds })
+      setData({ profile, orgProfile, events: (events ?? []) as EventWithOrganizer[], savedIds, isFollowing, isBlocking })
       setLoading(false)
     }
 
     load()
   }, [id, user])
+
+  async function toggleFollow() {
+    if (!data || !user) return
+    setFollowLoading(true)
+    const next = !data.isFollowing
+    setData((d) => d ? {
+      ...d,
+      isFollowing: next,
+      orgProfile: { ...d.orgProfile, followers_count: next ? d.orgProfile.followers_count + 1 : Math.max(0, d.orgProfile.followers_count - 1) },
+    } : d)
+    await supabase.from('organizer_follows')[next ? 'upsert' : 'delete'](
+      next
+        ? { follower_id: user.id, organizer_id: id }
+        : undefined as unknown as { follower_id: string; organizer_id: string }
+    ).match(next ? {} : { follower_id: user.id, organizer_id: id })
+    setFollowLoading(false)
+  }
+
+  async function toggleBlock() {
+    if (!data || !user) return
+    setBlockLoading(true)
+    const next = !data.isBlocking
+    setData((d) => d ? { ...d, isBlocking: next } : d)
+    if (next) {
+      await supabase.from('user_blocks').upsert({ blocker_id: user.id, blocked_id: id as string }, { onConflict: 'blocker_id,blocked_id' })
+    } else {
+      await supabase.from('user_blocks').delete().eq('blocker_id', user.id).eq('blocked_id', id as string)
+    }
+    setBlockLoading(false)
+  }
 
   if (loading) {
     return <View style={styles.centered}><ActivityIndicator size="large" color={Colors.brand[500]} /></View>
@@ -104,6 +160,44 @@ export default function OrganizerProfileScreen() {
           <Text style={styles.since}>Member since {formatDate(profile.created_at)}</Text>
         </View>
       </View>
+
+      {/* Social actions */}
+      {user && user.id !== id && (
+        <View style={styles.socialRow}>
+          <TouchableOpacity
+            onPress={toggleFollow}
+            disabled={followLoading}
+            style={[styles.followBtn, data?.isFollowing && styles.followBtnActive]}
+          >
+            <Text style={[styles.followBtnText, data?.isFollowing && styles.followBtnTextActive]}>
+              {followLoading ? '…' : data?.isFollowing ? '✓ Following' : '+ Follow'}
+            </Text>
+          </TouchableOpacity>
+          {orgProfile.followers_count > 0 && (
+            <Text style={styles.followCount}>
+              {orgProfile.followers_count.toLocaleString()} follower{orgProfile.followers_count !== 1 ? 's' : ''}
+            </Text>
+          )}
+          <TouchableOpacity
+            onPress={() =>
+              Alert.alert(
+                data?.isBlocking ? 'Unblock user?' : 'Block user?',
+                data?.isBlocking ? 'They will be able to interact with you again.' : 'They will not be able to interact with you.',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: data?.isBlocking ? 'Unblock' : 'Block', style: data?.isBlocking ? 'default' : 'destructive', onPress: toggleBlock },
+                ]
+              )
+            }
+            disabled={blockLoading}
+            style={[styles.blockBtn, data?.isBlocking && styles.blockBtnActive]}
+          >
+            <Text style={[styles.blockBtnText, data?.isBlocking && styles.blockBtnTextActive]}>
+              {data?.isBlocking ? '🚫 Blocked' : '⋯'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Links */}
       <View style={styles.links}>
@@ -155,6 +249,16 @@ const styles = StyleSheet.create({
   nameAr: { fontSize: FontSize.sm, color: Colors.gray[500], marginTop: 2 },
   meta: { fontSize: FontSize.sm, color: Colors.gray[500], marginTop: 2 },
   since: { fontSize: FontSize.xs, color: Colors.gray[400], marginTop: 4 },
+  socialRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, backgroundColor: Colors.white, borderBottomWidth: 1, borderBottomColor: Colors.gray[100] },
+  followBtn: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.gray[200], backgroundColor: Colors.white },
+  followBtnActive: { borderColor: Colors.brand[300], backgroundColor: Colors.brand[50] },
+  followBtnText: { fontSize: FontSize.sm, fontWeight: FontWeight.medium, color: Colors.gray[700] },
+  followBtnTextActive: { color: Colors.brand[700] },
+  followCount: { fontSize: FontSize.xs, color: Colors.gray[400] },
+  blockBtn: { marginLeft: 'auto' as const, paddingHorizontal: Spacing.sm, paddingVertical: Spacing.sm, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.gray[200] },
+  blockBtnActive: { borderColor: Colors.red.DEFAULT, backgroundColor: Colors.red.light },
+  blockBtnText: { fontSize: FontSize.sm, color: Colors.gray[500] },
+  blockBtnTextActive: { color: Colors.red.text },
   links: { flexDirection: 'row', gap: Spacing.sm, padding: Spacing.lg, backgroundColor: Colors.white, borderBottomWidth: 1, borderBottomColor: Colors.gray[100] },
   linkBtn: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: Radius.full, borderWidth: 1, borderColor: Colors.brand[200], backgroundColor: Colors.brand[50] },
   linkText: { fontSize: FontSize.sm, color: Colors.brand[600], fontWeight: FontWeight.medium },

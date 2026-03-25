@@ -16,6 +16,8 @@ export type NotificationType =
   | 'event_cancelled'
   | 'tip_received'
   | 'waitlist_promoted'
+  | 'new_follower'
+export type ReactionType = 'like' | 'interested'
 export type ReportReason = 'spam' | 'inappropriate' | 'harassment' | 'misinformation' | 'other'
 export type OrganizerStatus = 'pending' | 'approved' | 'rejected' | 'suspended'
 export type PaymentType = 'ticket' | 'tip' | 'refund' | 'payout'
@@ -312,6 +314,28 @@ export interface EventView {
 export interface SavedEvent {
   user_id: string
   event_id: string
+  created_at: string
+}
+
+export interface OrganizerFollow {
+  id: string
+  follower_id: string
+  organizer_id: string
+  created_at: string
+}
+
+export interface EventReaction {
+  id: string
+  user_id: string
+  event_id: string
+  type: ReactionType
+  created_at: string
+}
+
+export interface UserBlock {
+  id: string
+  blocker_id: string
+  blocked_id: string
   created_at: string
 }
 
