@@ -24,19 +24,22 @@ export default function OrganizerDashboard() {
   const { user } = useAuth()
   const router  = useRouter()
 
-  const [events,     setEvents]     = useState<OrgEvent[]>([])
-  const [orgName,    setOrgName]    = useState('')
-  const [totalTips,  setTotalTips]  = useState(0)
-  const [planId,     setPlanId]     = useState('org_basic')
-  const [eventsUsed, setEventsUsed] = useState(0)
-  const [eventsLimit, setEventsLimit] = useState<number | null>(3)
-  const [loading,    setLoading]    = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
+  const [events,       setEvents]       = useState<OrgEvent[]>([])
+  const [orgName,      setOrgName]      = useState('')
+  const [orgStatus,    setOrgStatus]    = useState<string | null>(null)
+  const [suspendReason, setSuspendReason] = useState<string | null>(null)
+  const [isBanned,     setIsBanned]     = useState(false)
+  const [totalTips,    setTotalTips]    = useState(0)
+  const [planId,       setPlanId]       = useState('org_basic')
+  const [eventsUsed,   setEventsUsed]   = useState(0)
+  const [eventsLimit,  setEventsLimit]  = useState<number | null>(3)
+  const [loading,      setLoading]      = useState(true)
+  const [refreshing,   setRefreshing]   = useState(false)
 
   const load = useCallback(async () => {
     if (!user) return
     const monthStr = new Date().toISOString().slice(0, 7) + '-01'
-    const [evRes, orgRes, tipRes, usageRes] = await Promise.all([
+    const [evRes, orgRes, profileRes, tipRes, usageRes] = await Promise.all([
       supabase
         .from('events')
         .select('id, title, start_at, is_published, is_cancelled, bookings_count, capacity, tips_total')
@@ -45,8 +48,13 @@ export default function OrganizerDashboard() {
         .limit(30),
       supabase
         .from('organizer_profiles')
-        .select('business_name, plan_id, plan:plan_definitions(events_per_month, platform_fee_pct)')
+        .select('business_name, plan_id, status, suspend_reason, plan:plan_definitions(events_per_month, platform_fee_pct)')
         .eq('user_id', user.id)
+        .single(),
+      supabase
+        .from('profiles')
+        .select('is_banned')
+        .eq('id', user.id)
         .single(),
       supabase
         .from('tips')
@@ -62,6 +70,9 @@ export default function OrganizerDashboard() {
 
     setEvents((evRes.data ?? []) as OrgEvent[])
     setOrgName(orgRes.data?.business_name ?? '')
+    setOrgStatus(orgRes.data?.status ?? null)
+    setSuspendReason((orgRes.data as { suspend_reason?: string | null })?.suspend_reason ?? null)
+    setIsBanned(profileRes.data?.is_banned ?? false)
     setTotalTips((tipRes.data ?? []).reduce((s, t) => s + t.amount, 0))
     setPlanId(orgRes.data?.plan_id ?? 'org_basic')
     const planData = orgRes.data?.plan as { events_per_month: number | null; platform_fee_pct: number } | null
@@ -113,6 +124,52 @@ export default function OrganizerDashboard() {
     return (
       <View style={styles.centered}>
         <ActivityIndicator size="large" color={Colors.brand[500]} />
+      </View>
+    )
+  }
+
+  // Banned account
+  if (isBanned) {
+    return (
+      <View style={styles.centered}>
+        <Text style={{ fontSize: 48, marginBottom: 12 }}>🚫</Text>
+        <Text style={styles.blockedTitle}>Account Banned</Text>
+        <Text style={styles.blockedSub}>Your account has been suspended. Contact support for assistance.</Text>
+      </View>
+    )
+  }
+
+  // Organizer not approved
+  if (!orgStatus || orgStatus === 'pending') {
+    return (
+      <View style={styles.centered}>
+        <Text style={{ fontSize: 48, marginBottom: 12 }}>⏳</Text>
+        <Text style={styles.blockedTitle}>Pending Approval</Text>
+        <Text style={styles.blockedSub}>Your organizer account is under review. You'll be notified once approved.</Text>
+      </View>
+    )
+  }
+
+  if (orgStatus === 'rejected') {
+    return (
+      <View style={styles.centered}>
+        <Text style={{ fontSize: 48, marginBottom: 12 }}>❌</Text>
+        <Text style={styles.blockedTitle}>Application Rejected</Text>
+        <Text style={styles.blockedSub}>Your organizer application was not approved. Contact support for details.</Text>
+      </View>
+    )
+  }
+
+  if (orgStatus === 'suspended') {
+    return (
+      <View style={styles.centered}>
+        <Text style={{ fontSize: 48, marginBottom: 12 }}>⛔</Text>
+        <Text style={styles.blockedTitle}>Account Suspended</Text>
+        <Text style={styles.blockedSub}>
+          {suspendReason
+            ? `Your account has been suspended.\nReason: ${suspendReason}`
+            : 'Your account has been suspended. Contact support if you think this is an error.'}
+        </Text>
       </View>
     )
   }
@@ -249,7 +306,9 @@ export default function OrganizerDashboard() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.gray[50] },
   content:   { padding: Spacing.lg, paddingBottom: Spacing['4xl'] },
-  centered:  { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  centered:     { flex: 1, justifyContent: 'center', alignItems: 'center', padding: Spacing['2xl'] },
+  blockedTitle: { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.gray[900], textAlign: 'center', marginBottom: 8 },
+  blockedSub:   { fontSize: FontSize.sm, color: Colors.gray[500], textAlign: 'center', lineHeight: 20 },
   header:    { flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.lg },
   headerTitle: { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.gray[900] },
   headerSub:   { fontSize: FontSize.sm, color: Colors.gray[500], marginTop: 2 },
