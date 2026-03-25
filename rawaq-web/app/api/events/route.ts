@@ -46,6 +46,7 @@ export async function GET(req: NextRequest) {
     if (params.date_from) query = query.gte('start_at', params.date_from)
     if (params.date_to) query = query.lte('start_at', params.date_to)
     if (params.organizer_id) query = query.eq('organizer_id', params.organizer_id)
+    if (params.organizer_own && ctx?.userId) query = query.eq('organizer_id', ctx.userId)
 
     // Full-text search
     if (params.search) {
