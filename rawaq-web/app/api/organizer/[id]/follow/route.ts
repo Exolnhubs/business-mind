@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { requireAuth } from '@/lib/auth'
 import { handleApiError, ok, ForbiddenException } from '@/lib/errors'
+import { sendNotification } from '@/lib/notifications'
 
 // POST /api/organizer/:id/follow
 export async function POST(
@@ -25,6 +26,16 @@ export async function POST(
       )
 
     if (error) throw error
+
+    // Notify organizer (fire-and-forget)
+    const { data: actor } = await supabase
+      .from('profiles').select('display_name').eq('id', ctx.userId).single()
+    sendNotification({
+      userId:  organizerId,
+      type:    'new_follower',
+      payload: { actor_id: ctx.userId, actor_name: actor?.display_name ?? 'Someone' },
+    }).catch(() => {})
+
     return ok({ following: true })
   } catch (err) {
     return handleApiError(err)

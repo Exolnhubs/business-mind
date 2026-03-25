@@ -162,15 +162,28 @@ export async function POST(req: NextRequest) {
       }).catch(() => {}) // non-blocking for MVP; in production, await and handle failure
     }
 
-    // Notify user (fire-and-forget) — include ticket_id so email can embed the QR code
+    // Notify attendee (fire-and-forget)
     sendNotification({
       userId: ctx.userId,
       type: 'booking_confirmed',
       payload: {
-        event_id: event.id,
+        event_id:   event.id,
         event_title: event.title,
         booking_id: booking.id,
-        ticket_id: booking.ticket_id ?? undefined,
+        ticket_id:  booking.ticket_id ?? undefined,
+      },
+    }).catch(() => {})
+
+    // Notify organizer of new attendee (fire-and-forget)
+    sendNotification({
+      userId:  event.organizer_id,
+      type:    'new_attendee',
+      payload: {
+        event_id:    event.id,
+        event_title: event.title,
+        booking_id:  booking.id,
+        actor_id:    ctx.userId,
+        actor_name:  profile?.display_name ?? 'Someone',
       },
     }).catch(() => {})
 

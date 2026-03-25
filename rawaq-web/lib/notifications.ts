@@ -120,6 +120,11 @@ function getPushTitle(type: NotificationType): string {
     organizer_suspended: 'Account Suspended',
     event_cancelled:     'Event Cancelled',
     tip_received:        'You received a tip 💰',
+    waitlist_promoted:   'You\'re In! 🎉',
+    new_follower:        'New Follower 👤',
+    new_review:          'New Review ⭐',
+    new_attendee:        'New Attendee 🎟️',
+    new_comment:         'New Comment 💬',
   }
   return titles[type] ?? 'Rawaq Notification'
 }
@@ -137,6 +142,11 @@ function getPushBody(type: NotificationType, payload: Record<string, unknown>): 
     case 'organizer_suspended': return 'Your organizer account has been suspended'
     case 'tip_received':        return `You received a ${str('amount')} ${str('currency')} tip for "${str('event_title')}"`
     case 'event_cancelled':     return `"${str('event_title')}" has been cancelled`
+    case 'waitlist_promoted':   return `You've been moved off the waitlist for "${str('event_title')}"`
+    case 'new_follower':        return `${str('actor_name')} started following you`
+    case 'new_review':          return `${str('actor_name')} left you a ${str('rating')}★ review`
+    case 'new_attendee':        return `${str('actor_name')} just booked "${str('event_title')}"`
+    case 'new_comment':         return `${str('actor_name')} commented on "${str('event_title')}"`
     default:                    return 'You have a new notification'
   }
 }
