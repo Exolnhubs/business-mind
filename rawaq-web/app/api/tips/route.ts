@@ -4,6 +4,7 @@ import { requireAuth } from '@/lib/auth'
 import { handleApiError, ok, created, NotFoundException, ForbiddenException } from '@/lib/errors'
 import { CreateTipSchema } from '@/lib/validations/tips'
 import { sendNotification } from '@/lib/notifications'
+import { processPayment } from '@/lib/payments'
 
 // GET /api/tips — tips sent by current user (or received, for organizers)
 export async function GET(req: NextRequest) {
@@ -66,10 +67,6 @@ export async function POST(req: NextRequest) {
       throw new ForbiddenException('Cannot tip your own event')
     }
 
-    // MVP: simulate payment success (no real gateway)
-    // In production: call payment gateway here, store transaction ref
-    const paymentRef = `mock_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
-
     // Look up organizer's platform fee from their plan
     const { data: orgProfile } = await supabase
       .from('organizer_profiles')
@@ -83,21 +80,34 @@ export async function POST(req: NextRequest) {
     const { data: tip, error } = await supabase
       .from('tips')
       .insert({
-        user_id: ctx.userId,
-        event_id: input.event_id,
-        organizer_id: event.organizer_id,
-        amount: input.amount,
-        currency: input.currency,
-        message: input.message,
-        payment_ref: paymentRef,
-        is_simulated: true,
-        platform_fee_pct: feePct,
+        user_id:             ctx.userId,
+        event_id:            input.event_id,
+        organizer_id:        event.organizer_id,
+        amount:              input.amount,
+        currency:            input.currency,
+        message:             input.message,
+        payment_ref:         null,  // set after payment_transaction is created
+        is_simulated:        true,
+        platform_fee_pct:    feePct,
         platform_fee_amount: feeAmount,
       })
       .select()
       .single()
 
     if (error) throw error
+
+    // Process payment — DB trigger auto-credits the organizer wallet
+    processPayment({
+      supabase,
+      userId:         ctx.userId,
+      organizerId:    event.organizer_id,
+      eventId:        event.id,
+      tipId:          tip.id,
+      type:           'tip',
+      amount:         input.amount,
+      platformFeePct: feePct,
+      currency:       input.currency,
+    }).catch(() => {}) // non-blocking for MVP
 
     // Notify organizer
     sendNotification({
