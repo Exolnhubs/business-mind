@@ -89,16 +89,56 @@ export default function EventDetailScreen() {
   async function validatePromo() {
     if (!promoCode.trim() || !event) return
     setPromoLoading(true)
+
     const basePrice = selectedType ? selectedType.price : (event.price ?? 0)
-    try {
-      const res = await fetch(
-        `${process.env.EXPO_PUBLIC_API_URL ?? ''}/api/promo-codes/validate?code=${encodeURIComponent(promoCode.toUpperCase())}&event_id=${event.id}&order_amount=${basePrice}`
-      )
-      const json = await res.json()
-      setPromoResult(json.data ?? json)
-    } catch {
-      setPromoResult({ valid: false, reason: 'Could not validate code' })
+    const code      = promoCode.toUpperCase().trim()
+
+    const { data: codes } = await supabase
+      .from('promo_codes')
+      .select('*')
+      .eq('code', code)
+      .eq('is_active', true)
+      .or(`event_id.eq.${event.id},event_id.is.null`)
+      .order('event_id', { nullsFirst: false })
+      .limit(2)
+
+    const promo = codes?.find((c: { event_id: string | null }) => c.event_id === event.id)
+                ?? codes?.find((c: { event_id: string | null }) => !c.event_id)
+
+    if (!promo) {
+      setPromoResult({ valid: false, reason: 'Code not found or inactive' })
+      setPromoLoading(false)
+      return
     }
+    if (promo.expires_at && new Date(promo.expires_at) < new Date()) {
+      setPromoResult({ valid: false, reason: 'This promo code has expired' })
+      setPromoLoading(false)
+      return
+    }
+    if (promo.max_uses !== null && promo.used_count >= promo.max_uses) {
+      setPromoResult({ valid: false, reason: 'Usage limit reached' })
+      setPromoLoading(false)
+      return
+    }
+    if (basePrice < (promo.min_order_amount ?? 0)) {
+      setPromoResult({ valid: false, reason: `Min order SAR ${promo.min_order_amount} required` })
+      setPromoLoading(false)
+      return
+    }
+
+    let discountAmount = 0
+    if (promo.discount_type === 'percent') {
+      discountAmount = Math.round(basePrice * (promo.discount_value / 100) * 100) / 100
+    } else {
+      discountAmount = Math.min(promo.discount_value, basePrice)
+    }
+
+    setPromoResult({
+      valid:           true,
+      discount_amount: discountAmount,
+      final_amount:    Math.max(0, basePrice - discountAmount),
+      promo_code_id:   promo.id,
+    })
     setPromoLoading(false)
   }
 
