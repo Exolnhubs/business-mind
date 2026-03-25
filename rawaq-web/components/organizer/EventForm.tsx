@@ -238,35 +238,49 @@ export function EventForm({ categories, event }: EventFormProps) {
 
   // ─── Create wizard ────────────────────────────────────────────────────────────
 
-  // Step 1: create event as draft, then advance
+  // Step 1: create/update draft event, then advance
   async function handleStep1(e: FormEvent) {
     e.preventDefault()
     if (!form.city) { setError('City is required'); return }
     setError(null)
     setLoading(true)
 
+    const payload = {
+      organizer_id:       user!.id,
+      title:              form.title,
+      title_ar:           form.title_ar || null,
+      description:        form.description || null,
+      description_ar:     form.description_ar || null,
+      category_id:        form.category_id || null,
+      city:               form.city,
+      country:            'SA',
+      venue_name:         form.venue_name || null,
+      address:            form.address || null,
+      start_at:           new Date(form.start_at).toISOString(),
+      end_at:             form.end_at ? new Date(form.end_at).toISOString() : null,
+      capacity:           form.capacity ? Number(form.capacity) : null,
+      is_free:            true,
+      currency:           'SAR',
+      gender_restriction: form.gender_restriction as 'mixed' | 'male' | 'female',
+      is_family_friendly: form.is_family_friendly,
+      is_published:       false,
+    }
+
+    // If user went back from step 2 and re-submitted step 1, update the existing draft
+    if (createdEventId) {
+      const { error: dbError } = await supabase
+        .from('events')
+        .update(payload)
+        .eq('id', createdEventId)
+      setLoading(false)
+      if (dbError) { setError(dbError.message); return }
+      setStep(2)
+      return
+    }
+
     const { data: newEvent, error: dbError } = await supabase
       .from('events')
-      .insert({
-        organizer_id:       user!.id,
-        title:              form.title,
-        title_ar:           form.title_ar || null,
-        description:        form.description || null,
-        description_ar:     form.description_ar || null,
-        category_id:        form.category_id || null,
-        city:               form.city,
-        country:            'SA',
-        venue_name:         form.venue_name || null,
-        address:            form.address || null,
-        start_at:           new Date(form.start_at).toISOString(),
-        end_at:             form.end_at ? new Date(form.end_at).toISOString() : null,
-        capacity:           form.capacity ? Number(form.capacity) : null,
-        is_free:            true,
-        currency:           'SAR',
-        gender_restriction: form.gender_restriction as 'mixed' | 'male' | 'female',
-        is_family_friendly: form.is_family_friendly,
-        is_published:       false,
-      })
+      .insert(payload)
       .select('id')
       .single()
 
@@ -290,22 +304,23 @@ export function EventForm({ categories, event }: EventFormProps) {
     const allFree = tickets.every((t) => t.is_free)
     const eventId = createdEventId!
 
+    // Delete any previously saved ticket types (handles "Back → re-submit" case)
+    await supabase.from('ticket_types').delete().eq('event_id', eventId)
+
     for (let i = 0; i < tickets.length; i++) {
       const t = tickets[i]
-      const res = await fetch(`/api/events/${eventId}/ticket-types`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const { error: dbErr } = await supabase
+        .from('ticket_types')
+        .insert({
+          event_id:   eventId,
           name:       t.name.trim(),
           price:      t.is_free ? 0 : Number(t.price),
           capacity:   t.capacity ? Number(t.capacity) : null,
           is_free:    t.is_free,
           sort_order: i,
-        }),
-      })
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({}))
-        setError(j.error ?? j.message ?? 'Failed to create ticket type')
+        })
+      if (dbErr) {
+        setError(dbErr.message)
         setLoading(false)
         return
       }
