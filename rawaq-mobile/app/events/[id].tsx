@@ -41,6 +41,12 @@ export default function EventDetailScreen() {
   const [tipLoading, setTipLoading] = useState(false)
   const [tipDone, setTipDone]       = useState(false)
   const [showTip, setShowTip]       = useState(false)
+  // Report event
+  const [showReport, setShowReport]   = useState(false)
+  const [reportReason, setReportReason] = useState<string>('spam')
+  const [reportDetails, setReportDetails] = useState('')
+  const [reportLoading, setReportLoading] = useState(false)
+  const [reportDone, setReportDone]   = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -578,6 +584,80 @@ export default function EventDetailScreen() {
           </View>
         )}
 
+        {/* Report event */}
+        {user && user.id !== event.organizer_id && (
+          <View style={styles.reportSection}>
+            {reportDone ? (
+              <Text style={styles.reportDone}>✅ Report submitted. Thank you.</Text>
+            ) : !showReport ? (
+              <TouchableOpacity onPress={() => setShowReport(true)}>
+                <Text style={styles.reportLink}>🚩 Report this event</Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.reportPanel}>
+                <Text style={styles.reportTitle}>Report Event</Text>
+                {[
+                  { value: 'spam',           label: 'Spam or misleading' },
+                  { value: 'inappropriate',  label: 'Inappropriate content' },
+                  { value: 'harassment',     label: 'Harassment or hate' },
+                  { value: 'misinformation', label: 'False information' },
+                  { value: 'other',          label: 'Other' },
+                ].map((r) => (
+                  <TouchableOpacity
+                    key={r.value}
+                    style={styles.reportOption}
+                    onPress={() => setReportReason(r.value)}
+                  >
+                    <View style={[styles.reportRadio, reportReason === r.value && styles.reportRadioSelected]} />
+                    <Text style={styles.reportOptionLabel}>{r.label}</Text>
+                  </TouchableOpacity>
+                ))}
+                <TextInput
+                  value={reportDetails}
+                  onChangeText={setReportDetails}
+                  placeholder="Additional details (optional)"
+                  placeholderTextColor={Colors.gray[400]}
+                  multiline
+                  numberOfLines={2}
+                  maxLength={500}
+                  style={styles.reportInput}
+                />
+                <View style={styles.reportBtnRow}>
+                  <TouchableOpacity
+                    disabled={reportLoading}
+                    style={[styles.reportSubmitBtn, reportLoading && { opacity: 0.5 }]}
+                    onPress={async () => {
+                      setReportLoading(true)
+                      const { error } = await supabase.from('event_reports').insert({
+                        event_id:    event.id,
+                        reporter_id: user.id,
+                        reason:      reportReason,
+                        details:     reportDetails.trim() || null,
+                        status:      'pending',
+                      })
+                      if (error && error.code !== '23505') {
+                        Alert.alert('Error', error.message)
+                      } else {
+                        setReportDone(true)
+                        setShowReport(false)
+                      }
+                      setReportLoading(false)
+                    }}
+                  >
+                    <Text style={styles.reportSubmitText}>{reportLoading ? 'Submitting…' : 'Submit Report'}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.reportCancelBtn}
+                    onPress={() => setShowReport(false)}
+                  >
+                    <Text style={styles.reportCancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+          </View>
+        )}
+
         {/* Comments */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>
@@ -675,4 +755,20 @@ const styles = StyleSheet.create({
   tipChipTextActive: { color: Colors.brand[600] },
   tipInput: { borderWidth: 1, borderColor: Colors.gray[200], borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2, fontSize: FontSize.base, color: Colors.gray[900], marginBottom: Spacing.sm },
   tipDisclaimer: { fontSize: FontSize.xs, color: Colors.gray[400], textAlign: 'center', marginTop: Spacing.sm },
+  // Report
+  reportSection: { marginBottom: Spacing.xl, alignItems: 'center' },
+  reportLink: { fontSize: FontSize.xs, color: Colors.gray[400] },
+  reportDone: { fontSize: FontSize.xs, color: '#16a34a' },
+  reportPanel: { width: '100%', backgroundColor: Colors.white, borderRadius: Radius.lg, padding: Spacing.md, ...Shadow.card },
+  reportTitle: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[900], marginBottom: Spacing.sm },
+  reportOption: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: 5 },
+  reportRadio: { width: 16, height: 16, borderRadius: 8, borderWidth: 2, borderColor: Colors.gray[300] },
+  reportRadioSelected: { borderColor: '#dc2626', backgroundColor: '#dc2626' },
+  reportOptionLabel: { fontSize: FontSize.sm, color: Colors.gray[700] },
+  reportInput: { borderWidth: 1, borderColor: Colors.gray[200], borderRadius: Radius.md, paddingHorizontal: Spacing.sm, paddingVertical: Spacing.sm, fontSize: FontSize.sm, color: Colors.gray[900], marginTop: Spacing.sm, textAlignVertical: 'top' },
+  reportBtnRow: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.sm },
+  reportSubmitBtn: { flex: 1, backgroundColor: '#dc2626', borderRadius: Radius.md, paddingVertical: Spacing.sm + 2, alignItems: 'center' },
+  reportSubmitText: { color: Colors.white, fontSize: FontSize.xs, fontWeight: FontWeight.semibold },
+  reportCancelBtn: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.gray[200] },
+  reportCancelText: { fontSize: FontSize.xs, color: Colors.gray[600] },
 })
