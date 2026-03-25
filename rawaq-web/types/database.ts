@@ -22,6 +22,13 @@ export type NotificationType =
   | 'new_comment'
 export type ReactionType = 'like' | 'interested'
 export type ReportReason = 'spam' | 'inappropriate' | 'harassment' | 'misinformation' | 'other'
+export type ReportStatus = 'pending' | 'resolved' | 'dismissed'
+export type AuditAction =
+  | 'ban_user' | 'unban_user' | 'warn_user' | 'delete_user'
+  | 'approve_organizer' | 'reject_organizer' | 'suspend_organizer'
+  | 'publish_event' | 'unpublish_event' | 'cancel_event'
+  | 'resolve_report' | 'dismiss_report' | 'assign_plan'
+export type WarningSeverity = 'low' | 'medium' | 'high'
 export type OrganizerStatus = 'pending' | 'approved' | 'rejected' | 'suspended'
 export type PaymentType = 'ticket' | 'tip' | 'refund' | 'payout'
 export type PaymentStatus = 'pending' | 'succeeded' | 'failed' | 'refunded'
@@ -303,6 +310,41 @@ export interface CommentReport {
   reason: ReportReason
   details: string | null
   resolved: boolean
+  created_at: string
+}
+
+export interface EventReport {
+  id: string
+  event_id: string
+  reporter_id: string
+  reason: ReportReason
+  details: string | null
+  status: ReportStatus
+  resolved_by: string | null
+  resolved_at: string | null
+  resolution_note: string | null
+  created_at: string
+}
+
+export interface AuditLog {
+  id: string
+  admin_id: string
+  action: AuditAction
+  target_type: string
+  target_id: string
+  meta: Record<string, unknown>
+  created_at: string
+}
+
+export interface UserWarning {
+  id: string
+  user_id: string
+  issued_by: string
+  severity: WarningSeverity
+  reason: string
+  internal_note: string | null
+  acknowledged: boolean
+  acknowledged_at: string | null
   created_at: string
 }
 

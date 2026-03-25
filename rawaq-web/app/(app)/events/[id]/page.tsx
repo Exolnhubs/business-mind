@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/Badge'
 import { BookingFlow } from '@/components/events/BookingFlow'
 import { SaveButton } from '@/components/events/SaveButton'
 import { TipPanel } from '@/components/events/TipPanel'
+import { ReportEventButton } from '@/components/events/ReportEventButton'
 import { CommentThread } from '@/components/comments/CommentThread'
 import { formatDate, formatTime, formatCurrency } from '@/lib/utils'
 import type { EventWithOrganizer, CommentWithAuthor, TicketType } from '@/types/database'
@@ -275,6 +276,11 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
             >
               View organizer profile →
             </Link>
+          )}
+
+          {/* Report event */}
+          {user && user.id !== ev.organizer_id && (
+            <ReportEventButton eventId={id} />
           )}
         </div>
       </div>
