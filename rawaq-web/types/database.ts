@@ -118,6 +118,8 @@ export interface Booking {
   user_id: string
   event_id: string
   ticket_type_id: string | null
+  promo_code_id: string | null
+  discount_amount: number
   status: BookingStatus
   notes: string | null
   ticket_id: string | null
@@ -127,6 +129,33 @@ export interface Booking {
   platform_fee_amount: number
   created_at: string
   updated_at: string
+}
+
+export interface PromoCode {
+  id: string
+  code: string
+  event_id: string | null
+  created_by: string
+  discount_type: 'percent' | 'fixed'
+  discount_value: number
+  max_uses: number | null
+  used_count: number
+  min_order_amount: number
+  expires_at: string | null
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface PromoValidationResult {
+  valid: boolean
+  reason?: string
+  promo_code_id?: string
+  code?: string
+  discount_type?: 'percent' | 'fixed'
+  discount_value?: number
+  discount_amount?: number
+  final_amount?: number
 }
 
 export interface TicketType {

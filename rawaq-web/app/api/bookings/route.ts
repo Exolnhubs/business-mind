@@ -91,10 +91,81 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Calculate platform fee for paid events (stored for future real-payment splits)
+    // ── Ticket type validation ──────────────────────────────────────────────
+    let ticketType: { id: string; price: number; is_free: boolean; capacity: number | null; sold_count: number; sale_starts_at: string | null; sale_ends_at: string | null } | null = null
+    if (input.ticket_type_id) {
+      const { data: tt } = await supabase
+        .from('ticket_types')
+        .select('id, price, is_free, capacity, sold_count, sale_starts_at, sale_ends_at, is_active')
+        .eq('id', input.ticket_type_id)
+        .eq('event_id', input.event_id)
+        .single()
+
+      if (!tt || !(tt as { is_active: boolean }).is_active) {
+        throw new ForbiddenException('Selected ticket type is not available')
+      }
+      const now = new Date()
+      if (tt.sale_starts_at && new Date(tt.sale_starts_at) > now) {
+        throw new ForbiddenException('Ticket sales have not started yet')
+      }
+      if (tt.sale_ends_at && new Date(tt.sale_ends_at) < now) {
+        throw new ForbiddenException('Ticket sales have ended')
+      }
+      if (tt.capacity !== null && tt.sold_count >= tt.capacity) {
+        throw new ForbiddenException('This ticket type is sold out')
+      }
+      ticketType = tt
+    }
+
+    // ── Promo code validation ───────────────────────────────────────────────
+    let promoCodeId: string | null = null
+    let discountAmount = 0
+    if (input.promo_code) {
+      const code = input.promo_code.toUpperCase().trim()
+      const { data: promos } = await supabase
+        .from('promo_codes')
+        .select('*')
+        .eq('code', code)
+        .eq('is_active', true)
+        .or(`event_id.eq.${input.event_id},event_id.is.null`)
+        .order('event_id', { nullsFirst: false })
+        .limit(2)
+
+      const promo = promos?.find((p) => p.event_id === input.event_id) ?? promos?.find((p) => !p.event_id)
+
+      if (!promo) throw new ForbiddenException('Invalid or inactive promo code')
+      if (promo.expires_at && new Date(promo.expires_at) < new Date()) {
+        throw new ForbiddenException('Promo code has expired')
+      }
+      if (promo.max_uses !== null && promo.used_count >= promo.max_uses) {
+        throw new ForbiddenException('Promo code usage limit reached')
+      }
+
+      const orderPrice = ticketType ? ticketType.price : (event.price ?? 0)
+      if (orderPrice < (promo.min_order_amount ?? 0)) {
+        throw new ForbiddenException(`Promo code requires a minimum order of ${promo.min_order_amount}`)
+      }
+
+      promoCodeId = promo.id
+      if (promo.discount_type === 'percent') {
+        discountAmount = Math.round(orderPrice * (promo.discount_value / 100) * 100) / 100
+      } else {
+        discountAmount = Math.min(promo.discount_value, orderPrice)
+      }
+    }
+
+    // ── Effective price (ticket type overrides event price) ─────────────────
+    const effectivePrice = ticketType
+      ? Math.max(0, ticketType.price - discountAmount)
+      : event.price
+        ? Math.max(0, event.price - discountAmount)
+        : 0
+    const isFreeBooking = ticketType ? ticketType.is_free || effectivePrice === 0 : event.is_free || effectivePrice === 0
+
+    // ── Platform fee ────────────────────────────────────────────────────────
     let platformFeePct = 0
     let platformFeeAmount = 0
-    if (!event.is_free && event.price) {
+    if (!isFreeBooking && effectivePrice > 0) {
       const { data: orgProfile } = await supabase
         .from('organizer_profiles')
         .select('plan:plan_definitions(platform_fee_pct)')
@@ -102,10 +173,10 @@ export async function POST(req: NextRequest) {
         .single()
 
       platformFeePct = (orgProfile?.plan as { platform_fee_pct?: number } | null)?.platform_fee_pct ?? 0.10
-      platformFeeAmount = Math.round(event.price * platformFeePct * 100) / 100
+      platformFeeAmount = Math.round(effectivePrice * platformFeePct * 100) / 100
     }
 
-    // Check for an existing cancelled booking — let user rebook the same event
+    // ── Check for existing cancelled booking to reactivate ─────────────────
     const { data: existing } = await supabase
       .from('bookings')
       .select('id')
@@ -114,42 +185,33 @@ export async function POST(req: NextRequest) {
       .eq('status', 'cancelled')
       .maybeSingle()
 
+    const bookingFields = {
+      status:              'confirmed',
+      notes:               input.notes ?? null,
+      ticket_type_id:      input.ticket_type_id ?? null,
+      promo_code_id:       promoCodeId,
+      discount_amount:     discountAmount,
+      platform_fee_pct:    platformFeePct,
+      platform_fee_amount: platformFeeAmount,
+    }
+
     let booking
     if (existing) {
-      // Reactivate the cancelled booking instead of inserting a duplicate
       const { data, error } = await supabase
-        .from('bookings')
-        .update({
-          status: 'confirmed',
-          notes: input.notes ?? null,
-          platform_fee_pct: platformFeePct,
-          platform_fee_amount: platformFeeAmount,
-        })
-        .eq('id', existing.id)
-        .select()
-        .single()
+        .from('bookings').update(bookingFields).eq('id', existing.id).select().single()
       if (error) throw error
       booking = data
     } else {
-      // Insert new booking — capacity guard handled by DB trigger
       const { data, error } = await supabase
         .from('bookings')
-        .insert({
-          user_id: ctx.userId,
-          event_id: input.event_id,
-          notes: input.notes,
-          status: 'confirmed',
-          platform_fee_pct: platformFeePct,
-          platform_fee_amount: platformFeeAmount,
-        })
-        .select()
-        .single()
+        .insert({ user_id: ctx.userId, event_id: input.event_id, ...bookingFields })
+        .select().single()
       if (error) throw error
       booking = data
     }
 
-    // Process payment for paid events (fire-and-forget wallet update via DB trigger)
-    if (!event.is_free && event.price && platformFeePct > 0) {
+    // Process payment for paid bookings
+    if (!isFreeBooking && effectivePrice > 0 && platformFeePct > 0) {
       processPayment({
         supabase,
         userId:         ctx.userId,
@@ -157,9 +219,9 @@ export async function POST(req: NextRequest) {
         eventId:        event.id,
         bookingId:      booking.id,
         type:           'ticket',
-        amount:         event.price,
+        amount:         effectivePrice,
         platformFeePct,
-      }).catch(() => {}) // non-blocking for MVP; in production, await and handle failure
+      }).catch(() => {})
     }
 
     // Notify attendee (fire-and-forget)

@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/Badge'
 import { CommentThread } from '@/components/comments/CommentThread'
 import { formatDate, formatTime, formatCurrency } from '@/lib/utils'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
-import type { EventWithOrganizer, CommentWithAuthor } from '@/types/database'
+import type { EventWithOrganizer, CommentWithAuthor, TicketType } from '@/types/database'
 
 const QUICK_TIPS = [5, 10, 25, 50]
 
@@ -22,11 +22,20 @@ export default function EventDetailScreen() {
   const { t, locale } = useLocale()
   const router = useRouter()
 
-  const [event, setEvent]           = useState<EventWithOrganizer | null>(null)
-  const [comments, setComments]     = useState<CommentWithAuthor[]>([])
-  const [loading, setLoading]       = useState(true)
-  const [isBooked, setIsBooked]     = useState(false)
-  const [bookingLoading, setBL]     = useState(false)
+  const [event, setEvent]             = useState<EventWithOrganizer | null>(null)
+  const [comments, setComments]       = useState<CommentWithAuthor[]>([])
+  const [ticketTypes, setTicketTypes] = useState<TicketType[]>([])
+  const [loading, setLoading]         = useState(true)
+  const [isBooked, setIsBooked]       = useState(false)
+  const [onWaitlist, setOnWaitlist]   = useState(false)
+  const [bookingLoading, setBL]       = useState(false)
+  // Ticket type selection
+  const [selectedTypeId, setSelectedTypeId] = useState<string | null>(null)
+  // Promo code
+  const [promoCode, setPromoCode]     = useState('')
+  const [promoResult, setPromoResult] = useState<{ valid: boolean; discount_amount?: number; final_amount?: number; promo_code_id?: string; reason?: string } | null>(null)
+  const [promoLoading, setPromoLoading] = useState(false)
+  // Tip
   const [tipAmount, setTipAmount]   = useState<number | null>(null)
   const [tipMsg, setTipMsg]         = useState('')
   const [tipLoading, setTipLoading] = useState(false)
@@ -58,70 +67,113 @@ export default function EventDetailScreen() {
         .order('created_at', { ascending: false })
         .limit(30),
       user
-        ? supabase
-          .from('bookings')
-          .select('id')
-          .eq('event_id', id)
-          .eq('user_id', user.id)
-          .eq('status', 'confirmed')
-          .single()
+        ? supabase.from('bookings').select('id')
+            .eq('event_id', id).eq('user_id', user.id).eq('status', 'confirmed').single()
         : Promise.resolve({ data: null }),
-    ]).then(([{ data: ev }, { data: cmts }, { data: booking }]) => {
+      user
+        ? supabase.from('waitlist').select('id')
+            .eq('event_id', id).eq('user_id', user.id).eq('status', 'waiting').single()
+        : Promise.resolve({ data: null }),
+      supabase.from('ticket_types').select('*')
+        .eq('event_id', id).eq('is_active', true).order('sort_order'),
+    ]).then(([{ data: ev }, { data: cmts }, { data: booking }, { data: wl }, { data: tts }]) => {
       setEvent(ev as EventWithOrganizer)
       setComments((cmts ?? []) as CommentWithAuthor[])
       setIsBooked(!!booking)
+      setOnWaitlist(!!wl)
+      setTicketTypes((tts ?? []) as TicketType[])
       setLoading(false)
     })
   }, [id, user])
 
+  async function validatePromo() {
+    if (!promoCode.trim() || !event) return
+    setPromoLoading(true)
+    const basePrice = selectedType ? selectedType.price : (event.price ?? 0)
+    try {
+      const res = await fetch(
+        `${process.env.EXPO_PUBLIC_API_URL ?? ''}/api/promo-codes/validate?code=${encodeURIComponent(promoCode.toUpperCase())}&event_id=${event.id}&order_amount=${basePrice}`
+      )
+      const json = await res.json()
+      setPromoResult(json.data ?? json)
+    } catch {
+      setPromoResult({ valid: false, reason: 'Could not validate code' })
+    }
+    setPromoLoading(false)
+  }
+
+  const selectedType = ticketTypes.find((t) => t.id === selectedTypeId) ?? null
+
   async function handleBooking() {
     if (!user) { router.push('/(auth)/login'); return }
+    if (ticketTypes.length > 0 && !selectedTypeId) {
+      Alert.alert('Select a ticket', 'Please select a ticket type to continue.')
+      return
+    }
     setBL(true)
 
     if (isBooked) {
-      await supabase
-        .from('bookings')
-        .update({ status: 'cancelled' })
-        .eq('event_id', id)
-        .eq('user_id', user.id)
-        .eq('status', 'confirmed')
+      // Cancel via direct supabase call — fetch booking id first
+      const { data: booking } = await supabase
+        .from('bookings').select('id')
+        .eq('event_id', id).eq('user_id', user.id).eq('status', 'confirmed').single()
+      if (booking) {
+        await supabase.from('bookings').update({ status: 'cancelled' }).eq('id', booking.id)
+      }
       setIsBooked(false)
       setBL(false)
       return
     }
 
-    // Pre-booking checks: fetch current profile
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('display_name, gender, city')
-      .eq('id', user.id)
-      .single()
-
-    if (!profile?.display_name || !profile?.gender || !profile?.city) {
-      setBL(false)
-      Alert.alert(
-        'Profile incomplete',
-        'Please complete your profile (name, gender, and city) before booking an event.\n\nGo to the Profile tab to update your info.',
-        [{ text: 'OK' }],
-      )
-      return
+    // Call booking API — server handles profile checks, gender restriction, capacity
+    try {
+      const res = await fetch(`${process.env.EXPO_PUBLIC_API_URL ?? ''}/api/bookings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event_id:       id,
+          ticket_type_id: selectedTypeId ?? null,
+          promo_code:     promoResult?.valid ? promoCode.toUpperCase() : null,
+        }),
+      })
+      if (res.ok) {
+        setIsBooked(true)
+      } else {
+        const json = await res.json().catch(() => ({}))
+        const msg: string = json.error ?? json.message ?? 'Booking failed'
+        if (msg.toLowerCase().includes('complete your profile')) {
+          Alert.alert('Profile incomplete', 'Please complete your profile (name, gender, city) in the Profile tab before booking.')
+        } else {
+          Alert.alert('Booking failed', msg)
+        }
+      }
+    } catch {
+      Alert.alert('Error', 'Network error. Please try again.')
     }
+    setBL(false)
+  }
 
-    if (event?.gender_restriction === 'male' && profile.gender !== 'male') {
-      setBL(false)
-      Alert.alert('Men only', 'This event is for men only.')
-      return
-    }
-    if (event?.gender_restriction === 'female' && profile.gender !== 'female') {
-      setBL(false)
-      Alert.alert('Women only', 'This event is for women only.')
-      return
-    }
+  async function handleJoinWaitlist() {
+    if (!user) { router.push('/(auth)/login'); return }
+    setBL(true)
+    try {
+      const res = await fetch(`${process.env.EXPO_PUBLIC_API_URL ?? ''}/api/waitlist`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event_id: id }),
+      })
+      if (res.ok) setOnWaitlist(true)
+      else { const j = await res.json().catch(() => ({})); Alert.alert('Error', j.error ?? j.message ?? 'Failed to join waitlist') }
+    } catch { Alert.alert('Error', 'Network error.') }
+    setBL(false)
+  }
 
-    const { error } = await supabase
-      .from('bookings')
-      .upsert({ event_id: id, user_id: user.id, status: 'confirmed' }, { onConflict: 'event_id,user_id' })
-    if (!error) setIsBooked(true)
+  async function handleLeaveWaitlist() {
+    setBL(true)
+    try {
+      await fetch(`${process.env.EXPO_PUBLIC_API_URL ?? ''}/api/waitlist?event_id=${id}`, { method: 'DELETE' })
+      setOnWaitlist(false)
+    } catch { /* ignore */ }
     setBL(false)
   }
 
@@ -239,24 +291,142 @@ export default function EventDetailScreen() {
 
         {/* Booking CTA */}
         {!event.is_cancelled && (
-          <TouchableOpacity
-            style={[styles.bookBtn, isFull && !isBooked && styles.bookBtnGray, isBooked && styles.bookBtnOutline]}
-            onPress={handleBooking}
-            disabled={bookingLoading || (isFull && !isBooked)}
-            activeOpacity={0.85}
-          >
-            {bookingLoading
-              ? <ActivityIndicator color={isBooked ? Colors.brand[500] : Colors.white} />
-              : (
-                <Text style={[styles.bookBtnText, isBooked && { color: Colors.gray[700] }]}>
-                  {isFull && !isBooked ? 'Fully Booked'
-                    : isBooked ? '✓ Cancel Booking'
-                    : event.is_free ? 'Join Event — Free'
-                    : `Book Now — SAR ${event.price ?? 0}`}
-                </Text>
+          <View style={styles.bookingSection}>
+            {isBooked ? (
+              <TouchableOpacity
+                style={[styles.bookBtn, styles.bookBtnOutline]}
+                onPress={handleBooking} disabled={bookingLoading}
+              >
+                {bookingLoading
+                  ? <ActivityIndicator color={Colors.brand[500]} />
+                  : <Text style={[styles.bookBtnText, { color: Colors.gray[700] }]}>✓ Cancel Booking</Text>}
+              </TouchableOpacity>
+            ) : isFull ? (
+              onWaitlist ? (
+                <View style={styles.waitlistRow}>
+                  <View style={styles.waitlistBadge}>
+                    <Text style={styles.waitlistBadgeText}>⏳ You're on the waitlist</Text>
+                  </View>
+                  <TouchableOpacity onPress={handleLeaveWaitlist} disabled={bookingLoading} style={styles.leaveWlBtn}>
+                    <Text style={styles.leaveWlText}>{bookingLoading ? '…' : 'Leave'}</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={[styles.bookBtn, styles.bookBtnAmber]}
+                  onPress={handleJoinWaitlist} disabled={bookingLoading}
+                >
+                  {bookingLoading
+                    ? <ActivityIndicator color={Colors.white} />
+                    : <Text style={styles.bookBtnText}>⏳ Join Waitlist</Text>}
+                </TouchableOpacity>
               )
-            }
-          </TouchableOpacity>
+            ) : (
+              <>
+                {/* Ticket type selector */}
+                {ticketTypes.length > 0 && (
+                  <View style={styles.ticketSection}>
+                    <Text style={styles.ticketSectionLabel}>Select ticket</Text>
+                    {ticketTypes.map((tt) => {
+                      const now = new Date()
+                      const soldOut = tt.capacity !== null && tt.sold_count >= tt.capacity
+                      const saleEnded = tt.sale_ends_at ? new Date(tt.sale_ends_at) < now : false
+                      const notStarted = tt.sale_starts_at ? new Date(tt.sale_starts_at) > now : false
+                      const unavailable = soldOut || saleEnded || notStarted
+                      const spotsLeft2 = tt.capacity !== null ? tt.capacity - tt.sold_count : null
+                      return (
+                        <TouchableOpacity
+                          key={tt.id}
+                          disabled={unavailable}
+                          onPress={() => { setSelectedTypeId(tt.id); setPromoResult(null); setPromoCode('') }}
+                          style={[
+                            styles.ticketCard,
+                            selectedTypeId === tt.id && styles.ticketCardSelected,
+                            unavailable && styles.ticketCardDisabled,
+                          ]}
+                        >
+                          <View style={styles.ticketCardRow}>
+                            <View style={{ flex: 1 }}>
+                              <Text style={[styles.ticketName, unavailable && { color: Colors.gray[400] }]}>{tt.name}</Text>
+                              {tt.description ? <Text style={styles.ticketDesc} numberOfLines={1}>{tt.description}</Text> : null}
+                              {spotsLeft2 !== null && spotsLeft2 <= 10 && !soldOut && (
+                                <Text style={styles.ticketLow}>Only {spotsLeft2} left!</Text>
+                              )}
+                              {soldOut && <Text style={styles.ticketUnavail}>Sold out</Text>}
+                              {saleEnded && <Text style={styles.ticketUnavail}>Sales ended</Text>}
+                              {notStarted && <Text style={styles.ticketUnavail}>Coming soon</Text>}
+                            </View>
+                            <Text style={[styles.ticketPrice, unavailable && { color: Colors.gray[400] }]}>
+                              {tt.is_free ? 'Free' : formatCurrency(tt.price, tt.currency)}
+                            </Text>
+                          </View>
+                          {selectedTypeId === tt.id && (
+                            <Text style={styles.ticketSelected}>✓ Selected</Text>
+                          )}
+                        </TouchableOpacity>
+                      )
+                    })}
+                  </View>
+                )}
+
+                {/* Promo code */}
+                {(selectedType ? !selectedType.is_free && selectedType.price > 0 : !event.is_free && (event.price ?? 0) > 0) && (
+                  <View style={styles.promoSection}>
+                    <View style={styles.promoRow}>
+                      <TextInput
+                        value={promoCode}
+                        onChangeText={(v) => { setPromoCode(v.toUpperCase()); setPromoResult(null) }}
+                        placeholder="Promo code"
+                        placeholderTextColor={Colors.gray[400]}
+                        autoCapitalize="characters"
+                        maxLength={32}
+                        style={styles.promoInput}
+                      />
+                      <TouchableOpacity
+                        onPress={promoResult?.valid ? () => { setPromoCode(''); setPromoResult(null) } : validatePromo}
+                        disabled={promoLoading || (!promoResult?.valid && !promoCode.trim())}
+                        style={[styles.promoBtn, (promoLoading || (!promoResult?.valid && !promoCode.trim())) && styles.promoBtnDisabled]}
+                      >
+                        <Text style={styles.promoBtnText}>{promoLoading ? '…' : promoResult?.valid ? 'Clear' : 'Apply'}</Text>
+                      </TouchableOpacity>
+                    </View>
+                    {promoResult && (
+                      <Text style={[styles.promoMsg, promoResult.valid ? styles.promoMsgOk : styles.promoMsgErr]}>
+                        {promoResult.valid
+                          ? `✓ Discount applied — you pay SAR ${promoResult.final_amount}`
+                          : `✗ ${promoResult.reason}`}
+                      </Text>
+                    )}
+                  </View>
+                )}
+
+                {/* Book button */}
+                <TouchableOpacity
+                  style={[styles.bookBtn, (bookingLoading || (ticketTypes.length > 0 && !selectedTypeId)) && styles.bookBtnGray]}
+                  onPress={handleBooking}
+                  disabled={bookingLoading || (ticketTypes.length > 0 && !selectedTypeId)}
+                  activeOpacity={0.85}
+                >
+                  {bookingLoading
+                    ? <ActivityIndicator color={Colors.white} />
+                    : (
+                      <Text style={styles.bookBtnText}>
+                        {(() => {
+                          const basePrice = selectedType ? selectedType.price : (event.price ?? 0)
+                          const disc = promoResult?.valid ? (promoResult.discount_amount ?? 0) : 0
+                          const finalP = Math.max(0, basePrice - disc)
+                          const free = selectedType ? selectedType.is_free || finalP === 0 : event.is_free || finalP === 0
+                          return free
+                            ? 'Join Event — Free'
+                            : `Book Now — ${formatCurrency(finalP, event.currency ?? 'SAR')}`
+                        })()}
+                      </Text>
+                    )
+                  }
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
         )}
 
         {/* Tip organizer */}
@@ -365,7 +535,38 @@ const styles = StyleSheet.create({
   bookBtn: { backgroundColor: Colors.brand[500], borderRadius: Radius.lg, paddingVertical: Spacing.md + 4, alignItems: 'center', marginBottom: Spacing.sm },
   bookBtnGray: { backgroundColor: Colors.gray[300] },
   bookBtnOutline: { backgroundColor: Colors.white, borderWidth: 1.5, borderColor: Colors.gray[300] },
+  bookBtnAmber: { backgroundColor: '#f59e0b' },
   bookBtnText: { color: Colors.white, fontWeight: FontWeight.semibold, fontSize: FontSize.base },
+  bookingSection: { marginBottom: Spacing.sm, gap: Spacing.sm },
+  // Waitlist
+  waitlistRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  waitlistBadge: { flex: 1, backgroundColor: '#fefce8', borderRadius: Radius.lg, paddingVertical: 12, paddingHorizontal: 16, borderWidth: 1, borderColor: '#fde68a' },
+  waitlistBadgeText: { color: '#92400e', fontWeight: FontWeight.medium, fontSize: FontSize.sm },
+  leaveWlBtn: { paddingVertical: 12, paddingHorizontal: 14, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.gray[200], backgroundColor: Colors.white },
+  leaveWlText: { fontSize: FontSize.sm, color: Colors.gray[600] },
+  // Ticket types
+  ticketSection: { gap: Spacing.xs },
+  ticketSectionLabel: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.gray[400], textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
+  ticketCard: { borderWidth: 1.5, borderColor: Colors.gray[200], borderRadius: Radius.lg, padding: Spacing.sm + 2 },
+  ticketCardSelected: { borderColor: Colors.brand[500], backgroundColor: '#eff6ff' },
+  ticketCardDisabled: { opacity: 0.55 },
+  ticketCardRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  ticketName: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[900] },
+  ticketDesc: { fontSize: FontSize.xs, color: Colors.gray[500], marginTop: 1 },
+  ticketLow: { fontSize: FontSize.xs, color: '#d97706', fontWeight: FontWeight.medium, marginTop: 2 },
+  ticketUnavail: { fontSize: FontSize.xs, color: Colors.gray[400], marginTop: 2 },
+  ticketPrice: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.brand[700] },
+  ticketSelected: { fontSize: FontSize.xs, color: Colors.brand[600], fontWeight: FontWeight.medium, marginTop: 4 },
+  // Promo code
+  promoSection: { gap: 4 },
+  promoRow: { flexDirection: 'row', gap: Spacing.sm },
+  promoInput: { flex: 1, borderWidth: 1, borderColor: Colors.gray[200], borderRadius: Radius.md, paddingHorizontal: 12, paddingVertical: 10, fontSize: FontSize.sm, color: Colors.gray[900], fontFamily: 'monospace' },
+  promoBtn: { paddingHorizontal: 14, paddingVertical: 10, backgroundColor: Colors.gray[100], borderRadius: Radius.md },
+  promoBtnDisabled: { opacity: 0.5 },
+  promoBtnText: { fontSize: FontSize.sm, fontWeight: FontWeight.medium, color: Colors.gray[700] },
+  promoMsg: { fontSize: FontSize.xs, fontWeight: FontWeight.medium },
+  promoMsgOk: { color: '#16a34a' },
+  promoMsgErr: { color: '#dc2626' },
   tipToggle: { alignItems: 'center', marginBottom: Spacing.lg },
   tipToggleText: { color: Colors.brand[600], fontWeight: FontWeight.medium, fontSize: FontSize.sm },
   tipPanel: { backgroundColor: Colors.white, borderRadius: Radius.lg, padding: Spacing.lg, marginBottom: Spacing.xl, ...Shadow.card },

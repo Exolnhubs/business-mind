@@ -3,12 +3,12 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { Badge } from '@/components/ui/Badge'
-import { BookingButton } from '@/components/events/BookingButton'
+import { BookingFlow } from '@/components/events/BookingFlow'
 import { SaveButton } from '@/components/events/SaveButton'
 import { TipPanel } from '@/components/events/TipPanel'
 import { CommentThread } from '@/components/comments/CommentThread'
 import { formatDate, formatTime, formatCurrency } from '@/lib/utils'
-import type { EventWithOrganizer, CommentWithAuthor } from '@/types/database'
+import type { EventWithOrganizer, CommentWithAuthor, TicketType } from '@/types/database'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
@@ -42,25 +42,31 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
   const { data: { user } } = await supabase.auth.getUser()
   let isBooked = false
   let isSaved = false
+  let isOnWaitlist = false
   if (user) {
-    const [{ data: booking }, { data: save }] = await Promise.all([
+    const [{ data: booking }, { data: save }, { data: waitlist }] = await Promise.all([
       supabase
-        .from('bookings')
-        .select('id')
-        .eq('event_id', id)
-        .eq('user_id', user.id)
-        .eq('status', 'confirmed')
-        .single(),
+        .from('bookings').select('id')
+        .eq('event_id', id).eq('user_id', user.id).eq('status', 'confirmed').single(),
       supabase
-        .from('saved_events')
-        .select('event_id')
-        .eq('user_id', user.id)
-        .eq('event_id', id)
-        .single(),
+        .from('saved_events').select('event_id')
+        .eq('user_id', user.id).eq('event_id', id).single(),
+      supabase
+        .from('waitlist').select('id')
+        .eq('event_id', id).eq('user_id', user.id).eq('status', 'waiting').single(),
     ])
     isBooked = !!booking
     isSaved = !!save
+    isOnWaitlist = !!waitlist
   }
+
+  // Fetch ticket types for this event
+  const { data: ticketTypes } = await supabase
+    .from('ticket_types')
+    .select('*')
+    .eq('event_id', id)
+    .eq('is_active', true)
+    .order('sort_order')
 
   // Fetch top-level comments with authors
   const { data: comments } = await supabase
@@ -205,12 +211,15 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
                   <span className="text-xs text-gray-500">{spotsLeft ?? ev.capacity} left</span>
                 )}
               </div>
-              <BookingButton
+              <BookingFlow
                 eventId={id}
                 isFull={isFull}
                 isBooked={isBooked}
                 isFree={ev.is_free}
-                price={ev.price}
+                eventPrice={ev.price}
+                currency={ev.currency ?? 'SAR'}
+                ticketTypes={(ticketTypes ?? []) as TicketType[]}
+                isOnWaitlist={isOnWaitlist}
               />
             </div>
           )}
