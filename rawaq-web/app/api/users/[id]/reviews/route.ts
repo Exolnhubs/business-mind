@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { requireAuth } from '@/lib/auth'
 import { handleApiError, ok, created, ForbiddenException, BadRequestException } from '@/lib/errors'
+import { sendNotification } from '@/lib/notifications'
 
 const ReviewSchema = z.object({
   rating:  z.number().int().min(1).max(5),
@@ -82,6 +83,20 @@ export async function POST(
       .single()
 
     if (error) throw error
+
+    // Notify reviewed user (fire-and-forget)
+    const { data: actor } = await supabase
+      .from('profiles').select('display_name').eq('id', ctx.userId).single()
+    sendNotification({
+      userId:  reviewedId,
+      type:    'new_review',
+      payload: {
+        actor_id:   ctx.userId,
+        actor_name: actor?.display_name ?? 'Someone',
+        rating:     String(input.rating),
+      },
+    }).catch(() => {})
+
     return created(data)
   } catch (err) {
     return handleApiError(err)

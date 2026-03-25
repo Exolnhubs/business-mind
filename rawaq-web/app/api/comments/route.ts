@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
     // Verify event exists and is active
     const { data: event, error: eventErr } = await supabase
       .from('events')
-      .select('id, organizer_id, is_published, is_cancelled')
+      .select('id, title, organizer_id, is_published, is_cancelled')
       .eq('id', input.event_id)
       .single()
 
@@ -104,7 +104,24 @@ export async function POST(req: NextRequest) {
     if (error) throw error
 
     // Trigger notifications (async)
-    const notifPromises = []
+    const notifPromises: { userId: string; type: 'comment_reply' | 'mention' | 'new_comment'; payload: Record<string, unknown> }[] = []
+
+    // Notify event organizer of new top-level comment (not if organizer is the commenter)
+    if (!input.parent_id && event.organizer_id !== ctx.userId) {
+      const { data: actor } = await supabase
+        .from('profiles').select('display_name').eq('id', ctx.userId).single()
+      notifPromises.push({
+        userId:  event.organizer_id,
+        type:    'new_comment',
+        payload: {
+          event_id:    input.event_id,
+          comment_id:  comment.id,
+          actor_id:    ctx.userId,
+          actor_name:  actor?.display_name ?? 'Someone',
+          event_title: (event as Record<string, unknown>).title ?? '',
+        },
+      })
+    }
 
     // Notify parent author of reply (unless they're the commenter)
     if (parentAuthorId && parentAuthorId !== ctx.userId) {
