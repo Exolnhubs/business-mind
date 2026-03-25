@@ -30,6 +30,7 @@ function generateCode(): string {
 }
 
 
+function formatDiscount(promo: PromoCode) {
   return promo.discount_type === 'percent'
     ? `${promo.discount_value}% off`
     : `SAR ${promo.discount_value} off`
