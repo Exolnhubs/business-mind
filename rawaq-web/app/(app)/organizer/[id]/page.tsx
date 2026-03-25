@@ -4,6 +4,8 @@ import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { EventCard } from '@/components/events/EventCard'
 import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { FollowButton } from '@/components/social/FollowButton'
+import { BlockButton } from '@/components/social/BlockButton'
 import { formatDate } from '@/lib/utils'
 import type { EventWithOrganizer } from '@/types/database'
 
@@ -22,7 +24,12 @@ export default async function OrganizerProfilePage({ params }: { params: Promise
   const { id } = await params
   const supabase = await createSupabaseServerClient()
 
-  const [{ data: profile }, { data: orgProfile }, { data: events }, { data: { user } }] = await Promise.all([
+  const [
+    { data: profile },
+    { data: orgProfile },
+    { data: events },
+    { data: { user } },
+  ] = await Promise.all([
     supabase
       .from('profiles')
       .select('id, display_name, avatar_url, city, bio, created_at')
@@ -30,7 +37,7 @@ export default async function OrganizerProfilePage({ params }: { params: Promise
       .single(),
     supabase
       .from('organizer_profiles')
-      .select('business_name, business_name_ar, description, description_ar, logo_url, website, phone, verified, status')
+      .select('business_name, business_name_ar, description, description_ar, logo_url, website, phone, verified, status, followers_count')
       .eq('user_id', id)
       .single(),
     supabase
@@ -54,9 +61,37 @@ export default async function OrganizerProfilePage({ params }: { params: Promise
 
   if (!profile || !orgProfile || orgProfile.status !== 'approved') notFound()
 
-  // Check saved IDs for the logged-in user
-  let savedIds = new Set<string>()
-  if (user && events?.length) {
+  // Viewer-specific state: saved events, is following, is blocking
+  let savedIds      = new Set<string>()
+  let isFollowing   = false
+  let isBlocking    = false
+
+  if (user && user.id !== id) {
+    const [savesRes, followRes, blockRes] = await Promise.all([
+      events?.length
+        ? supabase
+            .from('saved_events')
+            .select('event_id')
+            .eq('user_id', user.id)
+            .in('event_id', events.map((e) => e.id))
+        : Promise.resolve({ data: [] }),
+      supabase
+        .from('organizer_follows')
+        .select('id')
+        .eq('follower_id', user.id)
+        .eq('organizer_id', id)
+        .maybeSingle(),
+      supabase
+        .from('user_blocks')
+        .select('id')
+        .eq('blocker_id', user.id)
+        .eq('blocked_id', id)
+        .maybeSingle(),
+    ])
+    savedIds    = new Set(((savesRes as { data: { event_id: string }[] | null }).data ?? []).map((s) => s.event_id))
+    isFollowing = !!followRes.data
+    isBlocking  = !!blockRes.data
+  } else if (user && events?.length) {
     const { data: saves } = await supabase
       .from('saved_events')
       .select('event_id')
@@ -66,7 +101,7 @@ export default async function OrganizerProfilePage({ params }: { params: Promise
   }
 
   const displayName = orgProfile.business_name ?? profile.display_name
-  const initials = displayName.split(' ').slice(0, 2).map((w: string) => w[0]).join('').toUpperCase()
+  const initials    = displayName.split(' ').slice(0, 2).map((w: string) => w[0]).join('').toUpperCase()
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-8">
@@ -91,17 +126,35 @@ export default async function OrganizerProfilePage({ params }: { params: Promise
           <p className="text-xs text-gray-400 mt-1">Member since {formatDate(profile.created_at)}</p>
         </div>
 
-        <div className="flex flex-col gap-2 text-sm shrink-0">
-          {orgProfile.website && (
-            <a href={orgProfile.website} target="_blank" rel="noopener noreferrer"
-              className="text-brand-600 hover:underline flex items-center gap-1">
-              🌐 Website
-            </a>
-          )}
-          {orgProfile.phone && (
-            <a href={`tel:${orgProfile.phone}`} className="text-gray-600 flex items-center gap-1">
-              📞 {orgProfile.phone}
-            </a>
+        <div className="flex flex-col items-end gap-3 shrink-0">
+          {/* Contact links */}
+          <div className="flex flex-col gap-1.5 text-sm">
+            {orgProfile.website && (
+              <a href={orgProfile.website} target="_blank" rel="noopener noreferrer"
+                className="text-brand-600 hover:underline flex items-center gap-1">
+                🌐 Website
+              </a>
+            )}
+            {orgProfile.phone && (
+              <a href={`tel:${orgProfile.phone}`} className="text-gray-600 flex items-center gap-1">
+                📞 {orgProfile.phone}
+              </a>
+            )}
+          </div>
+
+          {/* Social actions — only for logged-in users viewing someone else's profile */}
+          {user && user.id !== id && (
+            <div className="flex items-center gap-2">
+              <FollowButton
+                organizerId={id}
+                initialFollowing={isFollowing}
+                followersCount={orgProfile.followers_count ?? 0}
+              />
+              <BlockButton
+                userId={id}
+                initialBlocking={isBlocking}
+              />
+            </div>
           )}
         </div>
       </div>
