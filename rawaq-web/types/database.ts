@@ -391,6 +391,7 @@ export interface EventWithOrganizer extends Event {
     organizer_profile: Pick<OrganizerProfile, 'business_name' | 'business_name_ar' | 'logo_url' | 'verified'> | null
   }
   category: Pick<EventCategory, 'id' | 'name_en' | 'name_ar' | 'icon'> | null
+  ticket_types?: Array<Pick<TicketType, 'id' | 'price' | 'is_free' | 'is_active'>>
 }
 
 export interface CommentWithAuthor extends Comment {

@@ -16,10 +16,26 @@ interface EventCardProps {
   showSave?: boolean
 }
 
+function getPriceDisplay(event: EventWithOrganizer, locale: string): { label: string; isFree: boolean } {
+  const active = (event.ticket_types ?? []).filter((t) => t.is_active)
+  if (active.length > 0) {
+    const paid = active.filter((t) => !t.is_free)
+    if (paid.length === 0) return { label: 'Free', isFree: true }
+    const prices = paid.map((t) => t.price)
+    const min = Math.min(...prices)
+    const max = Math.max(...prices)
+    if (min === max) return { label: formatCurrency(min, locale), isFree: false }
+    return { label: `From ${formatCurrency(min, locale)}`, isFree: false }
+  }
+  if (event.is_free || !event.price) return { label: 'Free', isFree: true }
+  return { label: formatCurrency(event.price, locale), isFree: false }
+}
+
 export function EventCard({ event, locale = 'en', isSaved = false, showSave = false }: EventCardProps) {
   const icon = CATEGORY_EMOJI[event.category?.name_en?.toLowerCase() ?? ''] ?? '📅'
   const spotsLeft = event.capacity ? event.capacity - event.bookings_count : null
   const isFull = spotsLeft !== null && spotsLeft <= 0
+  const priceDisplay = getPriceDisplay(event, locale)
 
   return (
     <Link
@@ -37,7 +53,7 @@ export function EventCard({ event, locale = 'en', isSaved = false, showSave = fa
         {showSave && <SaveButton eventId={event.id} initialSaved={isSaved} />}
 
         <div className="absolute top-3 start-3 flex flex-wrap gap-1.5 z-10">
-          {event.is_free && <Badge variant="green">Free</Badge>}
+          {priceDisplay.isFree && <Badge variant="green">Free</Badge>}
           {event.is_family_friendly && <Badge variant="blue">👨‍👩‍👧 Family</Badge>}
           {event.gender_restriction !== 'mixed' && (
             <Badge variant="yellow">
@@ -74,8 +90,8 @@ export function EventCard({ event, locale = 'en', isSaved = false, showSave = fa
           <span className="text-xs text-gray-500 truncate max-w-[120px]">
             {event.organizer?.organizer_profile?.business_name ?? event.organizer?.display_name ?? 'Organizer'}
           </span>
-          <span className={`text-sm font-semibold ${event.is_free ? 'text-green-600' : 'text-brand-600'}`}>
-            {event.is_free ? 'Free' : formatCurrency(event.price ?? 0, locale)}
+          <span className={`text-sm font-semibold ${priceDisplay.isFree ? 'text-green-600' : 'text-brand-600'}`}>
+            {priceDisplay.label}
           </span>
         </div>
 

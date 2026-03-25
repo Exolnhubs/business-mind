@@ -49,7 +49,8 @@ async function EventsGrid({ searchParams }: { searchParams: SearchParams }) {
         id, display_name, avatar_url,
         organizer_profile:organizer_profiles!user_id(business_name, business_name_ar, logo_url, verified)
       ),
-      category:event_categories(id, name_en, name_ar, icon)
+      category:event_categories(id, name_en, name_ar, icon),
+      ticket_types(id, price, is_free, is_active)
     `, { count: 'exact' })
     .eq('is_published', true)
     .eq('is_cancelled', false)
