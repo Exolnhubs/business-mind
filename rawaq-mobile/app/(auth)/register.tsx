@@ -24,7 +24,7 @@ type LocationState =
 export default function RegisterScreen() {
   const { t, isRTL } = useLocale()
   const [form, setForm] = useState({
-    email: '', password: '', name: '', city: '',
+    email: '', password: '', name: '', businessName: '', city: '',
     lat: null as number | null,
     lng: null as number | null,
     role: 'user' as 'user' | 'organizer',
@@ -101,6 +101,9 @@ export default function RegisterScreen() {
           role: form.role,
           signup_lat: form.lat,
           signup_lng: form.lng,
+          ...(form.role === 'organizer' && form.businessName
+            ? { business_name: form.businessName }
+            : {}),
         },
       },
     })
@@ -227,6 +230,24 @@ export default function RegisterScreen() {
               ))}
             </View>
           </View>
+
+          {/* Business name — only for organizers */}
+          {form.role === 'organizer' && (
+            <View style={styles.field}>
+              <Text style={styles.label}>Business / Brand Name</Text>
+              <TextInput
+                style={styles.input}
+                value={form.businessName}
+                onChangeText={set('businessName')}
+                placeholder="My Events Co."
+                placeholderTextColor={Colors.gray[400]}
+                textAlign={isRTL ? 'right' : 'left'}
+              />
+              <Text style={{ fontSize: 11, color: Colors.gray[400], marginTop: 4 }}>
+                Your account will need admin approval before you can start creating events.
+              </Text>
+            </View>
+          )}
 
           {/* Terms */}
           <TouchableOpacity

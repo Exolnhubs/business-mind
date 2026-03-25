@@ -24,6 +24,7 @@ export default function RegisterPage() {
     email: '',
     password: '',
     displayName: '',
+    businessName: '',
     city: '',
     lat: null as number | null,
     lng: null as number | null,
@@ -101,6 +102,9 @@ export default function RegisterPage() {
           role: form.role,
           signup_lat: form.lat,
           signup_lng: form.lng,
+          ...(form.role === 'organizer' && form.businessName
+            ? { business_name: form.businessName }
+            : {}),
         },
       },
     })
@@ -269,9 +273,21 @@ export default function RegisterPage() {
               ))}
             </div>
             {form.role === 'organizer' && (
-              <p className="text-xs text-amber-600 mt-2 bg-amber-50 rounded-lg px-3 py-2">
-                {t('auth.organizer_note')}
-              </p>
+              <>
+                <p className="text-xs text-amber-600 mt-2 bg-amber-50 rounded-lg px-3 py-2">
+                  {t('auth.organizer_note')}
+                </p>
+                <div className="mt-3">
+                  <label className="label">Business / Brand Name</label>
+                  <input
+                    type="text"
+                    value={form.businessName}
+                    onChange={set('businessName')}
+                    className="input"
+                    placeholder="My Events Co."
+                  />
+                </div>
+              </>
             )}
           </div>
 

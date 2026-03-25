@@ -16,7 +16,7 @@ export default async function AdminOrganizersPage() {
     .eq('status', 'pending')
     .order('created_at', { ascending: true })
 
-  const { data: approved } = await supabase
+  const { data: reviewed } = await supabase
     .from('organizer_profiles')
     .select(`
       *,
@@ -24,7 +24,7 @@ export default async function AdminOrganizersPage() {
     `)
     .in('status', ['approved', 'rejected', 'suspended'])
     .order('reviewed_at', { ascending: false })
-    .limit(30)
+    .limit(50)
 
   return (
     <div className="space-y-8">
@@ -39,9 +39,9 @@ export default async function AdminOrganizersPage() {
 
       <section>
         <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-3">
-          Reviewed
+          Reviewed ({reviewed?.length ?? 0})
         </h3>
-        <OrganizerApprovalList organizers={approved ?? []} showActions={false} />
+        <OrganizerApprovalList organizers={reviewed ?? []} />
       </section>
     </div>
   )
