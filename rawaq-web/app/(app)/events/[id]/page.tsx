@@ -105,7 +105,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
             )}
             <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
             <div className="absolute bottom-4 start-4 flex gap-2">
-              {ev.is_free && <Badge variant="green">Free</Badge>}
+              {(ev.is_free || (ticketTypes && ticketTypes.length > 0 && (ticketTypes as TicketType[]).every(t => t.is_free))) && <Badge variant="green">Free</Badge>}
               {ev.is_family_friendly && <Badge variant="blue">👨‍👩‍👧 Family Friendly</Badge>}
               {ev.gender_restriction !== 'mixed' && (
                 <Badge variant="yellow">
@@ -148,9 +148,22 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
             </InfoBlock>
 
             <InfoBlock icon="💰" label="Price">
-              <p className="text-sm font-medium">
-                {ev.is_free ? 'Free' : formatCurrency(ev.price ?? 0)}
-              </p>
+              {ticketTypes && ticketTypes.length > 0 ? (
+                <div className="space-y-0.5">
+                  {ticketTypes.map((tt) => (
+                    <p key={tt.id} className="text-sm font-medium">
+                      <span className="text-gray-600">{tt.name}: </span>
+                      <span className={tt.is_free ? 'text-green-600' : 'text-brand-700'}>
+                        {tt.is_free ? 'Free' : formatCurrency(tt.price, ev.currency ?? 'SAR')}
+                      </span>
+                    </p>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm font-medium">
+                  {ev.is_free ? 'Free' : formatCurrency(ev.price ?? 0)}
+                </p>
+              )}
             </InfoBlock>
           </div>
 
@@ -203,10 +216,30 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
           {/* Booking CTA */}
           {!ev.is_cancelled && (
             <div className="card p-5 space-y-3">
+              {/* Price display */}
               <div className="flex items-baseline justify-between">
-                <span className="text-2xl font-bold text-gray-900">
-                  {ev.is_free ? 'Free' : formatCurrency(ev.price ?? 0)}
-                </span>
+                {ticketTypes && ticketTypes.length > 0 ? (
+                  <div>
+                    {(() => {
+                      const paid = (ticketTypes as TicketType[]).filter((t) => t.is_active && !t.is_free)
+                      if (paid.length === 0) return <span className="text-2xl font-bold text-green-600">Free</span>
+                      const prices = paid.map((t) => t.price)
+                      const min = Math.min(...prices)
+                      const max = Math.max(...prices)
+                      return (
+                        <div>
+                          <span className="text-xs text-gray-400 font-medium uppercase tracking-wide block">from</span>
+                          <span className="text-2xl font-bold text-gray-900">{formatCurrency(min, ev.currency ?? 'SAR')}</span>
+                          {max !== min && <span className="text-sm text-gray-500 ml-1">– {formatCurrency(max, ev.currency ?? 'SAR')}</span>}
+                        </div>
+                      )
+                    })()}
+                  </div>
+                ) : (
+                  <span className="text-2xl font-bold text-gray-900">
+                    {ev.is_free ? 'Free' : formatCurrency(ev.price ?? 0)}
+                  </span>
+                )}
                 {ev.capacity && (
                   <span className="text-xs text-gray-500">{spotsLeft ?? ev.capacity} left</span>
                 )}
