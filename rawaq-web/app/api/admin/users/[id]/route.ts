@@ -43,6 +43,15 @@ export async function PATCH(
 
     if (error) throw error
 
+    // Audit log
+    await supabase.from('audit_logs').insert({
+      admin_id:    ctx.userId,
+      action:      input.is_banned ? 'ban_user' : 'unban_user',
+      target_type: 'user',
+      target_id:   id,
+      meta:        { display_name: data.display_name, role: data.role },
+    })
+
     return ok(data)
   } catch (err) {
     return handleApiError(err)
