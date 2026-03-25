@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
+import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native'
+import { useRouter } from 'expo-router'
 import { formatRelativeTime } from '@/lib/utils'
 import { CommentForm } from './CommentForm'
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '@/theme'
@@ -18,19 +19,30 @@ export function CommentItem({ comment, currentUserId, onReply, onDelete, isReply
   const [showReplies, setShowReplies] = useState(true)
   const isOwner = currentUserId === comment.user_id
   const replyCount = comment.replies?.length ?? 0
+  const router = useRouter()
+
+  function goToProfile() {
+    if (comment.author?.id) router.push(`/user/${comment.author.id}`)
+  }
 
   return (
     <View style={[styles.container, isReply && styles.replyContainer]}>
       {/* Avatar */}
-      <View style={styles.avatar}>
-        <Text style={styles.avatarText}>
-          {(comment.author?.display_name ?? '?')[0].toUpperCase()}
-        </Text>
-      </View>
+      <TouchableOpacity onPress={goToProfile} style={styles.avatar}>
+        {comment.author?.avatar_url ? (
+          <Image source={{ uri: comment.author.avatar_url }} style={styles.avatarImage} />
+        ) : (
+          <Text style={styles.avatarText}>
+            {(comment.author?.display_name ?? '?')[0].toUpperCase()}
+          </Text>
+        )}
+      </TouchableOpacity>
 
       <View style={styles.content}>
         <View style={styles.header}>
-          <Text style={styles.name}>{comment.author?.display_name ?? 'Unknown'}</Text>
+          <TouchableOpacity onPress={goToProfile}>
+            <Text style={styles.name}>{comment.author?.display_name ?? 'Unknown'}</Text>
+          </TouchableOpacity>
           <Text style={styles.time}>{formatRelativeTime(comment.created_at)}</Text>
         </View>
 
@@ -89,7 +101,8 @@ export function CommentItem({ comment, currentUserId, onReply, onDelete, isReply
 const styles = StyleSheet.create({
   container: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.md },
   replyContainer: { marginLeft: Spacing['3xl'], borderLeftWidth: 2, borderLeftColor: Colors.gray[100], paddingLeft: Spacing.sm },
-  avatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.brand[100], justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
+  avatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.brand[100], justifyContent: 'center', alignItems: 'center', flexShrink: 0, overflow: 'hidden' },
+  avatarImage: { width: 32, height: 32, borderRadius: 16 },
   avatarText: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.brand[700] },
   content: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: 4 },
