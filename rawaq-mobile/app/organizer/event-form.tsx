@@ -140,7 +140,7 @@ export default function EventFormScreen() {
     Alert.alert('Saved', 'Event updated.', [{ text: 'OK', onPress: () => router.back() }])
   }
 
-  // ─── Create wizard step 1: create draft event ───────────────────────────────
+  // ─── Create wizard step 1: create/update draft event ───────────────────────
   async function handleStep1() {
     if (!title.trim()) { setError('Title is required.'); return }
     if (!city) { setError('City is required.'); return }
@@ -153,27 +153,41 @@ export default function EventFormScreen() {
     setError(null)
     setSaving(true)
 
+    const payload = {
+      organizer_id:       user!.id,
+      title:              title.trim(),
+      title_ar:           titleAr.trim() || null,
+      description:        description.trim() || null,
+      category_id:        categoryId || null,
+      city,
+      country:            'SA',
+      venue_name:         venueName.trim() || null,
+      address:            address.trim() || null,
+      start_at:           parsedStart.toISOString(),
+      end_at:             parsedEnd?.toISOString() ?? null,
+      capacity:           capacity ? Number(capacity) : null,
+      is_free:            true,
+      currency:           'SAR',
+      gender_restriction: genderRestriction,
+      is_family_friendly: isFamilyFriendly,
+      is_published:       false,
+    }
+
+    // If user went back from step 2 and re-submitted, update the existing draft
+    if (createdEventId) {
+      const { error: dbError } = await supabase
+        .from('events')
+        .update(payload)
+        .eq('id', createdEventId)
+      setSaving(false)
+      if (dbError) { setError(dbError.message); return }
+      setStep(2)
+      return
+    }
+
     const { data: newEvent, error: dbError } = await supabase
       .from('events')
-      .insert({
-        organizer_id:       user!.id,
-        title:              title.trim(),
-        title_ar:           titleAr.trim() || null,
-        description:        description.trim() || null,
-        category_id:        categoryId || null,
-        city,
-        country:            'SA',
-        venue_name:         venueName.trim() || null,
-        address:            address.trim() || null,
-        start_at:           parsedStart.toISOString(),
-        end_at:             parsedEnd?.toISOString() ?? null,
-        capacity:           capacity ? Number(capacity) : null,
-        is_free:            true,
-        currency:           'SAR',
-        gender_restriction: genderRestriction,
-        is_family_friendly: isFamilyFriendly,
-        is_published:       false,
-      })
+      .insert(payload)
       .select('id')
       .single()
 
@@ -197,22 +211,23 @@ export default function EventFormScreen() {
     const eventId = createdEventId!
     const allFree = tickets.every((t) => t.is_free)
 
+    // Delete any previously saved ticket types (handles "Back → re-submit" case)
+    await supabase.from('ticket_types').delete().eq('event_id', eventId)
+
     for (let i = 0; i < tickets.length; i++) {
       const t = tickets[i]
-      const res = await fetch(`${process.env.EXPO_PUBLIC_API_URL ?? ''}/api/events/${eventId}/ticket-types`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const { error: dbErr } = await supabase
+        .from('ticket_types')
+        .insert({
+          event_id:   eventId,
           name:       t.name.trim(),
           price:      t.is_free ? 0 : Number(t.price),
           capacity:   t.capacity ? Number(t.capacity) : null,
           is_free:    t.is_free,
           sort_order: i,
-        }),
-      })
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({}))
-        setError(j.error ?? j.message ?? 'Failed to save ticket types')
+        })
+      if (dbErr) {
+        setError(dbErr.message)
         setSaving(false)
         return
       }
