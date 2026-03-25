@@ -339,6 +339,20 @@ export interface UserBlock {
   created_at: string
 }
 
+export interface UserReview {
+  id: string
+  reviewer_id: string
+  reviewed_id: string
+  rating: number          // 1–5
+  content: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface UserReviewWithReviewer extends UserReview {
+  reviewer: Pick<Profile, 'id' | 'display_name' | 'avatar_url'>
+}
+
 // ── Join shapes used in API responses ──────────────────────
 export interface EventWithOrganizer extends Event {
   organizer: Pick<Profile, 'id' | 'display_name' | 'avatar_url'> & {

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { formatRelativeTime } from '@/lib/utils'
 import { CommentForm } from './CommentForm'
 import type { CommentWithAuthor } from '@/types/database'
@@ -29,21 +30,26 @@ export function CommentItem({ comment, currentUserId, onReply, onDelete, isReply
   return (
     <div className={`flex gap-3 ${isReply ? 'ms-8 ps-4 border-s-2 border-gray-100' : ''}`}>
       {/* Avatar */}
-      <div className="w-8 h-8 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center text-xs font-bold shrink-0 uppercase">
-        {comment.author?.avatar_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={comment.author.avatar_url} alt="" className="w-full h-full object-cover rounded-full" />
-        ) : (
-          (comment.author?.display_name ?? '?')[0]
-        )}
-      </div>
+      <Link href={comment.author?.id ? `/user/${comment.author.id}` : '#'} className="shrink-0">
+        <div className="w-8 h-8 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center text-xs font-bold uppercase hover:opacity-80 transition-opacity">
+          {comment.author?.avatar_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={comment.author.avatar_url} alt="" className="w-full h-full object-cover rounded-full" />
+          ) : (
+            (comment.author?.display_name ?? '?')[0]
+          )}
+        </div>
+      </Link>
 
       <div className="flex-1 min-w-0">
         {/* Header */}
         <div className="flex items-baseline gap-2 mb-0.5">
-          <span className="text-sm font-semibold text-gray-900">
+          <Link
+            href={comment.author?.id ? `/user/${comment.author.id}` : '#'}
+            className="text-sm font-semibold text-gray-900 hover:text-brand-600 transition-colors"
+          >
             {comment.author?.display_name ?? 'Unknown'}
-          </span>
+          </Link>
           <span className="text-xs text-gray-400">
             {formatRelativeTime(comment.created_at)}
           </span>
