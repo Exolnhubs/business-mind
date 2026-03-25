@@ -10,6 +10,7 @@ const UpdateProfileSchema = z.object({
   gender: z.enum(['male', 'female', 'mixed']).optional().nullable(),
   city: z.string().max(100).optional().nullable(),
   bio: z.string().max(500).optional().nullable(),
+  phone: z.string().max(20).optional().nullable(),
   preferences: z.record(z.unknown()).optional(),
 })
 
