@@ -43,6 +43,9 @@ export default async function OrganizerDashboard() {
           <p className="text-sm text-gray-500 mt-0.5">Manage your events and track performance</p>
         </div>
         <div className="flex items-center gap-3">
+          <Link href="/organizer/promo-codes" className="btn-secondary text-sm">
+            🏷 Promo Codes
+          </Link>
           <Link href="/organizer/earnings" className="btn-secondary text-sm">
             💰 Earnings
           </Link>
@@ -112,6 +115,12 @@ export default async function OrganizerDashboard() {
                     </td>
                     <td className="px-4 py-3 text-end">
                       <div className="flex items-center justify-end gap-3">
+                        <Link
+                          href={`/organizer/events/${event.id}/ticket-types`}
+                          className="text-xs text-gray-500 font-medium hover:underline"
+                        >
+                          🎟 Tickets
+                        </Link>
                         <Link
                           href={`/organizer/events/${event.id}/attendees`}
                           className="text-xs text-gray-500 font-medium hover:underline"
