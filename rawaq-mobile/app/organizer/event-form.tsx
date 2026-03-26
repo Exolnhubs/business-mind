@@ -4,6 +4,7 @@ import {
   TouchableOpacity, ActivityIndicator, Alert, Switch,
   KeyboardAvoidingView, Platform, Image,
 } from 'react-native'
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
 import { supabase } from '@/lib/supabase'
@@ -43,6 +44,10 @@ export default function EventFormScreen() {
   const [address,           setAddress]           = useState('')
   const [startAt,           setStartAt]           = useState('')
   const [endAt,             setEndAt]             = useState('')
+  // Date picker state
+  const [pickerTarget,  setPickerTarget]  = useState<'start' | 'end' | null>(null)
+  const [pickerMode,    setPickerMode]    = useState<'date' | 'time'>('date')
+  const [pickerTempDate, setPickerTempDate] = useState<Date>(new Date())
   const [capacity,          setCapacity]          = useState('')
   const [isFree,            setIsFree]            = useState(true)
   const [price,             setPrice]             = useState('')
@@ -102,6 +107,36 @@ export default function EventFormScreen() {
     return new Date(val.includes('T') ? val : val.replace(' ', 'T'))
   }
 
+  function formatDisplay(iso: string) {
+    if (!iso) return 'Select date & time'
+    const d = parseDate(iso)
+    return d.toLocaleString('en-SA', { dateStyle: 'medium', timeStyle: 'short' })
+  }
+
+  function openPicker(target: 'start' | 'end') {
+    const current = target === 'start' ? startAt : endAt
+    setPickerTempDate(current ? parseDate(current) : new Date())
+    setPickerMode('date')
+    setPickerTarget(target)
+  }
+
+  function onPickerChange(event: DateTimePickerEvent, selected?: Date) {
+    if (!selected || event.type === 'dismissed') {
+      setPickerTarget(null)
+      return
+    }
+    if (pickerMode === 'date') {
+      setPickerTempDate(selected)
+      setPickerMode('time')   // advance to time selection
+    } else {
+      // Both date and time chosen — commit
+      const iso = selected.toISOString().slice(0, 16).replace('T', ' ')
+      if (pickerTarget === 'start') setStartAt(iso)
+      else setEndAt(iso)
+      setPickerTarget(null)
+    }
+  }
+
   async function pickCoverImage() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images', 'videos'],
@@ -127,7 +162,7 @@ export default function EventFormScreen() {
     if (!city) { setError('City is required.'); return }
     if (!startAt) { setError('Start date is required.'); return }
     const parsedStart = parseDate(startAt)
-    if (isNaN(parsedStart.getTime())) { setError('Invalid start date. Use YYYY-MM-DD HH:MM'); return }
+    if (isNaN(parsedStart.getTime())) { setError('Invalid start date.'); return }
     const parsedEnd = endAt ? parseDate(endAt) : null
     if (parsedEnd && isNaN(parsedEnd.getTime())) { setError('Invalid end date.'); return }
 
@@ -383,13 +418,36 @@ export default function EventFormScreen() {
               <TextInput style={styles.input} value={address} onChangeText={setAddress} placeholder="Street address" placeholderTextColor={Colors.gray[400]} maxLength={300} />
             </Field>
 
-            <Field label="Start Date & Time * (YYYY-MM-DD HH:MM)">
-              <TextInput style={styles.input} value={startAt} onChangeText={setStartAt} placeholder="2025-06-15 18:00" placeholderTextColor={Colors.gray[400]} keyboardType="numbers-and-punctuation" maxLength={16} />
+            <Field label="Start Date & Time *">
+              <TouchableOpacity style={styles.datePicker} onPress={() => openPicker('start')}>
+                <Text style={[styles.datePickerText, !startAt && styles.datePickerPlaceholder]}>
+                  {formatDisplay(startAt)}
+                </Text>
+                <Text style={styles.datePickerIcon}>📅</Text>
+              </TouchableOpacity>
             </Field>
 
             <Field label="End Date & Time (optional)">
-              <TextInput style={styles.input} value={endAt} onChangeText={setEndAt} placeholder="2025-06-15 21:00" placeholderTextColor={Colors.gray[400]} keyboardType="numbers-and-punctuation" maxLength={16} />
+              <TouchableOpacity style={styles.datePicker} onPress={() => openPicker('end')}>
+                <Text style={[styles.datePickerText, !endAt && styles.datePickerPlaceholder]}>
+                  {endAt ? formatDisplay(endAt) : 'Select end date & time'}
+                </Text>
+                {endAt
+                  ? <TouchableOpacity onPress={() => setEndAt('')}><Text style={styles.dateClear}>✕</Text></TouchableOpacity>
+                  : <Text style={styles.datePickerIcon}>📅</Text>
+                }
+              </TouchableOpacity>
             </Field>
+
+            {pickerTarget !== null && (
+              <DateTimePicker
+                value={pickerTempDate}
+                mode={pickerMode}
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                minimumDate={new Date()}
+                onChange={onPickerChange}
+              />
+            )}
 
             <Field label="Total Capacity (blank = unlimited)">
               <TextInput style={styles.input} value={capacity} onChangeText={setCapacity} placeholder="100" placeholderTextColor={Colors.gray[400]} keyboardType="number-pad" maxLength={6} />
@@ -606,6 +664,11 @@ const styles = StyleSheet.create({
   chipActive:          { borderColor: Colors.brand[500], backgroundColor: Colors.brand[50] },
   chipText:            { fontSize: FontSize.sm, color: Colors.gray[600] },
   chipTextActive:      { color: Colors.brand[600], fontWeight: FontWeight.semibold },
+  datePicker:          { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: Colors.gray[200], borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 4, backgroundColor: Colors.white },
+  datePickerText:      { fontSize: FontSize.base, color: Colors.gray[900], flex: 1 },
+  datePickerPlaceholder: { color: Colors.gray[400] },
+  datePickerIcon:      { fontSize: 18, marginLeft: Spacing.sm },
+  dateClear:           { fontSize: FontSize.sm, color: Colors.gray[400], paddingLeft: Spacing.sm },
   switchRow:           { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: Colors.white, borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderWidth: 1, borderColor: Colors.gray[200] },
   switchLabel:         { fontSize: FontSize.base, color: Colors.gray[800] },
 
