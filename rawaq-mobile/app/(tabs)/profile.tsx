@@ -10,18 +10,24 @@ import * as Notifications from 'expo-notifications'
 import * as ImagePicker from 'expo-image-picker'
 import Constants from 'expo-constants'
 import { supabase } from '@/lib/supabase'
+
+// Push notifications are not supported in Expo Go with SDK 53+.
+// All notification APIs are guarded by this flag.
+const IS_EXPO_GO = Constants.executionEnvironment === 'storeClient'
 import { uploadViaApi } from '@/lib/upload'
 import { useAuth } from '@/contexts/auth-context'
 import { useLocale } from '@/contexts/locale-context'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
-})
+if (!IS_EXPO_GO) {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+    }),
+  })
+}
 
 const CITIES = ['Riyadh', 'Jeddah', 'Dammam', 'Mecca', 'Medina', 'Khobar', 'Tabuk', 'Abha', 'Taif']
 const GENDER_OPTIONS: { label: string; value: 'male' | 'female' }[] = [
@@ -154,6 +160,12 @@ export default function ProfileScreen() {
     setPushLoading(true)
 
     if (enabled) {
+      if (IS_EXPO_GO) {
+        Alert.alert('Not supported', 'Push notifications require a development build, not Expo Go.')
+        setPushLoading(false)
+        return
+      }
+
       if (!Device.isDevice) {
         Alert.alert('Push notifications require a real device')
         setPushLoading(false)
