@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
     let query = supabase
       .from('comments')
       .select(
-        `id, content, created_at, updated_at, parent_id, mentions, is_flagged,
+        `id, content, media_url, created_at, updated_at, parent_id, mentions, is_flagged,
          author:profiles!user_id(id, display_name, avatar_url)`,
         { count: 'exact' }
       )
