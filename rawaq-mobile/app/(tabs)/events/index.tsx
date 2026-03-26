@@ -1,7 +1,7 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import {
-  View, Text, FlatList, TextInput, StyleSheet,
-  TouchableOpacity, ScrollView, RefreshControl, Alert,
+  Animated, View, Text, FlatList, TextInput, StyleSheet,
+  TouchableOpacity, ScrollView, RefreshControl, Alert, ActivityIndicator,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import * as Location from 'expo-location'
@@ -52,6 +52,16 @@ export default function EventsScreen() {
   const [nearMe, setNearMe]         = useState(false)
   const [geoCoords, setGeoCoords]   = useState<{ lat: number; lng: number } | null>(null)
   const [geoLoading, setGeoLoading] = useState(false)
+
+  // Fade the pin icon out while the user is typing, back in when cleared
+  const pinOpacity = useRef(new Animated.Value(1)).current
+  useEffect(() => {
+    Animated.timing(pinOpacity, {
+      toValue: search.length > 0 ? 0 : 1,
+      duration: 180,
+      useNativeDriver: true,
+    }).start()
+  }, [search])
 
   useEffect(() => {
     supabase
@@ -173,6 +183,26 @@ export default function EventsScreen() {
               <Ionicons name="close-circle" size={16} color={Colors.gray[400]} />
             </TouchableOpacity>
           )}
+          {/* Near-me pin — fades away while typing */}
+          <Animated.View
+            style={{ opacity: pinOpacity }}
+            pointerEvents={search.length > 0 ? 'none' : 'auto'}
+          >
+            <TouchableOpacity
+              onPress={toggleNearMe}
+              disabled={geoLoading}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              {geoLoading
+                ? <ActivityIndicator size="small" color={Colors.brand[500]} />
+                : <Ionicons
+                    name={nearMe ? 'location' : 'location-outline'}
+                    size={20}
+                    color={nearMe ? Colors.brand[500] : Colors.gray[400]}
+                  />
+              }
+            </TouchableOpacity>
+          </Animated.View>
         </View>
       </View>
 
@@ -225,19 +255,6 @@ export default function EventsScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Near me chip */}
-      <View style={styles.geoRow}>
-        <TouchableOpacity
-          onPress={toggleNearMe}
-          disabled={geoLoading}
-          style={[styles.miniChip, nearMe && styles.miniChipActive]}
-        >
-          <Text style={[styles.miniChipText, nearMe && styles.miniChipTextActive]}>
-            {geoLoading ? '⌛' : ''} {nearMe ? t('events.near_me_active') : t('events.near_me')}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
       {/* List */}
       {loading ? (
         <View style={styles.list}>
@@ -273,7 +290,6 @@ const styles = StyleSheet.create({
   chipText: { fontSize: FontSize.sm, color: Colors.gray[600], fontWeight: FontWeight.medium },
   chipTextActive: { color: Colors.white },
   filterRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, backgroundColor: Colors.white, borderBottomWidth: 1, borderBottomColor: Colors.gray[100] },
-  geoRow: { paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, backgroundColor: Colors.white, borderBottomWidth: 1, borderBottomColor: Colors.gray[100], marginBottom: Spacing.xs },
   miniChip: { paddingHorizontal: Spacing.md, paddingVertical: 5, borderRadius: Radius.full, borderWidth: 1, borderColor: Colors.gray[200], marginRight: Spacing.xs, backgroundColor: Colors.white },
   miniChipActive: { borderColor: Colors.brand[400], backgroundColor: Colors.brand[50] },
   miniChipActiveGreen: { borderColor: Colors.green.DEFAULT, backgroundColor: Colors.green.light },

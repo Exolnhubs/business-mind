@@ -13,7 +13,9 @@ import type { EventWithOrganizer } from '@/types/database'
 
 const PAGE_SIZE = 10
 
-export default function FeedScreen() {
+interface Props { onExplore?: () => void }
+
+export default function FeedScreen({ onExplore }: Props = {}) {
   const { user } = useAuth()
   const router   = useRouter()
 
@@ -129,11 +131,29 @@ export default function FeedScreen() {
       </View>
 
       {events.length === 0 && !loading ? (
-        <EmptyState
-          icon="👥"
-          title="No upcoming events"
-          description="The organizers you follow haven't posted upcoming events yet. Explore to find organizers to follow."
-        />
+        following === 0 ? (
+          /* Not following anyone yet → prompt to explore */
+          <View style={styles.centered}>
+            <EmptyState
+              icon="🔭"
+              title="No one followed yet"
+              description="Follow your favourite organizers to see their upcoming events here."
+            />
+            <TouchableOpacity
+              style={styles.exploreBtn}
+              onPress={onExplore ?? (() => router.push('/(tabs)/events'))}
+            >
+              <Text style={styles.exploreBtnText}>🌍  Explore events</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          /* Following someone but no upcoming events */
+          <EmptyState
+            icon="📅"
+            title="Nothing upcoming"
+            description="The organizers you follow haven't posted upcoming events yet."
+          />
+        )
       ) : (
         <FlatList
           data={events}
@@ -158,6 +178,7 @@ export default function FeedScreen() {
   )
 }
 
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.gray[50] },
   centered:  { flex: 1, justifyContent: 'center', alignItems: 'center', padding: Spacing['2xl'] },
@@ -177,4 +198,6 @@ const styles = StyleSheet.create({
   list:        { padding: Spacing.md, gap: Spacing.md, paddingBottom: Spacing['4xl'] },
   signInBtn:   { marginTop: Spacing.lg, paddingHorizontal: Spacing['2xl'], paddingVertical: Spacing.md, backgroundColor: Colors.brand[500], borderRadius: 12 },
   signInBtnText: { color: Colors.white, fontSize: FontSize.base, fontWeight: FontWeight.semibold },
+  exploreBtn:  { marginTop: Spacing.lg, paddingHorizontal: Spacing['2xl'], paddingVertical: Spacing.md, backgroundColor: Colors.brand[500], borderRadius: 12 },
+  exploreBtnText: { color: Colors.white, fontSize: FontSize.base, fontWeight: FontWeight.semibold },
 })
