@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { View, TextInput, TouchableOpacity, Text, StyleSheet, ActivityIndicator, Image, Alert } from 'react-native'
+import { View, TextInput, TouchableOpacity, Text, StyleSheet, ActivityIndicator, Image, Alert, ActionSheetIOS, Platform } from 'react-native'
 import * as ImagePicker from 'expo-image-picker'
 import { uploadViaApi } from '@/lib/upload'
+import { MediaGalleryPicker } from '@/components/ui/MediaGalleryPicker'
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '@/theme'
 
 interface Props {
@@ -17,10 +18,11 @@ export function CommentForm({ onSubmit, placeholder = 'Write a comment…', onCa
   const [mediaUrl, setMediaUrl] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [galleryOpen, setGalleryOpen] = useState(false)
 
   const canSubmit = !!content.trim() || !!mediaUrl
 
-  async function pickMedia() {
+  async function uploadFromDevice() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images', 'videos'],
       quality: 0.85,
@@ -40,6 +42,30 @@ export function CommentForm({ onSubmit, placeholder = 'Write a comment…', onCa
     }
   }
 
+  function handleAttach() {
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        { options: ['Cancel', 'Choose from my uploads', 'Upload new image'], cancelButtonIndex: 0 },
+        (idx) => {
+          if (idx === 1) setGalleryOpen(true)
+          if (idx === 2) uploadFromDevice()
+        },
+      )
+    } else {
+      // Android: use Alert as a simple menu
+      Alert.alert('Add image', undefined, [
+        { text: 'Choose from my uploads', onPress: () => setGalleryOpen(true) },
+        { text: 'Upload new image', onPress: uploadFromDevice },
+        { text: 'Cancel', style: 'cancel' },
+      ])
+    }
+  }
+
+  function selectFromGallery(url: string) {
+    setMediaUri(url)   // use public URL as preview too — already stored
+    setMediaUrl(url)
+  }
+
   function removeMedia() {
     setMediaUri(null)
     setMediaUrl(null)
@@ -57,6 +83,13 @@ export function CommentForm({ onSubmit, placeholder = 'Write a comment…', onCa
 
   return (
     <View style={styles.container}>
+      <MediaGalleryPicker
+        visible={galleryOpen}
+        onSelect={selectFromGallery}
+        onUploadNew={uploadFromDevice}
+        onClose={() => setGalleryOpen(false)}
+      />
+
       <TextInput
         style={styles.input}
         value={content}
@@ -78,7 +111,7 @@ export function CommentForm({ onSubmit, placeholder = 'Write a comment…', onCa
       )}
 
       <View style={styles.actions}>
-        <TouchableOpacity onPress={pickMedia} disabled={uploading} style={styles.attachBtn}>
+        <TouchableOpacity onPress={handleAttach} disabled={uploading} style={styles.attachBtn}>
           {uploading
             ? <ActivityIndicator size="small" color={Colors.brand[500]} />
             : <Text style={styles.attachText}>📎</Text>
