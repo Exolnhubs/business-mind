@@ -16,6 +16,7 @@ export function CommentForm({ onSubmit, placeholder = 'Write a comment…', auto
   const [mediaUrl, setMediaUrl] = useState<string | undefined>(undefined)
   const [showUpload, setShowUpload] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [uploading, setUploading] = useState(false)
 
   const canSubmit = !!content.trim() || !!mediaUrl
 
@@ -52,6 +53,7 @@ export function CommentForm({ onSubmit, placeholder = 'Write a comment…', auto
           type="comment-media"
           value={mediaUrl ?? null}
           onChange={(url) => setMediaUrl(url)}
+          onUploadingChange={setUploading}
         />
       )}
 
@@ -71,7 +73,7 @@ export function CommentForm({ onSubmit, placeholder = 'Write a comment…', auto
               Cancel
             </button>
           )}
-          <button type="submit" disabled={!canSubmit || loading} className="btn-primary text-xs px-4 py-2">
+          <button type="submit" disabled={!canSubmit || loading || uploading} className="btn-primary text-xs px-4 py-2">
             {loading ? <Spinner size="sm" /> : 'Post'}
           </button>
         </div>

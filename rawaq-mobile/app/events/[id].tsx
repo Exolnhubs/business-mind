@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  ActivityIndicator, Alert, TextInput,
+  ActivityIndicator, Alert, TextInput, Image,
 } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
@@ -323,7 +323,11 @@ export default function EventDetailScreen() {
     <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       {/* Cover hero */}
       <View style={styles.hero}>
-        <Text style={styles.heroEmoji}>{event.category?.icon ?? '📅'}</Text>
+        {event.cover_image_url ? (
+          <Image source={{ uri: event.cover_image_url }} style={styles.heroImage} resizeMode="cover" />
+        ) : (
+          <Text style={styles.heroEmoji}>{event.category?.icon ?? '📅'}</Text>
+        )}
         <View style={styles.heroBadges}>
           {event.is_free && <Badge label="Free" variant="green" />}
           {event.is_family_friendly && <Badge label="Family" variant="blue" />}
@@ -695,6 +699,7 @@ const styles = StyleSheet.create({
   content: { paddingBottom: Spacing['4xl'] },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   hero: { height: 180, backgroundColor: Colors.brand[100], justifyContent: 'center', alignItems: 'center', position: 'relative' },
+  heroImage: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%' },
   heroEmoji: { fontSize: 72 },
   heroBadges: { position: 'absolute', bottom: Spacing.md, left: Spacing.md, flexDirection: 'row', gap: Spacing.xs },
   body: { padding: Spacing.lg },

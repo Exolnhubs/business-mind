@@ -8,6 +8,7 @@ interface FileUploadProps {
   type: UploadType
   value?: string | null
   onChange: (url: string) => void
+  onUploadingChange?: (uploading: boolean) => void
   label?: string
   accept?: string
   maxSizeMB?: number
@@ -27,7 +28,7 @@ function isVideo(url: string) {
 }
 
 export function FileUpload({
-  type, value, onChange, label, accept, maxSizeMB, className = '', compact = false,
+  type, value, onChange, onUploadingChange, label, accept, maxSizeMB, className = '', compact = false,
 }: FileUploadProps) {
   const defaults  = TYPE_DEFAULTS[type]
   const finalAccept  = accept   ?? defaults.accept
@@ -53,6 +54,7 @@ export function FileUpload({
     fd.append('type', type)
 
     setProgress('uploading')
+    onUploadingChange?.(true)
     try {
       const res  = await fetch('/api/upload', { method: 'POST', body: fd })
       const json = await res.json()
@@ -66,6 +68,8 @@ export function FileUpload({
     } catch {
       setErrMsg('Network error. Please try again.')
       setProgress('error')
+    } finally {
+      onUploadingChange?.(false)
     }
   }
 
