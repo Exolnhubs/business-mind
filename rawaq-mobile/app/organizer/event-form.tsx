@@ -110,7 +110,7 @@ export default function EventFormScreen() {
   function formatDisplay(iso: string) {
     if (!iso) return 'Select date & time'
     const d = parseDate(iso)
-    return d.toLocaleString('en-SA', { dateStyle: 'medium', timeStyle: 'short' })
+    return d.toLocaleString('en-SA-u-ca-gregory', { dateStyle: 'medium', timeStyle: 'short' })
   }
 
   function openPicker(target: 'start' | 'end') {

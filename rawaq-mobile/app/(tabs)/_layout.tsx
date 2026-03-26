@@ -68,6 +68,7 @@ export default function TabsLayout() {
       />
 
       {/* ── Hidden routes (still navigable, not shown in tab bar) ── */}
+      <Tabs.Screen name="index"        options={{ href: null }} />
       <Tabs.Screen name="events/index" options={{ href: null }} />
       <Tabs.Screen name="feed"         options={{ href: null }} />
       <Tabs.Screen name="chat"         options={{ href: null }} />
