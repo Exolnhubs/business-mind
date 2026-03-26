@@ -10,6 +10,7 @@ import * as Notifications from 'expo-notifications'
 import * as ImagePicker from 'expo-image-picker'
 import Constants from 'expo-constants'
 import { supabase } from '@/lib/supabase'
+import { uploadViaApi } from '@/lib/upload'
 import { useAuth } from '@/contexts/auth-context'
 import { useLocale } from '@/contexts/locale-context'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
@@ -86,18 +87,7 @@ export default function ProfileScreen() {
 
     setAvatarUploading(true)
     try {
-      const asset = result.assets[0]
-      const ext = asset.uri.split('.').pop() ?? 'jpg'
-      const path = `${user.id}/${Date.now()}.${ext}`
-      const blob = await fetch(asset.uri).then((r) => r.blob())
-
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(path, blob, { contentType: `image/${ext}`, upsert: true })
-
-      if (uploadError) { Alert.alert('Upload failed', uploadError.message); return }
-
-      const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path)
+      const publicUrl = await uploadViaApi(result.assets[0].uri, 'avatar')
 
       const { error: updateError } = await supabase
         .from('profiles')
@@ -106,8 +96,8 @@ export default function ProfileScreen() {
 
       if (updateError) { Alert.alert('Save failed', updateError.message); return }
       await refreshProfile()
-    } catch {
-      Alert.alert('Upload failed', 'Please try again.')
+    } catch (e: unknown) {
+      Alert.alert('Upload failed', e instanceof Error ? e.message : 'Please try again.')
     } finally {
       setAvatarUploading(false)
     }
