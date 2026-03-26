@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+
+rawaq-mobile/.expo/
+rawaq-web/.next/
+rawaq-web/.temp/
