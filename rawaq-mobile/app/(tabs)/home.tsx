@@ -30,7 +30,10 @@ export default function HomeScreen() {
       </View>
 
       {/* ── Content ──────────────────────────────────────────── */}
-      {segment === 'explore' ? <EventsScreen /> : <FeedScreen />}
+      {segment === 'explore'
+        ? <EventsScreen />
+        : <FeedScreen onExplore={() => setSegment('explore')} />
+      }
     </View>
   )
 }
