@@ -65,27 +65,28 @@ export default function EventsScreen() {
   async function toggleNearMe() {
     if (nearMe) { setNearMe(false); setGeoCoords(null); return }
     setGeoLoading(true)
-    const { status } = await Location.requestForegroundPermissionsAsync()
-    if (status !== 'granted') {
-      Alert.alert('Location denied', 'Enable location access to find events near you.')
-      setGeoLoading(false); return
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync()
+      if (status !== 'granted') {
+        Alert.alert('Location denied', 'Enable location access to find events near you.')
+        return
+      }
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
+      const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude }
+      setGeoCoords(coords)
+      setNearMe(true)
+      // State updates above are batched — useEffect re-runs fetchEvents with
+      // the new nearMe=true / geoCoords values automatically after re-render.
+    } catch {
+      Alert.alert('Location error', 'Could not get your location. Please try again.')
+    } finally {
+      setGeoLoading(false)
     }
-    const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
-    const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude }
-    setGeoCoords(coords)
-    setNearMe(true)
-    setGeoLoading(false)
-    // Call immediately with fresh coords — don't wait for state→useEffect chain
-    // (avoids stale closure race condition where nearMe is still false on first render)
-    fetchEvents(coords)
   }
 
-  const fetchEvents = useCallback(async (coordsOverride?: { lat: number; lng: number } | null) => {
-    // coordsOverride: fresh coords from toggleNearMe, bypassing stale closure
-    // When undefined: derive from state as normal
-    const geoActive = coordsOverride !== undefined
-      ? coordsOverride
-      : (nearMe ? geoCoords : null)
+  const fetchEvents = useCallback(async () => {
+    const geoActive = nearMe ? geoCoords : null
+    setLoading(true)
     let query = supabase
       .from('events')
       .select(`
@@ -118,12 +119,15 @@ export default function EventsScreen() {
         radius_meters: 25000,
       })
       if (rpcErr) {
-        Alert.alert('Location error', 'Could not find events near you. Please try again.')
+        Alert.alert('Location error', rpcErr.message ?? 'Could not find events near you. Please try again.')
         setNearMe(false); setGeoCoords(null)
         setLoading(false); setRefreshing(false); return
       }
       const ids = ((geoEvents ?? []) as { id: string }[]).map((e) => e.id)
-      if (ids.length === 0) { setEvents([]); setLoading(false); setRefreshing(false); return }
+      if (ids.length === 0) {
+        setEvents([])
+        setLoading(false); setRefreshing(false); return
+      }
       query = query.in('id', ids)
     }
 
@@ -147,7 +151,7 @@ export default function EventsScreen() {
 
   function onRefresh() {
     setRefreshing(true)
-    fetchEvents()
+    fetchEvents()   // setLoading(true) inside fetchEvents covers this too
   }
 
   return (
@@ -248,7 +252,9 @@ export default function EventsScreen() {
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.brand[500]} />}
           ListEmptyComponent={
-            <EmptyState icon="📭" title={t('events.empty')} description={t('events.try_filters')} />
+            nearMe
+              ? <EmptyState icon="📍" title="No events nearby" description="No events found within 25 km of your location" />
+              : <EmptyState icon="📭" title={t('events.empty')} description={t('events.try_filters')} />
           }
         />
       )}
