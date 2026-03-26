@@ -6,10 +6,21 @@ import { formatDate } from '@/lib/utils'
 
 export const metadata: Metadata = { title: 'All Events' }
 
+type AdminEventRow = {
+  id: string
+  title: string
+  city: string
+  start_at: string
+  is_published: boolean
+  is_cancelled: boolean
+  bookings_count: number
+  organizer: { display_name: string } | null
+}
+
 export default async function AdminEventsPage() {
   const supabase = await createSupabaseServerClient()
 
-  const { data: events } = await supabase
+  const { data } = await supabase
     .from('events')
     .select(`
       id, title, city, start_at, is_published, is_cancelled, bookings_count,
@@ -18,9 +29,11 @@ export default async function AdminEventsPage() {
     .order('created_at', { ascending: false })
     .limit(50)
 
+  const events = (data ?? []) as AdminEventRow[]
+
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold text-gray-900">All Events ({events?.length ?? 0})</h2>
+      <h2 className="text-lg font-semibold text-gray-900">All Events ({events.length})</h2>
 
       <div className="card overflow-hidden">
         <table className="w-full text-sm">
@@ -34,7 +47,7 @@ export default async function AdminEventsPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
-            {(events ?? []).map((event) => (
+            {events.map((event) => (
               <tr key={event.id} className="hover:bg-gray-50/50">
                 <td className="px-4 py-3 font-medium text-gray-900 max-w-[180px] truncate">{event.title}</td>
                 <td className="px-4 py-3 text-gray-500 hidden sm:table-cell text-xs">
