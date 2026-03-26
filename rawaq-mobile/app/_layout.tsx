@@ -51,6 +51,10 @@ export default function RootLayout() {
                   headerTransparent: true,
                 }}
               />
+              <Stack.Screen
+                name="discover"
+                options={{ headerShown: false, presentation: 'card' }}
+              />
             </Stack>
           </AuthGate>
         </AuthProvider>
