@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Spinner } from '@/components/ui/Spinner'
 import { formatRelativeTime } from '@/lib/utils'
 
-interface FlaggedComment {
+export interface FlaggedComment {
   id: string
   content: string
   is_flagged: boolean

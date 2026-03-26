@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
 
     const { data, error } = await supabase
       .from('promo_codes')
-      .insert({ ...input, created_by: ctx.userId })
+      .insert({ ...input, created_by: ctx.userId } as any)
       .select()
       .single()
 

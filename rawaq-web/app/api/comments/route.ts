@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
         parent_id: input.parent_id ?? null,
         mentions:  input.mentions,
         media_url: input.media_url ?? null,
-      })
+      } as any)
       .select(`id, content, media_url, created_at, parent_id, mentions,
                author:profiles!user_id(id, display_name, avatar_url)`)
       .single()

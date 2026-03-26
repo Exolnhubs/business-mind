@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
       .order('created_at', { ascending: false })
       .range(from, from + perPage - 1)
 
-    if (status) query = query.eq('status', status)
+    if (status) query = query.eq('status', status as import('@/types/database').BookingStatus)
 
     const { data, count, error } = await query
     if (error) throw error
@@ -197,13 +197,13 @@ export async function POST(req: NextRequest) {
     let booking
     if (existing) {
       const { data, error } = await supabase
-        .from('bookings').update(bookingFields).eq('id', existing.id).select().single()
+        .from('bookings').update(bookingFields as any).eq('id', existing.id).select().single()
       if (error) throw error
       booking = data
     } else {
       const { data, error } = await supabase
         .from('bookings')
-        .insert({ user_id: ctx.userId, event_id: input.event_id, ...bookingFields })
+        .insert({ user_id: ctx.userId, event_id: input.event_id, ...bookingFields } as any)
         .select().single()
       if (error) throw error
       booking = data

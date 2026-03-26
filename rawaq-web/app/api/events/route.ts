@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
 
     if (opErr || !orgProfile) throw new ForbiddenException('Organizer profile not found')
 
-    const plan = orgProfile.plan as { events_per_month: number | null; attendees_per_event: number | null } | null
+    const plan = orgProfile.plan as unknown as { events_per_month: number | null; attendees_per_event: number | null } | null
 
     // Check monthly quota only when publishing (drafts are free)
     if (input.is_published && plan?.events_per_month !== null && plan?.events_per_month !== undefined) {
@@ -144,7 +144,7 @@ export async function POST(req: NextRequest) {
 
     const { data, error } = await supabase
       .from('events')
-      .insert({ ...input, organizer_id: ctx.userId })
+      .insert({ ...input, organizer_id: ctx.userId } as any)
       .select()
       .single()
 

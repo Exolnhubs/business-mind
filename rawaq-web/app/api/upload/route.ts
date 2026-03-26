@@ -156,7 +156,7 @@ export async function POST(req: NextRequest) {
       path,
       size_bytes: file.size,
       mime_type:  file.type,
-    })
+    } as any)
 
     return ok({ url: publicUrl, path, bucket: cfg.bucket, mime_type: file.type })
   } catch (err) {

@@ -39,11 +39,11 @@ export async function GET(
     // Track view (fire and forget)
     const adminClient = createSupabaseAdminClient()
     const ipHash = req.headers.get('x-forwarded-for') ?? ''
-    adminClient.from('event_views').insert({
+    void adminClient.from('event_views').insert({
       event_id: id,
       user_id: ctx?.userId ?? null,
       ip_hash: ipHash ? btoa(ipHash).slice(0, 32) : null,
-    }).then(() => {}).catch(() => {})
+    } as any).then(() => {}, () => {})
 
     return ok(data)
   } catch (err) {

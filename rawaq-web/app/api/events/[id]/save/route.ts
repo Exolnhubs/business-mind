@@ -15,7 +15,7 @@ export async function POST(
 
     const { error } = await supabase
       .from('saved_events')
-      .upsert({ user_id: ctx.userId, event_id: id }, { onConflict: 'user_id,event_id' })
+      .upsert({ user_id: ctx.userId, event_id: id } as any, { onConflict: 'user_id,event_id' })
 
     if (error) throw error
     return ok({ saved: true })

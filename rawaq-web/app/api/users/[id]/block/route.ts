@@ -20,7 +20,7 @@ export async function POST(
     const { error } = await supabase
       .from('user_blocks')
       .upsert(
-        { blocker_id: ctx.userId, blocked_id: blockedId },
+        { blocker_id: ctx.userId, blocked_id: blockedId } as any,
         { onConflict: 'blocker_id,blocked_id' }
       )
 

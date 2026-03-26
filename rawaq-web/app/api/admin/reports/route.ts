@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
       .order('created_at', { ascending: false })
       .range(from, from + per - 1)
 
-    if (status !== 'all') query = query.eq('status', status)
+    if (status !== 'all') query = query.eq('status', status as import('@/types/database').ReportStatus)
 
     const { data, count, error } = await query
     if (error) throw error

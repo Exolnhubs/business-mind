@@ -23,7 +23,7 @@ export async function POST(
     const { error } = await supabase
       .from('event_reactions')
       .upsert(
-        { user_id: ctx.userId, event_id: eventId, type: input.type },
+        { user_id: ctx.userId, event_id: eventId, type: input.type } as any,
         { onConflict: 'user_id,event_id' }
       )
 

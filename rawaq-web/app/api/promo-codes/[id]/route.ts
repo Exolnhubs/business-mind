@@ -25,7 +25,7 @@ async function getPromoAndVerifyOwnership(promoId: string, userId: string, role:
 
   if (!promo) throw new NotFoundException('Promo code')
 
-  const isOrganizer = (promo.event as { organizer_id: string } | null)?.organizer_id === userId
+  const isOrganizer = (promo.event as unknown as { organizer_id: string } | null)?.organizer_id === userId
   if (!isOrganizer && role !== 'admin') {
     throw new ForbiddenException('Not your promo code')
   }

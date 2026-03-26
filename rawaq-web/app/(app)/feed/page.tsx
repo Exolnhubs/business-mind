@@ -67,7 +67,7 @@ async function FeedGrid({ userId, page }: { userId: string; page: number }) {
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-xs text-gray-400">Following:</span>
         {(follows ?? []).slice(0, 8).map((f) => {
-          const op = (f.organizer as { id: string; display_name: string; organizer_profile: { business_name: string; logo_url: string | null } | null } | null)
+          const op = (f.organizer as unknown as { id: string; display_name: string; organizer_profile: { business_name: string; logo_url: string | null } | null } | null)
           return (
             <Link
               key={f.organizer_id}
@@ -92,7 +92,7 @@ async function FeedGrid({ userId, page }: { userId: string; page: number }) {
       ) : (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {(events as EventWithOrganizer[]).map((event) => (
+            {(events as unknown as EventWithOrganizer[]).map((event) => (
               <EventCard
                 key={event.id}
                 event={event}

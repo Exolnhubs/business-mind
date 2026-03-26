@@ -8,7 +8,7 @@ import { Spinner } from '@/components/ui/Spinner'
 import { formatDate } from '@/lib/utils'
 import type { OrganizerStatus } from '@/types/database'
 
-interface OrganizerWithUser {
+export interface OrganizerWithUser {
   id: string
   user_id: string
   business_name: string

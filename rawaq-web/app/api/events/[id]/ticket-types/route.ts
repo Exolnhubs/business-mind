@@ -68,7 +68,7 @@ export async function POST(
 
     const { data, error } = await supabase
       .from('ticket_types')
-      .insert({ ...input, event_id: eventId })
+      .insert({ ...input, event_id: eventId } as any)
       .select()
       .single()
 

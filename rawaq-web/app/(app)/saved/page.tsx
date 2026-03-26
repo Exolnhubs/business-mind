@@ -28,7 +28,7 @@ export default async function SavedEventsPage() {
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
 
-  const events = ((saves ?? []) as Array<{ event_id: string; event: EventWithOrganizer | null }>)
+  const events = ((saves ?? []) as unknown as Array<{ event_id: string; event: EventWithOrganizer | null }>)
     .map((s) => s.event)
     .filter(Boolean) as EventWithOrganizer[]
 

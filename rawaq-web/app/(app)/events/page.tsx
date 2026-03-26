@@ -63,7 +63,7 @@ async function EventsGrid({ searchParams }: { searchParams: SearchParams }) {
     query = query.or(`title.ilike.%${q}%,title_ar.ilike.%${q}%,description.ilike.%${q}%`)
   }
   if (searchParams.city) query = query.eq('city', searchParams.city)
-  if (searchParams.gender) query = query.eq('gender_restriction', searchParams.gender)
+  if (searchParams.gender) query = query.eq('gender_restriction', searchParams.gender as import('@/types/database').GenderType)
   if (searchParams.free === 'true') query = query.eq('is_free', true)
   if (searchParams.family === 'true') query = query.eq('is_family_friendly', true)
   
@@ -117,7 +117,7 @@ async function EventsGrid({ searchParams }: { searchParams: SearchParams }) {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {(events as EventWithOrganizer[]).map((event) => (
+        {(events as unknown as EventWithOrganizer[]).map((event) => (
           <EventCard
             key={event.id}
             event={event}

@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
         is_simulated:        true,
         platform_fee_pct:    feePct,
         platform_fee_amount: feeAmount,
-      })
+      } as any)
       .select()
       .single()
 

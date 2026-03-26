@@ -41,7 +41,7 @@ export async function POST(
         reason:      input.reason,
         details:     input.details ?? null,
         status:      'pending',
-      })
+      } as any)
       .select()
       .single()
 

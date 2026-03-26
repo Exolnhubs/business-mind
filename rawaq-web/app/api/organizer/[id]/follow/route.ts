@@ -21,7 +21,7 @@ export async function POST(
     const { error } = await supabase
       .from('organizer_follows')
       .upsert(
-        { follower_id: ctx.userId, organizer_id: organizerId },
+        { follower_id: ctx.userId, organizer_id: organizerId } as any,
         { onConflict: 'follower_id,organizer_id' }
       )
 
