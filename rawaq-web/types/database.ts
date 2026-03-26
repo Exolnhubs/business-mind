@@ -1,5 +1,7 @@
 // Auto-maintained DB types — keep in sync with migrations.
 // In production use: `supabase gen types typescript --linked > types/database.ts`
+import type { PlanDefinition, Subscription, OrganizerMonthlyUsage } from './plans'
+export type { PlanDefinition, Subscription, OrganizerMonthlyUsage } from './plans'
 
 export type UserRole = 'user' | 'organizer' | 'admin'
 export type GenderType = 'male' | 'female' | 'mixed'
@@ -446,27 +448,52 @@ export interface BookingWithEvent extends Booking {
   event: Pick<Event, 'id' | 'title' | 'title_ar' | 'start_at' | 'cover_image_url' | 'city'>
 }
 
+// ── Extra table shapes not in types/plans.ts ───────────────
+export interface OrganizerWalletRow {
+  organizer_id: string
+  balance: number
+  total_earned: number
+  total_withdrawn: number
+  currency: string
+  updated_at: string
+}
+
 // ── Supabase Database type (for createClient generic) ──────
+// postgrest-js GenericTable requires Relationships: GenericRelationship[]
+// Without it the entire schema fails to type-check and all queries return never.
 export type Database = {
   public: {
     Tables: {
-      profiles: { Row: Profile; Insert: Omit<Profile, 'created_at' | 'updated_at'>; Update: Partial<Profile> }
-      organizer_profiles: { Row: OrganizerProfile; Insert: Omit<OrganizerProfile, 'id' | 'created_at' | 'updated_at'>; Update: Partial<OrganizerProfile> }
-      event_categories: { Row: EventCategory; Insert: Omit<EventCategory, 'id'>; Update: Partial<EventCategory> }
-      events: { Row: Event; Insert: Omit<Event, 'id' | 'bookings_count' | 'views_count' | 'tips_total' | 'created_at' | 'updated_at'>; Update: Partial<Event> }
-      bookings: { Row: Booking; Insert: Omit<Booking, 'id' | 'created_at' | 'updated_at'>; Update: Partial<Booking> }
-      tips: { Row: Tip; Insert: Omit<Tip, 'id' | 'created_at'>; Update: Partial<Tip> }
-      comments: { Row: Comment; Insert: Omit<Comment, 'id' | 'created_at' | 'updated_at'>; Update: Partial<Comment> }
-      comment_reports: { Row: CommentReport; Insert: Omit<CommentReport, 'id' | 'created_at'>; Update: Partial<CommentReport> }
-      global_chat: { Row: GlobalChat; Insert: Omit<GlobalChat, 'id' | 'created_at'>; Update: Partial<GlobalChat> }
-      notifications: { Row: Notification; Insert: Omit<Notification, 'id' | 'created_at'>; Update: Partial<Notification> }
-      device_tokens: { Row: DeviceToken; Insert: Omit<DeviceToken, 'id' | 'created_at' | 'updated_at'>; Update: Partial<DeviceToken> }
-      event_views: { Row: EventView; Insert: Omit<EventView, 'id' | 'created_at'>; Update: never }
+      profiles: { Row: Profile; Insert: Omit<Profile, 'created_at' | 'updated_at'>; Update: Partial<Profile>; Relationships: [] }
+      organizer_profiles: { Row: OrganizerProfile; Insert: Omit<OrganizerProfile, 'id' | 'created_at' | 'updated_at'>; Update: Partial<OrganizerProfile>; Relationships: [] }
+      event_categories: { Row: EventCategory; Insert: Omit<EventCategory, 'id'>; Update: Partial<EventCategory>; Relationships: [] }
+      events: { Row: Event; Insert: Omit<Event, 'id' | 'bookings_count' | 'views_count' | 'tips_total' | 'created_at' | 'updated_at'>; Update: Partial<Event>; Relationships: [] }
+      bookings: { Row: Booking; Insert: Omit<Booking, 'id' | 'created_at' | 'updated_at'>; Update: Partial<Booking>; Relationships: [] }
+      tips: { Row: Tip; Insert: Omit<Tip, 'id' | 'created_at'>; Update: Partial<Tip>; Relationships: [] }
+      comments: { Row: Comment; Insert: Omit<Comment, 'id' | 'created_at' | 'updated_at'>; Update: Partial<Comment>; Relationships: [] }
+      comment_reports: { Row: CommentReport; Insert: Omit<CommentReport, 'id' | 'created_at'>; Update: Partial<CommentReport>; Relationships: [] }
+      global_chat: { Row: GlobalChat; Insert: Omit<GlobalChat, 'id' | 'created_at'>; Update: Partial<GlobalChat>; Relationships: [] }
+      notifications: { Row: Notification; Insert: Omit<Notification, 'id' | 'created_at'>; Update: Partial<Notification>; Relationships: [] }
+      device_tokens: { Row: DeviceToken; Insert: Omit<DeviceToken, 'id' | 'created_at' | 'updated_at'>; Update: Partial<DeviceToken>; Relationships: [] }
+      event_views: { Row: EventView; Insert: Omit<EventView, 'id' | 'created_at'>; Update: Partial<EventView>; Relationships: [] }
+      saved_events: { Row: SavedEvent; Insert: SavedEvent; Update: Partial<SavedEvent>; Relationships: [] }
+      organizer_follows: { Row: OrganizerFollow; Insert: OrganizerFollow; Update: Partial<OrganizerFollow>; Relationships: [] }
+      user_blocks: { Row: UserBlock; Insert: UserBlock; Update: Partial<UserBlock>; Relationships: [] }
+      ticket_types: { Row: TicketType; Insert: Omit<TicketType, 'id' | 'sold_count' | 'created_at' | 'updated_at'>; Update: Partial<TicketType>; Relationships: [] }
+      user_reviews: { Row: UserReview; Insert: Omit<UserReview, 'id' | 'created_at' | 'updated_at'>; Update: Partial<UserReview>; Relationships: [] }
+      waitlist: { Row: Waitlist; Insert: Omit<Waitlist, 'id' | 'created_at'>; Update: Partial<Waitlist>; Relationships: [] }
+      promo_codes: { Row: PromoCode; Insert: Omit<PromoCode, 'id' | 'used_count' | 'created_at' | 'updated_at'>; Update: Partial<PromoCode>; Relationships: [] }
+      event_reports: { Row: EventReport; Insert: Omit<EventReport, 'id' | 'created_at'>; Update: Partial<EventReport>; Relationships: [] }
+      plan_definitions: { Row: PlanDefinition; Insert: Omit<PlanDefinition, 'created_at' | 'updated_at'>; Update: Partial<PlanDefinition>; Relationships: [] }
+      organizer_monthly_usage: { Row: OrganizerMonthlyUsage; Insert: OrganizerMonthlyUsage; Update: Partial<OrganizerMonthlyUsage>; Relationships: [] }
+      organizer_wallet: { Row: OrganizerWalletRow; Insert: OrganizerWalletRow; Update: Partial<OrganizerWalletRow>; Relationships: [] }
+      subscriptions: { Row: Subscription; Insert: Omit<Subscription, 'id' | 'created_at' | 'updated_at'>; Update: Partial<Subscription>; Relationships: [] }
     }
     Views: Record<string, never>
     Functions: {
       is_admin: { Args: Record<string, never>; Returns: boolean }
       get_my_role: { Args: Record<string, never>; Returns: UserRole }
+      events_within_radius: { Args: { user_lat: number; user_lng: number; radius_meters: number }; Returns: Array<{ id: string }> }
     }
     Enums: {
       user_role: UserRole
