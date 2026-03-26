@@ -7,31 +7,54 @@ import { createSupabaseServerClient } from '@/lib/supabase/server'
 // ── Per-bucket config ─────────────────────────────────────────────────────────
 const BUCKET_CONFIG = {
   avatar: {
-    bucket:       'avatars',
-    maxBytes:     5 * 1024 * 1024,          // 5 MB
-    allowedTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
-    ratePerMin:   5,
-    ratePerHour:  15,
+    bucket:           'avatars',
+    maxBytes:         5 * 1024 * 1024,
+    allowedTypes:     ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
+    fileSizeLimit:    5 * 1024 * 1024,
+    allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
+    ratePerMin:       5,
+    ratePerHour:      15,
   },
   'event-cover': {
-    bucket:       'event-covers',
-    maxBytes:     50 * 1024 * 1024,         // 50 MB
-    allowedTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif',
-                   'video/mp4', 'video/quicktime', 'video/webm'],
-    ratePerMin:   3,
-    ratePerHour:  10,
+    bucket:           'event-covers',
+    maxBytes:         50 * 1024 * 1024,
+    allowedTypes:     ['image/jpeg', 'image/png', 'image/webp', 'image/gif',
+                       'video/mp4', 'video/quicktime', 'video/webm'],
+    fileSizeLimit:    52428800,
+    allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif',
+                       'video/mp4', 'video/quicktime', 'video/webm'],
+    ratePerMin:       3,
+    ratePerHour:      10,
   },
   'comment-media': {
-    bucket:       'comment-media',
-    maxBytes:     10 * 1024 * 1024,         // 10 MB
-    allowedTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif',
-                   'video/mp4', 'video/quicktime', 'video/webm'],
-    ratePerMin:   5,
-    ratePerHour:  20,
+    bucket:           'comment-media',
+    maxBytes:         10 * 1024 * 1024,
+    allowedTypes:     ['image/jpeg', 'image/png', 'image/webp', 'image/gif',
+                       'video/mp4', 'video/quicktime', 'video/webm'],
+    fileSizeLimit:    10485760,
+    allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif',
+                       'video/mp4', 'video/quicktime', 'video/webm'],
+    ratePerMin:       5,
+    ratePerHour:      20,
   },
 } as const
 
 type UploadType = keyof typeof BUCKET_CONFIG
+
+async function ensureBucket(
+  admin: ReturnType<typeof createSupabaseAdminClient>,
+  cfg: typeof BUCKET_CONFIG[UploadType],
+) {
+  const { error } = await admin.storage.createBucket(cfg.bucket, {
+    public:          true,
+    fileSizeLimit:   cfg.fileSizeLimit,
+    allowedMimeTypes: [...cfg.allowedMimeTypes],
+  })
+  // Error code 23505 = bucket already exists — ignore it
+  if (error && !error.message.includes('already exists') && !error.message.includes('23505')) {
+    throw error
+  }
+}
 
 const EXT_MAP: Record<string, string> = {
   'image/jpeg':      'jpg',
@@ -107,6 +130,9 @@ export async function POST(req: NextRequest) {
     const path    = `${ctx.userId}/${Date.now()}.${ext}`
     const buffer  = Buffer.from(await file.arrayBuffer())
     const admin   = createSupabaseAdminClient()
+
+    // Auto-provision bucket if it doesn't exist yet (idempotent)
+    await ensureBucket(admin, cfg)
 
     const { error: uploadErr } = await admin.storage
       .from(cfg.bucket)
