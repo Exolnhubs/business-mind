@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
-import EventsScreen from './events/index'
+import EventsScreen from '@/components/screens/EventsScreen'
 import FeedScreen from './feed'
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '@/theme'
 
