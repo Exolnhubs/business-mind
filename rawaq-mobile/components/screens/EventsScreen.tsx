@@ -52,6 +52,7 @@ export default function EventsScreen() {
   const [nearMe, setNearMe]         = useState(false)
   const [geoCoords, setGeoCoords]   = useState<{ lat: number; lng: number } | null>(null)
   const [geoLoading, setGeoLoading] = useState(false)
+  const [radiusKm, setRadiusKm]     = useState(25)
 
   // Fade the pin icon out while the user is typing, back in when cleared
   const pinOpacity = useRef(new Animated.Value(1)).current
@@ -123,7 +124,7 @@ export default function EventsScreen() {
       const { data: geoEvents, error: rpcErr } = await supabase.rpc('events_within_radius', {
         user_lat: geoActive.lat,
         user_lng: geoActive.lng,
-        radius_meters: 25000,
+        radius_meters: radiusKm * 1000,
       })
       if (rpcErr) {
         Alert.alert('Location error', rpcErr.message ?? 'Could not find events near you.')
@@ -151,7 +152,7 @@ export default function EventsScreen() {
 
     setLoading(false)
     setRefreshing(false)
-  }, [search, categoryId, city, freeOnly, nearMe, geoCoords, user])
+  }, [search, categoryId, city, freeOnly, nearMe, geoCoords, radiusKm, user])
 
   useEffect(() => { fetchEvents() }, [fetchEvents])
 
@@ -201,6 +202,25 @@ export default function EventsScreen() {
           </Animated.View>
         </View>
       </View>
+
+      {/* Radius selector — visible only when Near Me is active */}
+      {nearMe && (
+        <View style={styles.radiusRow}>
+          <Ionicons name="radio-outline" size={14} color={Colors.brand[500]} style={{ marginRight: Spacing.xs }} />
+          <Text style={styles.radiusLabel}>Radius:</Text>
+          {[5, 10, 25, 50, 100].map((km) => (
+            <TouchableOpacity
+              key={km}
+              style={[styles.radiusChip, radiusKm === km && styles.radiusChipActive]}
+              onPress={() => setRadiusKm(km)}
+            >
+              <Text style={[styles.radiusChipText, radiusKm === km && styles.radiusChipTextActive]}>
+                {km} km
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
 
       {/* Category chips */}
       <View style={styles.categoryRow}>
@@ -265,7 +285,7 @@ export default function EventsScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.brand[500]} />}
           ListEmptyComponent={
             nearMe
-              ? <EmptyState icon="📍" title="No events nearby" description="No events found within 25 km of your location" />
+              ? <EmptyState icon="📍" title="No events nearby" description={`No events found within ${radiusKm} km of your location`} />
               : <EmptyState icon="📭" title={t('events.empty')} description={t('events.try_filters')} />
           }
         />
@@ -291,4 +311,11 @@ const styles = StyleSheet.create({
   miniChipText: { fontSize: FontSize.xs, color: Colors.gray[600] },
   miniChipTextActive: { color: Colors.brand[700] },
   list: { padding: Spacing.lg },
+
+  radiusRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.brand[50], paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.brand[100], gap: Spacing.xs },
+  radiusLabel: { fontSize: FontSize.xs, color: Colors.brand[600], fontWeight: FontWeight.medium, marginRight: Spacing.xs },
+  radiusChip: { paddingHorizontal: Spacing.sm + 2, paddingVertical: 4, borderRadius: Radius.full, borderWidth: 1, borderColor: Colors.brand[200], backgroundColor: Colors.white },
+  radiusChipActive: { backgroundColor: Colors.brand[500], borderColor: Colors.brand[500] },
+  radiusChipText: { fontSize: FontSize.xs, color: Colors.brand[600] },
+  radiusChipTextActive: { color: Colors.white, fontWeight: FontWeight.semibold },
 })
