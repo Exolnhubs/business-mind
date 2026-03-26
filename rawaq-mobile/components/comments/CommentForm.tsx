@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import { View, TextInput, TouchableOpacity, Text, StyleSheet, ActivityIndicator, Image, Alert } from 'react-native'
 import * as ImagePicker from 'expo-image-picker'
-import { supabase } from '@/lib/supabase'
-import { useAuth } from '@/contexts/auth-context'
+import { uploadViaApi } from '@/lib/upload'
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '@/theme'
 
 interface Props {
@@ -13,7 +12,6 @@ interface Props {
 }
 
 export function CommentForm({ onSubmit, placeholder = 'Write a comment…', onCancel, autoFocus }: Props) {
-  const { user } = useAuth()
   const [content, setContent] = useState('')
   const [mediaUri, setMediaUri] = useState<string | null>(null)
   const [mediaUrl, setMediaUrl] = useState<string | null>(null)
@@ -30,27 +28,13 @@ export function CommentForm({ onSubmit, placeholder = 'Write a comment…', onCa
     })
     if (result.canceled || !result.assets[0]) return
 
-    const asset = result.assets[0]
-    if (!user) return
-
     setUploading(true)
     try {
-      const ext = asset.uri.split('.').pop() ?? 'jpg'
-      const path = `${user.id}/${Date.now()}.${ext}`
-      const blob = await fetch(asset.uri).then((r) => r.blob())
-      const contentType = asset.type === 'video' ? `video/${ext}` : `image/${ext}`
-
-      const { error } = await supabase.storage
-        .from('comment-media')
-        .upload(path, blob, { contentType, upsert: false })
-
-      if (error) { Alert.alert('Upload failed', error.message); return }
-
-      const { data: { publicUrl } } = supabase.storage.from('comment-media').getPublicUrl(path)
-      setMediaUri(asset.uri)
-      setMediaUrl(publicUrl)
-    } catch (e) {
-      Alert.alert('Upload failed', 'Please try again.')
+      const url = await uploadViaApi(result.assets[0].uri, 'comment-media')
+      setMediaUri(result.assets[0].uri)
+      setMediaUrl(url)
+    } catch (e: unknown) {
+      Alert.alert('Upload failed', e instanceof Error ? e.message : 'Please try again.')
     } finally {
       setUploading(false)
     }

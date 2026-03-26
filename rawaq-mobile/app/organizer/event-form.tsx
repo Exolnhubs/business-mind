@@ -7,6 +7,7 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
 import { supabase } from '@/lib/supabase'
+import { uploadViaApi } from '@/lib/upload'
 import { useAuth } from '@/contexts/auth-context'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
 
@@ -102,7 +103,6 @@ export default function EventFormScreen() {
   }
 
   async function pickCoverImage() {
-    if (!user) return
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images', 'videos'],
       quality: 0.85,
@@ -112,22 +112,10 @@ export default function EventFormScreen() {
 
     setCoverUploading(true)
     try {
-      const asset = result.assets[0]
-      const ext = asset.uri.split('.').pop() ?? 'jpg'
-      const path = `${user.id}/${Date.now()}.${ext}`
-      const blob = await fetch(asset.uri).then((r) => r.blob())
-      const contentType = asset.type === 'video' ? `video/${ext}` : `image/${ext}`
-
-      const { error } = await supabase.storage
-        .from('event-covers')
-        .upload(path, blob, { contentType, upsert: false })
-
-      if (error) { Alert.alert('Upload failed', error.message); return }
-
-      const { data: { publicUrl } } = supabase.storage.from('event-covers').getPublicUrl(path)
-      setCoverImageUrl(publicUrl)
-    } catch {
-      Alert.alert('Upload failed', 'Please try again.')
+      const url = await uploadViaApi(result.assets[0].uri, 'event-cover')
+      setCoverImageUrl(url)
+    } catch (e: unknown) {
+      Alert.alert('Upload failed', e instanceof Error ? e.message : 'Please try again.')
     } finally {
       setCoverUploading(false)
     }

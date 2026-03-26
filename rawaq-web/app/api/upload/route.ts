@@ -1,8 +1,7 @@
 import { NextRequest } from 'next/server'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
-import { requireAuth } from '@/lib/auth'
-import { handleApiError, ok, ForbiddenException } from '@/lib/errors'
-import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { requireAuth, extractBearerToken } from '@/lib/auth'
+import { handleApiError, ok, ForbiddenException, UnauthorizedException } from '@/lib/errors'
 
 // ── Per-bucket config ─────────────────────────────────────────────────────────
 const BUCKET_CONFIG = {
@@ -46,11 +45,10 @@ async function ensureBucket(
   cfg: typeof BUCKET_CONFIG[UploadType],
 ) {
   const { error } = await admin.storage.createBucket(cfg.bucket, {
-    public:          true,
-    fileSizeLimit:   cfg.fileSizeLimit,
+    public:           true,
+    fileSizeLimit:    cfg.fileSizeLimit,
     allowedMimeTypes: [...cfg.allowedMimeTypes],
   })
-  // Error code 23505 = bucket already exists — ignore it
   if (error && !error.message.includes('already exists') && !error.message.includes('23505')) {
     throw error
   }
@@ -67,14 +65,35 @@ const EXT_MAP: Record<string, string> = {
 }
 
 // POST /api/upload
-// Body: FormData — file, type (avatar | event-cover | comment-media)
+// Body: FormData — file (File), type (avatar | event-cover | comment-media)
+// Auth: session cookie (web) OR Authorization: Bearer <token> (mobile)
 export async function POST(req: NextRequest) {
   try {
-    const ctx = await requireAuth()
+    const admin = createSupabaseAdminClient()
 
-    const formData  = await req.formData()
-    const file      = formData.get('file') as File | null
-    const type      = formData.get('type') as string | null
+    // ── Resolve user — cookie auth (web) or Bearer token (mobile) ─────────────
+    let userId: string
+
+    const bearerToken = extractBearerToken(req)
+    if (bearerToken) {
+      const { data: { user }, error } = await admin.auth.getUser(bearerToken)
+      if (error || !user) throw new UnauthorizedException()
+      const { data: profile } = await admin
+        .from('profiles')
+        .select('is_banned')
+        .eq('id', user.id)
+        .single()
+      if (!profile) throw new UnauthorizedException()
+      if (profile.is_banned) throw new ForbiddenException('Your account has been suspended')
+      userId = user.id
+    } else {
+      const ctx = await requireAuth()
+      userId = ctx.userId
+    }
+
+    const formData = await req.formData()
+    const file     = formData.get('file') as File | null
+    const type     = formData.get('type') as string | null
 
     if (!file) throw new ForbiddenException('No file provided')
     if (!type || !(type in BUCKET_CONFIG)) {
@@ -96,42 +115,30 @@ export async function POST(req: NextRequest) {
       throw new ForbiddenException(`File too large. Maximum size for ${type} is ${mb} MB`)
     }
 
-    // ── Rate limiting via media_uploads table ─────────────────────────────────
-    const supabase = await createSupabaseServerClient()
-    const now = new Date()
-
+    // ── Rate limiting via media_uploads (admin client reads, bypasses RLS) ────
+    const now        = new Date()
     const oneMinAgo  = new Date(now.getTime() - 60_000).toISOString()
     const oneHourAgo = new Date(now.getTime() - 3_600_000).toISOString()
 
     const [{ count: perMin }, { count: perHour }] = await Promise.all([
-      supabase
-        .from('media_uploads')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', ctx.userId)
-        .eq('bucket', cfg.bucket)
-        .gte('created_at', oneMinAgo),
-      supabase
-        .from('media_uploads')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', ctx.userId)
-        .eq('bucket', cfg.bucket)
-        .gte('created_at', oneHourAgo),
+      admin.from('media_uploads').select('*', { count: 'exact', head: true })
+        .eq('user_id', userId).eq('bucket', cfg.bucket).gte('created_at', oneMinAgo),
+      admin.from('media_uploads').select('*', { count: 'exact', head: true })
+        .eq('user_id', userId).eq('bucket', cfg.bucket).gte('created_at', oneHourAgo),
     ])
 
     if ((perMin ?? 0) >= cfg.ratePerMin) {
-      throw new ForbiddenException(`Too many uploads. Please wait before uploading again.`)
+      throw new ForbiddenException('Too many uploads. Please wait before uploading again.')
     }
     if ((perHour ?? 0) >= cfg.ratePerHour) {
-      throw new ForbiddenException(`Hourly upload limit reached. Try again later.`)
+      throw new ForbiddenException('Hourly upload limit reached. Try again later.')
     }
 
-    // ── Upload to Supabase Storage ────────────────────────────────────────────
-    const ext     = EXT_MAP[file.type] ?? 'bin'
-    const path    = `${ctx.userId}/${Date.now()}.${ext}`
-    const buffer  = Buffer.from(await file.arrayBuffer())
-    const admin   = createSupabaseAdminClient()
+    // ── Upload to Supabase Storage via admin client (bypasses RLS) ────────────
+    const ext    = EXT_MAP[file.type] ?? 'bin'
+    const path   = `${userId}/${Date.now()}.${ext}`
+    const buffer = Buffer.from(await file.arrayBuffer())
 
-    // Auto-provision bucket if it doesn't exist yet (idempotent)
     await ensureBucket(admin, cfg)
 
     const { error: uploadErr } = await admin.storage
@@ -140,13 +147,11 @@ export async function POST(req: NextRequest) {
 
     if (uploadErr) throw uploadErr
 
-    const { data: { publicUrl } } = admin.storage
-      .from(cfg.bucket)
-      .getPublicUrl(path)
+    const { data: { publicUrl } } = admin.storage.from(cfg.bucket).getPublicUrl(path)
 
-    // ── Track upload for rate limiting ────────────────────────────────────────
-    await supabase.from('media_uploads').insert({
-      user_id:    ctx.userId,
+    // ── Track for rate limiting ────────────────────────────────────────────────
+    await admin.from('media_uploads').insert({
+      user_id:    userId,
       bucket:     cfg.bucket,
       path,
       size_bytes: file.size,
