@@ -1,10 +1,11 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import * as SplashScreen from 'expo-splash-screen'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { AuthProvider, useAuth } from '@/contexts/auth-context'
 import { LocaleProvider } from '@/contexts/locale-context'
+import { AnimatedSplash } from '@/components/ui/AnimatedSplash'
 
 SplashScreen.preventAutoHideAsync()
 
@@ -33,12 +34,14 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 }
 
 export default function RootLayout() {
+  const [splashDone, setSplashDone] = useState(false)
+
   return (
     <SafeAreaProvider>
       <LocaleProvider>
         <AuthProvider>
           <AuthGate>
-            <StatusBar style="dark" />
+            <StatusBar style={splashDone ? 'dark' : 'light'} />
             <Stack screenOptions={{ headerShown: false }}>
               <Stack.Screen name="(auth)" />
               <Stack.Screen name="(tabs)" />
@@ -56,6 +59,7 @@ export default function RootLayout() {
                 options={{ headerShown: false, presentation: 'card' }}
               />
             </Stack>
+            {!splashDone && <AnimatedSplash onFinish={() => setSplashDone(true)} />}
           </AuthGate>
         </AuthProvider>
       </LocaleProvider>
