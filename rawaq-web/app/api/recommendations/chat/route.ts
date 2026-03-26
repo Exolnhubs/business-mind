@@ -42,17 +42,21 @@ interface SearchParams {
 }
 
 function extractSearchParams(text: string): SearchParams | null {
-  const match = text.match(/\[SEARCH\](.*?)\[\/SEARCH\]/s)
-  if (!match) return null
+  const start = text.indexOf('[SEARCH]')
+  const end = text.indexOf('[/SEARCH]')
+  if (start === -1 || end === -1) return null
   try {
-    return JSON.parse(match[1])
+    return JSON.parse(text.slice(start + 8, end))
   } catch {
     return null
   }
 }
 
 function stripSearchBlock(text: string): string {
-  return text.replace(/\[SEARCH\].*?\[\/SEARCH\]\n?/s, '').trim()
+  const start = text.indexOf('[SEARCH]')
+  const end = text.indexOf('[/SEARCH]')
+  if (start === -1 || end === -1) return text.trim()
+  return (text.slice(0, start) + text.slice(end + 9)).trim()
 }
 
 async function fetchEvents(params: SearchParams) {
