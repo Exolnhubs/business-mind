@@ -225,6 +225,10 @@ export type Database = {
     Functions: {
       is_admin: { Args: Record<string, never>; Returns: boolean }
       get_my_role: { Args: Record<string, never>; Returns: UserRole }
+      events_within_radius: {
+        Args: { user_lat: number; user_lng: number; radius_meters: number }
+        Returns: Array<{ id: string; distance_meters: number }>
+      }
     }
     Enums: {
       user_role: UserRole
