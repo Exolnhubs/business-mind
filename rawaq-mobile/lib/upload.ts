@@ -25,6 +25,11 @@ export async function uploadViaApi(uri: string, type: UploadType): Promise<strin
   const apiUrl = process.env.EXPO_PUBLIC_API_URL
   if (!apiUrl) throw new Error('EXPO_PUBLIC_API_URL is not set in your .env file')
 
+  // getUser() validates the JWT server-side and triggers a token refresh if
+  // the cached session is expired, before we use the access_token.
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Not authenticated')
+
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) throw new Error('Not authenticated')
 
