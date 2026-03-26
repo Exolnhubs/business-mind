@@ -18,6 +18,7 @@ export function CommentThread({ eventId, initialComments, currentUserId }: Comme
   const { user, profile } = useAuth()
   const supabase = createSupabaseBrowserClient()
   const [comments, setComments] = useState<CommentWithAuthor[]>(initialComments)
+  const [postError, setPostError] = useState<string | null>(null)
   const [, startTransition] = useTransition()
 
   // Realtime subscription for new comments
@@ -99,6 +100,7 @@ export function CommentThread({ eventId, initialComments, currentUserId }: Comme
 
   async function postComment(content: string, parentId: string | null = null, mediaUrl?: string) {
     if (!user) return
+    setPostError(null)
 
     const res = await fetch('/api/comments', {
       method: 'POST',
@@ -112,7 +114,11 @@ export function CommentThread({ eventId, initialComments, currentUserId }: Comme
       }),
     })
 
-    if (!res.ok) return
+    if (!res.ok) {
+      const errJson = await res.json().catch(() => ({}))
+      setPostError(errJson?.error ?? 'Failed to post comment. Please try again.')
+      return
+    }
     const json = await res.json()
     const data = json.data
 
@@ -164,7 +170,12 @@ export function CommentThread({ eventId, initialComments, currentUserId }: Comme
     <div className="space-y-4">
       {/* Comment input */}
       {user ? (
-        <CommentForm onSubmit={(content, mediaUrl) => postComment(content, null, mediaUrl)} />
+        <>
+          <CommentForm onSubmit={(content, mediaUrl) => postComment(content, null, mediaUrl)} />
+          {postError && (
+            <p className="text-sm text-red-600 mt-1">{postError}</p>
+          )}
+        </>
       ) : (
         <p className="text-sm text-gray-500 text-center py-4">
           <a href="/login" className="text-brand-600 font-medium hover:underline">Sign in</a> to leave a comment.

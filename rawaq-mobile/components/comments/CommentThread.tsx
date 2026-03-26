@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { View, Text, StyleSheet } from 'react-native'
+import { View, Text, StyleSheet, Alert } from 'react-native'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/auth-context'
 import { CommentItem } from './CommentItem'
@@ -57,13 +57,16 @@ export function CommentThread({ eventId, initialComments, currentUserId }: Props
 
   async function postComment(content: string, parentId: string | null = null, mediaUrl?: string) {
     if (!user) return
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('comments')
-      .insert({ event_id: eventId, user_id: user.id, parent_id: parentId, content, mentions: [], media_url: mediaUrl ?? null })
+      .insert({ event_id: eventId, user_id: user.id, parent_id: parentId, content, mentions: [], media_url: mediaUrl ?? null, is_deleted: false })
       .select()
       .single()
 
-    if (!data) return
+    if (error || !data) {
+      Alert.alert('Error', error?.message ?? 'Failed to post comment. Please try again.')
+      return
+    }
     const newComment: CommentWithAuthor = {
       ...data,
       author: { id: user.id, display_name: profile?.display_name ?? 'You', avatar_url: profile?.avatar_url ?? null },
