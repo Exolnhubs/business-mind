@@ -181,7 +181,7 @@ export function CommentThread({ eventId, initialComments, currentUserId }: Comme
               key={comment.id}
               comment={comment}
               currentUserId={currentUserId}
-              onReply={(content) => postComment(content, comment.id)}
+              onReply={(content, mediaUrl) => postComment(content, comment.id, mediaUrl)}
               onDelete={deleteComment}
             />
           ))}
