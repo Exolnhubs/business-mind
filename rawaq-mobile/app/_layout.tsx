@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import * as SplashScreen from 'expo-splash-screen'
+import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { AuthProvider, useAuth } from '@/contexts/auth-context'
 import { LocaleProvider } from '@/contexts/locale-context'
 
@@ -20,7 +21,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     if (!user && !inAuthGroup) {
       router.replace('/(auth)/login')
     } else if (user && inAuthGroup) {
-      router.replace('/(tabs)/events')
+      router.replace('/(tabs)/home')
     }
   }, [user, loading, segments])
 
@@ -33,25 +34,27 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
 export default function RootLayout() {
   return (
-    <LocaleProvider>
-      <AuthProvider>
-        <AuthGate>
-          <StatusBar style="dark" />
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="(auth)" />
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen
-              name="events/[id]"
-              options={{
-                headerShown: true,
-                headerTitle: '',
-                headerBackTitle: 'Back',
-                headerTransparent: true,
-              }}
-            />
-          </Stack>
-        </AuthGate>
-      </AuthProvider>
-    </LocaleProvider>
+    <SafeAreaProvider>
+      <LocaleProvider>
+        <AuthProvider>
+          <AuthGate>
+            <StatusBar style="dark" />
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="(auth)" />
+              <Stack.Screen name="(tabs)" />
+              <Stack.Screen
+                name="events/[id]"
+                options={{
+                  headerShown: true,
+                  headerTitle: '',
+                  headerBackTitle: 'Back',
+                  headerTransparent: true,
+                }}
+              />
+            </Stack>
+          </AuthGate>
+        </AuthProvider>
+      </LocaleProvider>
+    </SafeAreaProvider>
   )
 }

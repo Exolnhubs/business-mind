@@ -4,6 +4,7 @@ import {
   TouchableOpacity, RefreshControl,
 } from 'react-native'
 import { useRouter } from 'expo-router'
+import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/auth-context'
 import { useLocale } from '@/contexts/locale-context'
@@ -67,6 +68,22 @@ export default function BookingsScreen() {
       keyExtractor={(item) => item.id}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetch() }} tintColor={Colors.brand[500]} />}
       contentContainerStyle={styles.content}
+      ListHeaderComponent={
+        <TouchableOpacity
+          style={styles.chatCard}
+          activeOpacity={0.8}
+          onPress={() => router.push('/(tabs)/chat')}
+        >
+          <View style={styles.chatIconWrap}>
+            <Ionicons name="chatbubbles" size={22} color={Colors.brand[600]} />
+          </View>
+          <View style={styles.chatBody}>
+            <Text style={styles.chatTitle}>Chat with us</Text>
+            <Text style={styles.chatSubtitle}>Questions about your booking? We're here.</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={Colors.gray[400]} />
+        </TouchableOpacity>
+      }
       ListEmptyComponent={<EmptyState icon="🎟️" title={t('bookings.empty')} description={t('bookings.join_hint')} />}
       renderItem={({ item }) => {
         if (item.type === 'header') {
@@ -136,4 +153,19 @@ const styles = StyleSheet.create({
     borderRadius: Radius.md, paddingHorizontal: Spacing.sm, paddingVertical: 3,
   },
   ticketBtnText: { fontSize: FontSize.xs, color: Colors.brand[600], fontWeight: FontWeight.semibold },
+
+  // Chat with us card
+  chatCard: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
+    backgroundColor: Colors.brand[50], borderRadius: Radius.lg,
+    padding: Spacing.md, marginBottom: Spacing.xl,
+    borderWidth: 1, borderColor: Colors.brand[100],
+  },
+  chatIconWrap: {
+    width: 44, height: 44, borderRadius: Radius.md,
+    backgroundColor: Colors.brand[100], justifyContent: 'center', alignItems: 'center',
+  },
+  chatBody: { flex: 1, minWidth: 0 },
+  chatTitle: { fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.brand[700] },
+  chatSubtitle: { fontSize: FontSize.xs, color: Colors.brand[500], marginTop: 2 },
 })

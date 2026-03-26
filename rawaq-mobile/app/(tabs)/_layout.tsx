@@ -4,26 +4,8 @@ import { Ionicons } from '@expo/vector-icons'
 import { useLocale } from '@/contexts/locale-context'
 import { Colors } from '@/theme'
 
-type IoniconName = React.ComponentProps<typeof Ionicons>['name']
-
 export default function TabsLayout() {
   const { t } = useLocale()
-
-  const tab = (
-    name: string,
-    href: string,
-    activeIcon: IoniconName,
-    inactiveIcon: IoniconName,
-    label: string,
-  ) => ({
-    name,
-    options: {
-      title: label,
-      tabBarIcon: ({ color, focused }: { color: string; focused: boolean }) => (
-        <Ionicons name={focused ? activeIcon : inactiveIcon} size={24} color={color} />
-      ),
-    },
-  })
 
   return (
     <Tabs
@@ -34,8 +16,9 @@ export default function TabsLayout() {
           backgroundColor: Colors.white,
           borderTopColor: Colors.gray[100],
           borderTopWidth: 1,
-          height: Platform.OS === 'ios' ? 88 : 64,
-          paddingBottom: Platform.OS === 'ios' ? 28 : 8,
+          height: Platform.OS === 'ios' ? 84 : 62,
+          paddingBottom: Platform.OS === 'ios' ? 26 : 8,
+          paddingTop: 6,
         },
         tabBarLabelStyle: { fontSize: 11, fontWeight: '500' },
         headerStyle: { backgroundColor: Colors.white },
@@ -44,22 +27,15 @@ export default function TabsLayout() {
         headerTintColor: Colors.gray[900],
       }}
     >
+      {/* ── Visible tabs (4) ─────────────────────────────────── */}
       <Tabs.Screen
-        name="events/index"
+        name="home"
         options={{
-          title: t('tab.events'),
+          headerShown: false,   // Home manages its own header with safe-area pill
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'calendar' : 'calendar-outline'} size={24} color={color} />
+            <Ionicons name={focused ? 'home' : 'home-outline'} size={24} color={color} />
           ),
-        }}
-      />
-      <Tabs.Screen
-        name="feed"
-        options={{
-          title: 'Following',
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'people' : 'people-outline'} size={24} color={color} />
-          ),
+          title: 'Home',
         }}
       />
       <Tabs.Screen
@@ -81,15 +57,6 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="chat"
-        options={{
-          title: t('tab.chat'),
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'chatbubbles' : 'chatbubbles-outline'} size={24} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="profile"
         options={{
           title: t('tab.profile'),
@@ -98,6 +65,11 @@ export default function TabsLayout() {
           ),
         }}
       />
+
+      {/* ── Hidden routes (still navigable, not shown in tab bar) ── */}
+      <Tabs.Screen name="events/index" options={{ href: null }} />
+      <Tabs.Screen name="feed"         options={{ href: null }} />
+      <Tabs.Screen name="chat"         options={{ href: null }} />
     </Tabs>
   )
 }
