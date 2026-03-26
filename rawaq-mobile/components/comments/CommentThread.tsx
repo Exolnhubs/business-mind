@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { View, Text, StyleSheet, Alert } from 'react-native'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/auth-context'
@@ -17,6 +17,8 @@ interface Props {
 export function CommentThread({ eventId, initialComments, currentUserId }: Props) {
   const { user, profile } = useAuth()
   const [comments, setComments] = useState<CommentWithAuthor[]>(initialComments)
+  // Track IDs we inserted ourselves so the realtime handler doesn't add them again
+  const optimisticIds = useRef<Set<string>>(new Set())
 
   useEffect(() => {
     const channel = supabase
@@ -25,6 +27,12 @@ export function CommentThread({ eventId, initialComments, currentUserId }: Props
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'comments', filter: `event_id=eq.${eventId}` },
         async (payload) => {
+          // Skip comments we already added optimistically
+          if (optimisticIds.current.has(payload.new.id)) {
+            optimisticIds.current.delete(payload.new.id)
+            return
+          }
+
           const { data: author } = await supabase
             .from('profiles')
             .select('id, display_name, avatar_url')
@@ -41,7 +49,12 @@ export function CommentThread({ eventId, initialComments, currentUserId }: Props
             if (payload.new.parent_id) {
               return prev.map((c) =>
                 c.id === payload.new.parent_id
-                  ? { ...c, replies: [newComment, ...(c.replies ?? [])] }
+                  ? {
+                      ...c,
+                      replies: (c.replies ?? []).some((r) => r.id === newComment.id)
+                        ? c.replies
+                        : [newComment, ...(c.replies ?? [])],
+                    }
                   : c,
               )
             }
@@ -67,6 +80,8 @@ export function CommentThread({ eventId, initialComments, currentUserId }: Props
       Alert.alert('Error', error?.message ?? 'Failed to post comment. Please try again.')
       return
     }
+    // Register this ID so the realtime handler won't double-add it
+    optimisticIds.current.add(data.id)
     const newComment: CommentWithAuthor = {
       ...data,
       author: { id: user.id, display_name: profile?.display_name ?? 'You', avatar_url: profile?.avatar_url ?? null },
