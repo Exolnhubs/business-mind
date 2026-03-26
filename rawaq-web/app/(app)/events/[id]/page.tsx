@@ -38,7 +38,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
 
   if (error || !event) notFound()
 
-  const ev = event as EventWithOrganizer
+  const ev = event as unknown as EventWithOrganizer
 
   const { data: { user } } = await supabase.auth.getUser()
   let isBooked = false
@@ -206,7 +206,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
             </h2>
             <CommentThread
               eventId={id}
-              initialComments={(comments ?? []) as CommentWithAuthor[]}
+              initialComments={(comments ?? []) as unknown as CommentWithAuthor[]}
               currentUserId={user?.id ?? null}
             />
           </div>

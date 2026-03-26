@@ -141,7 +141,7 @@ export default async function PublicUserProfilePage({ params }: { params: Promis
       {/* Reviews */}
       <ReviewSection
         reviewedId={id}
-        reviews={(reviews ?? []) as UserReviewWithReviewer[]}
+        reviews={(reviews ?? []) as unknown as UserReviewWithReviewer[]}
         totalReviews={totalReviews}
         avgRating={trueAvg}
         viewerReview={viewerReview}

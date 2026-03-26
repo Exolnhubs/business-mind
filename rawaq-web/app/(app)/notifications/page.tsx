@@ -16,8 +16,15 @@ const ICONS: Record<NotificationType, string> = {
   comment_reply:       '💬',
   mention:             '👋',
   organizer_approved:  '✅',
+  organizer_rejected:  '❌',
+  organizer_suspended: '⛔',
   event_cancelled:     '🚫',
   tip_received:        '💰',
+  waitlist_promoted:   '🎉',
+  new_follower:        '👤',
+  new_review:          '⭐',
+  new_attendee:        '🙋',
+  new_comment:         '💬',
 }
 
 function notificationLabel(n: Notification): { title: string; subtitle: string; href: string | null } {

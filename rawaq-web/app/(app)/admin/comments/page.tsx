@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
-import { FlaggedCommentList } from '@/components/admin/FlaggedCommentList'
+import { FlaggedCommentList, type FlaggedComment } from '@/components/admin/FlaggedCommentList'
 
 export const metadata: Metadata = { title: 'Flagged Comments' }
 
@@ -24,7 +24,7 @@ export default async function AdminCommentsPage() {
       <h2 className="text-lg font-semibold text-gray-900">
         Flagged Comments ({comments?.length ?? 0})
       </h2>
-      <FlaggedCommentList comments={comments ?? []} />
+      <FlaggedCommentList comments={(comments ?? []) as unknown as FlaggedComment[]} />
     </div>
   )
 }

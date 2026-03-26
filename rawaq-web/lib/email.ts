@@ -214,7 +214,7 @@ export async function sendNotificationEmail({ type, payload, toEmail, toName }: 
 
   await resend.emails.send({
     from: FROM,
-    to: [{ email: toEmail, name: toName }],
+    to: [toEmail],
     subject: email.subject,
     html: email.html,
   })

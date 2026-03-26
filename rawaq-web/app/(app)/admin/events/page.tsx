@@ -29,7 +29,7 @@ export default async function AdminEventsPage() {
     .order('created_at', { ascending: false })
     .limit(50)
 
-  const events = (data ?? []) as AdminEventRow[]
+  const events = (data ?? []) as unknown as AdminEventRow[]
 
   return (
     <div className="space-y-4">

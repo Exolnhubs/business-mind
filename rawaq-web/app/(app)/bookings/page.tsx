@@ -27,7 +27,7 @@ export default async function BookingsPage() {
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
 
-  const bookings = (bookingsRaw ?? []) as BookingRow[]
+  const bookings = (bookingsRaw ?? []) as unknown as BookingRow[]
 
   const upcoming = bookings.filter(
     (b) => b.status === 'confirmed' && b.event && new Date(b.event.start_at) > new Date(),

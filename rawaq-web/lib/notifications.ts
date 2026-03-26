@@ -27,7 +27,7 @@ export async function sendNotification({ userId, type, payload }: SendNotificati
   // 1. Persist in DB (always, awaited)
   const { error: dbErr } = await admin
     .from('notifications')
-    .insert({ user_id: userId, type, payload })
+    .insert({ user_id: userId, type, payload } as any)
   if (dbErr) console.error('[Notification] DB insert failed:', type, userId, dbErr.message)
 
   // 2. Push — independent, never blocked by email

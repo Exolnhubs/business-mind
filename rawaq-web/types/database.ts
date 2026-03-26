@@ -73,6 +73,8 @@ export interface OrganizerProfile {
   reviewed_by: string | null
   reviewed_at: string | null
   plan_id: string
+  followers_count: number
+  suspend_reason: string | null
   created_at: string
   updated_at: string
 }
@@ -225,6 +227,7 @@ export interface OrganizerWallet {
   total_earned: number
   total_withdrawn: number
   currency: string
+  is_simulated: boolean
   updated_at: string
 }
 
@@ -455,39 +458,43 @@ export interface OrganizerWalletRow {
   total_earned: number
   total_withdrawn: number
   currency: string
+  is_simulated: boolean
   updated_at: string
 }
 
 // ── Supabase Database type (for createClient generic) ──────
-// postgrest-js GenericTable requires Relationships: GenericRelationship[]
-// Without it the entire schema fails to type-check and all queries return never.
+// postgrest-js GenericTable requires Row/Insert/Update to extend Record<string, unknown>.
+// TypeScript interfaces do NOT satisfy this — only mapped/object types do.
+// R<T> converts any interface/type to a mapped object type that passes the check.
+type R<T> = { [K in keyof T]: T[K] }
+
 export type Database = {
   public: {
     Tables: {
-      profiles: { Row: Profile; Insert: Omit<Profile, 'created_at' | 'updated_at'>; Update: Partial<Profile>; Relationships: [] }
-      organizer_profiles: { Row: OrganizerProfile; Insert: Omit<OrganizerProfile, 'id' | 'created_at' | 'updated_at'>; Update: Partial<OrganizerProfile>; Relationships: [] }
-      event_categories: { Row: EventCategory; Insert: Omit<EventCategory, 'id'>; Update: Partial<EventCategory>; Relationships: [] }
-      events: { Row: Event; Insert: Omit<Event, 'id' | 'bookings_count' | 'views_count' | 'tips_total' | 'created_at' | 'updated_at'>; Update: Partial<Event>; Relationships: [] }
-      bookings: { Row: Booking; Insert: Omit<Booking, 'id' | 'created_at' | 'updated_at'>; Update: Partial<Booking>; Relationships: [] }
-      tips: { Row: Tip; Insert: Omit<Tip, 'id' | 'created_at'>; Update: Partial<Tip>; Relationships: [] }
-      comments: { Row: Comment; Insert: Omit<Comment, 'id' | 'created_at' | 'updated_at'>; Update: Partial<Comment>; Relationships: [] }
-      comment_reports: { Row: CommentReport; Insert: Omit<CommentReport, 'id' | 'created_at'>; Update: Partial<CommentReport>; Relationships: [] }
-      global_chat: { Row: GlobalChat; Insert: Omit<GlobalChat, 'id' | 'created_at'>; Update: Partial<GlobalChat>; Relationships: [] }
-      notifications: { Row: Notification; Insert: Omit<Notification, 'id' | 'created_at'>; Update: Partial<Notification>; Relationships: [] }
-      device_tokens: { Row: DeviceToken; Insert: Omit<DeviceToken, 'id' | 'created_at' | 'updated_at'>; Update: Partial<DeviceToken>; Relationships: [] }
-      event_views: { Row: EventView; Insert: Omit<EventView, 'id' | 'created_at'>; Update: Partial<EventView>; Relationships: [] }
-      saved_events: { Row: SavedEvent; Insert: SavedEvent; Update: Partial<SavedEvent>; Relationships: [] }
-      organizer_follows: { Row: OrganizerFollow; Insert: OrganizerFollow; Update: Partial<OrganizerFollow>; Relationships: [] }
-      user_blocks: { Row: UserBlock; Insert: UserBlock; Update: Partial<UserBlock>; Relationships: [] }
-      ticket_types: { Row: TicketType; Insert: Omit<TicketType, 'id' | 'sold_count' | 'created_at' | 'updated_at'>; Update: Partial<TicketType>; Relationships: [] }
-      user_reviews: { Row: UserReview; Insert: Omit<UserReview, 'id' | 'created_at' | 'updated_at'>; Update: Partial<UserReview>; Relationships: [] }
-      waitlist: { Row: Waitlist; Insert: Omit<Waitlist, 'id' | 'created_at'>; Update: Partial<Waitlist>; Relationships: [] }
-      promo_codes: { Row: PromoCode; Insert: Omit<PromoCode, 'id' | 'used_count' | 'created_at' | 'updated_at'>; Update: Partial<PromoCode>; Relationships: [] }
-      event_reports: { Row: EventReport; Insert: Omit<EventReport, 'id' | 'created_at'>; Update: Partial<EventReport>; Relationships: [] }
-      plan_definitions: { Row: PlanDefinition; Insert: Omit<PlanDefinition, 'created_at' | 'updated_at'>; Update: Partial<PlanDefinition>; Relationships: [] }
-      organizer_monthly_usage: { Row: OrganizerMonthlyUsage; Insert: OrganizerMonthlyUsage; Update: Partial<OrganizerMonthlyUsage>; Relationships: [] }
-      organizer_wallet: { Row: OrganizerWalletRow; Insert: OrganizerWalletRow; Update: Partial<OrganizerWalletRow>; Relationships: [] }
-      subscriptions: { Row: Subscription; Insert: Omit<Subscription, 'id' | 'created_at' | 'updated_at'>; Update: Partial<Subscription>; Relationships: [] }
+      profiles: { Row: R<Profile>; Insert: R<Omit<Profile, 'created_at' | 'updated_at'>>; Update: R<Partial<Profile>>; Relationships: [] }
+      organizer_profiles: { Row: R<OrganizerProfile>; Insert: R<Omit<OrganizerProfile, 'id' | 'created_at' | 'updated_at'>>; Update: R<Partial<OrganizerProfile>>; Relationships: [] }
+      event_categories: { Row: R<EventCategory>; Insert: R<Omit<EventCategory, 'id'>>; Update: R<Partial<EventCategory>>; Relationships: [] }
+      events: { Row: R<Event>; Insert: R<Omit<Event, 'id' | 'bookings_count' | 'views_count' | 'tips_total' | 'created_at' | 'updated_at'>>; Update: R<Partial<Event>>; Relationships: [] }
+      bookings: { Row: R<Booking>; Insert: R<Omit<Booking, 'id' | 'created_at' | 'updated_at'>>; Update: R<Partial<Booking>>; Relationships: [] }
+      tips: { Row: R<Tip>; Insert: R<Omit<Tip, 'id' | 'created_at'>>; Update: R<Partial<Tip>>; Relationships: [] }
+      comments: { Row: R<Comment>; Insert: R<Omit<Comment, 'id' | 'created_at' | 'updated_at'>>; Update: R<Partial<Comment>>; Relationships: [] }
+      comment_reports: { Row: R<CommentReport>; Insert: R<Omit<CommentReport, 'id' | 'created_at'>>; Update: R<Partial<CommentReport>>; Relationships: [] }
+      global_chat: { Row: R<GlobalChat>; Insert: R<Omit<GlobalChat, 'id' | 'created_at'>>; Update: R<Partial<GlobalChat>>; Relationships: [] }
+      notifications: { Row: R<Notification>; Insert: R<Omit<Notification, 'id' | 'created_at'>>; Update: R<Partial<Notification>>; Relationships: [] }
+      device_tokens: { Row: R<DeviceToken>; Insert: R<Omit<DeviceToken, 'id' | 'created_at' | 'updated_at'>>; Update: R<Partial<DeviceToken>>; Relationships: [] }
+      event_views: { Row: R<EventView>; Insert: R<Omit<EventView, 'id' | 'created_at'>>; Update: R<Partial<EventView>>; Relationships: [] }
+      saved_events: { Row: R<SavedEvent>; Insert: R<SavedEvent>; Update: R<Partial<SavedEvent>>; Relationships: [] }
+      organizer_follows: { Row: R<OrganizerFollow>; Insert: R<OrganizerFollow>; Update: R<Partial<OrganizerFollow>>; Relationships: [] }
+      user_blocks: { Row: R<UserBlock>; Insert: R<UserBlock>; Update: R<Partial<UserBlock>>; Relationships: [] }
+      ticket_types: { Row: R<TicketType>; Insert: R<Omit<TicketType, 'id' | 'sold_count' | 'created_at' | 'updated_at'>>; Update: R<Partial<TicketType>>; Relationships: [] }
+      user_reviews: { Row: R<UserReview>; Insert: R<Omit<UserReview, 'id' | 'created_at' | 'updated_at'>>; Update: R<Partial<UserReview>>; Relationships: [] }
+      waitlist: { Row: R<Waitlist>; Insert: R<Omit<Waitlist, 'id' | 'created_at'>>; Update: R<Partial<Waitlist>>; Relationships: [] }
+      promo_codes: { Row: R<PromoCode>; Insert: R<Omit<PromoCode, 'id' | 'used_count' | 'created_at' | 'updated_at'>>; Update: R<Partial<PromoCode>>; Relationships: [] }
+      event_reports: { Row: R<EventReport>; Insert: R<Omit<EventReport, 'id' | 'created_at'>>; Update: R<Partial<EventReport>>; Relationships: [] }
+      plan_definitions: { Row: R<PlanDefinition>; Insert: R<Omit<PlanDefinition, 'created_at' | 'updated_at'>>; Update: R<Partial<PlanDefinition>>; Relationships: [] }
+      organizer_monthly_usage: { Row: R<OrganizerMonthlyUsage>; Insert: R<OrganizerMonthlyUsage>; Update: R<Partial<OrganizerMonthlyUsage>>; Relationships: [] }
+      organizer_wallet: { Row: R<OrganizerWalletRow>; Insert: R<OrganizerWalletRow>; Update: R<Partial<OrganizerWalletRow>>; Relationships: [] }
+      subscriptions: { Row: R<Subscription>; Insert: R<Omit<Subscription, 'id' | 'created_at' | 'updated_at'>>; Update: R<Partial<Subscription>>; Relationships: [] }
     }
     Views: Record<string, never>
     Functions: {

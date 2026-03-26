@@ -149,7 +149,7 @@ export async function POST(req: Request) {
           current_period_end: periodEnd.toISOString(),
           is_simulated: true,
           payment_ref: `self_${Date.now()}`,
-        })
+        } as any)
       if (subErr) throw subErr
     }
 

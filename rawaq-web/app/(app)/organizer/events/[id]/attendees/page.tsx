@@ -41,8 +41,8 @@ export default async function AttendeesPage({ params }: { params: Promise<{ id: 
     .eq('event_id', id)
     .order('created_at', { ascending: true })
 
-  const confirmed = (bookings ?? []).filter((b) => b.status === 'confirmed') as AttendeeRow[]
-  const cancelled = (bookings ?? []).filter((b) => b.status === 'cancelled') as AttendeeRow[]
+  const confirmed = (bookings ?? []).filter((b) => b.status === 'confirmed') as unknown as AttendeeRow[]
+  const cancelled = (bookings ?? []).filter((b) => b.status === 'cancelled') as unknown as AttendeeRow[]
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 space-y-6">

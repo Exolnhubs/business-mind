@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
-import { OrganizerApprovalList } from '@/components/admin/OrganizerApprovalList'
+import { OrganizerApprovalList, type OrganizerWithUser } from '@/components/admin/OrganizerApprovalList'
 
 export const metadata: Metadata = { title: 'Organizer Approvals' }
 
@@ -34,14 +34,14 @@ export default async function AdminOrganizersPage() {
         <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-3">
           Pending ({pending?.length ?? 0})
         </h3>
-        <OrganizerApprovalList organizers={pending ?? []} />
+        <OrganizerApprovalList organizers={(pending ?? []) as unknown as OrganizerWithUser[]} />
       </section>
 
       <section>
         <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-3">
           Reviewed ({reviewed?.length ?? 0})
         </h3>
-        <OrganizerApprovalList organizers={reviewed ?? []} />
+        <OrganizerApprovalList organizers={(reviewed ?? []) as unknown as OrganizerWithUser[]} />
       </section>
     </div>
   )

@@ -181,7 +181,7 @@ export default async function OrganizerProfilePage({ params }: { params: Promise
           <EmptyState icon="📭" title="No upcoming events" description="Check back soon" />
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {(events as EventWithOrganizer[]).map((event) => (
+            {(events as unknown as EventWithOrganizer[]).map((event) => (
               <EventCard
                 key={event.id}
                 event={event}

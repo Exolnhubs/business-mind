@@ -65,7 +65,7 @@ export async function PATCH(
 
     // Fire booking_cancelled notification when status changes to cancelled
     if (input.status === 'cancelled') {
-      const event = (booking.event as { id: string; title: string } | null)
+      const event = (booking.event as unknown as { id: string; title: string } | null)
       sendNotification({
         userId: booking.user_id,
         type: 'booking_cancelled',

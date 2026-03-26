@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
         processed_at: new Date().toISOString(),
         gateway_ref:  `sim_payout_${Date.now()}`,
         is_simulated: true,
-      })
+      } as any)
       .select()
       .single()
 

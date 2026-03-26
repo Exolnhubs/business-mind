@@ -82,7 +82,7 @@ export async function POST(
         reporter_id: ctx.userId,
         reason: input.reason,
         details: input.details,
-      })
+      } as any)
       .select()
       .single()
 

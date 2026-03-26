@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
         `*, user:profiles!user_id(id, display_name, avatar_url, city, created_at)`,
         { count: 'exact' }
       )
-      .eq('status', status)
+      .eq('status', status as import('@/types/database').OrganizerStatus)
       .order('created_at', { ascending: true })
       .range(from, from + perPage - 1)
 

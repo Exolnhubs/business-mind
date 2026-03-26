@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
         user_id: ctx.userId,
         content: input.content,
         mentions: input.mentions,
-      })
+      } as any)
       .select(`id, content, created_at, mentions,
                author:profiles!user_id(id, display_name, avatar_url)`)
       .single()
