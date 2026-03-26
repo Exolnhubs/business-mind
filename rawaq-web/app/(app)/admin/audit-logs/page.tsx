@@ -118,7 +118,7 @@ export default function AdminAuditLogsPage() {
                     {' '}<span className="text-gray-500">{ACTION_LABELS[entry.action] ?? entry.action}:</span>
                     {' '}<span className="font-medium">{metaSummary(entry)}</span>
                   </p>
-                  {entry.meta.severity && (
+                  {!!entry.meta.severity && (
                     <span className={`inline-block text-xs px-1.5 py-0.5 rounded mt-0.5 font-medium ${
                       entry.meta.severity === 'high'   ? 'bg-red-100 text-red-700' :
                       entry.meta.severity === 'medium' ? 'bg-yellow-100 text-yellow-700' :
