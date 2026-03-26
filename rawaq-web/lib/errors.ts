@@ -36,6 +36,12 @@ export class ConflictException extends ApiException {
   }
 }
 
+export class BadRequestException extends ApiException {
+  constructor(message: string) {
+    super(message, 400, 'BAD_REQUEST')
+  }
+}
+
 // Map Supabase/postgres error codes to friendly messages
 function mapDbError(error: { code?: string; message?: string }): { message: string; status: number } {
   switch (error.code) {
