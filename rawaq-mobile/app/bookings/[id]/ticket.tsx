@@ -60,10 +60,11 @@ export default function TicketScreen() {
   }, [id, user])
 
   function handleShare() {
-    if (!ticket?.ticket_id) return
+    if (!ticket) return
+    const eventUrl = `${APP_URL}/events/${ticket.event.id}`
     Share.share({
-      message: `My ticket for ${ticket.event.title} — Ticket ID: ${ticket.ticket_id}`,
-      url: `${APP_URL}/bookings/${id}/ticket`,
+      message: `I'm attending ${ticket.event.title}! Check it out: ${eventUrl}`,
+      url: eventUrl,
     })
   }
 
