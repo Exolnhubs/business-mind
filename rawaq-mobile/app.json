@@ -14,7 +14,7 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.rawaq.app",
+      "bundleIdentifier": "com.rawaq.rawaq",
       "infoPlist": {
         "UIBackgroundModes": ["fetch", "remote-notification"]
       }
@@ -24,7 +24,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#f59e0b"
       },
-      "package": "com.rawaq.app",
+      "package": "com.rawaq.rawaq",
       "googleServicesFile": "./google-services.json",
       "permissions": ["RECEIVE_BOOT_COMPLETED", "VIBRATE"]
     },
