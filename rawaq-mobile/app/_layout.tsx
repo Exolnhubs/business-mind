@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { AppState } from 'react-native'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import * as SplashScreen from 'expo-splash-screen'
@@ -6,6 +7,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { AuthProvider, useAuth } from '@/contexts/auth-context'
 import { LocaleProvider } from '@/contexts/locale-context'
 import { AnimatedSplash } from '@/components/ui/AnimatedSplash'
+import { supabase } from '@/lib/supabase'
 
 SplashScreen.preventAutoHideAsync()
 
@@ -32,6 +34,17 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
   return <>{children}</>
 }
+
+// Manage Supabase token refresh in sync with app foreground/background state.
+// With autoRefreshToken: false in supabase.ts, refreshes only run when the
+// app is active — preventing the unhandled AuthApiError on invalid tokens.
+AppState.addEventListener('change', (state) => {
+  if (state === 'active') {
+    supabase.auth.startAutoRefresh()
+  } else {
+    supabase.auth.stopAutoRefresh()
+  }
+})
 
 export default function RootLayout() {
   const [splashDone, setSplashDone] = useState(false)
