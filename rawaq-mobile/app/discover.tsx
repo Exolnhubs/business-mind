@@ -2,8 +2,8 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import {
   View, Text, TextInput, TouchableOpacity, FlatList,
   StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator,
-  ScrollView,
 } from 'react-native'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
@@ -14,48 +14,113 @@ import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
 import type { EventWithOrganizer } from '@/types/database'
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000'
+const STORAGE_KEY_MESSAGES = 'smart_picks_messages'
+const STORAGE_KEY_HISTORY  = 'smart_picks_history'
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 interface ChatMessage {
   role: 'user' | 'model'
   parts: [{ text: string }]
 }
 
-interface BotMessage {
+type BubbleRole = 'user' | 'bot' | 'events'
+
+interface Bubble {
   id: string
-  role: 'user' | 'bot' | 'events'
+  role: BubbleRole
   text?: string
   events?: EventWithOrganizer[]
+  isFallback?: boolean
 }
 
-const WELCOME: BotMessage = {
+interface FollowedOrganizer { id: string; name: string }
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const WELCOME: Bubble = {
   id: 'welcome',
   role: 'bot',
-  text: "Hey! 👋 I'm your smart event guide. Tell me a bit about yourself and I'll find events you'll love!\n\nLet's start — which city are you in? 🌍",
+  text: "Hey! 👋 I'm your smart event guide. I'll find events you'll love through a quick chat.\n\nLet's start — which city are you in? 🌍",
 }
 
+// ── Component ─────────────────────────────────────────────────────────────────
+
 export default function DiscoverScreen() {
-  const router = useRouter()
-  const insets = useSafeAreaInsets()
+  const router  = useRouter()
+  const insets  = useSafeAreaInsets()
   const { user } = useAuth()
-  const [messages, setMessages] = useState<BotMessage[]>([WELCOME])
-  const [history, setHistory] = useState<ChatMessage[]>([])
-  const [input, setInput] = useState('')
-  const [sending, setSending] = useState(false)
-  const [done, setDone] = useState(false)
+
+  const [bubbles,   setBubbles]   = useState<Bubble[]>([WELCOME])
+  const [history,   setHistory]   = useState<ChatMessage[]>([])
+  const [input,     setInput]     = useState('')
+  const [sending,   setSending]   = useState(false)
+  const [done,      setDone]      = useState(false)
+  const [hydrated,  setHydrated]  = useState(false)
+  const [organizers, setOrganizers] = useState<FollowedOrganizer[]>([])
+
   const listRef = useRef<FlatList>(null)
 
-  // Scroll to bottom whenever messages change
+  // ── Load persisted chat + fetch followed organizers ───────────────────────
   useEffect(() => {
-    setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100)
-  }, [messages])
+    async function init() {
+      // Load chat history from storage
+      try {
+        const [savedBubbles, savedHistory] = await Promise.all([
+          AsyncStorage.getItem(STORAGE_KEY_MESSAGES),
+          AsyncStorage.getItem(STORAGE_KEY_HISTORY),
+        ])
+        if (savedBubbles) setBubbles(JSON.parse(savedBubbles))
+        if (savedHistory) setHistory(JSON.parse(savedHistory))
+      } catch {
+        // Ignore storage errors — start fresh
+      }
+      setHydrated(true)
+    }
 
+    async function fetchOrganizers() {
+      if (!user) return
+      const { data } = await supabase
+        .from('organizer_follows')
+        .select('organizer_id, organizer:profiles!organizer_id(display_name, organizer_profile:organizer_profiles!user_id(business_name))')
+        .eq('follower_id', user.id)
+        .limit(20)
+
+      if (!data) return
+      const mapped: FollowedOrganizer[] = data.map((row: any) => ({
+        id: row.organizer_id,
+        name:
+          row.organizer?.organizer_profile?.business_name ||
+          row.organizer?.display_name ||
+          'Unknown',
+      }))
+      setOrganizers(mapped)
+    }
+
+    init()
+    fetchOrganizers()
+  }, [user])
+
+  // ── Persist on every change (after hydration) ────────────────────────────
+  useEffect(() => {
+    if (!hydrated) return
+    AsyncStorage.setItem(STORAGE_KEY_MESSAGES, JSON.stringify(bubbles)).catch(() => {})
+    AsyncStorage.setItem(STORAGE_KEY_HISTORY,  JSON.stringify(history)).catch(() => {})
+  }, [bubbles, history, hydrated])
+
+  // ── Scroll to bottom ─────────────────────────────────────────────────────
+  useEffect(() => {
+    setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 120)
+  }, [bubbles])
+
+  // ── Send message ─────────────────────────────────────────────────────────
   const sendMessage = useCallback(async () => {
     const text = input.trim()
     if (!text || sending) return
     setInput('')
 
-    const userMsg: BotMessage = { id: Date.now().toString(), role: 'user', text }
-    setMessages((prev) => [...prev, userMsg])
+    const userBubble: Bubble = { id: Date.now().toString(), role: 'user', text }
+    setBubbles((prev) => [...prev, userBubble])
     setSending(true)
 
     const newHistory: ChatMessage[] = [
@@ -66,69 +131,80 @@ export default function DiscoverScreen() {
     try {
       const { data: { session } } = await supabase.auth.getSession()
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-      if (session?.access_token) {
-        headers['Authorization'] = `Bearer ${session.access_token}`
-      }
+      if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`
 
       const res = await fetch(`${API_URL}/api/recommendations/chat`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ messages: newHistory }),
+        body: JSON.stringify({ messages: newHistory, followedOrganizers: organizers }),
       })
 
       const json = await res.json()
       if (!res.ok) throw new Error(json.error ?? 'Request failed')
 
-      const { reply, events, done: isDone } = json.data as {
+      const { reply, events, done: isDone, isFallback } = json.data as {
         reply: string
         events: EventWithOrganizer[]
         done: boolean
+        isFallback?: boolean
       }
 
-      const botMsg: BotMessage = { id: (Date.now() + 1).toString(), role: 'bot', text: reply }
-      setMessages((prev) => [...prev, botMsg])
+      const botBubble: Bubble = { id: (Date.now() + 1).toString(), role: 'bot', text: reply }
+      const nextBubbles: Bubble[] = [botBubble]
 
-      // Append model reply to history
+      if (events && events.length > 0) {
+        nextBubbles.push({
+          id: (Date.now() + 2).toString(),
+          role: 'events',
+          events,
+          isFallback,
+        })
+      }
+
+      setBubbles((prev) => [...prev, ...nextBubbles])
       setHistory([
         ...newHistory,
         { role: 'model', parts: [{ text: reply }] },
       ])
 
-      if (isDone && events.length > 0) {
-        setMessages((prev) => [
-          ...prev,
-          { id: (Date.now() + 2).toString(), role: 'events', events },
-        ])
-        setDone(true)
-      } else if (isDone && events.length === 0) {
-        setMessages((prev) => [
-          ...prev,
-          { id: (Date.now() + 2).toString(), role: 'bot', text: "Hmm, I couldn't find any matching events right now. Try adjusting your preferences or check back soon! 🙁" },
-        ])
-        setDone(true)
-      }
+      // Only lock the chat if it's a definitive done (exact results, not fallback)
+      if (isDone && !isFallback) setDone(true)
+
     } catch {
-      setMessages((prev) => [
+      setBubbles((prev) => [
         ...prev,
         { id: (Date.now() + 1).toString(), role: 'bot', text: "Sorry, something went wrong. Please try again. 😔" },
       ])
     } finally {
       setSending(false)
     }
-  }, [input, sending, history])
+  }, [input, sending, history, organizers])
 
-  function restart() {
-    setMessages([WELCOME])
+  // ── Restart ──────────────────────────────────────────────────────────────
+  async function restart() {
+    await Promise.all([
+      AsyncStorage.removeItem(STORAGE_KEY_MESSAGES),
+      AsyncStorage.removeItem(STORAGE_KEY_HISTORY),
+    ])
+    setBubbles([WELCOME])
     setHistory([])
     setDone(false)
     setInput('')
   }
 
-  function renderItem({ item }: { item: BotMessage }) {
+  // ── Render bubble ─────────────────────────────────────────────────────────
+  function renderItem({ item }: { item: Bubble }) {
     if (item.role === 'events') {
       return (
         <View style={styles.eventsBlock}>
-          <Text style={styles.eventsLabel}>✨ Here are your picks!</Text>
+          <View style={styles.eventsLabelRow}>
+            <Text style={styles.eventsLabel}>
+              {item.isFallback ? '🔄 Closest matches for you' : '✨ Events picked for you'}
+            </Text>
+            {item.isFallback && (
+              <Text style={styles.fallbackHint}>Not exact — you can keep chatting to refine</Text>
+            )}
+          </View>
           {(item.events ?? []).map((event) => (
             <EventCard key={event.id} event={event} isSaved={false} />
           ))}
@@ -153,6 +229,7 @@ export default function DiscoverScreen() {
     )
   }
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <KeyboardAvoidingView
       style={styles.root}
@@ -166,40 +243,50 @@ export default function DiscoverScreen() {
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>Smart Picks</Text>
-          <Text style={styles.headerSub}>Powered by AI ✨</Text>
+          <Text style={styles.headerSub}>
+            {organizers.length > 0
+              ? `Following ${organizers.length} organizer${organizers.length > 1 ? 's' : ''} · AI ✨`
+              : 'Powered by AI ✨'}
+          </Text>
         </View>
-        {done && (
-          <TouchableOpacity onPress={restart} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Ionicons name="refresh" size={20} color={Colors.brand[500]} />
-          </TouchableOpacity>
-        )}
-        {!done && <View style={{ width: 22 }} />}
+        <TouchableOpacity onPress={restart} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Ionicons name="refresh" size={20} color={done ? Colors.brand[500] : Colors.gray[400]} />
+        </TouchableOpacity>
       </View>
 
       {/* Message list */}
-      <FlatList
-        ref={listRef}
-        data={messages}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-        contentContainerStyle={styles.list}
-        showsVerticalScrollIndicator={false}
-      />
+      {!hydrated
+        ? <View style={styles.loadingCenter}><ActivityIndicator color={Colors.brand[500]} /></View>
+        : (
+          <FlatList
+            ref={listRef}
+            data={bubbles}
+            keyExtractor={(item) => item.id}
+            renderItem={renderItem}
+            contentContainerStyle={styles.list}
+            showsVerticalScrollIndicator={false}
+          />
+        )
+      }
 
       {/* Input */}
-      {!done && (
-        <View style={[styles.inputRow, { paddingBottom: insets.bottom + Spacing.sm }]}>
-          <TextInput
-            style={styles.input}
-            placeholder="Type your reply…"
-            placeholderTextColor={Colors.gray[400]}
-            value={input}
-            onChangeText={setInput}
-            onSubmitEditing={sendMessage}
-            returnKeyType="send"
-            editable={!sending}
-            multiline={false}
-          />
+      <View style={[styles.inputRow, { paddingBottom: insets.bottom + Spacing.sm }]}>
+        <TextInput
+          style={[styles.input, done && styles.inputDone]}
+          placeholder={done ? 'Tap ↺ to start over…' : 'Type your reply…'}
+          placeholderTextColor={Colors.gray[400]}
+          value={input}
+          onChangeText={setInput}
+          onSubmitEditing={sendMessage}
+          returnKeyType="send"
+          editable={!sending && !done}
+          multiline={false}
+        />
+        {done ? (
+          <TouchableOpacity style={[styles.sendBtn, styles.sendBtnRestart]} onPress={restart}>
+            <Ionicons name="refresh" size={18} color={Colors.white} />
+          </TouchableOpacity>
+        ) : (
           <TouchableOpacity
             style={[styles.sendBtn, (!input.trim() || sending) && styles.sendBtnDisabled]}
             onPress={sendMessage}
@@ -210,23 +297,17 @@ export default function DiscoverScreen() {
               : <Ionicons name="send" size={18} color={Colors.white} />
             }
           </TouchableOpacity>
-        </View>
-      )}
-
-      {done && (
-        <View style={[styles.doneBar, { paddingBottom: insets.bottom + Spacing.sm }]}>
-          <TouchableOpacity style={styles.restartBtn} onPress={restart}>
-            <Ionicons name="refresh" size={16} color={Colors.brand[600]} />
-            <Text style={styles.restartBtnText}>Start over</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+        )}
+      </View>
     </KeyboardAvoidingView>
   )
 }
 
+// ── Styles ────────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.gray[50] },
+  loadingCenter: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
   header: {
     flexDirection: 'row',
@@ -244,92 +325,51 @@ const styles = StyleSheet.create({
 
   list: { padding: Spacing.lg, gap: Spacing.md, paddingBottom: Spacing['2xl'] },
 
-  bubble: { flexDirection: 'row', alignItems: 'flex-end', gap: Spacing.sm },
-  bubbleUser: { justifyContent: 'flex-end' },
-  bubbleBot:  { justifyContent: 'flex-start' },
+  bubble:        { flexDirection: 'row', alignItems: 'flex-end', gap: Spacing.sm },
+  bubbleUser:    { justifyContent: 'flex-end' },
+  bubbleBot:     { justifyContent: 'flex-start' },
 
   botAvatar: {
-    width: 30,
-    height: 30,
-    borderRadius: Radius.full,
+    width: 30, height: 30, borderRadius: Radius.full,
     backgroundColor: Colors.brand[100],
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 2,
+    justifyContent: 'center', alignItems: 'center', marginBottom: 2,
   },
 
-  bubbleInner: {
-    maxWidth: '78%',
-    borderRadius: Radius.lg,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-  },
-  bubbleInnerUser: {
-    backgroundColor: Colors.brand[500],
-    borderBottomRightRadius: 4,
-  },
-  bubbleInnerBot: {
-    backgroundColor: Colors.white,
-    borderBottomLeftRadius: 4,
-    ...Shadow.card,
-  },
-  bubbleText: { fontSize: FontSize.base, color: Colors.gray[900], lineHeight: 22 },
+  bubbleInner: { maxWidth: '78%', borderRadius: Radius.lg, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm },
+  bubbleInnerUser: { backgroundColor: Colors.brand[500], borderBottomRightRadius: 4 },
+  bubbleInnerBot:  { backgroundColor: Colors.white, borderBottomLeftRadius: 4, ...Shadow.card },
+
+  bubbleText:     { fontSize: FontSize.base, color: Colors.gray[900], lineHeight: 22 },
   bubbleTextUser: { color: Colors.white },
 
-  eventsBlock: { gap: Spacing.md },
+  eventsBlock: { gap: Spacing.sm },
+  eventsLabelRow: { gap: 2 },
   eventsLabel: {
-    fontSize: FontSize.base,
-    fontWeight: FontWeight.semibold,
-    color: Colors.gray[800],
-    textAlign: 'center',
-    paddingVertical: Spacing.sm,
+    fontSize: FontSize.sm, fontWeight: FontWeight.semibold,
+    color: Colors.gray[800], textAlign: 'center', paddingVertical: Spacing.xs,
+  },
+  fallbackHint: {
+    fontSize: FontSize.xs, color: Colors.gray[400],
+    textAlign: 'center', marginBottom: Spacing.xs,
   },
 
   inputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.sm,
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
+    paddingHorizontal: Spacing.md, paddingTop: Spacing.sm,
     backgroundColor: Colors.white,
-    borderTopWidth: 1,
-    borderTopColor: Colors.gray[100],
+    borderTopWidth: 1, borderTopColor: Colors.gray[100],
   },
   input: {
-    flex: 1,
-    backgroundColor: Colors.gray[100],
-    borderRadius: Radius.full,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm + 2,
-    fontSize: FontSize.base,
-    color: Colors.gray[900],
+    flex: 1, backgroundColor: Colors.gray[100], borderRadius: Radius.full,
+    paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2,
+    fontSize: FontSize.base, color: Colors.gray[900],
   },
+  inputDone: { color: Colors.gray[400] },
   sendBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: Radius.full,
+    width: 40, height: 40, borderRadius: Radius.full,
     backgroundColor: Colors.brand[500],
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: 'center', alignItems: 'center',
   },
-  sendBtnDisabled: { opacity: 0.4 },
-
-  doneBar: {
-    alignItems: 'center',
-    paddingTop: Spacing.md,
-    backgroundColor: Colors.white,
-    borderTopWidth: 1,
-    borderTopColor: Colors.gray[100],
-  },
-  restartBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-    borderColor: Colors.brand[300],
-  },
-  restartBtnText: { fontSize: FontSize.sm, color: Colors.brand[600], fontWeight: FontWeight.medium },
+  sendBtnDisabled:  { opacity: 0.4 },
+  sendBtnRestart:   { backgroundColor: Colors.gray[400] },
 })
