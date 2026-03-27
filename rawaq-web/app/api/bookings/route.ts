@@ -238,6 +238,23 @@ export async function POST(req: NextRequest) {
       },
     }).catch(() => {})
 
+    // Notify organizer if event just sold out (fire-and-forget)
+    if (event.capacity) {
+      const { count: confirmedCount } = await supabase
+        .from('bookings')
+        .select('id', { count: 'exact', head: true })
+        .eq('event_id', event.id)
+        .eq('status', 'confirmed')
+
+      if (confirmedCount !== null && confirmedCount >= event.capacity) {
+        sendNotification({
+          userId:  event.organizer_id,
+          type:    'event_sold_out',
+          payload: { event_id: event.id, event_title: event.title },
+        }).catch(() => {})
+      }
+    }
+
     return created(booking)
   } catch (err) {
     return handleApiError(err)

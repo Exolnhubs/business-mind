@@ -65,6 +65,14 @@ export async function PATCH(
     const input = UpdateEventSchema.parse(body)
 
     const supabase = await createSupabaseServerClient()
+    const adminClient = createSupabaseAdminClient()
+
+    // Fetch current event state before updating (for change detection)
+    const { data: before } = await supabase
+      .from('events')
+      .select('title, start_at, end_at, venue_name, address, city, is_published, is_cancelled, organizer_id')
+      .eq('id', id)
+      .single()
 
     const { data, error } = await supabase
       .from('events')
@@ -75,9 +83,10 @@ export async function PATCH(
 
     if (error) throw error
 
-    // If event was just cancelled, notify all confirmed attendees
-    if (input.is_cancelled === true) {
-      const adminClient = createSupabaseAdminClient()
+    const eventTitle = data?.title ?? before?.title ?? ''
+
+    // ── Notify attendees: event cancelled ──────────────────────────────────
+    if (input.is_cancelled === true && !before?.is_cancelled) {
       const { data: bookings } = await adminClient
         .from('bookings')
         .select('user_id')
@@ -89,9 +98,62 @@ export async function PATCH(
           bookings.map((b) => ({
             userId: b.user_id,
             type: 'event_cancelled' as const,
-            payload: { event_id: id, event_title: data?.title ?? '' },
+            payload: { event_id: id, event_title: eventTitle },
           }))
         )
+      }
+    }
+
+    // ── Notify attendees: significant event details changed ────────────────
+    const significantFields = ['start_at', 'end_at', 'venue_name', 'address', 'city'] as const
+    const wasUpdated = significantFields.some(
+      (f) => input[f] !== undefined && input[f] !== (before as Record<string, unknown>)?.[f]
+    )
+    if (wasUpdated && !input.is_cancelled && before?.is_published) {
+      const { data: bookings } = await adminClient
+        .from('bookings')
+        .select('user_id')
+        .eq('event_id', id)
+        .eq('status', 'confirmed')
+
+      if (bookings?.length) {
+        sendNotifications(
+          bookings.map((b) => ({
+            userId: b.user_id,
+            type: 'event_updated' as const,
+            payload: { event_id: id, event_title: eventTitle },
+          }))
+        ).catch(() => {})
+      }
+    }
+
+    // ── Notify followers: new event published ──────────────────────────────
+    if (input.is_published === true && !before?.is_published) {
+      const organizerId = before?.organizer_id ?? ctx.userId
+      const { data: follows } = await adminClient
+        .from('organizer_follows')
+        .select('follower_id')
+        .eq('organizer_id', organizerId)
+
+      if (follows?.length) {
+        const { data: orgProfile } = await adminClient
+          .from('profiles')
+          .select('display_name')
+          .eq('id', organizerId)
+          .single()
+
+        sendNotifications(
+          follows.map((f) => ({
+            userId: f.follower_id,
+            type: 'new_event_published' as const,
+            payload: {
+              event_id: id,
+              event_title: eventTitle,
+              organizer_id: organizerId,
+              organizer_name: orgProfile?.display_name ?? 'An organizer you follow',
+            },
+          }))
+        ).catch(() => {})
       }
     }
 
