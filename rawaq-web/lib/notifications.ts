@@ -125,6 +125,9 @@ function getPushTitle(type: NotificationType): string {
     new_review:          'New Review ⭐',
     new_attendee:        'New Attendee 🎟️',
     new_comment:         'New Comment 💬',
+    event_updated:       'Event Updated 📝',
+    new_event_published: 'New Event 🎉',
+    event_sold_out:      'Sold Out 🎊',
   }
   return titles[type] ?? 'Rawaq Notification'
 }
@@ -134,7 +137,7 @@ function getPushBody(type: NotificationType, payload: Record<string, unknown>): 
   switch (type) {
     case 'booking_confirmed':   return `Your booking for "${str('event_title')}" is confirmed`
     case 'booking_cancelled':   return `Your booking for "${str('event_title')}" has been cancelled`
-    case 'event_reminder':      return `"${str('event_title')}" starts in 1 hour`
+    case 'event_reminder':      return `"${str('event_title')}" starts in ${str('reminder') || '1 hour'}`
     case 'comment_reply':       return `${str('actor_name')} replied to your comment`
     case 'mention':             return `${str('actor_name')} mentioned you in a comment`
     case 'organizer_approved':  return 'Your organizer account has been approved'
@@ -147,6 +150,9 @@ function getPushBody(type: NotificationType, payload: Record<string, unknown>): 
     case 'new_review':          return `${str('actor_name')} left you a ${str('rating')}★ review`
     case 'new_attendee':        return `${str('actor_name')} just booked "${str('event_title')}"`
     case 'new_comment':         return `${str('actor_name')} commented on "${str('event_title')}"`
+    case 'event_updated':       return `"${str('event_title')}" has been updated — check the new details`
+    case 'new_event_published': return `${str('organizer_name')} just published "${str('event_title')}"`
+    case 'event_sold_out':      return `Your event "${str('event_title')}" just sold out! 🎊`
     default:                    return 'You have a new notification'
   }
 }
