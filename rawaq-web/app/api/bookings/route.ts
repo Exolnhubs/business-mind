@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
     // Verify event exists and is bookable
     const { data: event, error: eventErr } = await supabase
       .from('events')
-      .select('id, title, is_published, is_cancelled, start_at, organizer_id, gender_restriction, is_premium_only, is_free, price, currency')
+      .select('id, title, is_published, is_cancelled, start_at, organizer_id, gender_restriction, is_premium_only, is_free, price, currency, capacity')
       .eq('id', input.event_id)
       .single()
 
