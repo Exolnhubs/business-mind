@@ -34,8 +34,23 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <h1 className="text-xl font-bold text-gray-900">Admin Panel</h1>
       </div>
 
+      {/* Mobile nav — outside the flex row so it doesn't create a second column */}
+      <div className="sm:hidden mb-4">
+        <div className="flex gap-2 overflow-x-auto pb-2">
+          {NAV.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200"
+            >
+              {item.label}
+            </Link>
+          ))}
+        </div>
+      </div>
+
       <div className="flex gap-8">
-        {/* Sidebar nav */}
+        {/* Sidebar nav — desktop only */}
         <nav className="w-48 shrink-0 hidden sm:block">
           <ul className="space-y-1">
             {NAV.map((item) => (
@@ -50,21 +65,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             ))}
           </ul>
         </nav>
-
-        {/* Mobile nav */}
-        <div className="sm:hidden w-full mb-4">
-          <div className="flex gap-2 overflow-x-auto pb-2">
-            {NAV.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200"
-              >
-                {item.label}
-              </Link>
-            ))}
-          </div>
-        </div>
 
         {/* Content */}
         <div className="flex-1 min-w-0">{children}</div>
