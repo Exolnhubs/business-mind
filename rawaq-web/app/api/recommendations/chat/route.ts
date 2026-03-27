@@ -282,7 +282,7 @@ export async function POST(req: NextRequest) {
         // done only if we actually have events to show
         done: fetchResult.events.length > 0,
         // Let client know this is a fallback so it can display events but keep chat open
-        isFallback: fetchResult.strategy !== 'exact' && fetchResult.events.length > 0,
+        isFallback: fetchResult.events.length > 0,
       },
     })
   } catch (err) {
