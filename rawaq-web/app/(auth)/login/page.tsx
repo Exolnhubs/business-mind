@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createSupabaseBrowserClient } from '@/lib/supabase/client'
 import { useLocale } from '@/contexts/locale-context'
 import { Spinner } from '@/components/ui/Spinner'
@@ -10,13 +10,18 @@ import { Spinner } from '@/components/ui/Spinner'
 export default function LoginPage() {
   const { t } = useLocale()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createSupabaseBrowserClient()
+
+  const bannedParam = searchParams.get('error') === 'banned'
+    ? 'Your account has been suspended. Please contact support.'
+    : null
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [oauthLoading, setOauthLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(bannedParam)
 
   async function handleGoogleSignIn() {
     setOauthLoading(true)
@@ -36,12 +41,28 @@ export default function LoginPage() {
     setError(null)
     setLoading(true)
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    const { data: signInData, error } = await supabase.auth.signInWithPassword({ email, password })
 
     if (error) {
       setError(error.message)
       setLoading(false)
       return
+    }
+
+    // Block banned accounts before they enter the app
+    if (signInData.user) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('is_banned')
+        .eq('id', signInData.user.id)
+        .single()
+
+      if (profile?.is_banned) {
+        await supabase.auth.signOut()
+        setError('Your account has been suspended. Please contact support.')
+        setLoading(false)
+        return
+      }
     }
 
     router.push('/events')
