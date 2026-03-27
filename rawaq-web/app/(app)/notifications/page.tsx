@@ -25,6 +25,9 @@ const ICONS: Record<NotificationType, string> = {
   new_review:          '⭐',
   new_attendee:        '🙋',
   new_comment:         '💬',
+  event_updated:       '📝',
+  new_event_published: '🎉',
+  event_sold_out:      '🎊',
 }
 
 function notificationLabel(n: Notification): { title: string; subtitle: string; href: string | null } {
@@ -46,6 +49,12 @@ function notificationLabel(n: Notification): { title: string; subtitle: string; 
       return { title: 'Event was cancelled', subtitle: p.event_title ?? '', href: null }
     case 'tip_received':
       return { title: `You received a SAR ${p.amount ?? ''} tip`, subtitle: p.event_title ?? '', href: p.event_id ? `/events/${p.event_id}` : null }
+    case 'event_updated':
+      return { title: 'Event details updated', subtitle: p.event_title ?? '', href: p.event_id ? `/events/${p.event_id}` : null }
+    case 'new_event_published':
+      return { title: `New event from ${p.organizer_name ?? 'an organizer you follow'}`, subtitle: p.event_title ?? '', href: p.event_id ? `/events/${p.event_id}` : null }
+    case 'event_sold_out':
+      return { title: 'Your event sold out! 🎊', subtitle: p.event_title ?? '', href: p.event_id ? `/events/${p.event_id}` : null }
     default:
       return { title: n.type, subtitle: '', href: null }
   }
