@@ -11,8 +11,20 @@ export async function GET(req: NextRequest) {
 
   if (code) {
     const supabase = await createSupabaseServerClient()
-    const { error } = await supabase.auth.exchangeCodeForSession(code)
-    if (!error) {
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+    if (!error && data.user) {
+      // Block banned accounts before they enter the app
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('is_banned')
+        .eq('id', data.user.id)
+        .single()
+
+      if (profile?.is_banned) {
+        await supabase.auth.signOut()
+        return NextResponse.redirect(`${origin}/login?error=banned`)
+      }
+
       return NextResponse.redirect(`${origin}${next}`)
     }
   }
