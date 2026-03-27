@@ -11,13 +11,15 @@ import Constants from 'expo-constants'
 import { supabase } from '@/lib/supabase'
 import { uploadViaApi } from '@/lib/upload'
 
-// Push notifications were removed from Expo Go on Android with SDK 53.
-// Using a conditional require (not a static import) prevents the module's
-// DevicePushTokenAutoRegistration.fx.js effect from running at load time in
-// Expo Go, which would throw an unhandled error on Android.
+// Android push notifications were removed from Expo Go with SDK 53.
+// The DevicePushTokenAutoRegistration.fx.js effect in expo-notifications
+// crashes on Android Expo Go at module load time — so we conditionally
+// require the module only on Android Expo Go. iOS Expo Go is unaffected
+// and can still register for push notifications normally.
 const IS_EXPO_GO = Constants.executionEnvironment === 'storeClient'
+const IS_ANDROID_EXPO_GO = IS_EXPO_GO && Platform.OS === 'android'
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const Notifications = IS_EXPO_GO ? null : (require('expo-notifications') as typeof import('expo-notifications'))
+const Notifications = IS_ANDROID_EXPO_GO ? null : (require('expo-notifications') as typeof import('expo-notifications'))
 import { useAuth } from '@/contexts/auth-context'
 import { useLocale } from '@/contexts/locale-context'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
@@ -163,8 +165,8 @@ export default function ProfileScreen() {
     setPushLoading(true)
 
     if (enabled) {
-      if (!Notifications) {
-        Alert.alert('Not supported', 'Push notifications require a development build, not Expo Go.')
+      if (IS_ANDROID_EXPO_GO) {
+        Alert.alert('Not supported', 'Push notifications on Android require a development build, not Expo Go.')
         setPushLoading(false)
         return
       }
