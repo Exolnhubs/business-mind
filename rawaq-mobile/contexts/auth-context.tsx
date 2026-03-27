@@ -30,17 +30,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session }, error }) => {
+    supabase.auth.getSession().then(async ({ data: { session }, error }) => {
       if (error) {
         // Invalid or expired refresh token — clear the broken session and
         // let the AuthGate redirect to login.
-        supabase.auth.signOut()
+        await supabase.auth.signOut().catch(() => {})
         setLoading(false)
         return
       }
       setSession(session)
       setUser(session?.user ?? null)
       if (session?.user) fetchProfile(session.user.id)
+      setLoading(false)
+    }).catch(async () => {
+      await supabase.auth.signOut().catch(() => {})
       setLoading(false)
     })
 

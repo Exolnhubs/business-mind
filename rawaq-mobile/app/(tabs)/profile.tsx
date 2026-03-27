@@ -6,20 +6,23 @@ import {
 } from 'react-native'
 import { useRouter } from 'expo-router'
 import * as Device from 'expo-device'
-import * as Notifications from 'expo-notifications'
 import * as ImagePicker from 'expo-image-picker'
 import Constants from 'expo-constants'
 import { supabase } from '@/lib/supabase'
-
-// Push notifications are not supported in Expo Go with SDK 53+.
-// All notification APIs are guarded by this flag.
-const IS_EXPO_GO = Constants.executionEnvironment === 'storeClient'
 import { uploadViaApi } from '@/lib/upload'
+
+// Push notifications were removed from Expo Go on Android with SDK 53.
+// Using a conditional require (not a static import) prevents the module's
+// DevicePushTokenAutoRegistration.fx.js effect from running at load time in
+// Expo Go, which would throw an unhandled error on Android.
+const IS_EXPO_GO = Constants.executionEnvironment === 'storeClient'
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const Notifications = IS_EXPO_GO ? null : (require('expo-notifications') as typeof import('expo-notifications'))
 import { useAuth } from '@/contexts/auth-context'
 import { useLocale } from '@/contexts/locale-context'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
 
-if (!IS_EXPO_GO) {
+if (Notifications) {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
       shouldShowAlert: true,
@@ -160,7 +163,7 @@ export default function ProfileScreen() {
     setPushLoading(true)
 
     if (enabled) {
-      if (IS_EXPO_GO) {
+      if (!Notifications) {
         Alert.alert('Not supported', 'Push notifications require a development build, not Expo Go.')
         setPushLoading(false)
         return
