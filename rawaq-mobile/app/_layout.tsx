@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { AppState } from 'react-native'
+import { AppState, Platform } from 'react-native'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import * as SplashScreen from 'expo-splash-screen'
@@ -10,6 +10,18 @@ import { AnimatedSplash } from '@/components/ui/AnimatedSplash'
 import { supabase } from '@/lib/supabase'
 
 SplashScreen.preventAutoHideAsync()
+
+// Create Android notification channel with HIGH importance so FCM delivers
+// notifications immediately without batching them.
+if (Platform.OS === 'android') {
+  const Notifications = require('expo-notifications') as typeof import('expo-notifications')
+  Notifications.setNotificationChannelAsync('default', {
+    name: 'Default',
+    importance: Notifications.AndroidImportance.HIGH,
+    vibrationPattern: [0, 250, 250, 250],
+    lightColor: '#7C3AED',
+  })
+}
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
