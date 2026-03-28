@@ -6,16 +6,27 @@ import { Colors } from '@/theme'
 
 export default function AuthCallbackScreen() {
   const router = useRouter()
-  const params = useLocalSearchParams<{ code?: string; error?: string; error_description?: string }>()
+  const params = useLocalSearchParams<{
+    code?: string
+    access_token?: string
+    refresh_token?: string
+    error?: string
+    error_description?: string
+  }>()
 
   useEffect(() => {
     async function handleCallback() {
-      const code = params.code ? String(params.code) : null
+      const code         = params.code         ? String(params.code)          : null
+      const accessToken  = params.access_token  ? String(params.access_token)  : null
+      const refreshToken = params.refresh_token ? String(params.refresh_token) : null
+
       if (code) {
         await supabase.auth.exchangeCodeForSession(code)
+      } else if (accessToken && refreshToken) {
+        await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
       }
-      // Whether it succeeded or failed, go to home — AuthGate will
-      // redirect back to login if there's no valid session
+
+      // AuthGate redirects to login if session wasn't established
       router.replace('/(tabs)/home')
     }
     handleCallback()

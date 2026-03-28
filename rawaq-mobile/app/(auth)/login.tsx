@@ -35,16 +35,29 @@ export default function LoginScreen() {
     if (data.url) {
       const result = await WebBrowser.openAuthSessionAsync(data.url, 'rawaq://auth/callback')
       if (result.type === 'success' && result.url) {
-        // new URL() doesn't reliably parse custom schemes (rawaq://) in RN
-        // so extract the code from the query string manually
         const queryString = result.url.split('?')[1]?.split('#')[0] ?? ''
-        const code = new URLSearchParams(queryString).get('code')
-        if (code) {
+        const hashString  = result.url.split('#')[1] ?? ''
+        const qp          = new URLSearchParams(queryString)
+        const hp          = new URLSearchParams(hashString)
+
+        const code         = qp.get('code')
+        const oauthError   = qp.get('error')
+        const accessToken  = hp.get('access_token')
+        const refreshToken = hp.get('refresh_token')
+
+        if (oauthError) {
+          // OAuth provider returned an error
+          setError(qp.get('error_description') ?? oauthError)
+        } else if (code) {
+          // PKCE flow — exchange code for session
           const { error: sessionError } = await supabase.auth.exchangeCodeForSession(code)
           if (sessionError) setError(sessionError.message)
-        } else {
-          setError('Sign in failed. Please try again.')
+        } else if (accessToken && refreshToken) {
+          // Implicit flow fallback
+          const { error: sessionError } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+          if (sessionError) setError(sessionError.message)
         }
+        // No code/tokens and no error = Android handled it via auth/callback.tsx deep link
       }
     }
     setOauthLoading(false)
