@@ -70,16 +70,30 @@ export function CommentThread({ eventId, initialComments, currentUserId }: Props
 
   async function postComment(content: string, parentId: string | null = null, mediaUrl?: string) {
     if (!user) return
-    const { data, error } = await supabase
-      .from('comments')
-      .insert({ event_id: eventId, user_id: user.id, parent_id: parentId, content, mentions: [], media_url: mediaUrl ?? null, is_deleted: false })
-      .select()
-      .single()
 
-    if (error || !data) {
-      Alert.alert('Error', error?.message ?? 'Failed to post comment. Please try again.')
+    const apiUrl = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000'
+    const { data: { session } } = await supabase.auth.getSession()
+    const res = await fetch(`${apiUrl}/api/comments`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+      },
+      body: JSON.stringify({
+        event_id: eventId,
+        content,
+        parent_id: parentId ?? undefined,
+        media_url: mediaUrl ?? undefined,
+        mentions: [],
+      }),
+    })
+
+    const json = await res.json()
+    if (!res.ok || !json.data) {
+      Alert.alert('Error', json.error ?? 'Failed to post comment. Please try again.')
       return
     }
+    const data = json.data
     // Register this ID so the realtime handler won't double-add it
     optimisticIds.current.add(data.id)
     const newComment: CommentWithAuthor = {
