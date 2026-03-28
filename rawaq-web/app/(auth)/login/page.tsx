@@ -1,13 +1,13 @@
 'use client'
 
-import { useState, type FormEvent } from 'react'
+import { useState, type FormEvent, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createSupabaseBrowserClient } from '@/lib/supabase/client'
 import { useLocale } from '@/contexts/locale-context'
 import { Spinner } from '@/components/ui/Spinner'
 
-export default function LoginPage() {
+function LoginForm() {
   const { t } = useLocale()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -153,5 +153,13 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   )
 }
