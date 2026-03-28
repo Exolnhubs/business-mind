@@ -70,6 +70,7 @@ export default function RootLayout() {
             <Stack screenOptions={{ headerShown: false }}>
               <Stack.Screen name="(auth)" />
               <Stack.Screen name="(tabs)" />
+              <Stack.Screen name="auth/callback" options={{ headerShown: false }} />
               <Stack.Screen
                 name="events/[id]"
                 options={{
