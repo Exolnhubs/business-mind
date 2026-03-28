@@ -35,11 +35,15 @@ export default function LoginScreen() {
     if (data.url) {
       const result = await WebBrowser.openAuthSessionAsync(data.url, 'rawaq://auth/callback')
       if (result.type === 'success' && result.url) {
-        const url = new URL(result.url)
-        const code = url.searchParams.get('code')
+        // new URL() doesn't reliably parse custom schemes (rawaq://) in RN
+        // so extract the code from the query string manually
+        const queryString = result.url.split('?')[1]?.split('#')[0] ?? ''
+        const code = new URLSearchParams(queryString).get('code')
         if (code) {
           const { error: sessionError } = await supabase.auth.exchangeCodeForSession(code)
           if (sessionError) setError(sessionError.message)
+        } else {
+          setError('Sign in failed. Please try again.')
         }
       }
     }
