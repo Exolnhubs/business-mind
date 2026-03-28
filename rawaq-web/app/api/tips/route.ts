@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireAuth } from '@/lib/auth'
 import { handleApiError, ok, created, NotFoundException, ForbiddenException } from '@/lib/errors'
 import { CreateTipSchema } from '@/lib/validations/tips'
@@ -49,7 +50,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const input = CreateTipSchema.parse(body)
 
-    const supabase = await createSupabaseServerClient()
+    const supabase = createSupabaseAdminClient()
 
     // Verify event and get organizer
     const { data: event, error: eventErr } = await supabase
