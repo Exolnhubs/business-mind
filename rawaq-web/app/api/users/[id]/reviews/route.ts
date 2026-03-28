@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireAuth } from '@/lib/auth'
 import { handleApiError, ok, created, ForbiddenException, BadRequestException } from '@/lib/errors'
 import { sendNotification } from '@/lib/notifications'
@@ -66,7 +67,7 @@ export async function POST(
     const body  = await req.json()
     const input = ReviewSchema.parse(body)
 
-    const supabase = await createSupabaseServerClient()
+    const supabase = createSupabaseAdminClient()
 
     const { data, error } = await supabase
       .from('user_reviews')
@@ -111,7 +112,7 @@ export async function DELETE(
   try {
     const { id: reviewedId } = await params
     const ctx = await requireAuth()
-    const supabase = await createSupabaseServerClient()
+    const supabase = createSupabaseAdminClient()
 
     const { error } = await supabase
       .from('user_reviews')

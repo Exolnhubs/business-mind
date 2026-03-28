@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireAuth } from '@/lib/auth'
 import { handleApiError, ok, ForbiddenException } from '@/lib/errors'
 import { sendNotification } from '@/lib/notifications'
@@ -17,7 +18,7 @@ export async function POST(
       throw new ForbiddenException('You cannot follow yourself')
     }
 
-    const supabase = await createSupabaseServerClient()
+    const supabase = createSupabaseAdminClient()
     const { error } = await supabase
       .from('organizer_follows')
       .upsert(
@@ -50,7 +51,7 @@ export async function DELETE(
   try {
     const { id: organizerId } = await params
     const ctx = await requireAuth()
-    const supabase = await createSupabaseServerClient()
+    const supabase = createSupabaseAdminClient()
 
     const { error } = await supabase
       .from('organizer_follows')

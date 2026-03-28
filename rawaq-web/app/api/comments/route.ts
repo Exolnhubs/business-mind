@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireAuth, optionalAuth } from '@/lib/auth'
 import { handleApiError, ok, created, NotFoundException, ForbiddenException } from '@/lib/errors'
 import { CreateCommentSchema, ListCommentsSchema } from '@/lib/validations/comments'
@@ -56,7 +57,9 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const input = CreateCommentSchema.parse(body)
 
-    const supabase = await createSupabaseServerClient()
+    // Use admin client so mobile Bearer-token requests aren't blocked by RLS
+    // (auth is already enforced by requireAuth above)
+    const supabase = createSupabaseAdminClient()
 
     // Verify event exists and is active
     const { data: event, error: eventErr } = await supabase
