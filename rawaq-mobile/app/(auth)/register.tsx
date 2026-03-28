@@ -77,11 +77,11 @@ export default function RegisterScreen() {
     if (data.url) {
       const result = await WebBrowser.openAuthSessionAsync(data.url, 'rawaq://auth/callback')
       if (result.type === 'success' && result.url) {
-        const params = new URL(result.url)
-        const accessToken = params.searchParams.get('access_token')
-        const refreshToken = params.searchParams.get('refresh_token')
-        if (accessToken && refreshToken) {
-          await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+        const url = new URL(result.url)
+        const code = url.searchParams.get('code')
+        if (code) {
+          const { error: sessionError } = await supabase.auth.exchangeCodeForSession(code)
+          if (sessionError) setError(sessionError.message)
         }
       }
     }
