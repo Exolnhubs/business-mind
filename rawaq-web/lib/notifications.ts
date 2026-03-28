@@ -82,6 +82,7 @@ async function pushExpoNotification({ userId, type, payload }: SendNotificationP
     sound: 'default',
     data: { type, ...Object.fromEntries(Object.entries(payload).map(([k, v]) => [k, String(v)])) },
     priority: 'high',
+    channelId: 'default',
   }))
 
   for (let i = 0; i < messages.length; i += 100) {
