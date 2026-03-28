@@ -1,10 +1,10 @@
 import { NextRequest } from 'next/server'
 import { headers } from 'next/headers'
 import { createSupabaseServerClient } from './supabase/server'
-import { createClient } from '@supabase/supabase-js'
+import { createSupabaseAdminClient } from './supabase/admin'
 import { UnauthorizedException, ForbiddenException } from './errors'
 import type { AuthContext } from '@/types/api'
-import type { UserRole, Database } from '@/types/database'
+import type { UserRole } from '@/types/database'
 
 // Resolve the authenticated user from the current request context.
 // Supports both cookie-based (web) and Bearer token (mobile) auth.
@@ -14,37 +14,33 @@ export async function requireAuth(): Promise<AuthContext> {
   const authorization = headerStore.get('authorization')
   const bearerToken = authorization?.startsWith('Bearer ') ? authorization.slice(7) : null
 
-  let user: { id: string } | null = null
+  const admin = createSupabaseAdminClient()
+  let userId: string
 
   if (bearerToken) {
-    // Mobile clients send a Bearer token — validate it directly
-    const supabase = createClient<Database>(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { global: { headers: { Authorization: `Bearer ${bearerToken}` } } }
-    )
-    const { data, error } = await supabase.auth.getUser(bearerToken)
+    // Mobile clients send a Bearer token — validate via admin client (bypasses RLS)
+    const { data, error } = await admin.auth.getUser(bearerToken)
     if (error || !data.user) throw new UnauthorizedException()
-    user = data.user
+    userId = data.user.id
   } else {
     // Web clients use cookie-based sessions
     const supabase = await createSupabaseServerClient()
     const { data, error } = await supabase.auth.getUser()
     if (error || !data.user) throw new UnauthorizedException()
-    user = data.user
+    userId = data.user.id
   }
 
-  const supabase = await createSupabaseServerClient()
-  const { data: profile } = await supabase
+  // Use admin client to read profile so RLS doesn't block mobile requests
+  const { data: profile } = await admin
     .from('profiles')
     .select('role, is_banned')
-    .eq('id', user.id)
+    .eq('id', userId)
     .single()
 
   if (!profile) throw new UnauthorizedException()
   if (profile.is_banned) throw new ForbiddenException('Your account has been suspended')
 
-  return { userId: user.id, role: profile.role as UserRole }
+  return { userId, role: profile.role as UserRole }
 }
 
 // Require a specific role (or one of several roles)
