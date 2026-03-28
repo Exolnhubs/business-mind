@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { View, Text, StyleSheet, Alert } from 'react-native'
 import { supabase } from '@/lib/supabase'
+import { apiPost } from '@/lib/api'
 import { useAuth } from '@/contexts/auth-context'
 import { CommentItem } from './CommentItem'
 import { CommentForm } from './CommentForm'
@@ -70,14 +71,17 @@ export function CommentThread({ eventId, initialComments, currentUserId }: Props
 
   async function postComment(content: string, parentId: string | null = null, mediaUrl?: string) {
     if (!user) return
-    const { data, error } = await supabase
-      .from('comments')
-      .insert({ event_id: eventId, user_id: user.id, parent_id: parentId, content, mentions: [], media_url: mediaUrl ?? null, is_deleted: false })
-      .select()
-      .single()
+
+    const { data, error } = await apiPost('/api/comments', {
+      event_id: eventId,
+      content,
+      parent_id: parentId ?? undefined,
+      media_url: mediaUrl ?? undefined,
+      mentions: [],
+    })
 
     if (error || !data) {
-      Alert.alert('Error', error?.message ?? 'Failed to post comment. Please try again.')
+      Alert.alert('Error', error ?? 'Failed to post comment. Please try again.')
       return
     }
     // Register this ID so the realtime handler won't double-add it
