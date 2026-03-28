@@ -6,6 +6,7 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '@/lib/supabase'
+import { apiPost, apiDelete } from '@/lib/api'
 import { useAuth } from '@/contexts/auth-context'
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '@/theme'
 import { formatDate, formatRelativeTime } from '@/lib/utils'
@@ -198,12 +199,12 @@ export default function PublicUserProfileScreen() {
     if (!user) return
     setFormLoading(true)
     setFormError('')
-    const { error } = await supabase.from('user_reviews').upsert(
-      { reviewer_id: user.id, reviewed_id: id, rating: formRating, content: formContent.trim() || null },
-      { onConflict: 'reviewer_id,reviewed_id' }
-    )
+    const { error } = await apiPost(`/api/users/${id}/reviews`, {
+      rating:  formRating,
+      content: formContent.trim() || null,
+    })
     setFormLoading(false)
-    if (error) { setFormError(error.message); return }
+    if (error) { setFormError(error); return }
     setShowForm(false)
     setEditing(false)
     load(1, false)
@@ -216,8 +217,7 @@ export default function PublicUserProfileScreen() {
       {
         text: 'Delete', style: 'destructive',
         onPress: async () => {
-          await supabase.from('user_reviews').delete()
-            .eq('reviewer_id', user.id).eq('reviewed_id', id)
+          await apiDelete(`/api/users/${id}/reviews`)
           setViewerReview(null)
           load(1, false)
         },

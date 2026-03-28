@@ -5,6 +5,7 @@ import {
 } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { supabase } from '@/lib/supabase'
+import { apiPost, apiDelete } from '@/lib/api'
 import { useAuth } from '@/contexts/auth-context'
 import { EventCard } from '@/components/events/EventCard'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -101,11 +102,11 @@ export default function OrganizerProfileScreen() {
       isFollowing: next,
       orgProfile: { ...d.orgProfile, followers_count: next ? d.orgProfile.followers_count + 1 : Math.max(0, d.orgProfile.followers_count - 1) },
     } : d)
-    await supabase.from('organizer_follows')[next ? 'upsert' : 'delete'](
-      next
-        ? { follower_id: user.id, organizer_id: id }
-        : undefined as unknown as { follower_id: string; organizer_id: string }
-    ).match(next ? {} : { follower_id: user.id, organizer_id: id })
+    if (next) {
+      await apiPost(`/api/organizer/${id}/follow`, {})
+    } else {
+      await apiDelete(`/api/organizer/${id}/follow`)
+    }
     setFollowLoading(false)
   }
 

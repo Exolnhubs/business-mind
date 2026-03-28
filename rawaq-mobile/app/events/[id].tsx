@@ -6,6 +6,7 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '@/lib/supabase'
+import { apiPost, apiPatch } from '@/lib/api'
 import { useAuth } from '@/contexts/auth-context'
 import { useLocale } from '@/contexts/locale-context'
 import { Badge } from '@/components/ui/Badge'
@@ -163,7 +164,8 @@ export default function EventDetailScreen() {
         .from('bookings').select('id')
         .eq('event_id', id).eq('user_id', user.id).eq('status', 'confirmed').single()
       if (booking) {
-        await supabase.from('bookings').update({ status: 'cancelled' }).eq('id', booking.id)
+        const { error } = await apiPatch(`/api/bookings/${booking.id}`, { status: 'cancelled' })
+        if (error) { Alert.alert('Error', error); setBL(false); return }
       }
       setIsBooked(false)
       setBL(false)
@@ -223,34 +225,16 @@ export default function EventDetailScreen() {
       }
     }
 
-    const discountAmount = promoResult?.valid ? (promoResult.discount_amount ?? 0) : 0
-    const promoCodeId    = promoResult?.valid ? (promoResult.promo_code_id ?? null) : null
+    const promoCode = promoResult?.valid ? (promoResult.promo_code_id ?? null) : null
 
-    // Reactivate cancelled booking if one exists, otherwise insert
-    const { data: existing } = await supabase
-      .from('bookings').select('id')
-      .eq('user_id', user.id).eq('event_id', id as string).eq('status', 'cancelled')
-      .maybeSingle()
+    const { error: bookErr } = await apiPost('/api/bookings', {
+      event_id:       id as string,
+      ticket_type_id: selectedTypeId ?? null,
+      promo_code:     promoCode,
+    })
 
-    const bookingFields = {
-      status:          'confirmed',
-      ticket_type_id:  selectedTypeId ?? null,
-      promo_code_id:   promoCodeId,
-      discount_amount: discountAmount,
-    }
-
-    let dbError
-    if (existing) {
-      const { error } = await supabase.from('bookings').update(bookingFields).eq('id', existing.id)
-      dbError = error
-    } else {
-      const { error } = await supabase.from('bookings')
-        .insert({ user_id: user.id, event_id: id as string, ...bookingFields })
-      dbError = error
-    }
-
-    if (dbError) {
-      Alert.alert('Booking failed', dbError.message)
+    if (bookErr) {
+      Alert.alert('Booking failed', bookErr)
       setBL(false)
       return
     }
@@ -284,17 +268,15 @@ export default function EventDetailScreen() {
   async function sendTip() {
     if (!user || !tipAmount || !event) return
     setTipLoading(true)
-    await supabase.from('tips').insert({
-      user_id: user.id,
+    const { error } = await apiPost('/api/tips', {
       event_id: event.id,
-      organizer_id: event.organizer_id,
-      amount: tipAmount,
+      amount:   tipAmount,
       currency: 'SAR',
-      is_simulated: true,
-      message: tipMsg || null,
+      message:  tipMsg || undefined,
     })
-    setTipDone(true)
     setTipLoading(false)
+    if (error) { Alert.alert('Error', error); return }
+    setTipDone(true)
     Alert.alert('🙏 Tip sent!', `SAR ${tipAmount} sent to the organizer.`)
     setShowTip(false)
   }

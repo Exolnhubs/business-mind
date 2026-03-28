@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { View, Text, StyleSheet, Alert } from 'react-native'
 import { supabase } from '@/lib/supabase'
+import { apiPost } from '@/lib/api'
 import { useAuth } from '@/contexts/auth-context'
 import { CommentItem } from './CommentItem'
 import { CommentForm } from './CommentForm'
@@ -71,29 +72,18 @@ export function CommentThread({ eventId, initialComments, currentUserId }: Props
   async function postComment(content: string, parentId: string | null = null, mediaUrl?: string) {
     if (!user) return
 
-    const apiUrl = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000'
-    const { data: { session } } = await supabase.auth.getSession()
-    const res = await fetch(`${apiUrl}/api/comments`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
-      },
-      body: JSON.stringify({
-        event_id: eventId,
-        content,
-        parent_id: parentId ?? undefined,
-        media_url: mediaUrl ?? undefined,
-        mentions: [],
-      }),
+    const { data, error } = await apiPost('/api/comments', {
+      event_id: eventId,
+      content,
+      parent_id: parentId ?? undefined,
+      media_url: mediaUrl ?? undefined,
+      mentions: [],
     })
 
-    const json = await res.json()
-    if (!res.ok || !json.data) {
-      Alert.alert('Error', json.error ?? 'Failed to post comment. Please try again.')
+    if (error || !data) {
+      Alert.alert('Error', error ?? 'Failed to post comment. Please try again.')
       return
     }
-    const data = json.data
     // Register this ID so the realtime handler won't double-add it
     optimisticIds.current.add(data.id)
     const newComment: CommentWithAuthor = {
