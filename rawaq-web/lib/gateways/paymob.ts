@@ -23,7 +23,7 @@
  *   PAYMOB_CARD_IFRAME_ID       — Card iframe ID from Paymob dashboard
  */
 
-import { createHmac } from 'crypto'
+import { createHmac, randomUUID } from 'crypto'
 import type { InitiatePaymentParams, InitiatePaymentResult, WebhookEvent, PaymentMethod } from './types'
 
 const BASE_URL = 'https://accept.paymob.com/api'
@@ -178,11 +178,13 @@ export async function initiatePaymob(
   }
 
   // 3-step Paymob flow
-  // Use transactionId (not bookingId) as merchant_order_id so each payment
-  // attempt gets a unique order in Paymob — retrying after a failed payment
-  // reuses the same bookingId, which would cause Paymob to reject with 422.
+  // Generate a fresh UUID as merchant_order_id on every call. Paymob rejects
+  // with 422 if the same merchant_order_id is reused across attempts (e.g.
+  // retrying after a failed payment). Webhook correlation uses Paymob's own
+  // numeric order ID (stored in gateway_order_id), not merchant_order_id, so
+  // this value is only a unique label for Paymob's records.
   const token        = await authenticate()
-  const orderId      = await createOrder(token, amountCents, currency, transactionId, eventTitle)
+  const orderId      = await createOrder(token, amountCents, currency, randomUUID(), eventTitle)
   const paymentKey   = await getPaymentKey(token, amountCents, currency, orderId, integrationId, billingData)
 
   const redirectUrl = method === 'fawry'
