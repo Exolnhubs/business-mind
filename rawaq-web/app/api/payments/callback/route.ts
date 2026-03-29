@@ -8,86 +8,111 @@
  *   → https://your-app.vercel.app/api/payments/callback
  *
  * Paymob appends query params to this URL after the user pays:
- *   ?id=<tx_id>
+ *   ?id=<paymob_tx_id>
  *   &pending=false
  *   &amount_cents=10000
  *   &success=true
- *   &is_auth=false
- *   &is_capture=false
- *   &is_voided=false
- *   &is_refunded=false
- *   &order=<paymob_order_id>   ← we stored this as gateway_order_id
- *   &merchant_order_id=<our_booking_id>   ← we set this to bookingId
+ *   &order=<paymob_order_id>   ← we store this as gateway_order_id
+ *   &merchant_order_id=<uuid>  ← now a randomUUID per attempt (not bookingId)
  *   &source_data.type=card
- *   &data.message=Approved
  *   &hmac=<sha512>
  *
  * This handler:
- *   1. Reads merchant_order_id (= our booking ID) from query params
- *   2. Verifies the HMAC to prevent spoofing the redirect
- *   3. Redirects user to /bookings/:id?payment=success|failed
+ *   1. Verifies the HMAC to prevent spoofed redirects
+ *   2. Looks up the payment_transaction via Paymob's order ID (gateway_order_id)
+ *      to retrieve the real booking_id and the originating source (web|mobile)
+ *   3. Mobile → redirect to rawaq://payment-result deep link (app intercepts it)
+ *      Web    → redirect to /bookings/:id?payment=success|failed
  *
- * NOTE: Never trust this redirect to confirm a booking — that's the job
- * of the server-side webhook at /api/webhooks/paymob.
- * This is purely a UX redirect so the user lands on the right page.
+ * NOTE: Never trust this redirect to confirm a booking — that is the job of
+ * the server-side webhook at /api/webhooks/paymob.
+ * This is purely a UX redirect so the user lands on the right page/screen.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { verifyPaymobHmac } from '@/lib/gateways/paymob'
 
 export async function GET(req: NextRequest) {
-  const params = req.nextUrl.searchParams
+  const p      = req.nextUrl.searchParams
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || req.nextUrl.origin
 
-  // Extract what we need from Paymob's query string
-  const bookingId  = params.get('merchant_order_id')
-  const success    = params.get('success') === 'true'
-  const pending    = params.get('pending') === 'true'
-  const hmac       = params.get('hmac') ?? ''
+  // merchant_order_id is no longer a bookingId — it is a randomUUID generated
+  // per payment attempt to prevent Paymob 422 "duplicate order" errors on retry.
+  // Use Paymob's own numeric order ID (the `order` param) to look up our
+  // payment_transaction row via gateway_order_id.
+  const paymobOrderId = p.get('order')
+  const success       = p.get('success') === 'true'
+  const pending       = p.get('pending') === 'true'
+  const hmac          = p.get('hmac') ?? ''
 
-  // Build the raw obj Paymob uses for HMAC (same fields as webhook)
+  // Build the obj Paymob uses for HMAC (same fields as the webhook)
   const obj: Record<string, unknown> = {
-    amount_cents:              params.get('amount_cents'),
-    created_at:                params.get('created_at'),
-    currency:                  params.get('currency'),
-    error_occured:             params.get('error_occured'),
-    has_parent_transaction:    params.get('has_parent_transaction'),
-    id:                        params.get('id'),
-    integration_id:            params.get('integration_id'),
-    is_3d_secure:              params.get('is_3d_secure'),
-    is_auth:                   params.get('is_auth'),
-    is_capture:                params.get('is_capture'),
-    is_refunded:               params.get('is_refunded'),
-    is_standalone_payment:     params.get('is_standalone_payment'),
-    is_voided:                 params.get('is_voided'),
-    order:                     { id: params.get('order') },
-    owner:                     params.get('owner'),
-    pending:                   params.get('pending'),
+    amount_cents:           p.get('amount_cents'),
+    created_at:             p.get('created_at'),
+    currency:               p.get('currency'),
+    error_occured:          p.get('error_occured'),
+    has_parent_transaction: p.get('has_parent_transaction'),
+    id:                     p.get('id'),
+    integration_id:         p.get('integration_id'),
+    is_3d_secure:           p.get('is_3d_secure'),
+    is_auth:                p.get('is_auth'),
+    is_capture:             p.get('is_capture'),
+    is_refunded:            p.get('is_refunded'),
+    is_standalone_payment:  p.get('is_standalone_payment'),
+    is_voided:              p.get('is_voided'),
+    order:                  { id: paymobOrderId },
+    owner:                  p.get('owner'),
+    pending:                p.get('pending'),
     source_data: {
-      pan:      params.get('source_data.pan')      ?? '',
-      sub_type: params.get('source_data.sub_type') ?? '',
-      type:     params.get('source_data.type')     ?? '',
+      pan:      p.get('source_data.pan')      ?? '',
+      sub_type: p.get('source_data.sub_type') ?? '',
+      type:     p.get('source_data.type')     ?? '',
     },
-    success: params.get('success'),
+    success: p.get('success'),
   }
 
-  // If HMAC_SECRET is configured, verify the redirect wasn't spoofed
   if (process.env.PAYMOB_HMAC_SECRET) {
     if (!verifyPaymobHmac(obj, hmac)) {
-      // HMAC mismatch — redirect to home rather than showing a fake success
       console.error('[payments/callback] Paymob HMAC verification failed on redirect')
       return NextResponse.redirect(`${appUrl}/?payment=invalid`)
     }
   }
 
-  // No booking ID in params → something went wrong, go home
-  if (!bookingId) {
+  if (!paymobOrderId) {
     return NextResponse.redirect(`${appUrl}/?payment=error`)
   }
 
-  // Redirect user to their booking page with a status hint
-  // The page polls /api/payments/status/:bookingId to get the real status
-  // (the webhook may or may not have fired yet at this point)
   const status = pending ? 'pending' : success ? 'success' : 'failed'
-  return NextResponse.redirect(`${appUrl}/bookings/${bookingId}?payment=${status}`)
+
+  // ── Look up booking + source via Paymob's order ID ───────────────────────
+  try {
+    const admin = createSupabaseAdminClient()
+    const { data: tx } = await (admin as any)
+      .from('payment_transactions')
+      .select('booking_id, gateway_payload')
+      .eq('gateway_order_id', paymobOrderId)
+      .single()
+
+    if (!tx?.booking_id) {
+      console.error('[payments/callback] No transaction found for gateway_order_id', paymobOrderId)
+      return NextResponse.redirect(`${appUrl}/?payment=error`)
+    }
+
+    const bookingId = tx.booking_id as string
+    const isMobile  = (tx.gateway_payload as { source?: string } | null)?.source === 'mobile'
+
+    if (isMobile) {
+      // Redirect to the app deep link — iOS/Android intercepts rawaq://
+      // and brings the user back into the app automatically, closing the browser.
+      return NextResponse.redirect(
+        `rawaq://payment-result?booking_id=${bookingId}&status=${status}`
+      )
+    }
+
+    return NextResponse.redirect(`${appUrl}/bookings/${bookingId}?payment=${status}`)
+  } catch (err) {
+    console.error('[payments/callback] DB lookup failed', err)
+    return NextResponse.redirect(`${appUrl}/?payment=error`)
+  }
 }

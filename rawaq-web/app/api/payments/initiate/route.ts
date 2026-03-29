@@ -258,7 +258,20 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Real gateway: initiate checkout ──────────────────────────────────────
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://rawaq.app'
+    const appUrl    = process.env.NEXT_PUBLIC_APP_URL ?? 'https://rawaq.app'
+    const isMobile  = input.source === 'mobile'
+
+    // Paymob uses a dashboard-configured callback URL, so successUrl/cancelUrl
+    // are only meaningful for Stripe. For mobile Stripe payments we route through
+    // a server-side relay (/api/payments/mobile-return) that issues the rawaq://
+    // deep link — Stripe rejects custom-scheme URLs as success/cancel targets.
+    const successUrl = isMobile
+      ? `${appUrl}/api/payments/mobile-return?booking_id=${booking.id as string}&status=success`
+      : `${appUrl}/bookings/${booking.id as string}?payment=success`
+    const cancelUrl  = isMobile
+      ? `${appUrl}/api/payments/mobile-return?booking_id=${booking.id as string}&status=cancelled`
+      : `${appUrl}/events/${event.id}?payment=cancelled`
+
     const initParams: InitiatePaymentParams = {
       bookingId:      booking.id as string,
       transactionId:  txRow.id,
@@ -271,8 +284,8 @@ export async function POST(req: NextRequest) {
       platformFeePct,
       method,
       userEmail:      undefined, // profile.email not available via this select
-      successUrl:     `${appUrl}/bookings/${booking.id as string}?payment=success`,
-      cancelUrl:      `${appUrl}/events/${event.id}?payment=cancelled`,
+      successUrl,
+      cancelUrl,
     }
 
     let gatewayResult
