@@ -35,7 +35,7 @@ ESCALATION RULES — for these issues you MUST create a support ticket:
 When you decide to escalate, output on its own line:
 [TICKET]{"category":"harassment","subject":"Brief subject here","description":"Full description of the issue for the admin team"}[/TICKET]
 
-Then tell the user: "I've opened a support ticket for your case — our admin team will review it and follow up with you. Your ticket number will appear on screen."
+Then tell the user: "I've escalated your case to our admin team — they will review it and follow up with you shortly."
 
 For general questions: answer directly. Do NOT create a ticket unless truly necessary.
 Do NOT ask for personal details like passwords or payment info.`
@@ -91,11 +91,13 @@ export async function POST(req: NextRequest) {
 
     if (ticketMatch) {
       reply = reply.replace(/\[TICKET\][\s\S]*?\[\/TICKET\]\n?/, '').trim()
+
+      let ticketCreated = false
       try {
         const payload = JSON.parse(ticketMatch[1]) as TicketPayload
         const admin   = createSupabaseAdminClient()
 
-        const { data: row } = await (admin as any)
+        const { data: row, error: dbErr } = await (admin as any)
           .from('support_tickets')
           .insert({
             user_id:     ctx.userId,
@@ -103,21 +105,28 @@ export async function POST(req: NextRequest) {
             subject:     (payload.subject  ?? 'Support request').slice(0, 200),
             description: (payload.description ?? '').slice(0, 2000),
             status:      'open',
-          } as any)
+          })
           .select('ticket_number, category')
           .single()
 
-        if (row) {
-          ticket = { ticket_number: row.ticket_number, category: row.category }
-          // Replace placeholder in reply if present
-          reply = reply.replace('[TICKET_NUMBER]', row.ticket_number)
-          // Append ticket number if the AI didn't mention it
-          if (!reply.includes(row.ticket_number)) {
-            reply += `\n\nYour ticket number is **${row.ticket_number}**.`
-          }
+        if (dbErr) {
+          // Log so Vercel function logs surface the real error
+          console.error('[support/chat] ticket insert error:', dbErr)
         }
-      } catch {
-        // Ticket creation failure shouldn't break the chat
+
+        if (row) {
+          ticket        = { ticket_number: row.ticket_number, category: row.category }
+          ticketCreated = true
+          // Append ticket number to reply
+          reply += `\n\nYour ticket number is **${row.ticket_number}**. Keep this for reference.`
+        }
+      } catch (err) {
+        console.error('[support/chat] ticket creation exception:', err)
+      }
+
+      // If creation failed, be honest — don't leave the user expecting a ticket number
+      if (!ticketCreated) {
+        reply += '\n\n(I wasn\'t able to open a ticket right now — please try again in a moment or contact us directly.)'
       }
     }
 
