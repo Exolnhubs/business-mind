@@ -2,6 +2,41 @@ import { supabase } from './supabase'
 
 export type UploadType = 'avatar' | 'event-cover' | 'comment-media'
 
+// Max dimensions for resizing before upload
+const MAX_DIMENSIONS: Record<UploadType, number> = {
+  'avatar':        400,
+  'event-cover':   1920,
+  'comment-media': 1280,
+}
+
+/**
+ * Resize an image URI to fit within the max dimension for the given upload
+ * type. Falls back to the original URI if expo-image-manipulator is not
+ * available or if the file is not an image.
+ */
+async function resizeIfNeeded(uri: string, type: UploadType): Promise<string> {
+  const ext = (uri.split('.').pop() ?? '').toLowerCase()
+  const isVideo = ['mp4', 'mov', 'webm'].includes(ext)
+  if (isVideo) return uri
+
+  try {
+    const ImageManipulator = require('expo-image-manipulator')
+    const manipulate = ImageManipulator.manipulateAsync ?? ImageManipulator.default?.manipulateAsync
+    if (!manipulate) return uri
+
+    const maxSize = MAX_DIMENSIONS[type]
+    const SaveFormat = ImageManipulator.SaveFormat
+    const result = await manipulate(
+      uri,
+      [{ resize: { width: maxSize } }],
+      { compress: 0.85, format: SaveFormat?.JPEG ?? 'jpeg' }
+    )
+    return result.uri
+  } catch {
+    return uri
+  }
+}
+
 const MIME_MAP: Record<string, string> = {
   jpg:  'image/jpeg',
   jpeg: 'image/jpeg',
@@ -37,7 +72,10 @@ export async function uploadViaApi(uri: string, type: UploadType): Promise<strin
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) throw new Error('Not authenticated')
 
-  const ext      = (uri.split('.').pop() ?? 'jpg').toLowerCase()
+  // Resize image before uploading (no-op for videos or if manipulator unavailable)
+  const processedUri = await resizeIfNeeded(uri, type)
+
+  const ext      = (processedUri.split('.').pop() ?? 'jpg').toLowerCase()
   const mimeType = MIME_MAP[ext] ?? 'image/jpeg'
 
   // ── Step 1: get a signed upload URL from the API ──────────────────────────
@@ -58,7 +96,7 @@ export async function uploadViaApi(uri: string, type: UploadType): Promise<strin
   // ── Step 2: upload the file directly to Supabase Storage ──────────────────
   // Fetch the local file URI as a Blob, then PUT it to the signed URL.
   // This request goes directly from the device to Supabase — no Vercel limit.
-  const fileResponse = await fetch(uri)
+  const fileResponse = await fetch(processedUri)
   const blob         = await fileResponse.blob()
 
   const uploadRes = await fetch(signedUrl, {
