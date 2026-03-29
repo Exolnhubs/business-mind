@@ -31,7 +31,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (loading) return
 
-    const inAuthGroup = segments[0] === '(auth)'
+    const inAuthGroup = segments[0] === '(auth)' || segments[0] === 'auth'
 
     if (!user && !inAuthGroup) {
       router.replace('/(auth)/login')
