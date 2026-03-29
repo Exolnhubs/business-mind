@@ -12,6 +12,8 @@ const UpdateProfileSchema = z.object({
   bio: z.string().max(500).optional().nullable(),
   phone: z.string().max(20).optional().nullable(),
   preferences: z.record(z.unknown()).optional(),
+  signup_lat: z.number().min(-90).max(90).optional().nullable(),
+  signup_lng: z.number().min(-180).max(180).optional().nullable(),
 })
 
 // GET /api/profiles/me

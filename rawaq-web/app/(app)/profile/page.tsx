@@ -8,11 +8,8 @@ import { Spinner } from '@/components/ui/Spinner'
 import { FileUpload } from '@/components/ui/FileUpload'
 import type { GenderType } from '@/types/database'
 
-const CITIES = ['Riyadh', 'Jeddah', 'Dammam', 'Mecca', 'Medina', 'Khobar', 'Tabuk', 'Abha', 'Taif']
-
 interface ProfileForm {
   display_name: string
-  city: string
   bio: string
   gender: GenderType | ''
   avatar_url: string
@@ -36,12 +33,13 @@ export default function ProfilePage() {
 
   const [profileForm, setProfileForm] = useState<ProfileForm>({
     display_name: '',
-    city: '',
     bio: '',
     gender: '',
     avatar_url: '',
     phone: '',
   })
+  const [locating, setLocating]   = useState(false)
+  const [locMsg, setLocMsg]       = useState<{ ok: boolean; text: string } | null>(null)
   const [emailForm, setEmailForm] = useState({ newEmail: '', loading: false, msg: null as { ok: boolean; text: string } | null })
   const [orgForm, setOrgForm] = useState<OrganizerForm>({
     business_name: '',
@@ -68,7 +66,6 @@ export default function ProfilePage() {
     if (!profile) return
     setProfileForm({
       display_name: profile.display_name ?? '',
-      city: profile.city ?? '',
       bio: profile.bio ?? '',
       gender: (profile.gender as GenderType | '') ?? '',
       avatar_url: profile.avatar_url ?? '',
@@ -99,6 +96,56 @@ export default function ProfilePage() {
       .finally(() => setLoadingOrg(false))
   }, [profile?.role])
 
+  async function detectLocation() {
+    if (!navigator.geolocation) {
+      setLocMsg({ ok: false, text: 'Geolocation is not supported by your browser.' })
+      return
+    }
+    setLocating(true)
+    setLocMsg(null)
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude, longitude } = pos.coords
+        try {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`,
+            { headers: { 'Accept-Language': 'en' } },
+          )
+          const geo = await res.json()
+          const city =
+            geo.address?.city ||
+            geo.address?.town ||
+            geo.address?.village ||
+            geo.address?.county ||
+            geo.address?.state ||
+            null
+
+          const patchRes = await fetch('/api/profiles/me', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ city, signup_lat: latitude, signup_lng: longitude }),
+          })
+          if (patchRes.ok) {
+            await refreshProfile()
+            setLocMsg({ ok: true, text: `Location set to ${city ?? 'your area'}.` })
+          } else {
+            const { error } = await patchRes.json()
+            setLocMsg({ ok: false, text: error ?? 'Failed to save location.' })
+          }
+        } catch {
+          setLocMsg({ ok: false, text: 'Could not reverse geocode location.' })
+        } finally {
+          setLocating(false)
+        }
+      },
+      (err) => {
+        setLocating(false)
+        setLocMsg({ ok: false, text: err.message ?? 'Location access denied.' })
+      },
+      { timeout: 10000 },
+    )
+  }
+
   async function saveProfile(e: FormEvent) {
     e.preventDefault()
     setSavingProfile(true)
@@ -106,7 +153,6 @@ export default function ProfilePage() {
 
     const body: Record<string, unknown> = {
       display_name: profileForm.display_name,
-      city: profileForm.city || null,
       bio: profileForm.bio || null,
       gender: profileForm.gender || null,
       avatar_url: profileForm.avatar_url || null,
@@ -237,13 +283,40 @@ export default function ProfilePage() {
             />
           </div>
 
-          {/* City */}
+          {/* City — location-detected, not manually editable */}
           <div>
             <label className="label">City</label>
-            <select value={profileForm.city} onChange={setP('city')} className="input cursor-pointer">
-              <option value="">Not specified</option>
-              {CITIES.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
+            {profile?.city ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={profile.city}
+                  readOnly
+                  className="input bg-gray-50 text-gray-500 cursor-default flex-1"
+                />
+                <span className="text-xs text-gray-400">📍 Detected</span>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-xs text-gray-400">
+                  Your city is determined from your device location and cannot be typed manually.
+                </p>
+                <button
+                  type="button"
+                  onClick={detectLocation}
+                  disabled={locating}
+                  className="btn-secondary text-sm flex items-center gap-2"
+                >
+                  {locating ? <Spinner size="sm" /> : '📍'}
+                  {locating ? 'Detecting…' : 'Detect my location'}
+                </button>
+                {locMsg && (
+                  <p className={`text-xs ${locMsg.ok ? 'text-green-600' : 'text-red-600'}`}>
+                    {locMsg.text}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Gender */}

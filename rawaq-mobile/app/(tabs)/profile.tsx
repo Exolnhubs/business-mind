@@ -24,6 +24,7 @@ import { useAuth } from '@/contexts/auth-context'
 import { useLocale } from '@/contexts/locale-context'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
 import { apiGet, apiPost } from '@/lib/api'
+import * as Location from 'expo-location'
 
 if (Notifications) {
   Notifications.setNotificationHandler({
@@ -35,7 +36,6 @@ if (Notifications) {
   })
 }
 
-const CITIES = ['Riyadh', 'Jeddah', 'Dammam', 'Mecca', 'Medina', 'Khobar', 'Tabuk', 'Abha', 'Taif']
 const GENDER_OPTIONS: { label: string; value: 'male' | 'female' }[] = [
   { label: 'Male', value: 'male' },
   { label: 'Female', value: 'female' },
@@ -52,12 +52,15 @@ export default function ProfileScreen() {
   // Edit form
   const [editing, setEditing]         = useState(false)
   const [displayName, setDisplayName] = useState('')
-  const [city, setCity]               = useState('')
   const [bio, setBio]                 = useState('')
   const [phone, setPhone]             = useState('')
   const [gender, setGender]           = useState<'male' | 'female' | ''>('')
   const [saving, setSaving]           = useState(false)
   const [saveMsg, setSaveMsg]         = useState<{ ok: boolean; text: string } | null>(null)
+
+  // Location detection
+  const [locating, setLocating]       = useState(false)
+  const [locMsg, setLocMsg]           = useState<{ ok: boolean; text: string } | null>(null)
 
   const [avatarUploading, setAvatarUploading] = useState(false)
 
@@ -78,7 +81,6 @@ export default function ProfileScreen() {
   useEffect(() => {
     if (!profile) return
     setDisplayName(profile.display_name ?? '')
-    setCity(profile.city ?? '')
     setBio((profile as Record<string, unknown>).bio as string ?? '')
     setGender((profile.gender as 'male' | 'female' | '') ?? '')
     setPhone((profile as Record<string, unknown>).phone as string ?? '')
@@ -135,7 +137,6 @@ export default function ProfileScreen() {
 
     const body: Record<string, unknown> = {
       display_name: displayName || null,
-      city: city || null,
       bio: bio || null,
       phone: phone || null,
     }
@@ -235,6 +236,38 @@ export default function ProfileScreen() {
     setPushLoading(false)
   }
 
+  async function detectLocation() {
+    if (!user) return
+    setLocating(true)
+    setLocMsg(null)
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync()
+      if (status !== 'granted') {
+        setLocMsg({ ok: false, text: 'Location permission denied. Enable it in your device settings.' })
+        return
+      }
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
+      const [geo] = await Location.reverseGeocodeAsync({ latitude: pos.coords.latitude, longitude: pos.coords.longitude })
+      const city = geo?.city ?? geo?.subregion ?? geo?.region ?? null
+
+      const { error } = await supabase
+        .from('profiles')
+        .update({ city, signup_lat: pos.coords.latitude, signup_lng: pos.coords.longitude })
+        .eq('id', user.id)
+
+      if (error) {
+        setLocMsg({ ok: false, text: error.message })
+      } else {
+        await refreshProfile()
+        setLocMsg({ ok: true, text: `Location set to ${city ?? 'your area'}.` })
+      }
+    } catch (e: unknown) {
+      setLocMsg({ ok: false, text: e instanceof Error ? e.message : 'Could not detect location.' })
+    } finally {
+      setLocating(false)
+    }
+  }
+
   async function submitOrgRequest() {
     if (!businessName.trim()) return
     setOrgSubmitting(true)
@@ -309,7 +342,17 @@ export default function ProfileScreen() {
           </TouchableOpacity>
           <Text style={styles.displayName}>{profile?.display_name ?? t('profile.title')}</Text>
           <Text style={styles.email}>{user.email}</Text>
-          {profile?.city && <Text style={styles.city}>📍 {profile.city}</Text>}
+          {profile?.city
+            ? <Text style={styles.city}>📍 {profile.city}</Text>
+            : !editing && (
+              <TouchableOpacity onPress={detectLocation} disabled={locating} style={{ marginTop: 4 }}>
+                {locating
+                  ? <ActivityIndicator size="small" color={Colors.brand[500]} />
+                  : <Text style={[styles.city, { color: Colors.brand[500] }]}>📍 Tap to detect location</Text>
+                }
+              </TouchableOpacity>
+            )
+          }
           {profile?.gender && (
             <Text style={styles.city}>{profile.gender === 'male' ? `👨 ${t('profile.male')}` : `👩 ${t('profile.female')}`}</Text>
           )}
@@ -350,17 +393,33 @@ export default function ProfileScreen() {
 
             <View style={styles.fieldWrap}>
               <Text style={styles.fieldLabel}>{t('profile.city')}</Text>
-              <View style={styles.chipRow}>
-                {CITIES.map((c) => (
+              {profile?.city ? (
+                <View style={styles.lockedRow}>
+                  <Text style={styles.lockedText}>📍 {profile.city}</Text>
+                  <Text style={styles.lockedNote}>Detected from your location</Text>
+                </View>
+              ) : (
+                <View style={{ gap: Spacing.xs }}>
+                  <Text style={[styles.lockedNote, { marginBottom: Spacing.xs }]}>
+                    City is detected from your live location and cannot be typed manually.
+                  </Text>
                   <TouchableOpacity
-                    key={c}
-                    style={[styles.chip, city === c && styles.chipActive]}
-                    onPress={() => setCity(city === c ? '' : c)}
+                    style={[styles.chip, { paddingHorizontal: Spacing.lg, alignSelf: 'flex-start' }]}
+                    onPress={detectLocation}
+                    disabled={locating}
                   >
-                    <Text style={[styles.chipText, city === c && styles.chipTextActive]}>{c}</Text>
+                    {locating
+                      ? <ActivityIndicator size="small" color={Colors.brand[600]} />
+                      : <Text style={styles.chipText}>📍 {locating ? 'Detecting…' : 'Detect my location'}</Text>
+                    }
                   </TouchableOpacity>
-                ))}
-              </View>
+                  {locMsg && (
+                    <Text style={{ fontSize: FontSize.xs, color: locMsg.ok ? '#15803d' : '#b91c1c', marginTop: 2 }}>
+                      {locMsg.text}
+                    </Text>
+                  )}
+                </View>
+              )}
             </View>
 
             <View style={styles.fieldWrap}>
