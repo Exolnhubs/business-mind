@@ -37,7 +37,7 @@ import { verifyPaymobHmac } from '@/lib/gateways/paymob'
 
 export async function GET(req: NextRequest) {
   const params = req.nextUrl.searchParams
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? ''
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || req.nextUrl.origin
 
   // Extract what we need from Paymob's query string
   const bookingId  = params.get('merchant_order_id')

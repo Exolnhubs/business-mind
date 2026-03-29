@@ -7,27 +7,26 @@
  *   Accept → Settings → Transaction response callback
  *   → https://your-app.vercel.app/payments/callback
  *
- * Paymob appends all transaction fields as query params, including:
- *   merchant_order_id  — our booking ID (set during initiation)
- *   success            — "true" / "false"
- *   pending            — "true" / "false"
- *   order              — Paymob's order ID
- *   hmac               — SHA-512 signature for verification
+ * Behaviour:
+ *   - Web payment  → redirect to https://your-app/bookings/:id?payment=success
+ *   - Mobile payment → redirect to rawaq://payment-result?booking_id=:id&status=success
+ *     (iOS/Android intercepts rawaq:// and brings the user back into the app)
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { verifyPaymobHmac } from '@/lib/gateways/paymob'
 
 export async function GET(req: NextRequest) {
   const p      = req.nextUrl.searchParams
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? ''
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || req.nextUrl.origin
 
   const bookingId = p.get('merchant_order_id')
-  const success   = p.get('success')   === 'true'
-  const pending   = p.get('pending')   === 'true'
-  const hmac      = p.get('hmac')      ?? ''
+  const success   = p.get('success') === 'true'
+  const pending   = p.get('pending') === 'true'
+  const hmac      = p.get('hmac')    ?? ''
 
-  // Reconstruct the obj Paymob uses for HMAC verification
+  // Reconstruct the obj Paymob uses for HMAC
   const obj: Record<string, unknown> = {
     amount_cents:           p.get('amount_cents'),
     created_at:             p.get('created_at'),
@@ -53,7 +52,6 @@ export async function GET(req: NextRequest) {
     success: p.get('success'),
   }
 
-  // Verify HMAC when secret is configured
   if (process.env.PAYMOB_HMAC_SECRET) {
     if (!verifyPaymobHmac(obj, hmac)) {
       console.error('[payments/callback] HMAC verification failed')
@@ -66,5 +64,32 @@ export async function GET(req: NextRequest) {
   }
 
   const status = pending ? 'pending' : success ? 'success' : 'failed'
+
+  // ── Check if this was initiated from the mobile app ──────────────────────
+  // We stored { source: 'mobile' | 'web' } in gateway_payload at initiation time.
+  try {
+    const admin = createSupabaseAdminClient()
+    const { data: tx } = await (admin as any)
+      .from('payment_transactions')
+      .select('gateway_payload')
+      .eq('booking_id', bookingId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single()
+
+    const isMobile = (tx?.gateway_payload as { source?: string } | null)?.source === 'mobile'
+
+    if (isMobile) {
+      // Redirect to the app's deep link — iOS/Android will intercept rawaq://
+      // and bring the user back into the app automatically
+      return NextResponse.redirect(
+        `rawaq://payment-result?booking_id=${bookingId}&status=${status}`
+      )
+    }
+  } catch {
+    // DB lookup failed — fall through to web redirect
+  }
+
+  // ── Web: redirect to the booking result page ─────────────────────────────
   return NextResponse.redirect(`${appUrl}/bookings/${bookingId}?payment=${status}`)
 }

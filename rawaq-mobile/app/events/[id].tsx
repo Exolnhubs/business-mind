@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback } from 'react'
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  ActivityIndicator, Alert, TextInput, Image, Modal, Linking, Platform,
+  ActivityIndicator, Alert, TextInput, Image, Modal, Platform,
 } from 'react-native'
+import * as WebBrowser from 'expo-web-browser'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '@/lib/supabase'
@@ -199,7 +200,6 @@ export default function EventDetailScreen() {
     const promoCodeVal = promoResult?.valid ? (promoResult.promo_code_id ?? null) : null
 
     const { data: result, error: initErr } = await apiPost<{
-      booking?: { id: string }
       booking_id?: string
       redirect_url?: string
       fawry_reference_number?: string
@@ -209,6 +209,7 @@ export default function EventDetailScreen() {
       ticket_type_id:    selectedTypeId ?? null,
       promo_code:        promoCodeVal,
       payment_option_id: paymentOptionId,
+      source:            'mobile',
     })
 
     setBL(false)
@@ -218,36 +219,55 @@ export default function EventDetailScreen() {
       return
     }
 
-    const data = result as {
-      booking?: { id: string }
-      booking_id?: string
-      redirect_url?: string
-      fawry_reference_number?: string
-      free?: boolean
-    }
+    const data = result!
 
-    if (data?.free || !data?.redirect_url) {
-      // Free or simulated — confirmed immediately
-      const bookingId = data?.booking_id ?? (data?.booking as { id?: string })?.id
+    // Free or simulated — confirmed immediately, no redirect needed
+    if (data.free || !data.redirect_url) {
       setIsBooked(true)
-      setNewBookingId(bookingId ?? null)
+      setNewBookingId(data.booking_id ?? null)
       setShowBookingSuccess(true)
       return
     }
 
-    if (data?.fawry_reference_number) {
-      // Fawry — show reference number
+    // Fawry — show reference number in-app, no browser needed
+    if (data.fawry_reference_number) {
       setFawryRef(data.fawry_reference_number)
-      const bookingId = data?.booking_id
-      setNewBookingId(bookingId ?? null)
+      setNewBookingId(data.booking_id ?? null)
       return
     }
 
-    if (data?.redirect_url) {
-      // Card / Apple Pay / Google Pay — open hosted payment page in browser
-      Linking.openURL(data.redirect_url).catch(() => {
-        Alert.alert('Error', 'Could not open payment page. Please try again.')
-      })
+    // Card / Apple Pay / Google Pay:
+    // Open hosted payment page in an in-app browser session.
+    // openAuthSessionAsync watches for the rawaq:// deep link — when Paymob
+    // redirects back to rawaq://payment-result?..., the browser closes
+    // automatically and returns the deep link URL to us here.
+    const browserResult = await WebBrowser.openAuthSessionAsync(
+      data.redirect_url,
+      'rawaq://',
+    )
+
+    if (browserResult.type === 'success' && browserResult.url) {
+      // Deep link intercepted — parse status from URL
+      const parsed  = new URL(browserResult.url)
+      const status  = parsed.searchParams.get('status')
+      const bId     = parsed.searchParams.get('booking_id') ?? data.booking_id ?? null
+
+      setNewBookingId(bId)
+
+      if (status === 'success') {
+        setIsBooked(true)
+        setShowBookingSuccess(true)
+      } else if (status === 'pending') {
+        // Fawry/async — show a pending message
+        Alert.alert(
+          'Payment pending',
+          'Your payment is being processed. Check your bookings tab for confirmation.',
+        )
+      } else {
+        Alert.alert('Payment failed', 'Your payment was not completed. Please try again.')
+      }
+    } else if (browserResult.type === 'cancel') {
+      // User closed the browser manually — do nothing, let them retry
     }
   }
 

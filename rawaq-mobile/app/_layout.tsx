@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { AppState, Platform } from 'react-native'
 import { Stack, useRouter, useSegments } from 'expo-router'
+import * as Linking from 'expo-linking'
 import { StatusBar } from 'expo-status-bar'
 import * as SplashScreen from 'expo-splash-screen'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
@@ -67,6 +68,24 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!loading) SplashScreen.hideAsync()
   }, [loading])
+
+  // Handle rawaq://payment-result deep link when app was backgrounded
+  // (covers the edge case where openAuthSessionAsync didn't intercept it)
+  useEffect(() => {
+    if (!user) return
+    const sub = Linking.addEventListener('url', ({ url }) => {
+      if (!url.startsWith('rawaq://payment-result')) return
+      const parsed    = new URL(url)
+      const bookingId = parsed.searchParams.get('booking_id')
+      const status    = parsed.searchParams.get('status')
+      if (bookingId && status === 'success') {
+        router.push(`/bookings/${bookingId}/ticket` as any)
+      } else if (bookingId) {
+        router.push('/(tabs)/bookings' as any)
+      }
+    })
+    return () => sub.remove()
+  }, [user])
 
   // Push notification tap → navigate to the relevant screen
   useEffect(() => {
