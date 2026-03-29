@@ -97,11 +97,22 @@ export async function POST(req: NextRequest) {
         const payload = JSON.parse(ticketMatch[1]) as TicketPayload
         const admin   = createSupabaseAdminClient()
 
+        // Normalize AI-generated category to our valid enum values
+        const VALID_CATEGORIES = ['general', 'refund', 'harassment', 'legal', 'technical'] as const
+        type ValidCategory = typeof VALID_CATEGORIES[number]
+        const rawCat = (payload.category ?? '').toLowerCase()
+        const category: ValidCategory =
+          rawCat.includes('refund')     ? 'refund'     :
+          rawCat.includes('harass')     ? 'harassment' :
+          rawCat.includes('legal')      ? 'legal'      :
+          rawCat.includes('tech')       ? 'technical'  :
+          VALID_CATEGORIES.includes(rawCat as ValidCategory) ? (rawCat as ValidCategory) : 'general'
+
         const { data: row, error: dbErr } = await (admin as any)
           .from('support_tickets')
           .insert({
             user_id:     ctx.userId,
-            category:    payload.category ?? 'general',
+            category,
             subject:     (payload.subject  ?? 'Support request').slice(0, 200),
             description: (payload.description ?? '').slice(0, 2000),
             status:      'open',
