@@ -1,11 +1,22 @@
 import { Tabs } from 'expo-router'
-import { Platform } from 'react-native'
+import { Platform, View, Text, StyleSheet } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useLocale } from '@/contexts/locale-context'
+import { useNotifications } from '@/contexts/notification-context'
 import { Colors } from '@/theme'
+
+function NotifBadge({ count }: { count: number }) {
+  if (count <= 0) return null
+  return (
+    <View style={styles.badge}>
+      <Text style={styles.badgeText}>{count > 99 ? '99+' : String(count)}</Text>
+    </View>
+  )
+}
 
 export default function TabsLayout() {
   const { t } = useLocale()
+  const { unreadCount } = useNotifications()
 
   return (
     <Tabs
@@ -28,11 +39,11 @@ export default function TabsLayout() {
         headerTintColor: Colors.gray[900],
       }}
     >
-      {/* ── Visible tabs (4) ─────────────────────────────────── */}
+      {/* ── Visible tabs ────────────────────────────────────── */}
       <Tabs.Screen
         name="home"
         options={{
-          headerShown: false,   // Home manages its own header with safe-area pill
+          headerShown: false,
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'home' : 'home-outline'} size={24} color={color} />
           ),
@@ -58,6 +69,18 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="notifications"
+        options={{
+          title: 'Notifications',
+          tabBarIcon: ({ color, focused }) => (
+            <View>
+              <Ionicons name={focused ? 'notifications' : 'notifications-outline'} size={24} color={color} />
+              <NotifBadge count={unreadCount} />
+            </View>
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="profile"
         options={{
           title: t('tab.profile'),
@@ -67,7 +90,7 @@ export default function TabsLayout() {
         }}
       />
 
-      {/* ── Hidden routes (still navigable, not shown in tab bar) ── */}
+      {/* ── Hidden routes ───────────────────────────────────── */}
       <Tabs.Screen name="index"        options={{ href: null }} />
       <Tabs.Screen name="events/index" options={{ href: null }} />
       <Tabs.Screen name="feed"         options={{ href: null }} />
@@ -75,3 +98,19 @@ export default function TabsLayout() {
     </Tabs>
   )
 }
+
+const styles = StyleSheet.create({
+  badge: {
+    position: 'absolute',
+    top: -4,
+    right: -8,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: Colors.brand[500],
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 3,
+  },
+  badgeText: { fontSize: 10, fontWeight: '700', color: '#fff' },
+})
