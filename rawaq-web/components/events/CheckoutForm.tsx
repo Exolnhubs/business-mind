@@ -1,10 +1,12 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Spinner } from '@/components/ui/Spinner'
 import { formatCurrency } from '@/lib/utils'
 import type { TicketType, PromoValidationResult } from '@/types/database'
+import { PaymentMethodSelector } from './PaymentMethodSelector'
+import type { PaymentOption } from '@/lib/gateways/types'
 
 // ── Ticket selector ──────────────────────────────────────────────────────────
 function TicketSelector({
@@ -80,9 +82,9 @@ function PromoInput({
   onApplied: (r: PromoValidationResult) => void
   onCleared: () => void
 }) {
-  const [code,   setCode]              = useState('')
-  const [result, setResult]            = useState<PromoValidationResult | null>(null)
-  const [pending, startTransition]     = useTransition()
+  const [code,   setCode]          = useState('')
+  const [result, setResult]        = useState<PromoValidationResult | null>(null)
+  const [pending, startTransition] = useTransition()
 
   function validate() {
     if (!code.trim()) return
@@ -183,6 +185,20 @@ function PriceBreakdown({
   )
 }
 
+// ── Fawry payment reference card ─────────────────────────────────────────────
+function FawryReferenceCard({ reference }: { reference: string }) {
+  return (
+    <div className="rounded-xl border-2 border-orange-300 bg-orange-50 p-4 space-y-2 text-center">
+      <p className="text-xs font-semibold text-orange-700 uppercase tracking-wide">Fawry Reference</p>
+      <p className="text-2xl font-mono font-bold text-orange-800 tracking-widest">{reference}</p>
+      <p className="text-xs text-orange-600">
+        Pay at any Fawry outlet, ATM, or kiosk using this reference number.
+        Your ticket will be confirmed once payment is received.
+      </p>
+    </div>
+  )
+}
+
 // ── Main checkout form ───────────────────────────────────────────────────────
 interface CheckoutFormProps {
   eventId: string
@@ -207,20 +223,37 @@ export function CheckoutForm({
 }: CheckoutFormProps) {
   const router = useRouter()
 
-  const hasTypes          = ticketTypes.length > 0
-  const [selectedTypeId, setSelectedTypeId] = useState<string | null>(preSelectedTypeId)
-  const selectedType      = ticketTypes.find((t) => t.id === selectedTypeId) ?? null
+  const hasTypes = ticketTypes.length > 0
+  const [selectedTypeId,    setSelectedTypeId]   = useState<string | null>(preSelectedTypeId)
+  const selectedType = ticketTypes.find((t) => t.id === selectedTypeId) ?? null
 
-  const [promo,           setPromo]         = useState<PromoValidationResult | null>(null)
-  const [loading,         setLoading]       = useState(false)
-  const [error,           setError]         = useState<string | null>(null)
-  const [needsProfile,    setNeedsProfile]  = useState(false)
-  const [booked,          setBooked]        = useState(false)
+  const [promo,          setPromo]         = useState<PromoValidationResult | null>(null)
+  const [loading,        setLoading]       = useState(false)
+  const [error,          setError]         = useState<string | null>(null)
+  const [needsProfile,   setNeedsProfile]  = useState(false)
+  const [booked,         setBooked]        = useState(false)
+  const [fawryRef,       setFawryRef]      = useState<string | null>(null)
 
-  const basePrice     = selectedType ? selectedType.price : (eventPrice ?? 0)
+  // Payment method options fetched from API
+  const [paymentOptions,  setPaymentOptions] = useState<PaymentOption[]>([])
+  const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch(`/api/payments/options?currency=${encodeURIComponent(currency)}`)
+      .then((r) => r.json())
+      .then((j) => {
+        const opts: PaymentOption[] = j.data ?? j
+        setPaymentOptions(opts)
+        if (opts.length > 0) setSelectedOptionId(opts[0].id)
+      })
+      .catch(() => {})
+  }, [currency])
+
+  const basePrice     = selectedType ? selectedType.price  : (eventPrice ?? 0)
   const isFreeTicket  = selectedType ? selectedType.is_free : isFree
   const discountAmt   = promo?.discount_amount ?? 0
   const total         = Math.max(0, basePrice - discountAmt)
+  const isPaid        = !isFreeTicket && total > 0
 
   async function confirmBooking() {
     if (!isLoggedIn) { router.push('/login'); return }
@@ -229,37 +262,74 @@ export function CheckoutForm({
     setNeedsProfile(false)
     setLoading(true)
 
-    const res = await fetch('/api/bookings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        event_id:       eventId,
-        ticket_type_id: selectedTypeId ?? null,
-        promo_code:     promo?.valid ? promo.code : null,
-      }),
-    })
+    try {
+      const res = await fetch('/api/payments/initiate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event_id:          eventId,
+          ticket_type_id:    selectedTypeId ?? null,
+          promo_code:        promo?.valid ? promo.code : null,
+          payment_option_id: selectedOptionId ?? 'simulated',
+        }),
+      })
 
-    if (res.ok) {
-      setBooked(true)
-    } else {
       const json = await res.json().catch(() => ({}))
-      const msg: string = json.error ?? json.message ?? 'Failed to book event.'
-      if (msg.toLowerCase().includes('complete your profile')) setNeedsProfile(true)
-      else setError(msg)
+
+      if (!res.ok) {
+        const msg: string = json.error ?? json.message ?? 'Failed to book event.'
+        if (msg.toLowerCase().includes('complete your profile')) setNeedsProfile(true)
+        else setError(msg)
+        return
+      }
+
+      const data = json.data ?? json
+
+      if (data.free) {
+        // Free booking — confirmed immediately
+        setBooked(true)
+        return
+      }
+
+      if (data.fawry_reference_number) {
+        // Fawry — show reference number to user
+        setFawryRef(data.fawry_reference_number)
+        return
+      }
+
+      if (data.redirect_url) {
+        // Card / Apple Pay / Google Pay — redirect to hosted payment page
+        window.location.href = data.redirect_url
+        return
+      }
+
+      // Simulated paid — also confirmed immediately
+      setBooked(true)
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
+  // ── Fawry reference display ────────────────────────────────────────────────
+  if (fawryRef) {
+    return (
+      <div className="space-y-4">
+        <FawryReferenceCard reference={fawryRef} />
+        <button onClick={() => router.push(`/events/${eventId}`)} className="w-full btn-primary">
+          Back to Event
+        </button>
+      </div>
+    )
+  }
+
+  // ── Booking confirmed ──────────────────────────────────────────────────────
   if (booked) {
     return (
       <div className="text-center space-y-4 py-6">
         <div className="text-5xl">🎉</div>
         <h2 className="text-xl font-bold text-gray-900">You&apos;re in!</h2>
         <p className="text-gray-500 text-sm">Your booking for <strong>{eventTitle}</strong> has been confirmed.</p>
-        <button
-          onClick={() => router.push(`/events/${eventId}`)}
-          className="btn-primary"
-        >
+        <button onClick={() => router.push(`/events/${eventId}`)} className="btn-primary">
           View Event
         </button>
       </div>
@@ -287,13 +357,22 @@ export function CheckoutForm({
         />
       )}
 
-      {/* Price breakdown — always show when a type is selected or no types (single price) */}
+      {/* Price breakdown */}
       {(!hasTypes || selectedType) && (
         <PriceBreakdown
           basePrice={isFreeTicket ? 0 : basePrice}
           discountAmount={discountAmt}
           currency={currency}
           promoCode={promo?.valid ? promo.code : null}
+        />
+      )}
+
+      {/* Payment method selector — only for paid tickets */}
+      {isPaid && paymentOptions.length > 1 && (
+        <PaymentMethodSelector
+          options={paymentOptions}
+          selected={selectedOptionId}
+          onSelect={setSelectedOptionId}
         />
       )}
 
@@ -315,10 +394,10 @@ export function CheckoutForm({
       >
         {loading ? (
           <Spinner size="sm" />
-        ) : !hasTypes || isFreeTicket ? (
+        ) : !hasTypes || isFreeTicket || total === 0 ? (
           'Confirm Booking — Free'
         ) : (
-          `Confirm Booking — ${formatCurrency(total, currency)}`
+          `Pay ${formatCurrency(total, currency)}`
         )}
       </button>
 
@@ -326,6 +405,22 @@ export function CheckoutForm({
         <p className="text-center text-xs text-gray-500">
           You&apos;ll be asked to log in before completing your booking.
         </p>
+      )}
+
+      {isPaid && (
+        <div className="flex items-center justify-center gap-4 pt-1">
+          <p className="text-xs text-gray-400 flex items-center gap-1">
+            <span>🔒</span> Secured payment
+          </p>
+          <p className="text-xs text-gray-400 flex items-center gap-1">
+            <span>💳</span> Visa · Mastercard
+          </p>
+          {currency === 'EGP' && (
+            <p className="text-xs text-gray-400 flex items-center gap-1">
+              <span>🏪</span> Fawry
+            </p>
+          )}
+        </div>
       )}
     </div>
   )
