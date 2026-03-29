@@ -20,14 +20,14 @@ export async function GET(
     const ctx            = await requireAuth()
     const admin          = createSupabaseAdminClient()
 
-    const { data: booking, error } = await admin
+    const { data: booking, error } = await (admin as any)
       .from('bookings')
-      .select('id, status, payment_pending_until, event_id, ticket_type_id, created_at')
+      .select('id, user_id, status, payment_pending_until, event_id, ticket_type_id, created_at')
       .eq('id', bookingId)
       .single()
 
     if (error || !booking) throw new NotFoundException('Booking')
-    if ((booking as any).user_id !== ctx.userId) throw new ForbiddenException('Not your booking')
+    if (booking.user_id !== ctx.userId) throw new ForbiddenException('Not your booking')
 
     // Fetch latest payment transaction for this booking
     const { data: tx } = await (admin as any)
@@ -39,10 +39,10 @@ export async function GET(
       .single()
 
     return ok({
-      booking_id:    booking.id,
-      booking_status: booking.status,
-      payment_pending_until: (booking as any).payment_pending_until,
-      transaction:   tx ?? null,
+      booking_id:            booking.id,
+      booking_status:        booking.status,
+      payment_pending_until: booking.payment_pending_until,
+      transaction:           tx ?? null,
     })
   } catch (err) {
     return handleApiError(err)
