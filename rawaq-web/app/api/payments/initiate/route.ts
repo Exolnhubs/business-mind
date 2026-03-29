@@ -146,14 +146,28 @@ export async function POST(req: NextRequest) {
       platformFeeAmount = round2(effectivePrice * platformFeePct)
     }
 
-    // ── Check / reactivate existing cancelled booking ─────────────────────────
+    // ── Check / reactivate existing cancelled or abandoned-pending booking ──────
+    // A booking stays 'pending' if the user abandoned the payment (network drop,
+    // closed the browser, etc.). The cron job expires it after payment_pending_until,
+    // but until then a fresh attempt must reuse the same row — the UNIQUE (user_id,
+    // event_id) constraint would reject a new INSERT otherwise.
     const { data: existing } = await admin
       .from('bookings')
-      .select('id')
+      .select('id, status')
       .eq('user_id', ctx.userId)
       .eq('event_id', input.event_id)
-      .eq('status', 'cancelled')
+      .in('status', ['cancelled', 'pending'])
       .maybeSingle()
+
+    // If reactivating an abandoned pending booking, void the orphaned payment
+    // transaction so the audit trail stays clean (it never succeeded).
+    if (existing?.status === 'pending') {
+      await (admin as any)
+        .from('payment_transactions')
+        .update({ status: 'failed', failure_reason: 'superseded_by_new_attempt' })
+        .eq('booking_id', existing.id)
+        .eq('status', 'pending')
+    }
 
     // For free bookings → status 'confirmed' immediately (same as before)
     // For paid bookings → status 'pending' until webhook fires

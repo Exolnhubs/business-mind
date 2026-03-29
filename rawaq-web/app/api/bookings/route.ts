@@ -176,13 +176,15 @@ export async function POST(req: NextRequest) {
       platformFeeAmount = Math.round(effectivePrice * platformFeePct * 100) / 100
     }
 
-    // ── Check for existing cancelled booking to reactivate ─────────────────
+    // ── Check for existing cancelled or abandoned-pending booking to reactivate ─
+    // Reuse the row instead of inserting — the UNIQUE (user_id, event_id)
+    // constraint rejects a new INSERT if a pending/cancelled row already exists.
     const { data: existing } = await supabase
       .from('bookings')
-      .select('id')
+      .select('id, status')
       .eq('user_id', ctx.userId)
       .eq('event_id', input.event_id)
-      .eq('status', 'cancelled')
+      .in('status', ['cancelled', 'pending'])
       .maybeSingle()
 
     const bookingFields = {
