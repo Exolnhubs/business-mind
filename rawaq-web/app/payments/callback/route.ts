@@ -20,7 +20,9 @@ import { verifyPaymobHmac } from '@/lib/gateways/paymob'
 
 export async function GET(req: NextRequest) {
   const p      = req.nextUrl.searchParams
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? ''
+  // Derive origin from the request itself so this works on any domain
+  // without needing NEXT_PUBLIC_APP_URL set correctly in every environment
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || req.nextUrl.origin
 
   const bookingId = p.get('merchant_order_id')
   const success   = p.get('success')   === 'true'
