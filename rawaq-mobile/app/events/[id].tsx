@@ -30,6 +30,8 @@ export default function EventDetailScreen() {
   const [isBooked, setIsBooked]       = useState(false)
   const [onWaitlist, setOnWaitlist]   = useState(false)
   const [bookingLoading, setBL]       = useState(false)
+  const [newBookingId, setNewBookingId] = useState<string | null>(null)
+  const [showBookingSuccess, setShowBookingSuccess] = useState(false)
   // Ticket type selection
   const [selectedTypeId, setSelectedTypeId] = useState<string | null>(null)
   // Promo code
@@ -227,7 +229,7 @@ export default function EventDetailScreen() {
 
     const promoCode = promoResult?.valid ? (promoResult.promo_code_id ?? null) : null
 
-    const { error: bookErr } = await apiPost('/api/bookings', {
+    const { data: bookingData, error: bookErr } = await apiPost<{ id: string; ticket_id?: string }>('/api/bookings', {
       event_id:       id as string,
       ticket_type_id: selectedTypeId ?? null,
       promo_code:     promoCode,
@@ -240,6 +242,8 @@ export default function EventDetailScreen() {
     }
 
     setIsBooked(true)
+    setNewBookingId((bookingData as { id: string } | null)?.id ?? null)
+    setShowBookingSuccess(true)
     setBL(false)
   }
 
@@ -519,6 +523,28 @@ export default function EventDetailScreen() {
           </View>
         )}
 
+        {/* Booking success banner */}
+        {showBookingSuccess && newBookingId && (
+          <View style={styles.successBanner}>
+            <Text style={styles.successTitle}>✅ Booking confirmed!</Text>
+            <Text style={styles.successSub}>Your spot is reserved for {event.title}.</Text>
+            <View style={styles.successActions}>
+              <TouchableOpacity
+                style={styles.successBtn}
+                onPress={() => router.push(`/bookings/${newBookingId}/ticket` as any)}
+              >
+                <Text style={styles.successBtnText}>🎟️ View Ticket</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.successDismiss}
+                onPress={() => setShowBookingSuccess(false)}
+              >
+                <Text style={styles.successDismissText}>Got it</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         {/* Tip organizer */}
         {isBooked && !tipDone && (
           <TouchableOpacity style={styles.tipToggle} onPress={() => setShowTip((v) => !v)}>
@@ -732,6 +758,14 @@ const styles = StyleSheet.create({
   promoMsg: { fontSize: FontSize.xs, fontWeight: FontWeight.medium },
   promoMsgOk: { color: '#16a34a' },
   promoMsgErr: { color: '#dc2626' },
+  successBanner: { margin: Spacing.lg, backgroundColor: '#f0fdf4', borderRadius: Radius.lg, padding: Spacing.lg, borderWidth: 1, borderColor: '#bbf7d0', ...Shadow.card },
+  successTitle: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: '#15803d', marginBottom: 4 },
+  successSub: { fontSize: FontSize.sm, color: '#166534', marginBottom: Spacing.md },
+  successActions: { flexDirection: 'row', gap: Spacing.md },
+  successBtn: { flex: 1, backgroundColor: '#16a34a', borderRadius: Radius.md, paddingVertical: Spacing.sm + 2, alignItems: 'center' },
+  successBtnText: { color: Colors.white, fontWeight: FontWeight.semibold, fontSize: FontSize.sm },
+  successDismiss: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2, alignItems: 'center', justifyContent: 'center' },
+  successDismissText: { fontSize: FontSize.sm, color: '#166534' },
   tipToggle: { alignItems: 'center', marginBottom: Spacing.lg },
   tipToggleText: { color: Colors.brand[600], fontWeight: FontWeight.medium, fontSize: FontSize.sm },
   tipPanel: { backgroundColor: Colors.white, borderRadius: Radius.lg, padding: Spacing.lg, marginBottom: Spacing.xl, ...Shadow.card },
