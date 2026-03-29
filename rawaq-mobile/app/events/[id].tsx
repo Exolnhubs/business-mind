@@ -307,17 +307,7 @@ export default function EventDetailScreen() {
 
   return (
     <>
-    <Stack.Screen options={{
-      headerLeft: () => (
-        <TouchableOpacity
-          onPress={router.back}
-          style={{ marginLeft: -4, backgroundColor: 'rgba(0,0,0,0.30)', borderRadius: 20, padding: 6 }}
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-        >
-          <Ionicons name="chevron-back" size={22} color="#fff" />
-        </TouchableOpacity>
-      ),
-    }} />
+    <Stack.Screen options={{ headerShown: false }} />
     <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       {/* Cover hero */}
       <View style={styles.hero}>
@@ -326,6 +316,14 @@ export default function EventDetailScreen() {
         ) : (
           <Text style={styles.heroEmoji}>{event.category?.icon ?? '📅'}</Text>
         )}
+        {/* Floating back button — sits on top of the hero image */}
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.heroBack}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons name="chevron-back" size={22} color="#fff" />
+        </TouchableOpacity>
         <View style={styles.heroBadges}>
           {event.is_free && <Badge label="Free" variant="green" />}
           {event.is_family_friendly && <Badge label="Family" variant="blue" />}
@@ -722,6 +720,17 @@ const styles = StyleSheet.create({
   hero: { height: 180, backgroundColor: Colors.brand[100], justifyContent: 'center', alignItems: 'center', position: 'relative' },
   heroImage: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%' },
   heroEmoji: { fontSize: 72 },
+  heroBack: {
+    position: 'absolute',
+    top: 48,
+    left: Spacing.lg,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0,0,0,0.40)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   heroBadges: { position: 'absolute', bottom: Spacing.md, left: Spacing.md, flexDirection: 'row', gap: Spacing.xs },
   body: { padding: Spacing.lg },
   title: { fontSize: FontSize['2xl'], fontWeight: FontWeight.bold, color: Colors.gray[900], marginBottom: Spacing.xs },

@@ -1,23 +1,33 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import {
   View, Text, StyleSheet, ScrollView, TextInput,
   TouchableOpacity, ActivityIndicator, Alert, Switch,
-  KeyboardAvoidingView, Platform, Image,
+  KeyboardAvoidingView, Platform, Image, Modal, FlatList,
 } from 'react-native'
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { supabase } from '@/lib/supabase'
 import { uploadViaApi } from '@/lib/upload'
 import { useAuth } from '@/contexts/auth-context'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
 
 const CITIES = ['Riyadh', 'Jeddah', 'Dammam', 'Mecca', 'Medina', 'Khobar', 'Tabuk', 'Abha', 'Taif']
+const TEMPLATES_KEY = 'rawaq_ticket_templates'
 
 interface Category { id: string; name_en: string; icon: string | null }
 type TicketDraft = { name: string; is_free: boolean; price: string; capacity: string }
+type TicketTemplate = TicketDraft & { id: string }
 
 const EMPTY_TICKET: TicketDraft = { name: '', is_free: true, price: '', capacity: '' }
+
+const BUILTIN_TEMPLATES: TicketTemplate[] = [
+  { id: '_general',   name: 'General Admission', is_free: true,  price: '',    capacity: '' },
+  { id: '_vip',       name: 'VIP',               is_free: false, price: '100', capacity: '' },
+  { id: '_earlybird', name: 'Early Bird',         is_free: false, price: '25',  capacity: '50' },
+  { id: '_premium',   name: 'Premium',            is_free: false, price: '200', capacity: '' },
+]
 
 export default function EventFormScreen() {
   const { user }   = useAuth()
@@ -60,6 +70,44 @@ export default function EventFormScreen() {
 
   // Ticket types (create wizard only)
   const [tickets, setTickets] = useState<TicketDraft[]>([{ ...EMPTY_TICKET, name: 'General Admission' }])
+
+  // Ticket templates
+  const [templates, setTemplates]       = useState<TicketTemplate[]>([])
+  const [showTemplates, setShowTemplates] = useState(false)
+
+  const loadTemplates = useCallback(async () => {
+    try {
+      const raw = await AsyncStorage.getItem(TEMPLATES_KEY)
+      const saved: TicketTemplate[] = raw ? JSON.parse(raw) : []
+      setTemplates(saved)
+    } catch {}
+  }, [])
+
+  async function saveAsTemplate(ticket: TicketDraft) {
+    if (!ticket.name.trim()) {
+      Alert.alert('Name required', 'Give the ticket type a name before saving as template.')
+      return
+    }
+    const newTpl: TicketTemplate = { ...ticket, id: Date.now().toString() }
+    const updated = [...templates, newTpl]
+    setTemplates(updated)
+    await AsyncStorage.setItem(TEMPLATES_KEY, JSON.stringify(updated))
+    Alert.alert('Saved', `"${ticket.name}" saved as a template.`)
+  }
+
+  async function deleteTemplate(id: string) {
+    const updated = templates.filter((t) => t.id !== id)
+    setTemplates(updated)
+    await AsyncStorage.setItem(TEMPLATES_KEY, JSON.stringify(updated))
+  }
+
+  function applyTemplate(tpl: TicketTemplate) {
+    const { id: _id, ...draft } = tpl
+    setTickets((prev) => [...prev, { ...draft }])
+    setShowTemplates(false)
+  }
+
+  useEffect(() => { loadTemplates() }, [loadTemplates])
 
   useEffect(() => {
     async function init() {
@@ -511,15 +559,25 @@ export default function EventFormScreen() {
           <>
             <Text style={styles.stepHint}>Define pricing tiers. Add multiple types like Early Bird, General, VIP.</Text>
 
+            {/* Template picker row */}
+            <TouchableOpacity style={styles.templatePickerBtn} onPress={() => setShowTemplates(true)}>
+              <Text style={styles.templatePickerBtnText}>📋  Add from template</Text>
+            </TouchableOpacity>
+
             {tickets.map((t, i) => (
               <View key={i} style={styles.ticketCard}>
                 <View style={styles.ticketCardHeader}>
                   <Text style={styles.ticketCardTitle}>Ticket Type {i + 1}</Text>
-                  {tickets.length > 1 && (
-                    <TouchableOpacity onPress={() => setTickets((prev) => prev.filter((_, idx) => idx !== i))}>
-                      <Text style={styles.removeText}>Remove</Text>
+                  <View style={{ flexDirection: 'row', gap: Spacing.sm, alignItems: 'center' }}>
+                    <TouchableOpacity onPress={() => saveAsTemplate(t)}>
+                      <Text style={styles.saveTemplateText}>Save as template</Text>
                     </TouchableOpacity>
-                  )}
+                    {tickets.length > 1 && (
+                      <TouchableOpacity onPress={() => setTickets((prev) => prev.filter((_, idx) => idx !== i))}>
+                        <Text style={styles.removeText}>Remove</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 </View>
 
                 <Field label="Name *">
@@ -544,7 +602,7 @@ export default function EventFormScreen() {
             ))}
 
             <TouchableOpacity onPress={() => setTickets((prev) => [...prev, { ...EMPTY_TICKET }])} style={styles.addTypeBtn}>
-              <Text style={styles.addTypeBtnText}>+ Add another ticket type</Text>
+              <Text style={styles.addTypeBtnText}>+ Add blank ticket type</Text>
             </TouchableOpacity>
 
             {error && <View style={styles.errorBox}><Text style={styles.errorText}>{error}</Text></View>}
@@ -607,6 +665,60 @@ export default function EventFormScreen() {
         )}
 
       </ScrollView>
+
+      {/* ── Ticket template picker modal ── */}
+      <Modal visible={showTemplates} animationType="slide" transparent onRequestClose={() => setShowTemplates(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Ticket Templates</Text>
+              <TouchableOpacity onPress={() => setShowTemplates(false)}>
+                <Text style={styles.modalClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <FlatList
+              data={[...BUILTIN_TEMPLATES, ...templates]}
+              keyExtractor={(item) => item.id}
+              ListHeaderComponent={() => (
+                <Text style={styles.templateSectionLabel}>
+                  {templates.length > 0 ? 'Built-in & saved' : 'Built-in templates'}
+                </Text>
+              )}
+              ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: Colors.gray[100] }} />}
+              renderItem={({ item }) => {
+                const isCustom = !item.id.startsWith('_')
+                return (
+                  <TouchableOpacity style={styles.templateRow} onPress={() => applyTemplate(item)}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.templateName}>{item.name}</Text>
+                      <Text style={styles.templateMeta}>
+                        {item.is_free ? 'Free' : `SAR ${item.price}`}
+                        {item.capacity ? `  ·  ${item.capacity} cap` : '  ·  Unlimited'}
+                      </Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', gap: Spacing.sm, alignItems: 'center' }}>
+                      {isCustom && (
+                        <TouchableOpacity
+                          onPress={() => Alert.alert('Delete template', `Remove "${item.name}"?`, [
+                            { text: 'Cancel', style: 'cancel' },
+                            { text: 'Delete', style: 'destructive', onPress: () => deleteTemplate(item.id) },
+                          ])}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                          <Text style={styles.templateDeleteText}>🗑</Text>
+                        </TouchableOpacity>
+                      )}
+                      <Text style={styles.templateAdd}>+ Add</Text>
+                    </View>
+                  </TouchableOpacity>
+                )
+              }}
+            />
+          </View>
+        </View>
+      </Modal>
+
     </KeyboardAvoidingView>
   )
 }
@@ -702,4 +814,22 @@ const styles = StyleSheet.create({
   // Error
   errorBox:            { backgroundColor: '#fef2f2', borderWidth: 1, borderColor: '#fecaca', borderRadius: Radius.md, padding: Spacing.md, marginBottom: Spacing.lg },
   errorText:           { fontSize: FontSize.sm, color: '#b91c1c' },
+
+  // Template
+  saveTemplateText:    { fontSize: FontSize.xs, color: Colors.brand[500], fontWeight: FontWeight.semibold },
+  templatePickerBtn:   { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: Colors.brand[300], borderRadius: Radius.lg, paddingVertical: Spacing.sm + 2, paddingHorizontal: Spacing.lg, marginBottom: Spacing.lg, backgroundColor: Colors.brand[50] },
+  templatePickerBtnText: { fontSize: FontSize.sm, color: Colors.brand[600], fontWeight: FontWeight.semibold },
+  templateSectionLabel: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.gray[500], textTransform: 'uppercase', letterSpacing: 0.5, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm },
+
+  // Template modal
+  modalOverlay:        { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' },
+  modalSheet:          { backgroundColor: Colors.white, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '70%', paddingBottom: 32 },
+  modalHeader:         { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: Spacing.lg, borderBottomWidth: 1, borderBottomColor: Colors.gray[100] },
+  modalTitle:          { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.gray[900] },
+  modalClose:          { fontSize: 18, color: Colors.gray[500], padding: 4 },
+  templateRow:         { flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.md, paddingHorizontal: Spacing.lg },
+  templateName:        { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[900] },
+  templateMeta:        { fontSize: FontSize.xs, color: Colors.gray[400], marginTop: 2 },
+  templateAdd:         { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.brand[600] },
+  templateDeleteText:  { fontSize: 16 },
 })
