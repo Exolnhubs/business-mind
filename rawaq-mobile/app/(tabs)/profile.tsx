@@ -23,6 +23,7 @@ const Notifications = IS_ANDROID_EXPO_GO ? null : (require('expo-notifications')
 import { useAuth } from '@/contexts/auth-context'
 import { useLocale } from '@/contexts/locale-context'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
+import { apiGet, apiPost } from '@/lib/api'
 
 if (Notifications) {
   Notifications.setNotificationHandler({
@@ -65,6 +66,14 @@ export default function ProfileScreen() {
   const [emailChanging, setEmailChanging] = useState(false)
   const [emailMsg, setEmailMsg]       = useState<{ ok: boolean; text: string } | null>(null)
 
+  // Organizer request
+  const [orgRequest, setOrgRequest]         = useState<{ id: string; status: string; business_name: string } | null | undefined>(undefined) // undefined = loading
+  const [showOrgForm, setShowOrgForm]       = useState(false)
+  const [businessName, setBusinessName]     = useState('')
+  const [orgDesc, setOrgDesc]               = useState('')
+  const [orgSubmitting, setOrgSubmitting]   = useState(false)
+  const [orgMsg, setOrgMsg]                 = useState<{ ok: boolean; text: string } | null>(null)
+
   // Populate form from profile
   useEffect(() => {
     if (!profile) return
@@ -85,6 +94,11 @@ export default function ProfileScreen() {
       .single()
       .then(({ data }) => setPushEnabled(!!data))
   }, [user])
+
+  useEffect(() => {
+    if (!profile || profile.role !== 'user') return
+    apiGet<{ id: string; status: string; business_name: string }>('/api/organizer/request').then(({ data }) => setOrgRequest(data))
+  }, [profile])
 
   async function pickAndUploadAvatar() {
     if (!user) return
@@ -219,6 +233,24 @@ export default function ProfileScreen() {
     }
 
     setPushLoading(false)
+  }
+
+  async function submitOrgRequest() {
+    if (!businessName.trim()) return
+    setOrgSubmitting(true)
+    setOrgMsg(null)
+    const { data, error } = await apiPost<{ id: string; status: string; business_name: string }>('/api/organizer/request', {
+      business_name: businessName.trim(),
+      description:   orgDesc.trim() || null,
+    })
+    if (error) {
+      setOrgMsg({ ok: false, text: error })
+    } else {
+      setOrgRequest(data)
+      setShowOrgForm(false)
+      setOrgMsg({ ok: true, text: 'Request submitted! Our team will review it shortly.' })
+    }
+    setOrgSubmitting(false)
   }
 
   async function handleSignOut() {
@@ -494,6 +526,95 @@ export default function ProfileScreen() {
             }
           </View>
         </View>
+
+        {/* Become an Organizer */}
+        {profile?.role === 'user' && orgRequest !== undefined && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Organizer</Text>
+
+            {orgRequest?.status === 'pending' ? (
+              <View style={styles.row}>
+                <View style={styles.rowLeft}>
+                  <Text style={styles.rowIcon}>⏳</Text>
+                  <View>
+                    <Text style={styles.rowLabel}>Application Pending</Text>
+                    <Text style={[styles.rowValue, { fontSize: 11 }]}>
+                      Under review — we'll notify you when approved
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            ) : (
+              <>
+                <TouchableOpacity
+                  style={styles.row}
+                  onPress={() => { setShowOrgForm((v) => !v); setOrgMsg(null) }}
+                >
+                  <View style={styles.rowLeft}>
+                    <Text style={styles.rowIcon}>🏢</Text>
+                    <View>
+                      <Text style={styles.rowLabel}>Become an Organizer</Text>
+                      <Text style={[styles.rowValue, { fontSize: 11 }]}>
+                        {orgRequest?.status === 'rejected' ? 'Reapply for organizer access' : 'Host and manage events'}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={styles.rowArrow}>{showOrgForm ? '∨' : '›'}</Text>
+                </TouchableOpacity>
+
+                {showOrgForm && (
+                  <View style={{ paddingHorizontal: Spacing.lg, paddingBottom: Spacing.md }}>
+                    <View style={styles.fieldWrap}>
+                      <Text style={styles.fieldLabel}>Business / Organizer Name *</Text>
+                      <TextInput
+                        style={styles.input}
+                        value={businessName}
+                        onChangeText={setBusinessName}
+                        placeholder="e.g. Riyadh Sports Club"
+                        placeholderTextColor={Colors.gray[400]}
+                        maxLength={120}
+                      />
+                    </View>
+                    <View style={styles.fieldWrap}>
+                      <Text style={styles.fieldLabel}>About your organization (optional)</Text>
+                      <TextInput
+                        style={[styles.input, styles.inputMulti]}
+                        value={orgDesc}
+                        onChangeText={setOrgDesc}
+                        placeholder="Describe what kind of events you organize…"
+                        placeholderTextColor={Colors.gray[400]}
+                        multiline
+                        numberOfLines={3}
+                        maxLength={500}
+                      />
+                    </View>
+                    {orgMsg && (
+                      <View style={[styles.msgBox, orgMsg.ok ? styles.msgOk : styles.msgErr, { marginHorizontal: 0, marginTop: 0 }]}>
+                        <Text style={orgMsg.ok ? styles.msgOkText : styles.msgErrText}>{orgMsg.text}</Text>
+                      </View>
+                    )}
+                    <TouchableOpacity
+                      style={[styles.saveBtn, { marginHorizontal: 0, marginTop: Spacing.md }, (!businessName.trim() || orgSubmitting) && styles.saveBtnDisabled]}
+                      onPress={submitOrgRequest}
+                      disabled={!businessName.trim() || orgSubmitting}
+                    >
+                      {orgSubmitting
+                        ? <ActivityIndicator color={Colors.white} />
+                        : <Text style={styles.saveBtnText}>Submit Request</Text>
+                      }
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </>
+            )}
+
+            {orgMsg && orgRequest?.status === 'pending' && (
+              <View style={[styles.msgBox, styles.msgOk]}>
+                <Text style={styles.msgOkText}>{orgMsg.text}</Text>
+              </View>
+            )}
+          </View>
+        )}
 
         {/* Organizer links */}
         {profile?.role === 'organizer' && (
