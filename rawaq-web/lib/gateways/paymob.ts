@@ -152,7 +152,7 @@ export async function initiatePaymob(
   params: InitiatePaymentParams,
 ): Promise<InitiatePaymentResult> {
   const {
-    bookingId, amount, currency,
+    bookingId, transactionId, amount, currency,
     userEmail, userPhone, userFirstName, userLastName,
     eventTitle, method,
   } = params
@@ -178,8 +178,11 @@ export async function initiatePaymob(
   }
 
   // 3-step Paymob flow
+  // Use transactionId (not bookingId) as merchant_order_id so each payment
+  // attempt gets a unique order in Paymob — retrying after a failed payment
+  // reuses the same bookingId, which would cause Paymob to reject with 422.
   const token        = await authenticate()
-  const orderId      = await createOrder(token, amountCents, currency, bookingId, eventTitle)
+  const orderId      = await createOrder(token, amountCents, currency, transactionId, eventTitle)
   const paymentKey   = await getPaymentKey(token, amountCents, currency, orderId, integrationId, billingData)
 
   const redirectUrl = method === 'fawry'
