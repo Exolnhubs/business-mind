@@ -25,16 +25,25 @@ export async function GET(
       throw new ForbiddenException('You do not own this event')
     }
 
-    // Fetch all confirmed bookings with ticket_type price info
+    // Fetch all confirmed bookings
     const { data: bookings } = await admin
       .from('bookings')
-      .select(`
-        id, created_at, scanned_at, status,
-        ticket_type:ticket_types(price, is_free),
-        platform_fee_amount
-      `)
+      .select('id, created_at, scanned_at, status, ticket_type_id, platform_fee_amount')
       .eq('event_id', id)
       .eq('status', 'confirmed')
+
+    // Fetch ticket type prices in one query
+    const ticketTypeIds = [...new Set((bookings ?? []).map((b) => b.ticket_type_id).filter(Boolean))]
+    const ticketPriceMap: Record<string, { price: number; is_free: boolean }> = {}
+    if (ticketTypeIds.length > 0) {
+      const { data: ttRows } = await admin
+        .from('ticket_types')
+        .select('id, price, is_free')
+        .in('id', ticketTypeIds as string[])
+      for (const tt of ttRows ?? []) {
+        ticketPriceMap[tt.id] = { price: tt.price, is_free: tt.is_free }
+      }
+    }
 
     const confirmed = bookings ?? []
 
@@ -52,9 +61,9 @@ export async function GET(
     let gross_revenue = 0
     let platform_fees = 0
     for (const b of confirmed) {
-      const tt = b.ticket_type as { price: number; is_free: boolean } | null
+      const tt = b.ticket_type_id ? ticketPriceMap[b.ticket_type_id] : null
       if (tt && !tt.is_free) gross_revenue += tt.price
-      platform_fees += b.platform_fee_amount ?? 0
+      platform_fees += (b.platform_fee_amount as number | null) ?? 0
     }
     const net_revenue = gross_revenue - platform_fees
 
