@@ -164,8 +164,9 @@ export async function POST(req: NextRequest) {
       throw new ConflictException('You already have an active booking for this event')
     }
 
-    // If a pending/cancelled/waitlisted row exists, void any orphaned pending
-    // payment transactions so the audit trail stays clean before we reuse it.
+    // If a pending row exists, void any orphaned pending payment transactions
+    // so the audit trail stays clean before we reuse it.
+    // For cancelled rows we skip this — the transaction is already failed.
     if (anyExisting && existingStatus === 'pending') {
       await (admin as any)
         .from('payment_transactions')
@@ -213,24 +214,32 @@ export async function POST(req: NextRequest) {
     const organizerNet  = round2(effectivePrice - platformFeeAmount)
     const { gateway, method } = resolveGateway(event.currency ?? 'SAR', input.payment_option_id)
 
+    // Use upsert (INSERT … ON CONFLICT booking_id DO UPDATE) so that retrying
+    // after a failed/abandoned payment — where the booking row is reused —
+    // resets the existing transaction rather than hitting the UNIQUE(booking_id)
+    // constraint and returning a 409.
     const { data: txRow, error: txErr } = await (admin as any)
       .from('payment_transactions')
-      .insert({
-        user_id:       ctx.userId,
-        organizer_id:  event.organizer_id,
-        event_id:      event.id,
-        booking_id:    booking.id,
-        type:          'ticket',
-        status:        'pending',
-        amount:        effectivePrice,
-        platform_fee:  platformFeeAmount,
-        organizer_net: organizerNet,
-        currency:      event.currency ?? 'SAR',
+      .upsert({
+        user_id:          ctx.userId,
+        organizer_id:     event.organizer_id,
+        event_id:         event.id,
+        booking_id:       booking.id,
+        type:             'ticket',
+        status:           'pending',
+        amount:           effectivePrice,
+        platform_fee:     platformFeeAmount,
+        organizer_net:    organizerNet,
+        currency:         event.currency ?? 'SAR',
         gateway,
-        payment_method:  method,
-        is_simulated:    gateway === 'simulated',
-        gateway_payload: { source: input.source }, // track mobile vs web for callback redirect
-      })
+        payment_method:   method,
+        is_simulated:     gateway === 'simulated',
+        gateway_payload:  { source: input.source }, // track mobile vs web for callback redirect
+        // Reset gateway-specific fields so stale data from a prior attempt is cleared
+        gateway_ref:      null,
+        gateway_order_id: null,
+        failure_reason:   null,
+      }, { onConflict: 'booking_id' })
       .select('id')
       .single()
 
