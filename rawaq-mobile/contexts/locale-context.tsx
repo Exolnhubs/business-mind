@@ -243,7 +243,11 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     AsyncStorage.getItem('rawaq_locale').then((v) => {
-      if (v === 'ar' || v === 'en') setLocale(v)
+      if (v === 'ar' || v === 'en') {
+        setLocale(v)
+        // Apply RTL immediately for saved Arabic locale (takes effect after reload)
+        I18nManager.forceRTL(v === 'ar')
+      }
     })
   }, [])
 

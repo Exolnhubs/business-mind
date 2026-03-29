@@ -73,8 +73,8 @@ export async function optionalAuth(): Promise<AuthContext | null> {
 export async function requireEventOwnership(eventId: string, ctx: AuthContext): Promise<void> {
   if (ctx.role === 'admin') return // admins bypass ownership check
 
-  const supabase = await createSupabaseServerClient()
-  const { data } = await supabase
+  const admin = createSupabaseAdminClient()
+  const { data } = await admin
     .from('events')
     .select('organizer_id')
     .eq('id', eventId)

@@ -5,6 +5,7 @@ import {
 } from 'react-native'
 import { useRouter } from 'expo-router'
 import { supabase } from '@/lib/supabase'
+import { apiPatch } from '@/lib/api'
 import { useAuth } from '@/contexts/auth-context'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
 import { formatDate } from '@/lib/utils'
@@ -87,28 +88,20 @@ export default function OrganizerDashboard() {
   async function togglePublish(ev: OrgEvent) {
     if (ev.is_cancelled) return
     const next = !ev.is_published
-    const { error } = await supabase
-      .from('events')
-      .update({ is_published: next })
-      .eq('id', ev.id)
-      .eq('organizer_id', user!.id)
+    const { error } = await apiPatch(`/api/events/${ev.id}`, { is_published: next })
     if (!error) {
       setEvents((prev) => prev.map((e) => e.id === ev.id ? { ...e, is_published: next } : e))
     }
   }
 
   async function cancelEvent(ev: OrgEvent) {
-    Alert.alert('Cancel Event', `Cancel "${ev.title}"? This cannot be undone.`, [
+    Alert.alert('Cancel Event', `Cancel "${ev.title}"? This cannot be undone.\n\nAll confirmed attendees will be notified.`, [
       { text: 'Keep', style: 'cancel' },
       {
         text: 'Cancel Event',
         style: 'destructive',
         onPress: async () => {
-          const { error } = await supabase
-            .from('events')
-            .update({ is_cancelled: true, is_published: false })
-            .eq('id', ev.id)
-            .eq('organizer_id', user!.id)
+          const { error } = await apiPatch(`/api/events/${ev.id}`, { is_cancelled: true, is_published: false })
           if (!error) {
             setEvents((prev) => prev.map((e) => e.id === ev.id ? { ...e, is_cancelled: true, is_published: false } : e))
           }
@@ -240,10 +233,25 @@ export default function OrganizerDashboard() {
       <Text style={styles.sectionTitle}>Your Events</Text>
 
       {events.length === 0 ? (
-        <View style={styles.emptyCard}>
-          <Text style={{ fontSize: 40 }}>📭</Text>
-          <Text style={styles.emptyTitle}>No events yet</Text>
-          <TouchableOpacity style={styles.createBtn} onPress={() => router.push('/organizer/event-form')}>
+        <View style={styles.onboardingCard}>
+          <Text style={styles.onboardingEmoji}>🎉</Text>
+          <Text style={styles.onboardingTitle}>Welcome, organizer!</Text>
+          <Text style={styles.onboardingSub}>
+            You're all set to start creating events. Share your passion, bring people together, and grow your audience.
+          </Text>
+          <View style={styles.onboardingSteps}>
+            {[
+              { icon: '📝', text: 'Create your first event' },
+              { icon: '🎟️', text: 'Add ticket types and pricing' },
+              { icon: '📣', text: 'Publish and share with followers' },
+            ].map((step) => (
+              <View key={step.text} style={styles.onboardingStep}>
+                <Text style={styles.onboardingStepIcon}>{step.icon}</Text>
+                <Text style={styles.onboardingStepText}>{step.text}</Text>
+              </View>
+            ))}
+          </View>
+          <TouchableOpacity style={[styles.createBtn, { marginTop: Spacing.lg, paddingHorizontal: Spacing['2xl'] }]} onPress={() => router.push('/organizer/event-form')}>
             <Text style={styles.createBtnText}>Create your first event</Text>
           </TouchableOpacity>
         </View>
@@ -334,6 +342,14 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[500], textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: Spacing.sm },
   emptyCard: { backgroundColor: Colors.white, borderRadius: Radius.lg, padding: Spacing['3xl'], alignItems: 'center', gap: Spacing.md, ...Shadow.card },
   emptyTitle: { fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.gray[700] },
+  onboardingCard: { backgroundColor: Colors.white, borderRadius: Radius.xl, padding: Spacing['2xl'], alignItems: 'center', ...Shadow.card, marginBottom: Spacing.lg },
+  onboardingEmoji: { fontSize: 48, marginBottom: Spacing.sm },
+  onboardingTitle: { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.gray[900], textAlign: 'center' },
+  onboardingSub:   { fontSize: FontSize.sm, color: Colors.gray[500], textAlign: 'center', lineHeight: 20, marginTop: Spacing.sm },
+  onboardingSteps: { width: '100%', gap: Spacing.sm, marginTop: Spacing.lg },
+  onboardingStep:  { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, backgroundColor: Colors.gray[50], borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm },
+  onboardingStepIcon: { fontSize: 18 },
+  onboardingStepText: { fontSize: FontSize.sm, color: Colors.gray[700], fontWeight: FontWeight.medium },
   eventCard: { backgroundColor: Colors.white, borderRadius: Radius.lg, padding: Spacing.lg, marginBottom: Spacing.md, ...Shadow.card },
   eventRow:  { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.md },
   eventTitle: { fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.gray[900], marginBottom: 3 },

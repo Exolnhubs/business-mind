@@ -64,17 +64,16 @@ export async function PATCH(
     const body = await req.json()
     const input = UpdateEventSchema.parse(body)
 
-    const supabase = await createSupabaseServerClient()
     const adminClient = createSupabaseAdminClient()
 
     // Fetch current event state before updating (for change detection)
-    const { data: before } = await supabase
+    const { data: before } = await adminClient
       .from('events')
       .select('title, start_at, end_at, venue_name, address, city, is_published, is_cancelled, organizer_id')
       .eq('id', id)
       .single()
 
-    const { data, error } = await supabase
+    const { data, error } = await adminClient
       .from('events')
       .update(input)
       .eq('id', id)
@@ -173,10 +172,10 @@ export async function DELETE(
     const ctx = await requireAuth()
     await requireEventOwnership(id, ctx)
 
-    const supabase = await createSupabaseServerClient()
+    const adminClient = createSupabaseAdminClient()
 
     // Check for confirmed bookings — soft-cancel instead of hard delete
-    const { count } = await supabase
+    const { count } = await adminClient
       .from('bookings')
       .select('id', { count: 'exact', head: true })
       .eq('event_id', id)
@@ -188,7 +187,7 @@ export async function DELETE(
       )
     }
 
-    const { error } = await supabase.from('events').delete().eq('id', id)
+    const { error } = await adminClient.from('events').delete().eq('id', id)
     if (error) throw error
 
     return ok({ deleted: true })
