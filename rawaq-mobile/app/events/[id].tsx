@@ -3,7 +3,7 @@ import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
   ActivityIndicator, Alert, TextInput, Image,
 } from 'react-native'
-import { useLocalSearchParams, useRouter } from 'expo-router'
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '@/lib/supabase'
 import { apiPost, apiPatch } from '@/lib/api'
@@ -306,6 +306,18 @@ export default function EventDetailScreen() {
   const title = locale === 'ar' && event.title_ar ? event.title_ar : event.title
 
   return (
+    <>
+    <Stack.Screen options={{
+      headerLeft: () => (
+        <TouchableOpacity
+          onPress={router.back}
+          style={{ marginLeft: -4, backgroundColor: 'rgba(0,0,0,0.30)', borderRadius: 20, padding: 6 }}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        >
+          <Ionicons name="chevron-back" size={22} color="#fff" />
+        </TouchableOpacity>
+      ),
+    }} />
     <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       {/* Cover hero */}
       <View style={styles.hero}>
@@ -683,6 +695,7 @@ export default function EventDetailScreen() {
         </View>
       </View>
     </ScrollView>
+    </>
   )
 }
 
