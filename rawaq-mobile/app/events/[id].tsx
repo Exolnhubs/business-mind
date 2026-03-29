@@ -155,7 +155,7 @@ export default function EventDetailScreen() {
 
   async function handleBooking() {
     if (!user) { router.push('/(auth)/login'); return }
-    if (ticketTypes.length > 0 && !selectedTypeId) {
+    if (!isBooked && ticketTypes.length > 0 && !selectedTypeId) {
       Alert.alert('Select a ticket', 'Please select a ticket type to continue.')
       return
     }

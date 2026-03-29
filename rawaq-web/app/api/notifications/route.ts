@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireAuth } from '@/lib/auth'
 import { handleApiError, ok } from '@/lib/errors'
 import { ListNotificationsSchema } from '@/lib/validations/notifications'
@@ -12,10 +12,10 @@ export async function GET(req: NextRequest) {
       Object.fromEntries(req.nextUrl.searchParams)
     )
 
-    const supabase = await createSupabaseServerClient()
+    const admin = createSupabaseAdminClient()
     const from = (params.page - 1) * params.per_page
 
-    let query = supabase
+    let query = admin
       .from('notifications')
       .select('*', { count: 'exact' })
       .eq('user_id', ctx.userId)
@@ -39,9 +39,9 @@ export async function GET(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const ctx = await requireAuth()
-    const supabase = await createSupabaseServerClient()
+    const admin = createSupabaseAdminClient()
 
-    const { error } = await supabase
+    const { error } = await admin
       .from('notifications')
       .update({ is_read: true, read_at: new Date().toISOString() })
       .eq('user_id', ctx.userId)
