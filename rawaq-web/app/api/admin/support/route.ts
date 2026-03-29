@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
     const limit  = 25
     const from   = (page - 1) * limit
 
-    const { data, count } = await admin
+    const { data, count } = await (admin as any)
       .from('support_tickets')
       .select(
         `id, ticket_number, category, subject, description, status,
