@@ -25,7 +25,7 @@
 import { NextRequest } from 'next/server'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireAuth } from '@/lib/auth'
-import { handleApiError, ok, created, NotFoundException, ForbiddenException } from '@/lib/errors'
+import { handleApiError, ok, created, NotFoundException, ForbiddenException, ConflictException } from '@/lib/errors'
 import { CreateBookingSchema } from '@/lib/validations/bookings'
 import { z } from 'zod'
 import { getPaymentOptions, resolveGateway } from '@/lib/gateways/selector'
@@ -146,26 +146,31 @@ export async function POST(req: NextRequest) {
       platformFeeAmount = round2(effectivePrice * platformFeePct)
     }
 
-    // ── Check / reactivate existing cancelled or abandoned-pending booking ──────
-    // A booking stays 'pending' if the user abandoned the payment (network drop,
-    // closed the browser, etc.). The cron job expires it after payment_pending_until,
-    // but until then a fresh attempt must reuse the same row — the UNIQUE (user_id,
-    // event_id) constraint would reject a new INSERT otherwise.
-    const { data: existing } = await admin
+    // ── Resolve existing booking row (any status) ────────────────────────────
+    // The UNIQUE (user_id, event_id) constraint means there is at most one row.
+    // Fetch it unconditionally so we never attempt a blind INSERT against an
+    // existing row, which would hit the constraint regardless of status.
+    const { data: anyExisting } = await (admin as any)
       .from('bookings')
       .select('id, status')
       .eq('user_id', ctx.userId)
       .eq('event_id', input.event_id)
-      .in('status', ['cancelled', 'pending'])
       .maybeSingle()
 
-    // If reactivating an abandoned pending booking, void the orphaned payment
-    // transaction so the audit trail stays clean (it never succeeded).
-    if (existing?.status === 'pending') {
+    const existingStatus: string | null = anyExisting ? (anyExisting as any).status : null
+
+    // Block if already confirmed — the booking was paid and is active.
+    if (existingStatus === 'confirmed') {
+      throw new ConflictException('You already have an active booking for this event')
+    }
+
+    // If a pending/cancelled/waitlisted row exists, void any orphaned pending
+    // payment transactions so the audit trail stays clean before we reuse it.
+    if (anyExisting && existingStatus === 'pending') {
       await (admin as any)
         .from('payment_transactions')
         .update({ status: 'failed', failure_reason: 'superseded_by_new_attempt' })
-        .eq('booking_id', existing.id)
+        .eq('booking_id', (anyExisting as any).id)
         .eq('status', 'pending')
     }
 
@@ -186,8 +191,9 @@ export async function POST(req: NextRequest) {
     }
 
     let booking: Record<string, unknown>
-    if (existing) {
-      const { data, error } = await admin.from('bookings').update(bookingFields as any).eq('id', existing.id).select().single()
+    if (anyExisting) {
+      // Reuse the existing row — UPDATE avoids the UNIQUE constraint entirely.
+      const { data, error } = await admin.from('bookings').update(bookingFields as any).eq('id', (anyExisting as any).id).select().single()
       if (error) throw error
       booking = data as Record<string, unknown>
     } else {

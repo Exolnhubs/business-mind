@@ -176,16 +176,21 @@ export async function POST(req: NextRequest) {
       platformFeeAmount = Math.round(effectivePrice * platformFeePct * 100) / 100
     }
 
-    // ── Check for existing cancelled or abandoned-pending booking to reactivate ─
-    // Reuse the row instead of inserting — the UNIQUE (user_id, event_id)
-    // constraint rejects a new INSERT if a pending/cancelled row already exists.
-    const { data: existing } = await supabase
+    // ── Resolve existing booking row (any status) ────────────────────────────
+    // Fetch unconditionally — UNIQUE (user_id, event_id) means at most one row.
+    // Never INSERT blindly against an existing row regardless of its status.
+    const { data: anyExisting } = await (supabase as any)
       .from('bookings')
       .select('id, status')
       .eq('user_id', ctx.userId)
       .eq('event_id', input.event_id)
-      .in('status', ['cancelled', 'pending'])
       .maybeSingle()
+
+    const existingStatus: string | null = anyExisting ? (anyExisting as any).status : null
+
+    if (existingStatus === 'confirmed') {
+      throw new ForbiddenException('You already have an active booking for this event')
+    }
 
     const bookingFields = {
       status:              'confirmed',
@@ -198,9 +203,9 @@ export async function POST(req: NextRequest) {
     }
 
     let booking
-    if (existing) {
+    if (anyExisting) {
       const { data, error } = await supabase
-        .from('bookings').update(bookingFields as any).eq('id', existing.id).select().single()
+        .from('bookings').update(bookingFields as any).eq('id', (anyExisting as any).id).select().single()
       if (error) throw error
       booking = data
     } else {
