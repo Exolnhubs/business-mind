@@ -1,12 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  ActivityIndicator, Alert, TextInput, Image,
+  ActivityIndicator, Alert, TextInput, Image, Modal, Linking, Platform,
 } from 'react-native'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '@/lib/supabase'
-import { apiPost, apiPatch } from '@/lib/api'
+import { apiPost, apiPatch, apiGet } from '@/lib/api'
 import { useAuth } from '@/contexts/auth-context'
 import { useLocale } from '@/contexts/locale-context'
 import { Badge } from '@/components/ui/Badge'
@@ -14,6 +14,15 @@ import { CommentThread } from '@/components/comments/CommentThread'
 import { formatDate, formatTime, formatCurrency } from '@/lib/utils'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
 import type { EventWithOrganizer, CommentWithAuthor, TicketType } from '@/types/database'
+
+interface PaymentOption {
+  id: string
+  gateway: string
+  method: string
+  label: string
+  description: string
+  icon: string
+}
 
 const QUICK_TIPS = [5, 10, 25, 50]
 
@@ -50,6 +59,11 @@ export default function EventDetailScreen() {
   const [reportDetails, setReportDetails] = useState('')
   const [reportLoading, setReportLoading] = useState(false)
   const [reportDone, setReportDone]   = useState(false)
+  // Payment
+  const [paymentOptions,         setPaymentOptions]         = useState<PaymentOption[]>([])
+  const [selectedPaymentOptionId, setSelectedPaymentOptionId] = useState<string | null>(null)
+  const [showPaymentPicker,      setShowPaymentPicker]      = useState(false)
+  const [fawryRef,               setFawryRef]               = useState<string | null>(null)
 
   useEffect(() => {
     if (!id) return
@@ -94,6 +108,20 @@ export default function EventDetailScreen() {
       setLoading(false)
     })
   }, [id, user])
+
+  // Load payment options when event currency is known
+  useEffect(() => {
+    if (!event) return
+    const currency = event.currency ?? 'SAR'
+    apiGet<PaymentOption[]>(`/api/payments/options?currency=${encodeURIComponent(currency)}`)
+      .then(({ data }) => {
+        if (data && data.length > 0) {
+          setPaymentOptions(data)
+          setSelectedPaymentOptionId(data[0].id)
+        }
+      })
+      .catch(() => {})
+  }, [event?.currency])
 
   async function validatePromo() {
     if (!promoCode.trim() || !event) return
@@ -153,6 +181,76 @@ export default function EventDetailScreen() {
 
   const selectedType = ticketTypes.find((t) => t.id === selectedTypeId) ?? null
 
+  // Compute whether the current selection results in a paid booking
+  const computeIsPaid = useCallback((): boolean => {
+    if (!event) return false
+    const basePrice = selectedType ? selectedType.price : (event.price ?? 0)
+    const disc      = promoResult?.valid ? (promoResult.discount_amount ?? 0) : 0
+    const finalP    = Math.max(0, basePrice - disc)
+    const isFree    = selectedType ? selectedType.is_free || finalP === 0 : event.is_free || finalP === 0
+    return !isFree && finalP > 0
+  }, [event, selectedType, promoResult])
+
+  // Initiate booking (called after payment method is chosen or for free events)
+  async function initiateBooking(paymentOptionId: string) {
+    setBL(true)
+    setShowPaymentPicker(false)
+
+    const promoCodeVal = promoResult?.valid ? (promoResult.promo_code_id ?? null) : null
+
+    const { data: result, error: initErr } = await apiPost<{
+      booking?: { id: string }
+      booking_id?: string
+      redirect_url?: string
+      fawry_reference_number?: string
+      free?: boolean
+    }>('/api/payments/initiate', {
+      event_id:          id as string,
+      ticket_type_id:    selectedTypeId ?? null,
+      promo_code:        promoCodeVal,
+      payment_option_id: paymentOptionId,
+    })
+
+    setBL(false)
+
+    if (initErr) {
+      Alert.alert('Booking failed', initErr)
+      return
+    }
+
+    const data = result as {
+      booking?: { id: string }
+      booking_id?: string
+      redirect_url?: string
+      fawry_reference_number?: string
+      free?: boolean
+    }
+
+    if (data?.free || !data?.redirect_url) {
+      // Free or simulated — confirmed immediately
+      const bookingId = data?.booking_id ?? (data?.booking as { id?: string })?.id
+      setIsBooked(true)
+      setNewBookingId(bookingId ?? null)
+      setShowBookingSuccess(true)
+      return
+    }
+
+    if (data?.fawry_reference_number) {
+      // Fawry — show reference number
+      setFawryRef(data.fawry_reference_number)
+      const bookingId = data?.booking_id
+      setNewBookingId(bookingId ?? null)
+      return
+    }
+
+    if (data?.redirect_url) {
+      // Card / Apple Pay / Google Pay — open hosted payment page in browser
+      Linking.openURL(data.redirect_url).catch(() => {
+        Alert.alert('Error', 'Could not open payment page. Please try again.')
+      })
+    }
+  }
+
   async function handleBooking() {
     if (!user) { router.push('/(auth)/login'); return }
     if (!isBooked && ticketTypes.length > 0 && !selectedTypeId) {
@@ -174,77 +272,17 @@ export default function EventDetailScreen() {
       return
     }
 
-    // Profile completeness check
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('display_name, gender, city, plan_id')
-      .eq('id', user.id)
-      .single()
-
-    if (!profile?.display_name || !profile?.gender || !profile?.city) {
-      Alert.alert('Profile incomplete', 'Please complete your profile (name, gender, city) in the Profile tab before booking.')
-      setBL(false)
-      return
-    }
-
-    // Gender restriction check
-    const ev = event as EventWithOrganizer & { gender_restriction?: string | null; is_premium_only?: boolean }
-    if (ev.gender_restriction === 'male' && profile.gender !== 'male') {
-      Alert.alert('Booking failed', 'This event is for men only.')
-      setBL(false)
-      return
-    }
-    if (ev.gender_restriction === 'female' && profile.gender !== 'female') {
-      Alert.alert('Booking failed', 'This event is for women only.')
-      setBL(false)
-      return
-    }
-
-    // Premium-only check
-    if (ev.is_premium_only && (profile as { plan_id?: string }).plan_id !== 'user_premium') {
-      Alert.alert('Booking failed', 'This event is for Premium members only. Upgrade your plan to book.')
-      setBL(false)
-      return
-    }
-
-    // Ticket type availability check
-    if (selectedType) {
-      const now = new Date()
-      if (selectedType.capacity !== null && selectedType.sold_count >= selectedType.capacity) {
-        Alert.alert('Booking failed', 'This ticket type is sold out.')
-        setBL(false)
-        return
-      }
-      if (selectedType.sale_ends_at && new Date(selectedType.sale_ends_at) < now) {
-        Alert.alert('Booking failed', 'Ticket sales have ended.')
-        setBL(false)
-        return
-      }
-      if (selectedType.sale_starts_at && new Date(selectedType.sale_starts_at) > now) {
-        Alert.alert('Booking failed', 'Ticket sales have not started yet.')
-        setBL(false)
-        return
-      }
-    }
-
-    const promoCode = promoResult?.valid ? (promoResult.promo_code_id ?? null) : null
-
-    const { data: bookingData, error: bookErr } = await apiPost<{ id: string; ticket_id?: string }>('/api/bookings', {
-      event_id:       id as string,
-      ticket_type_id: selectedTypeId ?? null,
-      promo_code:     promoCode,
-    })
-
-    if (bookErr) {
-      Alert.alert('Booking failed', bookErr)
-      setBL(false)
-      return
-    }
-
-    setIsBooked(true)
-    setNewBookingId((bookingData as { id: string } | null)?.id ?? null)
-    setShowBookingSuccess(true)
     setBL(false)
+
+    // Show payment method picker for paid events with multiple options
+    const isPaid = computeIsPaid()
+    if (isPaid && paymentOptions.length > 1) {
+      setShowPaymentPicker(true)
+      return
+    }
+
+    // Free or single payment option → go straight to booking
+    await initiateBooking(selectedPaymentOptionId ?? 'simulated')
   }
 
   async function handleJoinWaitlist() {
@@ -555,6 +593,18 @@ export default function EventDetailScreen() {
           </View>
         )}
 
+        {/* Fawry payment reference */}
+        {fawryRef && (
+          <View style={styles.fawryCard}>
+            <Text style={styles.fawryTitle}>🏪 Pay with Fawry</Text>
+            <Text style={styles.fawryRef}>{fawryRef}</Text>
+            <Text style={styles.fawryDesc}>Use this reference at any Fawry outlet, ATM, or kiosk. Your ticket will be confirmed after payment.</Text>
+            <TouchableOpacity onPress={() => setFawryRef(null)} style={styles.fawryDismiss}>
+              <Text style={styles.fawryDismissText}>Got it</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* Tip organizer */}
         {isBooked && !tipDone && (
           <TouchableOpacity style={styles.tipToggle} onPress={() => setShowTip((v) => !v)}>
@@ -693,6 +743,50 @@ export default function EventDetailScreen() {
         </View>
       </View>
     </ScrollView>
+
+    {/* Payment method picker modal */}
+    <Modal
+      visible={showPaymentPicker}
+      transparent
+      animationType="slide"
+      onRequestClose={() => setShowPaymentPicker(false)}
+    >
+      <TouchableOpacity
+        style={styles.modalOverlay}
+        activeOpacity={1}
+        onPress={() => setShowPaymentPicker(false)}
+      >
+        <View style={styles.paymentSheet}>
+          <View style={styles.paymentSheetHandle} />
+          <Text style={styles.paymentSheetTitle}>How would you like to pay?</Text>
+          {paymentOptions.map((opt) => (
+            <TouchableOpacity
+              key={opt.id}
+              style={[
+                styles.paymentOption,
+                selectedPaymentOptionId === opt.id && styles.paymentOptionSelected,
+              ]}
+              onPress={() => {
+                setSelectedPaymentOptionId(opt.id)
+                initiateBooking(opt.id)
+              }}
+            >
+              <Text style={styles.paymentOptionIcon}>{opt.icon}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.paymentOptionLabel}>{opt.label}</Text>
+                <Text style={styles.paymentOptionDesc} numberOfLines={1}>{opt.description}</Text>
+              </View>
+              {selectedPaymentOptionId === opt.id && (
+                <Ionicons name="checkmark-circle" size={20} color={Colors.brand[500]} />
+              )}
+            </TouchableOpacity>
+          ))}
+          <TouchableOpacity style={styles.paymentCancelBtn} onPress={() => setShowPaymentPicker(false)}>
+            <Text style={styles.paymentCancelText}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
+    </Modal>
     </>
   )
 }
@@ -814,4 +908,23 @@ const styles = StyleSheet.create({
   reportSubmitText: { color: Colors.white, fontSize: FontSize.xs, fontWeight: FontWeight.semibold },
   reportCancelBtn: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.gray[200] },
   reportCancelText: { fontSize: FontSize.xs, color: Colors.gray[600] },
+  // Fawry reference card
+  fawryCard: { backgroundColor: '#fff7ed', borderRadius: Radius.lg, padding: Spacing.lg, marginBottom: Spacing.xl, borderWidth: 1.5, borderColor: '#fed7aa', alignItems: 'center', gap: Spacing.sm },
+  fawryTitle: { fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: '#9a3412' },
+  fawryRef: { fontSize: 28, fontWeight: FontWeight.bold, color: '#c2410c', letterSpacing: 4, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace' },
+  fawryDesc: { fontSize: FontSize.xs, color: '#7c2d12', textAlign: 'center' },
+  fawryDismiss: { marginTop: Spacing.xs, paddingVertical: Spacing.sm, paddingHorizontal: Spacing.xl, backgroundColor: '#ea580c', borderRadius: Radius.md },
+  fawryDismissText: { color: Colors.white, fontWeight: FontWeight.semibold, fontSize: FontSize.sm },
+  // Payment method picker modal
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  paymentSheet: { backgroundColor: Colors.white, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, padding: Spacing.lg, paddingBottom: 40, gap: Spacing.sm },
+  paymentSheetHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: Colors.gray[300], alignSelf: 'center', marginBottom: Spacing.sm },
+  paymentSheetTitle: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.gray[900], marginBottom: Spacing.xs },
+  paymentOption: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md, borderWidth: 1.5, borderColor: Colors.gray[200], borderRadius: Radius.lg },
+  paymentOptionSelected: { borderColor: Colors.brand[500], backgroundColor: Colors.brand[50] },
+  paymentOptionIcon: { fontSize: 24 },
+  paymentOptionLabel: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[900] },
+  paymentOptionDesc: { fontSize: FontSize.xs, color: Colors.gray[500], marginTop: 1 },
+  paymentCancelBtn: { marginTop: Spacing.xs, paddingVertical: Spacing.md, alignItems: 'center', borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.gray[200] },
+  paymentCancelText: { fontSize: FontSize.sm, color: Colors.gray[600], fontWeight: FontWeight.medium },
 })
