@@ -6,7 +6,7 @@ import {
 import { useFocusEffect, useRouter } from 'expo-router'
 import { useAuth } from '@/contexts/auth-context'
 import { useNotifications } from '@/contexts/notification-context'
-import { apiGet, apiPatch } from '@/lib/api'
+import { supabase } from '@/lib/supabase'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -132,16 +132,27 @@ export default function NotificationsScreen() {
   const [refreshing, setRefreshing]       = useState(false)
 
   async function load(isRefresh = false) {
+    if (!user) return
     if (isRefresh) setRefreshing(true)
     else           setLoading(true)
 
-    const { data } = await apiGet<{ data: Notification[]; total: number }>('/api/notifications?per_page=50')
-    setNotifications((data as any)?.data ?? [])
+    const { data } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(50)
 
-    // Mark all as read
-    const hasUnread = ((data as any)?.data as Notification[] ?? []).some((n) => !n.is_read)
+    setNotifications((data ?? []) as Notification[])
+
+    // Mark all unread as read
+    const hasUnread = (data ?? []).some((n: { is_read: boolean }) => !n.is_read)
     if (hasUnread) {
-      await apiPatch('/api/notifications', {})
+      await supabase
+        .from('notifications')
+        .update({ is_read: true, read_at: new Date().toISOString() })
+        .eq('user_id', user.id)
+        .eq('is_read', false)
       resetUnread()
     }
 
