@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
         const payload = JSON.parse(ticketMatch[1]) as TicketPayload
         const admin   = createSupabaseAdminClient()
 
-        const { data: row } = await admin
+        const { data: row } = await (admin as any)
           .from('support_tickets')
           .insert({
             user_id:     ctx.userId,
