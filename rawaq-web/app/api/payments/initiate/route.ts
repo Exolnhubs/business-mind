@@ -36,6 +36,7 @@ import { sendNotification } from '@/lib/notifications'
 
 const BodySchema = CreateBookingSchema.extend({
   payment_option_id: z.string().min(1).default('simulated'),
+  source: z.enum(['web', 'mobile']).default('web'),
 })
 
 function round2(n: number): number {
@@ -206,8 +207,9 @@ export async function POST(req: NextRequest) {
         organizer_net: organizerNet,
         currency:      event.currency ?? 'SAR',
         gateway,
-        payment_method: method,
-        is_simulated:  gateway === 'simulated',
+        payment_method:  method,
+        is_simulated:    gateway === 'simulated',
+        gateway_payload: { source: input.source }, // track mobile vs web for callback redirect
       })
       .select('id')
       .single()
