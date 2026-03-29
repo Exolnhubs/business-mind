@@ -21,13 +21,18 @@ export default function AuthCallbackScreen() {
       const refreshToken = params.refresh_token ? String(params.refresh_token) : null
 
       if (code) {
-        await supabase.auth.exchangeCodeForSession(code)
+        const { error } = await supabase.auth.exchangeCodeForSession(code)
+        if (error) router.replace('/(auth)/login')
+        // On success: onAuthStateChange fires → AuthGate navigates to home
+        return
       } else if (accessToken && refreshToken) {
-        await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+        const { error } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+        if (error) router.replace('/(auth)/login')
+        return
       }
 
-      // AuthGate redirects to login if session wasn't established
-      router.replace('/(tabs)/home')
+      // No credentials at all
+      router.replace('/(auth)/login')
     }
     handleCallback()
   }, [])
