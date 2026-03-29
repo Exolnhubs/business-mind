@@ -584,6 +584,18 @@ export default function ProfileScreen() {
               />
             }
           </View>
+
+          {/* Contact Support */}
+          <TouchableOpacity style={styles.row} onPress={() => router.push('/support')}>
+            <View style={styles.rowLeft}>
+              <Text style={styles.rowIcon}>🎧</Text>
+              <View>
+                <Text style={styles.rowLabel}>Contact Support</Text>
+                <Text style={[styles.rowValue, { fontSize: 11 }]}>AI-powered help & ticket escalation</Text>
+              </View>
+            </View>
+            <Text style={styles.rowArrow}>›</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Become an Organizer */}
