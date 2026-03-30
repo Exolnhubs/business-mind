@@ -1,16 +1,14 @@
 /**
  * GET /payments/callback
  *
- * Paymob Transaction Response Callback — browser redirect handler.
- *
- * Register this URL in Paymob dashboard:
- *   Accept → Settings → Transaction response callback
- *   → https://your-app.vercel.app/payments/callback
+ * Paymob Transaction Response Callback — alternate URL (same logic as
+ * /api/payments/callback). Keep both in sync; configure ONE of them in
+ * the Paymob dashboard.
  *
  * Behaviour:
- *   - Web payment  → redirect to https://your-app/bookings/:id?payment=success
- *   - Mobile payment → redirect to rawaq://payment-result?booking_id=:id&status=success
+ *   - Mobile payment → redirect to rawaq://payment-result?booking_id=:id&status=success|failed
  *     (iOS/Android intercepts rawaq:// and brings the user back into the app)
+ *   - Web payment    → redirect to https://your-app/bookings/:id?payment=success|failed
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -21,12 +19,13 @@ export async function GET(req: NextRequest) {
   const p      = req.nextUrl.searchParams
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || req.nextUrl.origin
 
-  const bookingId = p.get('merchant_order_id')
-  const success   = p.get('success') === 'true'
-  const pending   = p.get('pending') === 'true'
-  const hmac      = p.get('hmac')    ?? ''
+  // Use Paymob's own numeric order ID to look up our transaction.
+  // merchant_order_id is now a randomUUID per attempt and cannot be used as bookingId.
+  const paymobOrderId = p.get('order')
+  const success       = p.get('success') === 'true'
+  const pending       = p.get('pending') === 'true'
+  const hmac          = p.get('hmac') ?? ''
 
-  // Reconstruct the obj Paymob uses for HMAC
   const obj: Record<string, unknown> = {
     amount_cents:           p.get('amount_cents'),
     created_at:             p.get('created_at'),
@@ -41,7 +40,7 @@ export async function GET(req: NextRequest) {
     is_refunded:            p.get('is_refunded'),
     is_standalone_payment:  p.get('is_standalone_payment'),
     is_voided:              p.get('is_voided'),
-    order:                  { id: p.get('order') },
+    order:                  { id: paymobOrderId },
     owner:                  p.get('owner'),
     pending:                p.get('pending'),
     source_data: {
@@ -59,37 +58,38 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  if (!bookingId) {
+  if (!paymobOrderId) {
     return NextResponse.redirect(`${appUrl}/?payment=error`)
   }
 
   const status = pending ? 'pending' : success ? 'success' : 'failed'
 
-  // ── Check if this was initiated from the mobile app ──────────────────────
-  // We stored { source: 'mobile' | 'web' } in gateway_payload at initiation time.
+  // ── Look up booking + source via Paymob's order ID ───────────────────────
   try {
     const admin = createSupabaseAdminClient()
     const { data: tx } = await (admin as any)
       .from('payment_transactions')
-      .select('gateway_payload')
-      .eq('booking_id', bookingId)
-      .order('created_at', { ascending: false })
-      .limit(1)
+      .select('booking_id, gateway_payload')
+      .eq('gateway_order_id', paymobOrderId)
       .single()
 
-    const isMobile = (tx?.gateway_payload as { source?: string } | null)?.source === 'mobile'
+    if (!tx?.booking_id) {
+      console.error('[payments/callback] No transaction found for gateway_order_id', paymobOrderId)
+      return NextResponse.redirect(`${appUrl}/?payment=error`)
+    }
+
+    const bookingId = tx.booking_id as string
+    const isMobile  = (tx.gateway_payload as { source?: string } | null)?.source === 'mobile'
 
     if (isMobile) {
-      // Redirect to the app's deep link — iOS/Android will intercept rawaq://
-      // and bring the user back into the app automatically
       return NextResponse.redirect(
         `rawaq://payment-result?booking_id=${bookingId}&status=${status}`
       )
     }
-  } catch {
-    // DB lookup failed — fall through to web redirect
-  }
 
-  // ── Web: redirect to the booking result page ─────────────────────────────
-  return NextResponse.redirect(`${appUrl}/bookings/${bookingId}?payment=${status}`)
+    return NextResponse.redirect(`${appUrl}/bookings/${bookingId}?payment=${status}`)
+  } catch (err) {
+    console.error('[payments/callback] DB lookup failed', err)
+    return NextResponse.redirect(`${appUrl}/?payment=error`)
+  }
 }
