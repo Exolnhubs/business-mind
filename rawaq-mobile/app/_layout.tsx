@@ -56,14 +56,32 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (loading) return
 
-    const inAuthGroup = segments[0] === '(auth)' || segments[0] === 'auth'
+    const inAuthGroup  = segments[0] === '(auth)' || segments[0] === 'auth'
+    const inOnboarding = segments[0] === 'onboarding'
 
     if (!user && !inAuthGroup) {
       router.replace('/(auth)/login')
-    } else if (user && inAuthGroup) {
-      router.replace('/(tabs)/home')
+      return
     }
-  }, [user, loading, segments])
+
+    if (user && !inAuthGroup && !inOnboarding) {
+      // Wait for profile to load before deciding on onboarding
+      if (profile === null) return
+      if (!profile.gender) {
+        router.replace('/onboarding')
+        return
+      }
+    }
+
+    if (user && inAuthGroup) {
+      if (profile === null) return
+      if (!profile.gender) {
+        router.replace('/onboarding')
+      } else {
+        router.replace('/(tabs)/home')
+      }
+    }
+  }, [user, profile, loading, segments])
 
   useEffect(() => {
     if (!loading) SplashScreen.hideAsync()
@@ -131,6 +149,7 @@ export default function RootLayout() {
               <Stack screenOptions={{ headerShown: false }}>
                 <Stack.Screen name="(auth)" />
                 <Stack.Screen name="(tabs)" />
+                <Stack.Screen name="onboarding" />
                 <Stack.Screen name="auth/callback" options={{ headerShown: false }} />
                 <Stack.Screen
                   name="events/[id]"
