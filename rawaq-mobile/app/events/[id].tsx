@@ -38,6 +38,7 @@ export default function EventDetailScreen() {
   const [ticketTypes, setTicketTypes] = useState<TicketType[]>([])
   const [loading, setLoading]         = useState(true)
   const [isBooked, setIsBooked]       = useState(false)
+  const [bookingPending, setBookingPending] = useState(false)
   const [onWaitlist, setOnWaitlist]   = useState(false)
   const [bookingLoading, setBL]       = useState(false)
   const [newBookingId, setNewBookingId] = useState<string | null>(null)
@@ -91,8 +92,12 @@ export default function EventDetailScreen() {
         .order('created_at', { ascending: false })
         .limit(30),
       user
-        ? supabase.from('bookings').select('id')
-            .eq('event_id', id).eq('user_id', user.id).eq('status', 'confirmed').single()
+        ? supabase.from('bookings').select('id, status')
+            .eq('event_id', id).eq('user_id', user.id)
+            .in('status', ['confirmed', 'pending'])
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single()
         : Promise.resolve({ data: null }),
       user
         ? supabase.from('waitlist').select('id')
@@ -103,7 +108,8 @@ export default function EventDetailScreen() {
     ]).then(([{ data: ev }, { data: cmts }, { data: booking }, { data: wl }, { data: tts }]) => {
       setEvent(ev as EventWithOrganizer)
       setComments((cmts ?? []) as CommentWithAuthor[])
-      setIsBooked(!!booking)
+      setIsBooked(booking?.status === 'confirmed')
+      setBookingPending(booking?.status === 'pending')
       setOnWaitlist(!!wl)
       setTicketTypes((tts ?? []) as TicketType[])
       setLoading(false)
@@ -521,6 +527,13 @@ export default function EventDetailScreen() {
                   ? <ActivityIndicator color={Colors.brand[500]} />
                   : <Text style={[styles.bookBtnText, { color: Colors.gray[700] }]}>✓ Cancel Booking</Text>}
               </TouchableOpacity>
+            ) : bookingPending ? (
+              <View style={styles.waitlistBadge}>
+                <Text style={styles.waitlistBadgeText}>⏳ Payment is being processed</Text>
+                <Text style={[styles.waitlistBadgeText, { fontWeight: '400', marginTop: 2, opacity: 0.8 }]}>
+                  Your booking will be confirmed shortly. Check the Bookings tab.
+                </Text>
+              </View>
             ) : isFull ? (
               onWaitlist ? (
                 <View style={styles.waitlistRow}>
