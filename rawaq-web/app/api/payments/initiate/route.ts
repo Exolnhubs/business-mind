@@ -296,10 +296,15 @@ export async function POST(req: NextRequest) {
     }
 
     // Store gateway order ID for webhook correlation
-    await (admin as any)
+    const { error: gwUpdateErr } = await (admin as any)
       .from('payment_transactions')
       .update({ gateway_order_id: gatewayResult.gatewayOrderId })
       .eq('id', txRow.id)
+    if (gwUpdateErr) {
+      // Non-fatal: log and continue — the booking still exists and the user can
+      // complete payment, but the webhook will fail to find the transaction.
+      console.error('[payments/initiate] Failed to store gateway_order_id:', gwUpdateErr, 'txId:', txRow.id, 'orderId:', gatewayResult.gatewayOrderId)
+    }
 
     return ok({
       booking_id:              booking.id,
