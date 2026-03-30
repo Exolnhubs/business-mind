@@ -280,7 +280,10 @@ export default function EventDetailScreen() {
     //      the payment will eventually confirm.
     setBL(true)
 
-    const DELAYS = [1500, 2000, 2500, 3000, 3000, 3000]
+    // Poll for up to ~60 s. Paymob 3DS webhooks can arrive well after the
+    // browser redirects — 17 s was often too short.
+    // Pattern: fast at first, then back off to 5 s intervals.
+    const DELAYS = [2000, 3000, 3000, 5000, 5000, 5000, 5000, 5000, 5000, 5000, 5000]
     let confirmed    = false
     let actualFailed = false
     for (const delay of DELAYS) {
@@ -315,10 +318,14 @@ export default function EventDetailScreen() {
     } else if (browserResult.type === 'cancel') {
       // Browser dismissed without completing — user likely abandoned, let them retry silently
     } else {
-      // Polling timed out while booking is still pending (3DS processing delay,
-      // final webhook not yet fired). Navigate to bookings tab —
-      // a push notification will arrive when the webhook confirms or fails.
-      router.push('/(tabs)/bookings' as any)
+      // Polling timed out while booking is still pending (3DS still processing).
+      // Inform the user, then navigate to bookings tab — their booking will
+      // update automatically once the final webhook arrives.
+      Alert.alert(
+        'Payment is processing',
+        'Your payment is being verified. We\'ll confirm your booking shortly — check the Bookings tab.',
+        [{ text: 'OK', onPress: () => router.push('/(tabs)/bookings' as any) }],
+      )
     }
   }
 

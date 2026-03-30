@@ -62,15 +62,18 @@ export async function POST(req: NextRequest) {
       .single()
 
     if (txErr || !tx) {
-      console.error('[webhooks/paymob] transaction not found for order', event.gatewayOrderId)
+      console.error('[webhooks/paymob] transaction not found for gateway_order_id:', event.gatewayOrderId, 'dbErr:', txErr?.message)
       // Return 200 to stop Paymob from retrying — we don't own this order
       return new Response('not found', { status: 200 })
     }
 
     // Idempotency: already processed
     if (tx.status !== 'pending') {
+      console.log('[webhooks/paymob] skipping already-processed transaction', tx.id, 'status:', tx.status)
       return new Response('already processed', { status: 200 })
     }
+
+    console.log('[webhooks/paymob] processing transaction', tx.id, 'booking', tx.booking_id, 'event status:', event.status)
 
     // ── Update payment transaction ────────────────────────────────────────────
     await (admin as any)
