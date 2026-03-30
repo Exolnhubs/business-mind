@@ -246,28 +246,40 @@ export default function EventDetailScreen() {
       'rawaq://',
     )
 
-    // In both cases (deep link caught or browser manually closed) we poll the
-    // server for the ground-truth booking status. This handles:
-    //   • Paymob dashboard configured with the website URL instead of our
-    //     /api/payments/callback — browser closes via user dismiss, not deep link
-    //   • Race between the browser closing and the Paymob webhook firing
-    const bookingId = (
-      browserResult.type === 'success'
-        ? (new URL(browserResult.url)).searchParams.get('booking_id')
-        : null
-    ) ?? data.booking_id ?? null
+    const deepLinkUrl    = browserResult.type === 'success' ? browserResult.url : null
+    const deepLinkParams = deepLinkUrl ? new URL(deepLinkUrl).searchParams : null
+    const deepLinkStatus = deepLinkParams?.get('status') ?? null   // 'success' | 'failed' | 'pending' | null
+    const bookingId      = deepLinkParams?.get('booking_id') ?? data.booking_id ?? null
 
     if (!bookingId) {
-      // No booking ID at all — initiation failed before the redirect
       setBL(false)
       return
     }
 
     setNewBookingId(bookingId)
-    setBL(true) // show loading while we wait for the webhook
 
-    // Poll /api/payments/status until the webhook confirms or fails the booking.
-    // The webhook typically fires within 1–3 s of payment; we wait up to ~18 s.
+    // ── Fast path: gateway confirmed success via browser redirect ────────────
+    // Paymob's Transaction Response Callback includes ?success=true when the
+    // card charge completed. Our /payments/callback maps that to status=success
+    // in the deep link. Trust it and show the confirmation banner immediately —
+    // the webhook confirms booking status server-side independently.
+    if (deepLinkStatus === 'success') {
+      setBL(false)
+      setIsBooked(true)
+      setShowBookingSuccess(true)
+      return
+    }
+
+    // ── Slow path: poll for webhook confirmation ─────────────────────────────
+    // Covers two scenarios:
+    //   1. Browser was dismissed manually (no deep link) — payment may have
+    //      succeeded but the redirect was missed.
+    //   2. 3DS payment: Paymob sends multiple intermediate webhooks before the
+    //      final success one. The success webhook can arrive 30–90 s after the
+    //      browser redirects, so deep link status may say 'pending' even though
+    //      the payment will eventually confirm.
+    setBL(true)
+
     const DELAYS = [1500, 2000, 2500, 3000, 3000, 3000]
     let confirmed = false
     for (const delay of DELAYS) {
@@ -295,16 +307,15 @@ export default function EventDetailScreen() {
     if (confirmed) {
       setIsBooked(true)
       setShowBookingSuccess(true)
+    } else if (deepLinkStatus === 'failed') {
+      // Gateway explicitly reported failure — let user retry
+      Alert.alert('Payment failed', 'Your payment was not completed. Please try again.')
     } else if (browserResult.type === 'cancel') {
-      // Browser was dismissed without a deep link and payment didn't confirm —
-      // the user likely abandoned. Let them retry silently.
+      // Browser dismissed without completing — user likely abandoned, let them retry silently
     } else {
-      // Had a deep link but booking still not confirmed after polling — async
-      // payment (e.g. Fawry) or webhook delay
-      Alert.alert(
-        'Payment pending',
-        'Your payment is being processed. Check your bookings tab for confirmation.',
-      )
+      // Deep link was 'pending' or polling timed out waiting for the success webhook.
+      // Navigate to bookings tab — a push notification will arrive when confirmed.
+      router.push('/(tabs)/bookings' as any)
     }
   }
 
