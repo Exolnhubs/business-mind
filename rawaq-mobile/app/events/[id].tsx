@@ -246,28 +246,65 @@ export default function EventDetailScreen() {
       'rawaq://',
     )
 
-    if (browserResult.type === 'success' && browserResult.url) {
-      // Deep link intercepted — parse status from URL
-      const parsed  = new URL(browserResult.url)
-      const status  = parsed.searchParams.get('status')
-      const bId     = parsed.searchParams.get('booking_id') ?? data.booking_id ?? null
+    // In both cases (deep link caught or browser manually closed) we poll the
+    // server for the ground-truth booking status. This handles:
+    //   • Paymob dashboard configured with the website URL instead of our
+    //     /api/payments/callback — browser closes via user dismiss, not deep link
+    //   • Race between the browser closing and the Paymob webhook firing
+    const bookingId = (
+      browserResult.type === 'success'
+        ? (new URL(browserResult.url)).searchParams.get('booking_id')
+        : null
+    ) ?? data.booking_id ?? null
 
-      setNewBookingId(bId)
+    if (!bookingId) {
+      // No booking ID at all — initiation failed before the redirect
+      setBL(false)
+      return
+    }
 
-      if (status === 'success') {
-        setIsBooked(true)
-        setShowBookingSuccess(true)
-      } else if (status === 'pending') {
-        // Fawry/async — show a pending message
-        Alert.alert(
-          'Payment pending',
-          'Your payment is being processed. Check your bookings tab for confirmation.',
-        )
-      } else {
-        Alert.alert('Payment failed', 'Your payment was not completed. Please try again.')
+    setNewBookingId(bookingId)
+    setBL(true) // show loading while we wait for the webhook
+
+    // Poll /api/payments/status until the webhook confirms or fails the booking.
+    // The webhook typically fires within 1–3 s of payment; we wait up to ~18 s.
+    const DELAYS = [1500, 2000, 2500, 3000, 3000, 3000]
+    let confirmed = false
+    for (const delay of DELAYS) {
+      await new Promise(r => setTimeout(r, delay))
+      const { data: statusData } = await apiGet<{
+        booking_status: string
+        transaction: { status: string } | null
+      }>(`/api/payments/status/${bookingId}`)
+
+      if (statusData?.booking_status === 'confirmed') {
+        confirmed = true
+        break
       }
+      // Transaction explicitly failed — stop polling early
+      if (
+        statusData?.booking_status === 'cancelled' ||
+        statusData?.transaction?.status === 'failed'
+      ) {
+        break
+      }
+    }
+
+    setBL(false)
+
+    if (confirmed) {
+      setIsBooked(true)
+      setShowBookingSuccess(true)
     } else if (browserResult.type === 'cancel') {
-      // User closed the browser manually — do nothing, let them retry
+      // Browser was dismissed without a deep link and payment didn't confirm —
+      // the user likely abandoned. Let them retry silently.
+    } else {
+      // Had a deep link but booking still not confirmed after polling — async
+      // payment (e.g. Fawry) or webhook delay
+      Alert.alert(
+        'Payment pending',
+        'Your payment is being processed. Check your bookings tab for confirmation.',
+      )
     }
   }
 
