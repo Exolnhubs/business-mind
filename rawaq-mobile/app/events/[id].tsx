@@ -281,7 +281,8 @@ export default function EventDetailScreen() {
     setBL(true)
 
     const DELAYS = [1500, 2000, 2500, 3000, 3000, 3000]
-    let confirmed = false
+    let confirmed    = false
+    let actualFailed = false
     for (const delay of DELAYS) {
       await new Promise(r => setTimeout(r, delay))
       const { data: statusData } = await apiGet<{
@@ -293,11 +294,12 @@ export default function EventDetailScreen() {
         confirmed = true
         break
       }
-      // Transaction explicitly failed — stop polling early
+      // Webhook explicitly marked the transaction failed — stop early
       if (
         statusData?.booking_status === 'cancelled' ||
         statusData?.transaction?.status === 'failed'
       ) {
+        actualFailed = true
         break
       }
     }
@@ -307,14 +309,15 @@ export default function EventDetailScreen() {
     if (confirmed) {
       setIsBooked(true)
       setShowBookingSuccess(true)
-    } else if (deepLinkStatus === 'failed') {
-      // Gateway explicitly reported failure — let user retry
+    } else if (actualFailed) {
+      // Webhook confirmed the charge failed — safe to prompt a retry
       Alert.alert('Payment failed', 'Your payment was not completed. Please try again.')
     } else if (browserResult.type === 'cancel') {
       // Browser dismissed without completing — user likely abandoned, let them retry silently
     } else {
-      // Deep link was 'pending' or polling timed out waiting for the success webhook.
-      // Navigate to bookings tab — a push notification will arrive when confirmed.
+      // Polling timed out while booking is still pending (3DS processing delay,
+      // final webhook not yet fired). Navigate to bookings tab —
+      // a push notification will arrive when the webhook confirms or fails.
       router.push('/(tabs)/bookings' as any)
     }
   }
