@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
     console.log('[webhooks/paymob] processing transaction', tx.id, 'booking', tx.booking_id, 'event status:', event.status)
 
     // ── Update payment transaction ────────────────────────────────────────────
-    await (admin as any)
+    const { error: txUpdateErr } = await (admin as any)
       .from('payment_transactions')
       .update({
         status:          event.status,
@@ -89,13 +89,22 @@ export async function POST(req: NextRequest) {
       })
       .eq('id', tx.id)
 
+    if (txUpdateErr) {
+      console.error('[webhooks/paymob] FAILED to update transaction', tx.id, 'err:', txUpdateErr.message)
+      return new Response('db error', { status: 500 })
+    }
+
     // ── Update booking ────────────────────────────────────────────────────────
     if (tx.booking_id) {
       const newBookingStatus = event.status === 'succeeded' ? 'confirmed' : 'cancelled'
-      await admin
+      console.log('[webhooks/paymob] updating booking', tx.booking_id, '→', newBookingStatus)
+      const { error: bookingUpdateErr } = await admin
         .from('bookings')
         .update({ status: newBookingStatus as any, payment_pending_until: null } as any)
         .eq('id', tx.booking_id)
+      if (bookingUpdateErr) {
+        console.error('[webhooks/paymob] FAILED to update booking', tx.booking_id, 'err:', (bookingUpdateErr as any).message)
+      }
 
       // Notify attendee and organizer on success
       if (event.status === 'succeeded') {
