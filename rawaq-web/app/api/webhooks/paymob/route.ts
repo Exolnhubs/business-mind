@@ -104,6 +104,10 @@ export async function POST(req: NextRequest) {
         .eq('id', tx.booking_id)
       if (bookingUpdateErr) {
         console.error('[webhooks/paymob] FAILED to update booking', tx.booking_id, 'err:', (bookingUpdateErr as any).message)
+        // Return 500 so Paymob retries — the transaction is already updated but
+        // the booking didn't flip. Without this, Paymob marks the webhook as
+        // delivered and never retries, leaving the booking stuck in pending.
+        return new Response('booking update failed', { status: 500 })
       }
 
       // Notify attendee and organizer on success
