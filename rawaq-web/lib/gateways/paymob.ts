@@ -265,12 +265,21 @@ export function parsePaymobWebhook(body: Record<string, unknown>): WebhookEvent 
   const success    = Boolean(obj.success)
   const pending    = Boolean(obj.pending)
   const isRefunded = Boolean(obj.is_refunded)
+  const is3ds      = Boolean(obj.is_3d_secure)
+  const errorOccured = Boolean(obj.error_occured)
 
   let status: WebhookEvent['status']
-  if (isRefunded)       status = 'failed'
-  else if (success && !pending) status = 'succeeded'
-  else if (pending)     status = 'pending'
-  else                  status = 'failed'
+  if (isRefunded)                status = 'failed'
+  else if (success && !pending)  status = 'succeeded'
+  else if (pending)              status = 'pending'
+  // 3DS intermediate: Paymob fires a callback when 3DS authentication is
+  // initiated (success=false, pending=false, error_occured=false, is_3d_secure=true).
+  // Treat this as 'pending' — a second callback with the real success/failure
+  // result arrives after the cardholder completes 3DS.
+  // Without this, the intermediate callback is parsed as 'failed', the booking
+  // gets cancelled, and the real success callback is ignored (idempotency guard).
+  else if (is3ds && !errorOccured) status = 'pending'
+  else                             status = 'failed'
 
   const rawMethod = String(sourceData.type ?? '').toLowerCase()
   let paymentMethod: PaymentMethod = 'card'
