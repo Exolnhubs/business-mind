@@ -30,10 +30,11 @@ const ALLOWED_TRANSITIONS: Record<string, string[]> = {
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const ctx = await requireAdmin()
+    const { id } = await params
 
     const body  = await req.json()
     const input = UpdatePayoutSchema.parse(body)
@@ -44,7 +45,7 @@ export async function PATCH(
     const { data: payout, error: fetchErr } = await (admin as any)
       .from('payouts')
       .select('id, status, organizer_id, amount')
-      .eq('id', params.id)
+      .eq('id', id)
       .maybeSingle()
 
     if (fetchErr) throw fetchErr
@@ -73,7 +74,7 @@ export async function PATCH(
     const { data: updated, error: updateErr } = await (admin as any)
       .from('payouts')
       .update(update)
-      .eq('id', params.id)
+      .eq('id', id)
       .select()
       .single()
 
