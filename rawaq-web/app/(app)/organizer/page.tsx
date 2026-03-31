@@ -60,7 +60,7 @@ export default async function OrganizerDashboard() {
         {[
           { label: 'Active Events', value: publishedCount, icon: '📅' },
           { label: 'Total Bookings', value: totalBookings, icon: '🎟️' },
-          { label: 'Tips Received', value: formatCurrency(totalTips), icon: '💝' },
+          { label: 'Donations Received', value: formatCurrency(totalTips), icon: '💝' },
           { label: 'Total Events', value: events?.length ?? 0, icon: '📊' },
         ].map((stat) => (
           <div key={stat.label} className="card p-4">
@@ -145,3 +145,4 @@ export default async function OrganizerDashboard() {
     </div>
   )
 }
+

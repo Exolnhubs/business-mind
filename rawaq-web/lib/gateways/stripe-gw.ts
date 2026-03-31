@@ -110,7 +110,7 @@ export async function initiateStripe(
   const {
     bookingId, transactionId, amount, currency,
     userEmail, eventTitle, method,
-    successUrl, cancelUrl,
+    successUrl, cancelUrl, kind = 'ticket',
   } = params
 
   const unitAmount = amountInSmallestUnit(amount, currency)
@@ -131,8 +131,8 @@ export async function initiateStripe(
           currency:     currency.toLowerCase(),
           unit_amount:  unitAmount,
           product_data: {
-            name:        `${eventTitle} — Ticket`.slice(0, 255),
-            description: 'Powered by Rawaq',
+            name:        `${eventTitle} — ${kind === 'donation' ? 'Donation' : 'Ticket'}`.slice(0, 255),
+            description: kind === 'donation' ? 'Support the organizer via Rawaq' : 'Powered by Rawaq',
           },
         },
         quantity: 1,
@@ -140,10 +140,17 @@ export async function initiateStripe(
     ],
     payment_method_types: paymentMethodTypes,
     metadata: {
-      booking_id:     bookingId,
       transaction_id: transactionId,
       payment_method: method,
+      payment_kind:   kind,
     },
+  }
+
+  if (bookingId) {
+    sessionParams.metadata = {
+      ...(sessionParams.metadata as Record<string, unknown>),
+      booking_id: bookingId,
+    }
   }
 
   if (userEmail) {

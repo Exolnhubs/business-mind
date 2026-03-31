@@ -39,7 +39,7 @@ export interface PaymentOption {
 // ── Parameters for initiating a payment ────────────────────────────────────
 
 export interface InitiatePaymentParams {
-  bookingId: string
+  bookingId?: string
   transactionId: string   // payment_transactions.id (already created as 'pending')
   amount: number          // in the currency's major unit (e.g. 150.00 EGP)
   currency: string        // ISO 4217 (EGP, SAR, USD, …)
@@ -53,6 +53,7 @@ export interface InitiatePaymentParams {
   eventTitle: string
   platformFeePct: number  // e.g. 0.10 for 10%
   method: PaymentMethod
+  kind?: 'ticket' | 'donation'
   successUrl: string      // where to redirect after successful payment
   cancelUrl: string       // where to redirect if user cancels
 }

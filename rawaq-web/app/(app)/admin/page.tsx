@@ -43,7 +43,7 @@ export default async function AdminDashboard() {
     { label: 'Active Events',        value: stats.activeEvents,      icon: '📅', color: 'green' },
     { label: 'Pending Approvals',    value: stats.pendingOrganizers, icon: '⏳', color: stats.pendingOrganizers > 0 ? 'orange' : 'gray' },
     { label: 'Flagged Comments',     value: stats.flaggedComments,   icon: '🚩', color: stats.flaggedComments > 0 ? 'red' : 'gray' },
-    { label: 'Total Tips',           value: formatCurrency(stats.totalTips), icon: '💝', color: 'brand' },
+    { label: 'Total Donations',           value: formatCurrency(stats.totalTips), icon: '💝', color: 'brand' },
   ]
 
   return (
@@ -91,3 +91,4 @@ export default async function AdminDashboard() {
     </div>
   )
 }
+

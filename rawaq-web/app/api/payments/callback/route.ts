@@ -90,27 +90,36 @@ export async function GET(req: NextRequest) {
     const admin = createSupabaseAdminClient()
     const { data: tx } = await (admin as any)
       .from('payment_transactions')
-      .select('booking_id, source')
+      .select('id, type, booking_id, event_id, source')
       .eq('gateway_order_id', paymobOrderId)
       .single()
 
-    if (!tx?.booking_id) {
+    if (!tx?.id) {
       console.error('[payments/callback] No transaction found for gateway_order_id', paymobOrderId)
       return NextResponse.redirect(`${appUrl}/?payment=error`)
     }
 
-    const bookingId = tx.booking_id as string
     const isMobile  = tx.source === 'mobile'
 
     if (isMobile) {
+      if (tx.type === 'tip') {
+        return NextResponse.redirect(
+          `rawaq://payment-result?transaction_id=${tx.id as string}&entity=donation&status=${status}`
+        )
+      }
+
       // Redirect to the app deep link — iOS/Android intercepts rawaq://
       // and brings the user back into the app automatically, closing the browser.
       return NextResponse.redirect(
-        `rawaq://payment-result?booking_id=${bookingId}&status=${status}`
+        `rawaq://payment-result?booking_id=${tx.booking_id as string}&status=${status}`
       )
     }
 
-    return NextResponse.redirect(`${appUrl}/bookings/${bookingId}?payment=${status}`)
+    if (tx.type === 'tip') {
+      return NextResponse.redirect(`${appUrl}/events/${tx.event_id as string}?donation=${status}`)
+    }
+
+    return NextResponse.redirect(`${appUrl}/bookings/${tx.booking_id as string}?payment=${status}`)
   } catch (err) {
     console.error('[payments/callback] DB lookup failed', err)
     return NextResponse.redirect(`${appUrl}/?payment=error`)

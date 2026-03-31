@@ -21,13 +21,21 @@ import { NextRequest, NextResponse } from 'next/server'
 export async function GET(req: NextRequest) {
   const appUrl    = process.env.NEXT_PUBLIC_APP_URL || req.nextUrl.origin
   const bookingId = req.nextUrl.searchParams.get('booking_id')
+  const transactionId = req.nextUrl.searchParams.get('transaction_id')
+  const entity = req.nextUrl.searchParams.get('entity')
   const status    = req.nextUrl.searchParams.get('status') ?? 'success'
 
-  if (!bookingId) {
+  if (!bookingId && !transactionId) {
     return NextResponse.redirect(`${appUrl}/?payment=error`)
   }
 
+  if (bookingId) {
+    return NextResponse.redirect(
+      `rawaq://payment-result?booking_id=${bookingId}&status=${status}`
+    )
+  }
+
   return NextResponse.redirect(
-    `rawaq://payment-result?booking_id=${bookingId}&status=${status}`
+    `rawaq://payment-result?transaction_id=${transactionId}&entity=${entity ?? 'payment'}&status=${status}`
   )
 }

@@ -77,6 +77,7 @@ async function createOrder(
   currency: string,
   merchantOrderId: string,
   eventTitle: string,
+  kind: 'ticket' | 'donation',
 ): Promise<number> {
   const res = await fetch(`${BASE_URL}/ecommerce/orders`, {
     method: 'POST',
@@ -91,7 +92,7 @@ async function createOrder(
         {
           name:        eventTitle.slice(0, 100),
           amount_cents: amountCents,
-          description: 'Event ticket via Rawaq',
+          description: kind === 'donation' ? 'Event donation via Rawaq' : 'Event ticket via Rawaq',
           quantity:    1,
         },
       ],
@@ -154,7 +155,7 @@ export async function initiatePaymob(
   const {
     bookingId, transactionId, amount, currency,
     userEmail, userPhone, userFirstName, userLastName,
-    eventTitle, method,
+    eventTitle, method, kind = 'ticket',
   } = params
 
   const amountCents    = amountInCents(amount)
@@ -184,7 +185,7 @@ export async function initiatePaymob(
   // numeric order ID (stored in gateway_order_id), not merchant_order_id, so
   // this value is only a unique label for Paymob's records.
   const token        = await authenticate()
-  const orderId      = await createOrder(token, amountCents, currency, randomUUID(), eventTitle)
+  const orderId      = await createOrder(token, amountCents, currency, randomUUID(), eventTitle, kind)
   const paymentKey   = await getPaymentKey(token, amountCents, currency, orderId, integrationId, billingData)
 
   const redirectUrl = method === 'fawry'

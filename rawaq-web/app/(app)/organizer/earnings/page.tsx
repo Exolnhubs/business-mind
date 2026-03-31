@@ -215,7 +215,7 @@ export default function EarningsPage() {
         {ledger.length === 0 ? (
           <div className="card p-8 text-center text-gray-400">
             <div className="text-3xl mb-2">📭</div>
-            <p className="text-sm">No transactions yet. Revenue from tips and ticket sales will appear here.</p>
+            <p className="text-sm">No transactions yet. Revenue from donations and ticket sales will appear here.</p>
           </div>
         ) : (
           <div className="card overflow-hidden">
@@ -296,3 +296,4 @@ export default function EarningsPage() {
     </div>
   )
 }
+

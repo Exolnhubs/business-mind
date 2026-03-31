@@ -48,7 +48,7 @@ function notificationLabel(n: Notification): { title: string; subtitle: string; 
     case 'event_cancelled':
       return { title: 'Event was cancelled', subtitle: p.event_title ?? '', href: null }
     case 'tip_received':
-      return { title: `You received a SAR ${p.amount ?? ''} tip`, subtitle: p.event_title ?? '', href: p.event_id ? `/events/${p.event_id}` : null }
+      return { title: `You received a SAR ${p.amount ?? ''} donation`, subtitle: p.event_title ?? '', href: p.event_id ? `/events/${p.event_id}` : null }
     case 'event_updated':
       return { title: 'Event details updated', subtitle: p.event_title ?? '', href: p.event_id ? `/events/${p.event_id}` : null }
     case 'new_event_published':
@@ -189,3 +189,4 @@ export default function NotificationsPage() {
     </div>
   )
 }
+
