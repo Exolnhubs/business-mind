@@ -67,12 +67,13 @@ export default function EarningsScreen() {
   const { user } = useAuth()
   const router   = useRouter()
 
-  const [wallet,      setWallet]      = useState<Wallet | null>(null)
-  const [ledger,      setLedger]      = useState<LedgerEntry[]>([])
-  const [payouts,     setPayouts]     = useState<Payout[]>([])
-  const [bankAccount, setBankAccount] = useState<BankAccount | null>(null)
-  const [loading,     setLoading]     = useState(true)
-  const [refreshing,  setRefreshing]  = useState(false)
+  const [wallet,        setWallet]        = useState<Wallet | null>(null)
+  const [ledger,        setLedger]        = useState<LedgerEntry[]>([])
+  const [payouts,       setPayouts]       = useState<Payout[]>([])
+  const [pendingPayout, setPendingPayout] = useState<Payout | null>(null)
+  const [bankAccount,   setBankAccount]   = useState<BankAccount | null>(null)
+  const [loading,       setLoading]       = useState(true)
+  const [refreshing,    setRefreshing]    = useState(false)
 
   // Modal state
   const [modalMode,  setModalMode]  = useState<ModalMode>('payout')
@@ -101,6 +102,7 @@ export default function EarningsScreen() {
       { data: ledgerData, error: ledgerErr },
       { data: payoutsData },
       { data: bankData },
+      { data: pendingData },
     ] = await Promise.all([
       supabase
         .from('organizer_wallet')
@@ -124,12 +126,21 @@ export default function EarningsScreen() {
         .select('*')
         .eq('organizer_id', user.id)
         .maybeSingle(),
+      supabase
+        .from('payouts')
+        .select('id, amount, status, requested_at')
+        .eq('organizer_id', user.id)
+        .in('status', ['pending', 'processing'])
+        .order('requested_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
     ])
 
     setWallet(walletData ?? { balance: 0, total_earned: 0, total_withdrawn: 0, currency: 'SAR' })
     setLedger(ledgerErr ? [] : (ledgerData ?? []))
     setPayouts(payoutsData ?? [])
     setBankAccount(bankData ?? null)
+    setPendingPayout((pendingData as any) ?? null)
 
     if (isRefresh) setRefreshing(false); else setLoading(false)
   }
@@ -200,8 +211,8 @@ export default function EarningsScreen() {
       Alert.alert('Invalid amount', 'Please enter a valid amount.')
       return
     }
-    if (amount > (wallet?.balance ?? 0)) {
-      Alert.alert('Insufficient balance', `Available: ${wallet?.balance ?? 0} ${wallet?.currency ?? 'SAR'}`)
+    if (amount > availableToWithdraw) {
+      Alert.alert('Insufficient balance', `Available to withdraw: ${availableToWithdraw} ${wallet?.currency ?? 'SAR'}`)
       return
     }
 
@@ -244,6 +255,9 @@ export default function EarningsScreen() {
     )
   }
 
+  const pendingAmount        = pendingPayout?.amount ?? 0
+  const availableToWithdraw  = Math.max(0, (wallet?.balance ?? 0) - pendingAmount)
+
   return (
     <View style={{ flex: 1, backgroundColor: Colors.gray[50] }}>
       <ScrollView
@@ -262,8 +276,11 @@ export default function EarningsScreen() {
         <View style={styles.statsRow}>
           <View style={[styles.statCard, styles.statHighlight]}>
             <Text style={styles.statIcon}>💰</Text>
-            <Text style={[styles.statValue, { color: Colors.brand[700] }]}>{fmt(wallet?.balance ?? 0)}</Text>
+            <Text style={[styles.statValue, { color: Colors.brand[700] }]}>{fmt(availableToWithdraw)}</Text>
             <Text style={styles.statLabel}>Available</Text>
+            {pendingAmount > 0 && (
+              <Text style={styles.pendingLock}>🔒 {fmt(pendingAmount)} pending</Text>
+            )}
           </View>
           <View style={styles.statCard}>
             <Text style={styles.statIcon}>📈</Text>
@@ -312,9 +329,9 @@ export default function EarningsScreen() {
         <TouchableOpacity
           style={[
             styles.payoutBtn,
-            ((wallet?.balance ?? 0) <= 0 || !bankAccount) && styles.payoutBtnDisabled,
+            (availableToWithdraw <= 0 || !bankAccount) && styles.payoutBtnDisabled,
           ]}
-          disabled={(wallet?.balance ?? 0) <= 0 || !bankAccount}
+          disabled={availableToWithdraw <= 0 || !bankAccount}
           onPress={openWithdrawModal}
         >
           <Text style={styles.payoutBtnText}>
@@ -377,7 +394,7 @@ export default function EarningsScreen() {
             {modalMode === 'payout' ? (
               <>
                 <Text style={styles.modalTitle}>Withdraw Funds</Text>
-                <Text style={styles.modalSub}>Available: {fmt(wallet?.balance ?? 0)}</Text>
+                <Text style={styles.modalSub}>Available: {fmt(availableToWithdraw)}</Text>
 
                 {bankAccount && (
                   <View style={styles.modalBankSummary}>
@@ -394,7 +411,7 @@ export default function EarningsScreen() {
                   value={payoutAmt}
                   onChangeText={setPayoutAmt}
                   keyboardType="decimal-pad"
-                  placeholder={`Max ${wallet?.balance ?? 0}`}
+                  placeholder={`Max ${availableToWithdraw}`}
                   placeholderTextColor={Colors.gray[400]}
                 />
 
@@ -511,6 +528,7 @@ const styles = StyleSheet.create({
   statIcon:     { fontSize: 20, marginBottom: 2 },
   statValue:    { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.gray[900], textAlign: 'center' },
   statLabel:    { fontSize: 10, color: Colors.gray[500], marginTop: 2, textAlign: 'center' },
+  pendingLock:  { fontSize: 9, color: '#d97706', marginTop: 3, textAlign: 'center' },
   bankBanner:      { flexDirection: 'row', alignItems: 'center', marginHorizontal: Spacing.lg, marginBottom: Spacing.md, backgroundColor: '#fef3c7', borderRadius: Radius.lg, padding: Spacing.md, borderWidth: 1, borderColor: '#fcd34d' },
   bankBannerTitle: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: '#92400e' },
   bankBannerSub:   { fontSize: FontSize.xs, color: '#b45309', marginTop: 2 },
