@@ -6,6 +6,7 @@ import {
 } from 'react-native'
 import { useRouter } from 'expo-router'
 import { supabase } from '@/lib/supabase'
+import { apiPost } from '@/lib/api'
 import { useAuth } from '@/contexts/auth-context'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
 
@@ -173,27 +174,22 @@ export default function EarningsScreen() {
     }
 
     setSubmitting(true)
-    const res = await fetch('/api/organizer/bank-account', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        bank_name:           bankForm.bank_name.trim(),
-        bank_name_ar:        bankForm.bank_name_ar.trim() || null,
-        account_holder_name: bankForm.account_holder_name.trim(),
-        iban:                bankForm.iban.trim(),
-        swift_code:          bankForm.swift_code.trim() || null,
-        country:             bankForm.country.trim() || 'SA',
-      }),
+    const { data, error } = await apiPost<{ bank_account: BankAccount }>('/api/organizer/bank-account', {
+      bank_name:           bankForm.bank_name.trim(),
+      bank_name_ar:        bankForm.bank_name_ar.trim() || null,
+      account_holder_name: bankForm.account_holder_name.trim(),
+      iban:                bankForm.iban.trim(),
+      swift_code:          bankForm.swift_code.trim() || null,
+      country:             bankForm.country.trim()    || 'SA',
     })
-    const json = await res.json()
     setSubmitting(false)
 
-    if (!res.ok) {
-      Alert.alert('Error', json.error ?? json.message ?? 'Failed to save bank account.')
+    if (error) {
+      Alert.alert('Error', error)
       return
     }
 
-    setBankAccount(json.data?.bank_account ?? null)
+    setBankAccount(data?.bank_account ?? null)
     setShowModal(false)
     Alert.alert('Saved', 'Your banking details have been saved. You can now request a withdrawal.')
   }
@@ -210,17 +206,12 @@ export default function EarningsScreen() {
     }
 
     setSubmitting(true)
-    const res = await fetch('/api/organizer/payouts', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ amount }),
-    })
-    const json = await res.json()
+    const { data, error } = await apiPost('/api/organizer/payouts', { amount })
     setSubmitting(false)
     setShowModal(false)
     setPayoutAmt('')
 
-    if (res.status === 422 && json.requires_bank_account) {
+    if (error === 'Bank account required') {
       setBankAccount(null)
       Alert.alert(
         'Banking details required',
@@ -230,8 +221,8 @@ export default function EarningsScreen() {
       return
     }
 
-    if (!res.ok) {
-      Alert.alert('Error', json.error ?? json.message ?? 'Payout request failed.')
+    if (error) {
+      Alert.alert('Error', error)
       return
     }
 
