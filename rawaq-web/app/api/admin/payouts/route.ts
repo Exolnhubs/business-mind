@@ -28,9 +28,8 @@ export async function GET(req: NextRequest) {
         requested_at, processed_at,
         organizer:organizer_id (
           id,
-          full_name,
-          email,
-          organizer_profiles ( business_name )
+          display_name,
+          organizer_profiles!user_id ( business_name )
         ),
         bank_account:bank_account_id (
           bank_name, bank_name_ar, account_holder_name, iban, swift_code, country, is_verified
