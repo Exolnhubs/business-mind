@@ -1,13 +1,11 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
-import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireAuth } from '@/lib/auth'
 import { handleApiError, ok, created, ForbiddenException, BadRequestException } from '@/lib/errors'
 
 const RequestPayoutSchema = z.object({
-  amount:    z.number().positive(),
-  bank_name: z.string().min(2).max(100).optional(),
-  iban:      z.string().min(15).max(34).optional(),
+  amount: z.number().positive(),
 })
 
 // GET /api/organizer/payouts — list all payouts for the organizer
@@ -22,9 +20,9 @@ export async function GET(req: NextRequest) {
     const perPage = Number(req.nextUrl.searchParams.get('per_page') ?? 20)
     const from    = (page - 1) * perPage
 
-    const supabase = await createSupabaseServerClient()
+    const admin = createSupabaseAdminClient()
 
-    const { data, count, error } = await supabase
+    const { data, count, error } = await (admin as any)
       .from('payouts')
       .select('*', { count: 'exact' })
       .eq('organizer_id', ctx.userId)
@@ -39,8 +37,8 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/organizer/payouts — request a payout
-// MVP: simulated — auto-completes immediately (debit via trigger)
+// POST /api/organizer/payouts — request a real payout
+// Requires a saved bank account. Creates a 'pending' payout for admin to process.
 export async function POST(req: NextRequest) {
   try {
     const ctx = await requireAuth()
@@ -51,10 +49,28 @@ export async function POST(req: NextRequest) {
     const body  = await req.json()
     const input = RequestPayoutSchema.parse(body)
 
-    const supabase = await createSupabaseServerClient()
+    const admin = createSupabaseAdminClient()
 
-    // Check wallet balance
-    const { data: wallet } = await supabase
+    // ── Require saved bank account ────────────────────────────────────────────
+    const { data: bankAccount } = await (admin as any)
+      .from('organizer_bank_accounts')
+      .select('id, bank_name, account_holder_name, iban, country')
+      .eq('organizer_id', ctx.userId)
+      .maybeSingle()
+
+    if (!bankAccount) {
+      return new Response(
+        JSON.stringify({
+          error:                 'Bank account required',
+          requires_bank_account: true,
+          message:               'Please add your bank account details before requesting a withdrawal.',
+        }),
+        { status: 422, headers: { 'Content-Type': 'application/json' } },
+      )
+    }
+
+    // ── Check wallet balance ──────────────────────────────────────────────────
+    const { data: wallet } = await (admin as any)
       .from('organizer_wallet')
       .select('balance, currency')
       .eq('organizer_id', ctx.userId)
@@ -63,12 +79,12 @@ export async function POST(req: NextRequest) {
     const balance = wallet?.balance ?? 0
     if (input.amount > balance) {
       throw new BadRequestException(
-        `Insufficient balance. Available: ${balance} ${wallet?.currency ?? 'SAR'}`
+        `Insufficient balance. Available: ${balance} ${wallet?.currency ?? 'SAR'}`,
       )
     }
 
-    // Block if there's already a pending payout
-    const { data: existing } = await supabase
+    // ── Block duplicate in-flight payout ─────────────────────────────────────
+    const { data: existing } = await (admin as any)
       .from('payouts')
       .select('id')
       .eq('organizer_id', ctx.userId)
@@ -76,22 +92,25 @@ export async function POST(req: NextRequest) {
       .maybeSingle()
 
     if (existing) {
-      throw new BadRequestException('You already have a payout in progress. Please wait for it to complete.')
+      throw new BadRequestException(
+        'You already have a payout in progress. Please wait for it to complete.',
+      )
     }
 
-    // Insert payout — for simulated MVP, immediately mark as completed
-    // The trg_payout_wallet_debit trigger fires on status = 'completed'
-    const { data: payout, error } = await supabase
+    // ── Insert payout (pending — admin processes and marks completed) ─────────
+    // Snapshot bank details at request time so payout history is auditable
+    // even if the organizer later changes their bank account.
+    const { data: payout, error } = await (admin as any)
       .from('payouts')
       .insert({
-        organizer_id: ctx.userId,
-        amount:       input.amount,
-        bank_name:    input.bank_name ?? null,
-        iban:         input.iban      ?? null,
-        status:       'completed',   // simulated: instant
-        processed_at: new Date().toISOString(),
-        gateway_ref:  `sim_payout_${Date.now()}`,
-        is_simulated: true,
+        organizer_id:    ctx.userId,
+        amount:          input.amount,
+        currency:        wallet?.currency ?? 'SAR',
+        status:          'pending',
+        bank_account_id: bankAccount.id,
+        bank_name:       bankAccount.bank_name,
+        iban:            bankAccount.iban,
+        is_simulated:    false,
       } as any)
       .select()
       .single()
