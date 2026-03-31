@@ -7,6 +7,17 @@ import { Spinner } from '@/components/ui/Spinner'
 import { formatCurrency } from '@/lib/utils'
 import type { OrganizerWallet, WalletLedgerEntry, Payout } from '@/types/database'
 
+interface BankAccount {
+  id: string
+  bank_name: string
+  bank_name_ar: string | null
+  account_holder_name: string
+  iban: string
+  swift_code: string | null
+  country: string
+  is_verified: boolean
+}
+
 const REASON_LABELS: Record<string, string> = {
   tip:              '💝 Tip received',
   ticket_sale:      '🎟️ Ticket sale',
@@ -19,17 +30,31 @@ export default function EarningsPage() {
   const { user, profile, loading: authLoading } = useAuth()
   const router = useRouter()
 
-  const [wallet,  setWallet]  = useState<OrganizerWallet | null>(null)
-  const [ledger,  setLedger]  = useState<WalletLedgerEntry[]>([])
-  const [payouts, setPayouts] = useState<Payout[]>([])
+  const [wallet,        setWallet]        = useState<OrganizerWallet | null>(null)
+  const [ledger,        setLedger]        = useState<WalletLedgerEntry[]>([])
+  const [payouts,       setPayouts]       = useState<Payout[]>([])
   const [pendingPayout, setPendingPayout] = useState<Payout | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [bankAccount,   setBankAccount]   = useState<BankAccount | null>(null)
+  const [loading,       setLoading]       = useState(true)
 
   // Payout form
   const [showPayoutForm, setShowPayoutForm] = useState(false)
-  const [payoutForm, setPayoutForm] = useState({ amount: '', bank_name: '', iban: '' })
-  const [payoutLoading, setPayoutLoading] = useState(false)
-  const [payoutMsg, setPayoutMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [payoutAmount,   setPayoutAmount]   = useState('')
+  const [payoutLoading,  setPayoutLoading]  = useState(false)
+  const [payoutMsg,      setPayoutMsg]      = useState<{ ok: boolean; text: string } | null>(null)
+
+  // Bank account form
+  const [showBankForm, setShowBankForm] = useState(false)
+  const [bankForm,     setBankForm]     = useState({
+    bank_name:           '',
+    bank_name_ar:        '',
+    account_holder_name: '',
+    iban:                '',
+    swift_code:          '',
+    country:             'SA',
+  })
+  const [bankLoading, setBankLoading] = useState(false)
+  const [bankMsg,     setBankMsg]     = useState<{ ok: boolean; text: string } | null>(null)
 
   useEffect(() => {
     if (!authLoading && !user) router.replace('/login')
@@ -42,13 +67,59 @@ export default function EarningsPage() {
     Promise.all([
       fetch('/api/organizer/wallet').then((r) => r.json()),
       fetch('/api/organizer/payouts?per_page=10').then((r) => r.json()),
-    ]).then(([walletData, payoutsData]) => {
+      fetch('/api/organizer/bank-account').then((r) => r.json()),
+    ]).then(([walletData, payoutsData, bankData]) => {
       setWallet(walletData.data?.wallet ?? null)
       setLedger(walletData.data?.ledger ?? [])
       setPendingPayout(walletData.data?.pending_payout ?? null)
       setPayouts(payoutsData.data?.data ?? [])
+      setBankAccount(bankData.data?.bank_account ?? null)
     }).finally(() => setLoading(false))
   }, [user])
+
+  function openEditBankForm(account: BankAccount | null) {
+    setBankForm({
+      bank_name:           account?.bank_name           ?? '',
+      bank_name_ar:        account?.bank_name_ar        ?? '',
+      account_holder_name: account?.account_holder_name ?? '',
+      iban:                account?.iban                 ?? '',
+      swift_code:          account?.swift_code          ?? '',
+      country:             account?.country             ?? 'SA',
+    })
+    setBankMsg(null)
+    setShowBankForm(true)
+    setShowPayoutForm(false)
+  }
+
+  async function handleSaveBankAccount(e: FormEvent) {
+    e.preventDefault()
+    setBankLoading(true)
+    setBankMsg(null)
+
+    const res = await fetch('/api/organizer/bank-account', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        bank_name:           bankForm.bank_name,
+        bank_name_ar:        bankForm.bank_name_ar  || undefined,
+        account_holder_name: bankForm.account_holder_name,
+        iban:                bankForm.iban,
+        swift_code:          bankForm.swift_code   || undefined,
+        country:             bankForm.country       || 'SA',
+      }),
+    })
+
+    const json = await res.json()
+    setBankLoading(false)
+
+    if (res.ok) {
+      setBankAccount(json.data?.bank_account ?? null)
+      setBankMsg({ ok: true, text: '✓ Banking details saved.' })
+      setShowBankForm(false)
+    } else {
+      setBankMsg({ ok: false, text: json.error ?? 'Failed to save bank account.' })
+    }
+  }
 
   async function handlePayout(e: FormEvent) {
     e.preventDefault()
@@ -56,24 +127,31 @@ export default function EarningsPage() {
     setPayoutMsg(null)
 
     const res = await fetch('/api/organizer/payouts', {
-      method: 'POST',
+      method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        amount:    parseFloat(payoutForm.amount),
-        bank_name: payoutForm.bank_name || undefined,
-        iban:      payoutForm.iban      || undefined,
-      }),
+      body:    JSON.stringify({ amount: parseFloat(payoutAmount) }),
     })
 
     const json = await res.json()
+
+    if (res.status === 422 && json.requires_bank_account) {
+      setPayoutLoading(false)
+      setShowPayoutForm(false)
+      setBankAccount(null)
+      openEditBankForm(null)
+      return
+    }
+
     if (res.ok) {
-      // Refresh wallet
       const walletRes = await fetch('/api/organizer/wallet').then((r) => r.json())
       setWallet(walletRes.data?.wallet ?? null)
       setLedger(walletRes.data?.ledger ?? [])
       setPayouts((prev) => [json.data, ...prev])
-      setPayoutMsg({ ok: true, text: `✓ Payout of ${formatCurrency(parseFloat(payoutForm.amount))} processed.` })
-      setPayoutForm({ amount: '', bank_name: '', iban: '' })
+      setPayoutMsg({
+        ok:   true,
+        text: `✓ Withdrawal of ${formatCurrency(parseFloat(payoutAmount))} requested. Processing in 1–3 business days.`,
+      })
+      setPayoutAmount('')
       setShowPayoutForm(false)
     } else {
       setPayoutMsg({ ok: false, text: json.error ?? 'Payout failed.' })
@@ -112,23 +190,143 @@ export default function EarningsPage() {
         ))}
       </div>
 
-      {/* Payout CTA */}
+      {/* ── Banking details ─────────────────────────────────────────────────── */}
+      <div className="card p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="font-semibold text-gray-900">Banking details</h2>
+            {bankAccount ? (
+              <div className="mt-1 space-y-0.5">
+                <p className="text-sm text-gray-700 font-medium">
+                  {bankAccount.bank_name}
+                  {bankAccount.is_verified && (
+                    <span className="ml-2 text-xs font-semibold text-green-600">✓ Verified</span>
+                  )}
+                </p>
+                <p className="text-xs text-gray-500 font-mono">
+                  {bankAccount.iban.replace(/(.{4})/g, '$1 ').trim()}
+                </p>
+                <p className="text-xs text-gray-500">{bankAccount.account_holder_name}</p>
+              </div>
+            ) : (
+              <p className="text-sm text-amber-600 mt-1">
+                No banking details saved — required to request a withdrawal.
+              </p>
+            )}
+          </div>
+          <button
+            onClick={() => openEditBankForm(bankAccount)}
+            className="btn-secondary text-sm whitespace-nowrap"
+          >
+            {bankAccount ? 'Edit' : 'Add banking details'}
+          </button>
+        </div>
+
+        {/* Bank account form (inline) */}
+        {showBankForm && (
+          <form onSubmit={handleSaveBankAccount} className="mt-5 border-t border-gray-100 pt-5 space-y-4">
+            <h3 className="font-semibold text-gray-900 text-sm">
+              {bankAccount ? 'Update banking details' : 'Add banking details'}
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="label">Bank Name (English) *</label>
+                <input
+                  type="text"
+                  required
+                  value={bankForm.bank_name}
+                  onChange={(e) => setBankForm((f) => ({ ...f, bank_name: e.target.value }))}
+                  className="input"
+                  placeholder="Al Rajhi Bank"
+                />
+              </div>
+              <div>
+                <label className="label">اسم البنك (Arabic)</label>
+                <input
+                  type="text"
+                  value={bankForm.bank_name_ar}
+                  onChange={(e) => setBankForm((f) => ({ ...f, bank_name_ar: e.target.value }))}
+                  className="input text-right"
+                  placeholder="بنك الراجحي"
+                  dir="rtl"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="label">Account Holder Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={bankForm.account_holder_name}
+                  onChange={(e) => setBankForm((f) => ({ ...f, account_holder_name: e.target.value }))}
+                  className="input"
+                  placeholder="Mohammed Al-Hassan"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="label">IBAN *</label>
+                <input
+                  type="text"
+                  required
+                  value={bankForm.iban}
+                  onChange={(e) => setBankForm((f) => ({ ...f, iban: e.target.value.toUpperCase() }))}
+                  className="input font-mono"
+                  placeholder="SA29 0000 0000 0000 0000 0000"
+                  minLength={15}
+                  maxLength={34}
+                />
+              </div>
+              <div>
+                <label className="label">SWIFT / BIC Code</label>
+                <input
+                  type="text"
+                  value={bankForm.swift_code}
+                  onChange={(e) => setBankForm((f) => ({ ...f, swift_code: e.target.value.toUpperCase() }))}
+                  className="input font-mono"
+                  placeholder="RJHISARI"
+                  minLength={8}
+                  maxLength={11}
+                />
+              </div>
+            </div>
+            {bankMsg && (
+              <div className={`text-sm rounded-xl px-4 py-3 ${
+                bankMsg.ok
+                  ? 'bg-green-50 border border-green-200 text-green-700'
+                  : 'bg-red-50 border border-red-200 text-red-700'
+              }`}>{bankMsg.text}</div>
+            )}
+            <div className="flex gap-3">
+              <button type="submit" disabled={bankLoading} className="btn-primary disabled:opacity-50">
+                {bankLoading ? <Spinner size="sm" /> : 'Save Details'}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setShowBankForm(false); setBankMsg(null) }}
+                className="btn-secondary"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+
+      {/* ── Payout CTA ──────────────────────────────────────────────────────── */}
       {!pendingPayout && (
         <div className="card p-5">
           {!showPayoutForm ? (
             <div className="flex items-center justify-between gap-4 flex-wrap">
               <div>
-                <p className="font-medium text-gray-900">Request a payout</p>
+                <p className="font-medium text-gray-900">Request a withdrawal</p>
                 <p className="text-sm text-gray-500 mt-0.5">
-                  Withdraw your available balance to your bank account.
-                  {wallet?.is_simulated !== false && (
-                    <span className="ml-1 text-amber-600">Simulated — no real transfer.</span>
-                  )}
+                  {bankAccount
+                    ? `To ${bankAccount.bank_name} · ····${bankAccount.iban.slice(-4)}`
+                    : 'Add banking details above before withdrawing.'}
                 </p>
               </div>
               <button
-                onClick={() => setShowPayoutForm(true)}
-                disabled={balance <= 0}
+                onClick={() => { setShowPayoutForm(true); setPayoutMsg(null) }}
+                disabled={balance <= 0 || !bankAccount}
                 className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
               >
                 Withdraw Funds
@@ -136,43 +334,35 @@ export default function EarningsPage() {
             </div>
           ) : (
             <form onSubmit={handlePayout} className="space-y-4">
-              <h3 className="font-semibold text-gray-900">Payout Details</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="label">Amount (SAR) *</label>
-                  <input
-                    type="number"
-                    required
-                    min="1"
-                    max={balance}
-                    step="0.01"
-                    value={payoutForm.amount}
-                    onChange={(e) => setPayoutForm((f) => ({ ...f, amount: e.target.value }))}
-                    className="input"
-                    placeholder={`Max ${balance}`}
-                  />
+              <h3 className="font-semibold text-gray-900">Withdrawal details</h3>
+
+              {bankAccount && (
+                <div className="bg-gray-50 rounded-xl px-4 py-3 text-sm text-gray-600">
+                  To: <span className="font-medium text-gray-800">{bankAccount.bank_name}</span>
+                  {' · '}
+                  <span className="font-mono text-xs">{bankAccount.iban.replace(/(.{4})/g, '$1 ').trim()}</span>
                 </div>
-                <div>
-                  <label className="label">Bank Name</label>
-                  <input
-                    type="text"
-                    value={payoutForm.bank_name}
-                    onChange={(e) => setPayoutForm((f) => ({ ...f, bank_name: e.target.value }))}
-                    className="input"
-                    placeholder="Al Rajhi Bank"
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="label">IBAN</label>
-                  <input
-                    type="text"
-                    value={payoutForm.iban}
-                    onChange={(e) => setPayoutForm((f) => ({ ...f, iban: e.target.value }))}
-                    className="input"
-                    placeholder="SA00 0000 0000 0000 0000 0000"
-                  />
-                </div>
+              )}
+
+              <div>
+                <label className="label">Amount ({wallet?.currency ?? 'SAR'}) *</label>
+                <input
+                  type="number"
+                  required
+                  min="1"
+                  max={balance}
+                  step="0.01"
+                  value={payoutAmount}
+                  onChange={(e) => setPayoutAmount(e.target.value)}
+                  className="input"
+                  placeholder={`Max ${balance}`}
+                />
               </div>
+
+              <p className="text-xs text-gray-400">
+                ℹ️ Payouts are processed within 1–3 business days.
+              </p>
+
               {payoutMsg && (
                 <div className={`text-sm rounded-xl px-4 py-3 ${
                   payoutMsg.ok
@@ -181,10 +371,14 @@ export default function EarningsPage() {
                 }`}>{payoutMsg.text}</div>
               )}
               <div className="flex gap-3">
-                <button type="submit" disabled={payoutLoading || !payoutForm.amount} className="btn-primary disabled:opacity-50">
-                  {payoutLoading ? <Spinner size="sm" /> : 'Confirm Payout'}
+                <button type="submit" disabled={payoutLoading || !payoutAmount} className="btn-primary disabled:opacity-50">
+                  {payoutLoading ? <Spinner size="sm" /> : 'Request Withdrawal'}
                 </button>
-                <button type="button" onClick={() => { setShowPayoutForm(false); setPayoutMsg(null) }} className="btn-secondary">
+                <button
+                  type="button"
+                  onClick={() => { setShowPayoutForm(false); setPayoutMsg(null) }}
+                  className="btn-secondary"
+                >
                   Cancel
                 </button>
               </div>
@@ -296,4 +490,3 @@ export default function EarningsPage() {
     </div>
   )
 }
-
