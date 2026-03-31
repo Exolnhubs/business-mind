@@ -163,7 +163,9 @@ export default function EarningsPage() {
     return <div className="flex items-center justify-center h-[60vh]"><Spinner size="lg" /></div>
   }
 
-  const balance = wallet?.balance ?? 0
+  const balance        = wallet?.balance ?? 0
+  const pendingAmount  = pendingPayout?.amount ?? 0
+  const availableToWithdraw = Math.max(0, balance - pendingAmount)
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 space-y-6">
@@ -177,14 +179,23 @@ export default function EarningsPage() {
 
       {/* Wallet summary */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="card p-5 bg-brand-50 border border-brand-200">
+          <div className="text-2xl mb-1">💰</div>
+          <div className="text-2xl font-bold text-brand-700">{formatCurrency(availableToWithdraw)}</div>
+          <div className="text-xs text-gray-500 mt-0.5">Available to Withdraw</div>
+          {pendingAmount > 0 && (
+            <div className="text-xs text-amber-600 mt-1">
+              🔒 {formatCurrency(pendingAmount)} pending withdrawal
+            </div>
+          )}
+        </div>
         {[
-          { label: 'Available Balance', value: formatCurrency(wallet?.balance ?? 0), highlight: true, icon: '💰' },
-          { label: 'Total Earned',      value: formatCurrency(wallet?.total_earned ?? 0),    icon: '📈' },
-          { label: 'Total Withdrawn',   value: formatCurrency(wallet?.total_withdrawn ?? 0), icon: '🏦' },
+          { label: 'Total Earned',    value: formatCurrency(wallet?.total_earned ?? 0),    icon: '📈' },
+          { label: 'Total Withdrawn', value: formatCurrency(wallet?.total_withdrawn ?? 0), icon: '🏦' },
         ].map((s) => (
-          <div key={s.label} className={`card p-5 ${s.highlight ? 'bg-brand-50 border border-brand-200' : ''}`}>
+          <div key={s.label} className="card p-5">
             <div className="text-2xl mb-1">{s.icon}</div>
-            <div className={`text-2xl font-bold ${s.highlight ? 'text-brand-700' : 'text-gray-900'}`}>{s.value}</div>
+            <div className="text-2xl font-bold text-gray-900">{s.value}</div>
             <div className="text-xs text-gray-500 mt-0.5">{s.label}</div>
           </div>
         ))}
@@ -326,7 +337,7 @@ export default function EarningsPage() {
               </div>
               <button
                 onClick={() => { setShowPayoutForm(true); setPayoutMsg(null) }}
-                disabled={balance <= 0 || !bankAccount}
+                disabled={availableToWithdraw <= 0 || !bankAccount}
                 className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
               >
                 Withdraw Funds
@@ -350,12 +361,12 @@ export default function EarningsPage() {
                   type="number"
                   required
                   min="1"
-                  max={balance}
+                  max={availableToWithdraw}
                   step="0.01"
                   value={payoutAmount}
                   onChange={(e) => setPayoutAmount(e.target.value)}
                   className="input"
-                  placeholder={`Max ${balance}`}
+                  placeholder={`Max ${availableToWithdraw}`}
                 />
               </div>
 
