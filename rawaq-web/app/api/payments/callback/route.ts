@@ -90,7 +90,7 @@ export async function GET(req: NextRequest) {
     const admin = createSupabaseAdminClient()
     const { data: tx } = await (admin as any)
       .from('payment_transactions')
-      .select('booking_id, gateway_payload')
+      .select('booking_id, source')
       .eq('gateway_order_id', paymobOrderId)
       .single()
 
@@ -100,7 +100,7 @@ export async function GET(req: NextRequest) {
     }
 
     const bookingId = tx.booking_id as string
-    const isMobile  = (tx.gateway_payload as { source?: string } | null)?.source === 'mobile'
+    const isMobile  = tx.source === 'mobile'
 
     if (isMobile) {
       // Redirect to the app deep link — iOS/Android intercepts rawaq://

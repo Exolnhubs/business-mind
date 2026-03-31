@@ -232,9 +232,10 @@ export async function POST(req: NextRequest) {
         organizer_net:    organizerNet,
         currency:         event.currency ?? 'SAR',
         gateway,
+        source:           input.source,
         payment_method:   method,
         is_simulated:     gateway === 'simulated',
-        gateway_payload:  { source: input.source }, // track mobile vs web for callback redirect
+        gateway_payload:  { source: input.source }, // legacy breadcrumb for older rows/logging
         // Reset gateway-specific fields so stale data from a prior attempt is cleared
         gateway_ref:      null,
         gateway_order_id: null,

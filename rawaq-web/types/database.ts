@@ -38,6 +38,7 @@ export type OrganizerStatus = 'pending' | 'approved' | 'rejected' | 'suspended'
 export type PaymentType = 'ticket' | 'tip' | 'refund' | 'payout'
 export type PaymentStatus = 'pending' | 'succeeded' | 'failed' | 'refunded'
 export type PaymentGateway = 'simulated' | 'moyasar' | 'stripe' | 'hyperpay' | 'paymob' | 'fawry'
+export type PaymentSource = 'web' | 'mobile'
 export type WalletLedgerReason = 'tip' | 'ticket_sale' | 'refund_deducted' | 'payout' | 'adjustment'
 export type WaitlistStatus = 'waiting' | 'promoted' | 'expired' | 'cancelled'
 export type PayoutStatus = 'pending' | 'processing' | 'completed' | 'failed'
@@ -216,6 +217,7 @@ export interface PaymentTransaction {
   organizer_net: number
   currency: string
   gateway: PaymentGateway
+  source: PaymentSource
   gateway_ref: string | null
   gateway_payload: Record<string, unknown> | null
   is_simulated: boolean

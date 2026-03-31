@@ -286,10 +286,10 @@ export default function EventDetailScreen() {
     //      the payment will eventually confirm.
     setBL(true)
 
-    // Poll for up to ~60 s. Paymob 3DS webhooks can arrive well after the
+    // Poll for up to ~20 s. Paymob 3DS webhooks can arrive well after the
     // browser redirects — 17 s was often too short.
     // Pattern: fast at first, then back off to 5 s intervals.
-    const DELAYS = [2000, 3000, 3000, 5000, 5000, 5000, 5000, 5000, 5000, 5000, 5000]
+    const DELAYS = [2000, 3000, 3000, 5000, 5000]
     let confirmed    = false
     let actualFailed = false
     for (const delay of DELAYS) {
