@@ -27,6 +27,7 @@ export async function finalizeDonationPayment(
   admin: any,
   tx: DonationTx,
   gatewayRef: string,
+  message?: string | null,
 ) {
   if (!tx.event_id) {
     throw new Error('Donation transaction missing event_id')
@@ -40,7 +41,7 @@ export async function finalizeDonationPayment(
       event_id:            tx.event_id,
       amount:              tx.amount,
       currency:            tx.currency,
-      message:             extractDonationMessage(tx.gateway_payload),
+      message:             message ?? extractDonationMessage(tx.gateway_payload),
       payment_ref:         gatewayRef,
       is_simulated:        false,
       platform_fee_pct:    feePct(tx.amount, tx.platform_fee),

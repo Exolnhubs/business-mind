@@ -21,6 +21,13 @@ import { verifyStripeSignature, parseStripeWebhook } from '@/lib/gateways/stripe
 import { sendNotification } from '@/lib/notifications'
 import { finalizeDonationPayment } from '@/lib/donations'
 
+function getDonationMessage(payload: Record<string, unknown> | null): string | null {
+  const message = payload?.message
+  return typeof message === 'string' && message.trim().length > 0
+    ? message.trim()
+    : null
+}
+
 export async function POST(req: NextRequest) {
   try {
     const rawBody   = await req.text()
@@ -58,26 +65,23 @@ export async function POST(req: NextRequest) {
     }
 
     // Idempotency
-    if (tx.status !== 'pending') {
+    const needsDonationRecovery =
+      tx.type === 'tip' &&
+      event.status === 'succeeded' &&
+      tx.status === 'succeeded' &&
+      !tx.tip_id
+
+    if (tx.status !== 'pending' && !needsDonationRecovery) {
       return new Response('already processed', { status: 200 })
     }
 
     // ── Update transaction ────────────────────────────────────────────────────
-    let tipId = tx.tip_id
-    if (event.status === 'succeeded' && tx.type === 'tip') {
-      try {
-        tipId = await finalizeDonationPayment(admin, tx, event.gatewayRef)
-      } catch (tipErr) {
-        console.error('[webhooks/stripe] FAILED to finalize donation', tx.id, tipErr)
-        return new Response('donation finalize failed', { status: 500 })
-      }
-    }
+    const donationMessage = getDonationMessage(tx.gateway_payload)
 
-    await (admin as any)
+    const { error: txUpdateErr } = await (admin as any)
       .from('payment_transactions')
       .update({
         status:          event.status,
-        tip_id:          tipId,
         gateway_ref:     event.gatewayRef,
         gateway_payload: event.gatewayPayload,
         payment_method:  event.paymentMethod,
@@ -86,6 +90,31 @@ export async function POST(req: NextRequest) {
         updated_at:      new Date().toISOString(),
       })
       .eq('id', tx.id)
+
+    if (txUpdateErr) {
+      console.error('[webhooks/stripe] FAILED to update transaction', tx.id, 'err:', txUpdateErr.message)
+      return new Response('db error', { status: 500 })
+    }
+
+    if (event.status === 'succeeded' && tx.type === 'tip' && !tx.tip_id) {
+      let tipId: string
+      try {
+        tipId = await finalizeDonationPayment(admin, tx, event.gatewayRef, donationMessage)
+      } catch (tipErr) {
+        console.error('[webhooks/stripe] FAILED to finalize donation', tx.id, tipErr)
+        return new Response('donation finalize failed', { status: 500 })
+      }
+
+      const { error: tipLinkErr } = await (admin as any)
+        .from('payment_transactions')
+        .update({ tip_id: tipId, updated_at: new Date().toISOString() })
+        .eq('id', tx.id)
+
+      if (tipLinkErr) {
+        console.error('[webhooks/stripe] FAILED to link donation tip_id', tx.id, 'err:', tipLinkErr.message)
+        return new Response('tip link failed', { status: 500 })
+      }
+    }
 
     // ── Update booking ────────────────────────────────────────────────────────
     if (tx.booking_id) {

@@ -396,21 +396,7 @@ export default function EventDetailScreen() {
     setBL(false)
   }
 
-  async function sendTip() {
-    if (!user || !tipAmount || !event) return
-    setTipLoading(true)
-    const { error } = await apiPost('/api/tips', {
-      event_id: event.id,
-      amount:   tipAmount,
-      currency: 'SAR',
-      message:  tipMsg || undefined,
-    })
-    setTipLoading(false)
-    if (error) { Alert.alert('Error', error); return }
-    setTipDone(true)
-    Alert.alert('🙏 Tip sent!', `SAR ${tipAmount} sent to the organizer.`)
-    setShowTip(false)
-  }
+  
 
   async function sendDonation(optionId?: string) {
     if (!user || !tipAmount || !event) return
@@ -418,6 +404,7 @@ export default function EventDetailScreen() {
 
     if (paymentOptions.length > 1 && paymentOptionId !== 'simulated') {
       setPaymentIntent('donation')
+      setShowTip(false)
       setShowPaymentPicker(true)
       return
     }
@@ -518,6 +505,7 @@ export default function EventDetailScreen() {
       )
     }
   }
+  
 
   if (loading) {
     return (

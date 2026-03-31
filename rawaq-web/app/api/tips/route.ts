@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
     // Verify event and get organizer
     const { data: event, error: eventErr } = await supabase
       .from('events')
-      .select('id, title, organizer_id, is_published, is_cancelled')
+      .select('id, title, organizer_id, is_published, is_cancelled, currency')
       .eq('id', input.event_id)
       .single()
 
@@ -69,6 +69,9 @@ export async function POST(req: NextRequest) {
     }
     if (event.organizer_id === ctx.userId) {
       throw new ForbiddenException('Cannot donate to your own event')
+    }
+    if ((event.currency ?? 'SAR').toUpperCase() !== input.currency.toUpperCase()) {
+      throw new ForbiddenException('Donation currency must match the event currency')
     }
 
     // Look up organizer's platform fee from their plan
