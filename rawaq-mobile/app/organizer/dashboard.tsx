@@ -192,7 +192,7 @@ export default function OrganizerDashboard() {
         {[
           { icon: '📅', label: 'Active', value: active },
           { icon: '🎟️', label: 'Bookings', value: totalBookings },
-          { icon: '💝', label: 'Tips', value: `SAR ${totalTips.toFixed(0)}` },
+          { icon: '💝', label: 'Donations', value: `SAR ${totalTips.toFixed(0)}` },
           { icon: '📊', label: 'Total', value: events.length },
         ].map((s) => (
           <View key={s.label} style={styles.statCard}>
@@ -367,3 +367,4 @@ const styles = StyleSheet.create({
   upgradeBadgeText: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.white },
   planArrow:     { fontSize: 22, color: Colors.gray[400] },
 })
+

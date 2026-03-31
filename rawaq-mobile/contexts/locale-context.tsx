@@ -32,7 +32,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'event.book':    'Join Event — Free',
     'event.book_paid':'Book — SAR {price}',
     'event.booked':  'Cancel Booking',
-    'event.tip':     'Tip Organizer',
+    'event.tip':     'Donate to Organizer',
     'event.comments':'Comments',
     'comments.placeholder': 'Write a comment…',
     'comments.post':   'Post',
@@ -273,3 +273,4 @@ export function useLocale() {
   if (!ctx) throw new Error('useLocale must be inside LocaleProvider')
   return ctx
 }
+

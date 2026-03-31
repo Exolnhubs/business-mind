@@ -195,7 +195,7 @@ export default function AdminDashboard() {
           { icon: '📅', label: 'Live Events', value: stats?.activeEvents },
           { icon: '⏳', label: 'Pending',   value: stats?.pendingOrganizers, warn: (stats?.pendingOrganizers ?? 0) > 0 },
           { icon: '🚩', label: 'Flagged',   value: stats?.flaggedComments,   warn: (stats?.flaggedComments ?? 0) > 0 },
-          { icon: '💝', label: 'Tips (SAR)', value: `${(stats?.totalTips ?? 0).toFixed(0)}` },
+          { icon: '💝', label: 'Donations (SAR)', value: `${(stats?.totalTips ?? 0).toFixed(0)}` },
         ].map((s) => (
           <View key={s.label} style={[styles.statCard, s.warn && styles.statCardWarn]}>
             <Text style={styles.statIcon}>{s.icon}</Text>
@@ -315,3 +315,4 @@ const styles = StyleSheet.create({
   dimBtn:         { backgroundColor: Colors.gray[100] },
   dimBtnText:     { color: Colors.gray[600], fontWeight: FontWeight.medium, fontSize: FontSize.sm },
 })
+

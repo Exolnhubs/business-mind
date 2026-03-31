@@ -46,11 +46,11 @@ const translations: Record<Locale, Record<string, string>> = {
     'event.date_time': 'Date & Time',
     'event.organizer': 'Organizer',
     'event.attendees': 'Attendees',
-    'event.tip_organizer': 'Tip Organizer',
-    'event.tip_amount': 'Tip amount (SAR)',
+    'event.tip_organizer': 'Donate to Organizer',
+    'event.tip_amount': 'Donation amount (SAR)',
     'event.tip_message': 'Leave a message (optional)',
-    'event.tip_send': 'Send Tip',
-    'event.tip_success': 'Tip sent! 🙏',
+    'event.tip_send': 'Send Donation',
+    'event.tip_success': 'Donation sent! 🙏',
     'event.comments': 'Comments',
     // Auth
     'auth.login_title': 'Welcome back',
@@ -76,7 +76,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'organizer.create_event': 'Create Event',
     'organizer.edit_event': 'Edit Event',
     'organizer.no_events': 'No events yet',
-    'organizer.tips_received': 'Tips Received',
+    'organizer.tips_received': 'Donations Received',
     // Admin
     'admin.dashboard': 'Admin Dashboard',
     'admin.total_users': 'Total Users',
@@ -119,7 +119,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'notif.mention': 'You were mentioned in a comment',
     'notif.organizer_approved': 'Your organizer account was approved! 🎉',
     'notif.event_cancelled': 'Event cancelled',
-    'notif.tip_received': 'You received a tip',
+    'notif.tip_received': 'You received a donation',
     // Footer
     'footer.tagline': 'Your gateway to events across the Arab world — in Arabic and English.',
     'footer.platform': 'Platform',
@@ -192,7 +192,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'about.organizer_1': 'Publish events in Arabic and English',
     'about.organizer_2': 'Manage capacity and bookings',
     'about.organizer_3': 'Gender & family-friendly restrictions',
-    'about.organizer_4': 'Receive tips from attendees',
+    'about.organizer_4': 'Receive donations from attendees',
     'about.organizer_5': 'Analytics and attendee management',
     'about.create_account': 'Create Free Account',
     'about.apply_organizer': 'Apply as Organizer',
@@ -203,7 +203,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'about.feat_booking_title': 'Instant Booking',
     'about.feat_booking_body': 'Reserve your spot in seconds. All bookings are managed in one place.',
     'about.feat_organizer_title': 'Organizer Tools',
-    'about.feat_organizer_body': 'Publish events, manage capacity, track bookings, and receive tips from attendees.',
+    'about.feat_organizer_body': 'Publish events, manage capacity, track bookings, and receive donations from attendees.',
     'about.feat_chat_title': 'Community Chat',
     'about.feat_chat_body': 'Connect with other attendees and organizers through real-time event comments and global chat.',
     'about.feat_near_title': 'Near Me',
@@ -444,3 +444,4 @@ export function useLocale() {
   if (!ctx) throw new Error('useLocale must be inside LocaleProvider')
   return ctx
 }
+

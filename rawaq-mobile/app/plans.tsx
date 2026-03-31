@@ -188,7 +188,7 @@ export default function PlansScreen() {
             {plan.type === 'organizer' && (
               <View style={styles.feeLine}>
                 <Text style={styles.feeText}>
-                  Platform fee: {(plan.platform_fee_pct * 100).toFixed(0)}% on tips & tickets
+                  Platform fee: {(plan.platform_fee_pct * 100).toFixed(0)}% on donations & tickets
                 </Text>
               </View>
             )}
@@ -265,3 +265,4 @@ const styles = StyleSheet.create({
   btnTextCurrent:{ color: Colors.gray[500] },
   note:          { textAlign: 'center', fontSize: FontSize.xs, color: Colors.gray[300], marginTop: Spacing.sm },
 })
+

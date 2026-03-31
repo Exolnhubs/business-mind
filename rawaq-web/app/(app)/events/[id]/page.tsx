@@ -260,7 +260,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
 
           {/* Tip panel — only show if user has booked */}
           {isBooked && ev.organizer_id && (
-            <TipPanel eventId={id} organizerId={ev.organizer_id} />
+            <TipPanel eventId={id} organizerId={ev.organizer_id} currency={ev.currency ?? 'SAR'} />
           )}
 
           {/* Save button */}

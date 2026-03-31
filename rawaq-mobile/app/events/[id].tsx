@@ -26,6 +26,7 @@ interface PaymentOption {
 }
 
 const QUICK_TIPS = [5, 10, 25, 50]
+type PaymentIntent = 'booking' | 'donation' | null
 
 export default function EventDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
@@ -66,6 +67,8 @@ export default function EventDetailScreen() {
   const [selectedPaymentOptionId, setSelectedPaymentOptionId] = useState<string | null>(null)
   const [showPaymentPicker,      setShowPaymentPicker]      = useState(false)
   const [fawryRef,               setFawryRef]               = useState<string | null>(null)
+  const [fawryContext,           setFawryContext]           = useState<'ticket' | 'donation'>('ticket')
+  const [paymentIntent,          setPaymentIntent]          = useState<PaymentIntent>(null)
 
   useEffect(() => {
     if (!id) return
@@ -237,6 +240,7 @@ export default function EventDetailScreen() {
 
     // Fawry — show reference number in-app, no browser needed
     if (data.fawry_reference_number) {
+      setFawryContext('ticket')
       setFawryRef(data.fawry_reference_number)
       setNewBookingId(data.booking_id ?? null)
       return
@@ -361,6 +365,7 @@ export default function EventDetailScreen() {
     // Show payment method picker for paid events with multiple options
     const isPaid = computeIsPaid()
     if (isPaid && paymentOptions.length > 1) {
+      setPaymentIntent('booking')
       setShowPaymentPicker(true)
       return
     }
@@ -405,6 +410,113 @@ export default function EventDetailScreen() {
     setTipDone(true)
     Alert.alert('🙏 Tip sent!', `SAR ${tipAmount} sent to the organizer.`)
     setShowTip(false)
+  }
+
+  async function sendDonation(optionId?: string) {
+    if (!user || !tipAmount || !event) return
+    const paymentOptionId = optionId ?? selectedPaymentOptionId ?? 'simulated'
+
+    if (paymentOptions.length > 1 && paymentOptionId !== 'simulated') {
+      setPaymentIntent('donation')
+      setShowPaymentPicker(true)
+      return
+    }
+
+    setTipLoading(true)
+    const { data: result, error } = await apiPost<{
+      transaction_id?: string
+      redirect_url?: string
+      fawry_reference_number?: string
+    }>('/api/tips', {
+      event_id: event.id,
+      amount: tipAmount,
+      currency: event.currency ?? 'SAR',
+      message: tipMsg || undefined,
+      payment_option_id: paymentOptionId,
+      source: 'mobile',
+    })
+
+    if (error) {
+      setTipLoading(false)
+      Alert.alert('Error', error)
+      return
+    }
+
+    const data = result!
+
+    if (!data.redirect_url) {
+      setTipLoading(false)
+      setTipDone(true)
+      setShowTip(false)
+      Alert.alert('Donation sent!', `${event.currency ?? 'SAR'} ${tipAmount} sent to the organizer.`)
+      return
+    }
+
+    if (data.fawry_reference_number) {
+      setTipLoading(false)
+      setFawryContext('donation')
+      setFawryRef(data.fawry_reference_number)
+      return
+    }
+
+    const browserResult = await WebBrowser.openAuthSessionAsync(
+      data.redirect_url,
+      'rawaq://',
+    )
+
+    const deepLinkUrl = browserResult.type === 'success' ? browserResult.url : null
+    const deepLinkParams = deepLinkUrl ? new URL(deepLinkUrl).searchParams : null
+    const deepLinkStatus = deepLinkParams?.get('status') ?? null
+    const transactionId = deepLinkParams?.get('transaction_id') ?? data.transaction_id ?? null
+
+    if (deepLinkStatus === 'success') {
+      setTipLoading(false)
+      setTipDone(true)
+      setShowTip(false)
+      Alert.alert('Donation sent!', `${event.currency ?? 'SAR'} ${tipAmount} sent to the organizer.`)
+      return
+    }
+
+    if (!transactionId) {
+      setTipLoading(false)
+      return
+    }
+
+    const DELAYS = [2000, 3000, 3000, 5000, 5000]
+    let confirmed = false
+    let actualFailed = false
+
+    for (const delay of DELAYS) {
+      await new Promise(r => setTimeout(r, delay))
+      const { data: statusData } = await apiGet<{
+        transaction_status: string
+        tip_id: string | null
+      }>(`/api/tips/status/${transactionId}`)
+
+      if (statusData?.tip_id || statusData?.transaction_status === 'succeeded') {
+        confirmed = true
+        break
+      }
+      if (statusData?.transaction_status === 'failed') {
+        actualFailed = true
+        break
+      }
+    }
+
+    setTipLoading(false)
+
+    if (confirmed) {
+      setTipDone(true)
+      setShowTip(false)
+      Alert.alert('Donation sent!', `${event.currency ?? 'SAR'} ${tipAmount} sent to the organizer.`)
+    } else if (actualFailed) {
+      Alert.alert('Payment failed', 'Your donation was not completed. Please try again.')
+    } else if (browserResult.type !== 'cancel') {
+      Alert.alert(
+        'Payment is processing',
+        'Your donation is being verified. We will update it shortly.',
+      )
+    }
   }
 
   if (loading) {
@@ -689,7 +801,11 @@ export default function EventDetailScreen() {
           <View style={styles.fawryCard}>
             <Text style={styles.fawryTitle}>🏪 Pay with Fawry</Text>
             <Text style={styles.fawryRef}>{fawryRef}</Text>
-            <Text style={styles.fawryDesc}>Use this reference at any Fawry outlet, ATM, or kiosk. Your ticket will be confirmed after payment.</Text>
+            <Text style={styles.fawryDesc}>
+              {fawryContext === 'donation'
+                ? 'Use this reference at any Fawry outlet, ATM, or kiosk. Your donation will be recorded after payment.'
+                : 'Use this reference at any Fawry outlet, ATM, or kiosk. Your ticket will be confirmed after payment.'}
+            </Text>
             <TouchableOpacity onPress={() => setFawryRef(null)} style={styles.fawryDismiss}>
               <Text style={styles.fawryDismissText}>Got it</Text>
             </TouchableOpacity>
@@ -699,13 +815,13 @@ export default function EventDetailScreen() {
         {/* Tip organizer */}
         {isBooked && !tipDone && (
           <TouchableOpacity style={styles.tipToggle} onPress={() => setShowTip((v) => !v)}>
-            <Text style={styles.tipToggleText}>💝 {showTip ? 'Hide' : 'Tip Organizer'}</Text>
+            <Text style={styles.tipToggleText}>💝 {showTip ? 'Hide' : 'Donate to Organizer'}</Text>
           </TouchableOpacity>
         )}
 
         {showTip && !tipDone && (
           <View style={styles.tipPanel}>
-            <Text style={styles.sectionTitle}>Tip Amount (SAR)</Text>
+            <Text style={styles.sectionTitle}>Donation Amount ({event.currency ?? 'SAR'})</Text>
             <View style={styles.quickTips}>
               {QUICK_TIPS.map((a) => (
                 <TouchableOpacity
@@ -735,15 +851,17 @@ export default function EventDetailScreen() {
             />
             <TouchableOpacity
               style={[styles.bookBtn, (!tipAmount || tipLoading) && styles.bookBtnGray]}
-              onPress={sendTip}
+              onPress={() => {
+                void sendDonation()
+              }}
               disabled={!tipAmount || tipLoading}
             >
               {tipLoading
                 ? <ActivityIndicator color={Colors.white} />
-                : <Text style={styles.bookBtnText}>Send {tipAmount ? `SAR ${tipAmount}` : ''} Tip</Text>
+                : <Text style={styles.bookBtnText}>Send {tipAmount ? `${event.currency ?? 'SAR'} ${tipAmount}` : ''} Donation</Text>
               }
             </TouchableOpacity>
-            <Text style={styles.tipDisclaimer}>Simulated tip — no real payment</Text>
+            <Text style={styles.tipDisclaimer}>Your donation will be processed through the selected payment method</Text>
           </View>
         )}
 
@@ -849,7 +967,9 @@ export default function EventDetailScreen() {
       >
         <View style={styles.paymentSheet}>
           <View style={styles.paymentSheetHandle} />
-          <Text style={styles.paymentSheetTitle}>How would you like to pay?</Text>
+          <Text style={styles.paymentSheetTitle}>
+            {paymentIntent === 'donation' ? 'How would you like to donate?' : 'How would you like to pay?'}
+          </Text>
           {paymentOptions.map((opt) => (
             <TouchableOpacity
               key={opt.id}
@@ -859,7 +979,12 @@ export default function EventDetailScreen() {
               ]}
               onPress={() => {
                 setSelectedPaymentOptionId(opt.id)
-                initiateBooking(opt.id)
+                if (paymentIntent === 'donation') {
+                  setShowPaymentPicker(false)
+                  sendDonation(opt.id)
+                } else {
+                  initiateBooking(opt.id)
+                }
               }}
             >
               <Text style={styles.paymentOptionIcon}>{opt.icon}</Text>
@@ -1019,3 +1144,4 @@ const styles = StyleSheet.create({
   paymentCancelBtn: { marginTop: Spacing.xs, paddingVertical: Spacing.md, alignItems: 'center', borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.gray[200] },
   paymentCancelText: { fontSize: FontSize.sm, color: Colors.gray[600], fontWeight: FontWeight.medium },
 })
+

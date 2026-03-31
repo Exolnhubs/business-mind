@@ -197,7 +197,7 @@ export default function EarningsScreen() {
           <View style={styles.emptyBox}>
             <Text style={{ fontSize: 32 }}>📭</Text>
             <Text style={styles.emptyText}>No transactions yet.</Text>
-            <Text style={styles.emptySubText}>Revenue from tips and ticket sales will appear here.</Text>
+            <Text style={styles.emptySubText}>Revenue from donations and ticket sales will appear here.</Text>
           </View>
         ) : (
           <View style={styles.card}>
@@ -341,3 +341,4 @@ const styles = StyleSheet.create({
   cancelBtn:    { borderWidth: 1, borderColor: Colors.gray[200], borderRadius: Radius.lg, paddingVertical: Spacing.md, alignItems: 'center' },
   cancelBtnText:{ color: Colors.gray[600], fontWeight: FontWeight.medium, fontSize: FontSize.base },
 })
+

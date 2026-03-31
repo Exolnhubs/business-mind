@@ -60,7 +60,7 @@ function notifText(type: string, payload: NotifPayload): string {
     case 'organizer_rejected':  return 'Your organizer application was not approved'
     case 'organizer_suspended': return 'Your organizer account has been suspended'
     case 'event_cancelled':     return `"${et}" has been cancelled`
-    case 'tip_received':        return `You received a ${payload.amount} ${payload.currency} tip for "${et}"`
+    case 'tip_received':        return `You received a ${payload.amount} ${payload.currency} donation for "${et}"`
     case 'waitlist_promoted':   return `You're off the waitlist for "${et}"!`
     case 'new_follower':        return `${an} started following you`
     case 'new_review':          return `${an} left you a ${payload.rating}★ review`
@@ -242,3 +242,4 @@ const styles = StyleSheet.create({
   unreadDot:    { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.brand[500], flexShrink: 0 },
   separator:    { height: 1, backgroundColor: Colors.gray[50] },
 })
+

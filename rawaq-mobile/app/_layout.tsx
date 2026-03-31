@@ -95,9 +95,13 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       if (!url.startsWith('rawaq://payment-result')) return
       const parsed    = new URL(url)
       const bookingId = parsed.searchParams.get('booking_id')
+      const transactionId = parsed.searchParams.get('transaction_id')
+      const entity = parsed.searchParams.get('entity')
       const status    = parsed.searchParams.get('status')
       if (bookingId && status === 'success') {
         router.push(`/bookings/${bookingId}/ticket` as any)
+      } else if (transactionId && entity === 'donation') {
+        router.push('/(tabs)/home' as any)
       } else if (bookingId) {
         router.push('/(tabs)/bookings' as any)
       }

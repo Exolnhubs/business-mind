@@ -138,8 +138,8 @@ function eventReminder(eventTitle: string, eventId: string, startAt: string): st
 
 function tipReceived(amount: number, currency: string, eventTitle: string): string {
   return layout(`
-    ${h1('You Received a Tip 💰')}
-    ${p(`Someone appreciated your event <strong>${eventTitle}</strong> and sent you a tip of <strong>${amount} ${currency}</strong>.`)}
+    ${h1('You Received a Donation 💰')}
+    ${p(`Someone appreciated your event <strong>${eventTitle}</strong> and sent you a donation of <strong>${amount} ${currency}</strong>.`)}
     ${btn(`${APP_URL}/organizer`, 'View Dashboard')}
   `)
 }
@@ -196,7 +196,7 @@ async function buildEmail(type: NotificationType, payload: Record<string, unknow
     case 'event_reminder':
       return { subject: `Reminder: ${str('event_title')} starts in 1 hour`, html: eventReminder(str('event_title'), str('event_id'), str('start_at')) }
     case 'tip_received':
-      return { subject: `You received a ${str('amount')} ${str('currency')} tip!`, html: tipReceived(num('amount'), str('currency'), str('event_title')) }
+      return { subject: `You received a ${str('amount')} ${str('currency')} donation!`, html: tipReceived(num('amount'), str('currency'), str('event_title')) }
     case 'comment_reply':
       return { subject: `${str('actor_name')} replied to your comment`, html: commentReply(str('actor_name'), str('event_id')) }
     case 'mention':
@@ -219,3 +219,4 @@ export async function sendNotificationEmail({ type, payload, toEmail, toName }: 
     html: email.html,
   })
 }
+

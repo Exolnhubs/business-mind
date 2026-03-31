@@ -120,7 +120,7 @@ function getPushTitle(type: NotificationType): string {
     organizer_rejected:  'Application Update',
     organizer_suspended: 'Account Suspended',
     event_cancelled:     'Event Cancelled',
-    tip_received:        'You received a tip 💰',
+    tip_received:        'You received a donation 💰',
     waitlist_promoted:   'You\'re In! 🎉',
     new_follower:        'New Follower 👤',
     new_review:          'New Review ⭐',
@@ -144,7 +144,7 @@ function getPushBody(type: NotificationType, payload: Record<string, unknown>): 
     case 'organizer_approved':  return 'Your organizer account has been approved'
     case 'organizer_rejected':  return 'Your organizer application was not approved'
     case 'organizer_suspended': return 'Your organizer account has been suspended'
-    case 'tip_received':        return `You received a ${str('amount')} ${str('currency')} tip for "${str('event_title')}"`
+    case 'tip_received':        return `You received a ${str('amount')} ${str('currency')} donation for "${str('event_title')}"`
     case 'event_cancelled':     return `"${str('event_title')}" has been cancelled`
     case 'waitlist_promoted':   return `You've been moved off the waitlist for "${str('event_title')}"`
     case 'new_follower':        return `${str('actor_name')} started following you`
@@ -157,3 +157,4 @@ function getPushBody(type: NotificationType, payload: Record<string, unknown>): 
     default:                    return 'You have a new notification'
   }
 }
+

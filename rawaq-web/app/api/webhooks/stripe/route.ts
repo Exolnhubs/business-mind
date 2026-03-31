@@ -19,6 +19,7 @@ import { NextRequest } from 'next/server'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { verifyStripeSignature, parseStripeWebhook } from '@/lib/gateways/stripe-gw'
 import { sendNotification } from '@/lib/notifications'
+import { finalizeDonationPayment } from '@/lib/donations'
 
 export async function POST(req: NextRequest) {
   try {
@@ -47,7 +48,7 @@ export async function POST(req: NextRequest) {
     // ── Find matching transaction by Stripe session ID ────────────────────────
     const { data: tx, error: txErr } = await (admin as any)
       .from('payment_transactions')
-      .select('id, booking_id, user_id, event_id, organizer_id, status')
+      .select('id, type, booking_id, tip_id, user_id, event_id, organizer_id, status, amount, currency, platform_fee, gateway_payload')
       .eq('gateway_order_id', event.gatewayOrderId)
       .single()
 
@@ -62,10 +63,21 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Update transaction ────────────────────────────────────────────────────
+    let tipId = tx.tip_id
+    if (event.status === 'succeeded' && tx.type === 'tip') {
+      try {
+        tipId = await finalizeDonationPayment(admin, tx, event.gatewayRef)
+      } catch (tipErr) {
+        console.error('[webhooks/stripe] FAILED to finalize donation', tx.id, tipErr)
+        return new Response('donation finalize failed', { status: 500 })
+      }
+    }
+
     await (admin as any)
       .from('payment_transactions')
       .update({
         status:          event.status,
+        tip_id:          tipId,
         gateway_ref:     event.gatewayRef,
         gateway_payload: event.gatewayPayload,
         payment_method:  event.paymentMethod,

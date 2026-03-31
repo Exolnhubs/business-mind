@@ -20,6 +20,7 @@ import { NextRequest } from 'next/server'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { verifyPaymobHmac, parsePaymobWebhook } from '@/lib/gateways/paymob'
 import { sendNotification } from '@/lib/notifications'
+import { finalizeDonationPayment } from '@/lib/donations'
 
 export async function POST(req: NextRequest) {
   try {
@@ -57,7 +58,7 @@ export async function POST(req: NextRequest) {
     // ── Find matching transaction by gateway order ID ─────────────────────────
     const { data: tx, error: txErr } = await (admin as any)
       .from('payment_transactions')
-      .select('id, booking_id, user_id, event_id, organizer_id, status')
+      .select('id, type, booking_id, tip_id, user_id, event_id, organizer_id, status, amount, currency, platform_fee, gateway_payload')
       .eq('gateway_order_id', event.gatewayOrderId)
       .single()
 
@@ -75,11 +76,22 @@ export async function POST(req: NextRequest) {
 
     console.log('[webhooks/paymob] processing transaction', tx.id, 'booking', tx.booking_id, 'event status:', event.status)
 
+    let tipId = tx.tip_id
+    if (event.status === 'succeeded' && tx.type === 'tip') {
+      try {
+        tipId = await finalizeDonationPayment(admin, tx, event.gatewayRef)
+      } catch (tipErr) {
+        console.error('[webhooks/paymob] FAILED to finalize donation', tx.id, tipErr)
+        return new Response('donation finalize failed', { status: 500 })
+      }
+    }
+
     // ── Update payment transaction ────────────────────────────────────────────
     const { error: txUpdateErr } = await (admin as any)
       .from('payment_transactions')
       .update({
         status:          event.status,
+        tip_id:          tipId,
         gateway_ref:     event.gatewayRef,
         gateway_payload: event.gatewayPayload,
         payment_method:  event.paymentMethod,
