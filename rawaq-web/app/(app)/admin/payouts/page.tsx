@@ -17,8 +17,7 @@ interface PayoutRow {
   processed_at: string | null
   organizer: {
     id: string
-    full_name: string
-    email: string
+    display_name: string
     organizer_profiles: { business_name: string } | null
   } | null
   bank_account: {
@@ -154,9 +153,9 @@ export default function AdminPayoutsPage() {
                 </div>
                 <div className="text-right">
                   <p className="text-sm font-medium text-gray-800">
-                    {p.organizer?.organizer_profiles?.business_name ?? p.organizer?.full_name ?? '—'}
+                    {p.organizer?.organizer_profiles?.business_name ?? p.organizer?.display_name ?? '—'}
                   </p>
-                  <p className="text-xs text-gray-400">{p.organizer?.email}</p>
+                  <p className="text-xs text-gray-400">{p.organizer?.display_name}</p>
                 </div>
               </div>
 
