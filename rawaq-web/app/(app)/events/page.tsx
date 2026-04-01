@@ -8,6 +8,83 @@ import type { EventWithOrganizer } from '@/types/database'
 
 export const metadata: Metadata = { title: 'Events' }
 
+// ── Weekend date range helper ─────────────────────────────────────────────────
+
+function getThisWeekendRange(): { start: string; end: string } {
+  const now = new Date()
+  const day = now.getDay()
+  if (day === 0) {
+    const start = new Date(now); start.setHours(0, 0, 0, 0)
+    const end   = new Date(now); end.setHours(23, 59, 59, 999)
+    return { start: start.toISOString(), end: end.toISOString() }
+  }
+  const daysToSat = day === 6 ? 0 : (6 - day + 7) % 7
+  const saturday  = new Date(now); saturday.setDate(now.getDate() + daysToSat); saturday.setHours(0, 0, 0, 0)
+  const sunday    = new Date(saturday); sunday.setDate(saturday.getDate() + 1); sunday.setHours(23, 59, 59, 999)
+  return { start: saturday.toISOString(), end: sunday.toISOString() }
+}
+
+function getWeekendLabel(): string {
+  const now = new Date()
+  const day = now.getDay()
+  if (day === 0) return 'Today'
+  const daysToSat = day === 6 ? 0 : (6 - day + 7) % 7
+  const sat = new Date(now); sat.setDate(now.getDate() + daysToSat)
+  const sun = new Date(sat);  sun.setDate(sat.getDate() + 1)
+  const fmt = (d: Date) => d.toLocaleDateString('en', { month: 'short', day: 'numeric' })
+  return `${fmt(sat)} – ${fmt(sun)}`
+}
+
+// ── Near You This Weekend ─────────────────────────────────────────────────────
+
+async function NearYouThisWeekend({ city }: { city?: string }) {
+  if (!city) return null
+
+  const supabase = await createSupabaseServerClient()
+  const { start, end } = getThisWeekendRange()
+
+  const { data } = await supabase
+    .from('events')
+    .select(`
+      *,
+      organizer:profiles!organizer_id(
+        id, display_name, avatar_url,
+        organizer_profile:organizer_profiles!user_id(business_name, business_name_ar, logo_url, verified)
+      ),
+      category:event_categories(id, name_en, name_ar, icon),
+      ticket_types(id, price, is_free, is_active)
+    `)
+    .eq('is_published', true)
+    .eq('is_cancelled', false)
+    .eq('city', city)
+    .gte('start_at', start)
+    .lte('start_at', end)
+    .order('start_at', { ascending: true })
+    .limit(8)
+
+  const events = (data ?? []) as unknown as EventWithOrganizer[]
+  if (events.length === 0) return null
+
+  return (
+    <div className="bg-green-50 border border-green-100 rounded-2xl p-5">
+      <div className="mb-3">
+        <h2 className="text-base font-bold text-gray-900">📍 Near You This Weekend</h2>
+        <p className="text-xs text-gray-500 mt-0.5">
+          Happening in <span className="font-medium text-green-700">{city}</span>
+          {' · '}{getWeekendLabel()}
+        </p>
+      </div>
+      <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
+        {events.map((event) => (
+          <div key={event.id} className="shrink-0 w-56">
+            <EventCard event={event} />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 interface SearchParams {
   q?: string
   category?: string
@@ -190,6 +267,13 @@ export default async function EventsPage({
       <Suspense>
         <EventFilters />
       </Suspense>
+
+      {/* Near You This Weekend — only when city filter is active */}
+      {params.city && (
+        <Suspense fallback={null}>
+          <NearYouThisWeekend city={params.city} />
+        </Suspense>
+      )}
 
       {/* Grid */}
       <Suspense fallback={<EventsGridSkeleton />}>

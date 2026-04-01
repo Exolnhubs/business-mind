@@ -21,6 +21,32 @@ interface SavedSignalEvent {
   organizer_id: string
 }
 
+function getThisWeekendRange(): { start: string; end: string } {
+  const now = new Date()
+  const day = now.getDay() // 0=Sun, 6=Sat
+  if (day === 0) {
+    // Sunday — treat today as the weekend
+    const start = new Date(now); start.setHours(0, 0, 0, 0)
+    const end   = new Date(now); end.setHours(23, 59, 59, 999)
+    return { start: start.toISOString(), end: end.toISOString() }
+  }
+  const daysToSat = day === 6 ? 0 : (6 - day + 7) % 7
+  const saturday  = new Date(now); saturday.setDate(now.getDate() + daysToSat); saturday.setHours(0, 0, 0, 0)
+  const sunday    = new Date(saturday); sunday.setDate(saturday.getDate() + 1); sunday.setHours(23, 59, 59, 999)
+  return { start: saturday.toISOString(), end: sunday.toISOString() }
+}
+
+function getWeekendLabel(): string {
+  const now = new Date()
+  const day = now.getDay()
+  if (day === 0) return 'Today'
+  const daysToSat = day === 6 ? 0 : (6 - day + 7) % 7
+  const sat = new Date(now); sat.setDate(now.getDate() + daysToSat)
+  const sun = new Date(sat);  sun.setDate(sat.getDate() + 1)
+  const fmt = (d: Date) => d.toLocaleDateString('en', { month: 'short', day: 'numeric' })
+  return `${fmt(sat)} – ${fmt(sun)}`
+}
+
 const CITIES = [
   'All',
   // Saudi Arabia
@@ -59,8 +85,10 @@ export default function EventsScreen() {
   const { user } = useAuth()
   const [events, setEvents]         = useState<EventWithOrganizer[]>([])
   const [savedIds, setSavedIds]     = useState<Set<string>>(new Set())
-  const [savedInspiredEvents, setSavedInspiredEvents] = useState<EventWithOrganizer[]>([])
-  const [almostSoldOutEvents, setAlmostSoldOutEvents] = useState<EventWithOrganizer[]>([])
+  const [savedInspiredEvents, setSavedInspiredEvents]   = useState<EventWithOrganizer[]>([])
+  const [almostSoldOutEvents, setAlmostSoldOutEvents]   = useState<EventWithOrganizer[]>([])
+  const [nearYouWeekendEvents, setNearYouWeekendEvents] = useState<EventWithOrganizer[]>([])
+  const [weekendCity, setWeekendCity] = useState<string | null>(null)
   const [loading, setLoading]       = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [search, setSearch]         = useState('')
@@ -91,6 +119,26 @@ export default function EventsScreen() {
       .eq('is_active', true)
       .order('sort_order')
       .then(({ data }) => setCategories((data ?? []) as Category[]))
+  }, [])
+
+  // Silently detect city for "Near You This Weekend" — only if permission already granted
+  useEffect(() => {
+    async function detectCity() {
+      try {
+        const { status } = await Location.getForegroundPermissionsAsync()
+        if (status !== 'granted') return
+        const pos = await Location.getLastKnownPositionAsync()
+        if (!pos) return
+        const [place] = await Location.reverseGeocodeAsync({
+          latitude:  pos.coords.latitude,
+          longitude: pos.coords.longitude,
+        })
+        const cityName = place?.city ?? place?.subregion ?? ''
+        const matched = CITIES.find((c) => c !== 'All' && c.toLowerCase() === cityName.toLowerCase())
+        if (matched) setWeekendCity(matched)
+      } catch { /* silent */ }
+    }
+    detectCity()
   }, [])
 
   async function toggleNearMe() {
@@ -181,6 +229,7 @@ export default function EventsScreen() {
     if (!showRecommendationRails) {
       setAlmostSoldOutEvents([])
       setSavedInspiredEvents([])
+      setNearYouWeekendEvents([])
       setLoading(false)
       setRefreshing(false)
       return
@@ -223,6 +272,8 @@ export default function EventsScreen() {
     const savedSignals = ((savedSignalsRes.data ?? []) as unknown as Array<{ event_id: string; event: SavedSignalEvent | null }>)
       .map((row) => row.event)
       .filter(Boolean) as SavedSignalEvent[]
+
+    let savedInspiredIds = new Set<string>()
 
     if (savedSignals.length) {
       const savedEventIds = new Set(((savedSignalsRes.data ?? []) as unknown as Array<{ event_id: string }>).map((row) => row.event_id))
@@ -268,13 +319,39 @@ export default function EventsScreen() {
         .map((item) => item.event)
 
       setSavedInspiredEvents(ranked)
+      savedInspiredIds = new Set(ranked.map((e) => e.id))
     } else {
       setSavedInspiredEvents([])
     }
 
+    // ── Near You This Weekend ─────────────────────────────────────────────────
+    const resolvedCity = city !== 'All' ? city : weekendCity
+    if (resolvedCity) {
+      const { start, end } = getThisWeekendRange()
+      const { data: weekendData } = await supabase
+        .from('events')
+        .select(eventSelect)
+        .eq('is_published', true)
+        .eq('is_cancelled', false)
+        .eq('city', resolvedCity)
+        .gte('start_at', start)
+        .lte('start_at', end)
+        .order('start_at', { ascending: true })
+        .limit(8)
+
+      const weekendList = (weekendData ?? []) as unknown as EventWithOrganizer[]
+      const shownIds = new Set([
+        ...urgencyList.map((e) => e.id),
+        ...savedInspiredIds,
+      ])
+      setNearYouWeekendEvents(weekendList.filter((e) => !shownIds.has(e.id)).slice(0, 6))
+    } else {
+      setNearYouWeekendEvents([])
+    }
+
     setLoading(false)
     setRefreshing(false)
-  }, [search, categoryId, city, freeOnly, nearMe, geoCoords, radiusKm, showRecommendationRails, user])
+  }, [search, categoryId, city, freeOnly, nearMe, geoCoords, radiusKm, showRecommendationRails, user, weekendCity])
 
   useEffect(() => { fetchEvents() }, [fetchEvents])
 
@@ -412,7 +489,17 @@ export default function EventsScreen() {
           keyExtractor={(e) => e.id}
           renderItem={({ item, index }) => (
             <View>
-              {index === 0 && showRecommendationRails && savedInspiredEvents.length > 0 && (
+              {index === 0 && showRecommendationRails && nearYouWeekendEvents.length > 0 && (
+                <RecommendationRail
+                  title="Near You This Weekend"
+                  subtitle={`Happening in ${city !== 'All' ? city : weekendCity} · ${getWeekendLabel()}`}
+                  events={nearYouWeekendEvents}
+                  savedIds={savedIds}
+                  onSaveChange={handleSaveChange}
+                  accent="weekend"
+                />
+              )}
+              {index === 0 && showRecommendationRails && savedInspiredEvents.length > 0 && nearYouWeekendEvents.length === 0 && (
                 <RecommendationRail
                   title="Because You Saved..."
                   subtitle="Fresh picks that match the events you bookmarked."
@@ -421,7 +508,16 @@ export default function EventsScreen() {
                   onSaveChange={handleSaveChange}
                 />
               )}
-              {index === 4 && showRecommendationRails && almostSoldOutEvents.length > 0 && (
+              {index === 3 && showRecommendationRails && savedInspiredEvents.length > 0 && nearYouWeekendEvents.length > 0 && (
+                <RecommendationRail
+                  title="Because You Saved..."
+                  subtitle="Fresh picks that match the events you bookmarked."
+                  events={savedInspiredEvents}
+                  savedIds={savedIds}
+                  onSaveChange={handleSaveChange}
+                />
+              )}
+              {index === 6 && showRecommendationRails && almostSoldOutEvents.length > 0 && (
                 <RecommendationRail
                   title="Almost Sold Out"
                   subtitle="Popular events that are close to filling up."
@@ -438,7 +534,7 @@ export default function EventsScreen() {
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.brand[500]} />}
           ListFooterComponent={
-            showRecommendationRails && events.length > 0 && events.length <= 4 && almostSoldOutEvents.length > 0
+            showRecommendationRails && events.length > 0 && events.length <= 6 && almostSoldOutEvents.length > 0
               ? (
                 <RecommendationRail
                   title="Almost Sold Out"
@@ -469,6 +565,7 @@ function RecommendationRail({
   savedIds,
   onSaveChange,
   urgency = false,
+  accent,
 }: {
   title: string
   subtitle: string
@@ -476,9 +573,10 @@ function RecommendationRail({
   savedIds: Set<string>
   onSaveChange: (id: string, saved: boolean) => void
   urgency?: boolean
+  accent?: 'weekend'
 }) {
   return (
-    <View style={[styles.railSection, urgency && styles.railSectionUrgent]}>
+    <View style={[styles.railSection, urgency && styles.railSectionUrgent, accent === 'weekend' && styles.railSectionWeekend]}>
       <View style={styles.railHeader}>
         <Text style={styles.railTitle}>{title}</Text>
         <Text style={styles.railSubtitle}>{subtitle}</Text>
@@ -529,6 +627,9 @@ const styles = StyleSheet.create({
   },
   railSectionUrgent: {
     backgroundColor: '#fff7ed',
+  },
+  railSectionWeekend: {
+    backgroundColor: '#f0fdf4',
   },
   railHeader: {
     paddingHorizontal: Spacing.lg,
