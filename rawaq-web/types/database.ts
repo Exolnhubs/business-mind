@@ -25,6 +25,8 @@ export type NotificationType =
   | 'event_updated'
   | 'new_event_published'
   | 'event_sold_out'
+  | 'referral_signup_reward'
+  | 'referral_conversion_reward'
 export type ReactionType = 'like' | 'interested'
 export type ReportReason = 'spam' | 'inappropriate' | 'harassment' | 'misinformation' | 'other'
 export type ReportStatus = 'pending' | 'resolved' | 'dismissed'
@@ -62,6 +64,43 @@ export interface Profile {
   lng: number | null
   created_at: string
   updated_at: string
+}
+
+export interface ReferralCode {
+  id: string
+  user_id: string
+  code: string
+  clicks: number
+  created_at: string
+}
+
+export interface Referral {
+  id: string
+  referrer_id: string
+  referred_id: string
+  code_id: string
+  signup_coupon_awarded: boolean
+  conversion_coupon_awarded: boolean
+  created_at: string
+}
+
+export interface UserCoupon {
+  id: string
+  user_id: string
+  promo_code_id: string
+  referral_id: string | null
+  reason: 'referral_signup' | 'referral_conversion'
+  expires_at: string
+  created_at: string
+  // joined from promo_codes:
+  promo?: {
+    code: string
+    discount_type: 'percent' | 'fixed'
+    discount_value: number
+    used_count: number
+    is_active: boolean
+    expires_at: string
+  }
 }
 
 export interface OrganizerProfile {

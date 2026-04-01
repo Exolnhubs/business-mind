@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { AppState, Platform } from 'react-native'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import * as Linking from 'expo-linking'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { StatusBar } from 'expo-status-bar'
 import * as SplashScreen from 'expo-splash-screen'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
@@ -48,6 +49,17 @@ function routeForNotifType(type: string, role?: string): string {
   }
 }
 
+// Capture ?ref= from rawaq://invite deep links before the user logs in.
+// Stored in AsyncStorage; auth-context claims it on SIGNED_IN.
+function captureReferralFromUrl(url: string) {
+  try {
+    if (!url.includes('invite')) return
+    const parsed = new URL(url)
+    const ref = parsed.searchParams.get('ref')
+    if (ref) AsyncStorage.setItem('rawaq_referral_code', ref.toUpperCase().trim()).catch(() => {})
+  } catch { /* invalid URL — ignore */ }
+}
+
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { user, profile, loading } = useAuth()
   const segments = useSegments()
@@ -86,6 +98,18 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!loading) SplashScreen.hideAsync()
   }, [loading])
+
+  // Handle rawaq://invite?ref=CODE deep link — store code for post-login claim
+  useEffect(() => {
+    async function handleInitialUrl() {
+      const initial = await Linking.getInitialURL()
+      if (initial) captureReferralFromUrl(initial)
+    }
+    handleInitialUrl()
+
+    const sub = Linking.addEventListener('url', ({ url }) => captureReferralFromUrl(url))
+    return () => sub.remove()
+  }, [])
 
   // Handle rawaq://payment-result deep link when app was backgrounded
   // (covers the edge case where openAuthSessionAsync didn't intercept it)

@@ -128,7 +128,9 @@ function getPushTitle(type: NotificationType): string {
     new_comment:         'New Comment 💬',
     event_updated:       'Event Updated 📝',
     new_event_published: 'New Event 🎉',
-    event_sold_out:      'Sold Out 🎊',
+    event_sold_out:            'Sold Out 🎊',
+    referral_signup_reward:    'You earned a reward! 🎁',
+    referral_conversion_reward:'Bonus reward unlocked! 🎉',
   }
   return titles[type] ?? 'Rawaq Notification'
 }
@@ -153,8 +155,10 @@ function getPushBody(type: NotificationType, payload: Record<string, unknown>): 
     case 'new_comment':         return `${str('actor_name')} commented on "${str('event_title')}"`
     case 'event_updated':       return `"${str('event_title')}" has been updated — check the new details`
     case 'new_event_published': return `${str('organizer_name')} just published "${str('event_title')}"`
-    case 'event_sold_out':      return `Your event "${str('event_title')}" just sold out! 🎊`
-    default:                    return 'You have a new notification'
+    case 'event_sold_out':              return `Your event "${str('event_title')}" just sold out! 🎊`
+    case 'referral_signup_reward':      return 'A friend joined using your link — you earned a 15% coupon!'
+    case 'referral_conversion_reward':  return 'Your friend just made their first booking — you earned a 25% coupon!'
+    default:                            return 'You have a new notification'
   }
 }
 
