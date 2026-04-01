@@ -88,7 +88,8 @@ export default function EventsScreen() {
   const [savedInspiredEvents, setSavedInspiredEvents]   = useState<EventWithOrganizer[]>([])
   const [almostSoldOutEvents, setAlmostSoldOutEvents]   = useState<EventWithOrganizer[]>([])
   const [nearYouWeekendEvents, setNearYouWeekendEvents] = useState<EventWithOrganizer[]>([])
-  const [weekendCity, setWeekendCity] = useState<string | null>(null)
+  const [weekendCoords, setWeekendCoords] = useState<{ lat: number; lng: number } | null>(null)
+  const [weekendRadiusKm, setWeekendRadiusKm] = useState(25)
   const [loading, setLoading]       = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [search, setSearch]         = useState('')
@@ -121,24 +122,18 @@ export default function EventsScreen() {
       .then(({ data }) => setCategories((data ?? []) as Category[]))
   }, [])
 
-  // Silently detect city for "Near You This Weekend" — only if permission already granted
+  // Silently grab coords for "Near You This Weekend" — only if permission already granted, no prompt
   useEffect(() => {
-    async function detectCity() {
+    async function detectCoords() {
       try {
         const { status } = await Location.getForegroundPermissionsAsync()
         if (status !== 'granted') return
         const pos = await Location.getLastKnownPositionAsync()
         if (!pos) return
-        const [place] = await Location.reverseGeocodeAsync({
-          latitude:  pos.coords.latitude,
-          longitude: pos.coords.longitude,
-        })
-        const cityName = place?.city ?? place?.subregion ?? ''
-        const matched = CITIES.find((c) => c !== 'All' && c.toLowerCase() === cityName.toLowerCase())
-        if (matched) setWeekendCity(matched)
+        setWeekendCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude })
       } catch { /* silent */ }
     }
-    detectCity()
+    detectCoords()
   }, [])
 
   async function toggleNearMe() {
@@ -325,25 +320,46 @@ export default function EventsScreen() {
     }
 
     // ── Near You This Weekend ─────────────────────────────────────────────────
-    const resolvedCity = city !== 'All' ? city : weekendCity
-    if (resolvedCity) {
-      const { start, end } = getThisWeekendRange()
+    const { start: wStart, end: wEnd } = getThisWeekendRange()
+    const shownIds = new Set([...urgencyList.map((e) => e.id), ...savedInspiredIds])
+
+    if (weekendCoords) {
+      // Prefer GPS radius — use same RPC as the Near Me toggle
+      const { data: geoIds } = await supabase.rpc('events_within_radius', {
+        user_lat:      weekendCoords.lat,
+        user_lng:      weekendCoords.lng,
+        radius_meters: weekendRadiusKm * 1000,
+      })
+      const ids = ((geoIds ?? []) as { id: string }[]).map((e) => e.id)
+      if (ids.length > 0) {
+        const { data: weekendData } = await supabase
+          .from('events')
+          .select(eventSelect)
+          .in('id', ids)
+          .eq('is_published', true)
+          .eq('is_cancelled', false)
+          .gte('start_at', wStart)
+          .lte('start_at', wEnd)
+          .order('start_at', { ascending: true })
+          .limit(8)
+        const weekendList = (weekendData ?? []) as unknown as EventWithOrganizer[]
+        setNearYouWeekendEvents(weekendList.filter((e) => !shownIds.has(e.id)).slice(0, 6))
+      } else {
+        setNearYouWeekendEvents([])
+      }
+    } else if (city !== 'All') {
+      // City-string fallback when no GPS coords are available
       const { data: weekendData } = await supabase
         .from('events')
         .select(eventSelect)
         .eq('is_published', true)
         .eq('is_cancelled', false)
-        .eq('city', resolvedCity)
-        .gte('start_at', start)
-        .lte('start_at', end)
+        .eq('city', city)
+        .gte('start_at', wStart)
+        .lte('start_at', wEnd)
         .order('start_at', { ascending: true })
         .limit(8)
-
       const weekendList = (weekendData ?? []) as unknown as EventWithOrganizer[]
-      const shownIds = new Set([
-        ...urgencyList.map((e) => e.id),
-        ...savedInspiredIds,
-      ])
       setNearYouWeekendEvents(weekendList.filter((e) => !shownIds.has(e.id)).slice(0, 6))
     } else {
       setNearYouWeekendEvents([])
@@ -351,7 +367,7 @@ export default function EventsScreen() {
 
     setLoading(false)
     setRefreshing(false)
-  }, [search, categoryId, city, freeOnly, nearMe, geoCoords, radiusKm, showRecommendationRails, user, weekendCity])
+  }, [search, categoryId, city, freeOnly, nearMe, geoCoords, radiusKm, showRecommendationRails, user, weekendCoords, weekendRadiusKm])
 
   useEffect(() => { fetchEvents() }, [fetchEvents])
 
@@ -492,11 +508,17 @@ export default function EventsScreen() {
               {index === 0 && showRecommendationRails && nearYouWeekendEvents.length > 0 && (
                 <RecommendationRail
                   title="Near You This Weekend"
-                  subtitle={`Happening in ${city !== 'All' ? city : weekendCity} · ${getWeekendLabel()}`}
+                  subtitle={
+                    weekendCoords
+                      ? `Within ${weekendRadiusKm} km · ${getWeekendLabel()}`
+                      : `${city} · ${getWeekendLabel()}`
+                  }
                   events={nearYouWeekendEvents}
                   savedIds={savedIds}
                   onSaveChange={handleSaveChange}
                   accent="weekend"
+                  radiusKm={weekendCoords ? weekendRadiusKm : undefined}
+                  onRadiusChange={weekendCoords ? setWeekendRadiusKm : undefined}
                 />
               )}
               {index === 0 && showRecommendationRails && savedInspiredEvents.length > 0 && nearYouWeekendEvents.length === 0 && (
@@ -558,6 +580,8 @@ export default function EventsScreen() {
   )
 }
 
+const WEEKEND_RADIUS_OPTIONS = [5, 10, 25, 50, 100]
+
 function RecommendationRail({
   title,
   subtitle,
@@ -566,6 +590,8 @@ function RecommendationRail({
   onSaveChange,
   urgency = false,
   accent,
+  radiusKm,
+  onRadiusChange,
 }: {
   title: string
   subtitle: string
@@ -574,12 +600,31 @@ function RecommendationRail({
   onSaveChange: (id: string, saved: boolean) => void
   urgency?: boolean
   accent?: 'weekend'
+  radiusKm?: number
+  onRadiusChange?: (km: number) => void
 }) {
   return (
     <View style={[styles.railSection, urgency && styles.railSectionUrgent, accent === 'weekend' && styles.railSectionWeekend]}>
       <View style={styles.railHeader}>
         <Text style={styles.railTitle}>{title}</Text>
-        <Text style={styles.railSubtitle}>{subtitle}</Text>
+        <View style={styles.railSubtitleRow}>
+          <Text style={styles.railSubtitle}>{subtitle}</Text>
+          {radiusKm !== undefined && onRadiusChange && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.radiusInlineScroll}>
+              {WEEKEND_RADIUS_OPTIONS.map((km) => (
+                <TouchableOpacity
+                  key={km}
+                  style={[styles.radiusInlineChip, radiusKm === km && styles.radiusInlineChipActive]}
+                  onPress={() => onRadiusChange(km)}
+                >
+                  <Text style={[styles.radiusInlineChipText, radiusKm === km && styles.radiusInlineChipTextActive]}>
+                    {km} km
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
+        </View>
       </View>
       <ScrollView
         horizontal
@@ -640,10 +685,37 @@ const styles = StyleSheet.create({
     fontWeight: FontWeight.bold,
     color: Colors.gray[900],
   },
-  railSubtitle: {
+  railSubtitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
     marginTop: 4,
+  },
+  railSubtitle: {
     fontSize: FontSize.sm,
     color: Colors.gray[500],
+  },
+  radiusInlineScroll: { flexShrink: 1 },
+  radiusInlineChip: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 3,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: Colors.green.DEFAULT,
+    backgroundColor: Colors.white,
+    marginRight: Spacing.xs,
+  },
+  radiusInlineChipActive: {
+    backgroundColor: Colors.green.DEFAULT,
+  },
+  radiusInlineChipText: {
+    fontSize: FontSize.xs,
+    color: Colors.green.text,
+    fontWeight: FontWeight.medium,
+  },
+  radiusInlineChipTextActive: {
+    color: Colors.white,
   },
   railScroller: {
     paddingHorizontal: Spacing.lg,
