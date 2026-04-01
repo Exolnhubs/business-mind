@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
+import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireAuth } from '@/lib/auth'
 import { handleApiError, ok } from '@/lib/errors'
@@ -14,10 +15,20 @@ const Schema = z.object({
 // Inserts a referrals row → DB trigger awards the signup coupon automatically.
 export async function POST(req: NextRequest) {
   try {
-    const ctx   = await requireAuth()
-    const input = Schema.parse(await req.json())
+    const ctx    = await requireAuth()
+    const input  = Schema.parse(await req.json())
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const admin = createSupabaseAdminClient() as any
+    const admin  = createSupabaseAdminClient() as any
+    const supabase = await createSupabaseServerClient()
+
+    // Guard: only credit referrals for accounts created in the last 10 minutes.
+    // Prevents existing users from gaming the system by re-visiting a referral link.
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
+    const accountAgeMs = Date.now() - new Date(user.created_at).getTime()
+    if (accountAgeMs > 10 * 60 * 1000) {
+      return ok({ skipped: true, reason: 'existing_account' })
+    }
 
     // Look up the referral code
     const { data: refCodeRaw, error: codeErr } = await admin
@@ -44,12 +55,11 @@ export async function POST(req: NextRequest) {
     })
 
     if (insertErr) {
-      // Already claimed — not an error, just idempotent
       if (insertErr.code === '23505') return ok({ already_claimed: true })
       throw insertErr
     }
 
-    // Fire notification to referrer (fire-and-forget)
+    // Only notify on a fresh insert
     sendNotification({
       userId:  refCode.user_id,
       type:    'referral_signup_reward',
