@@ -82,7 +82,7 @@ function isAlmostSoldOut(event: Pick<EventWithOrganizer, 'capacity' | 'bookings_
 
 export default function EventsScreen() {
   const { t, locale } = useLocale()
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const [events, setEvents]         = useState<EventWithOrganizer[]>([])
   const [savedIds, setSavedIds]     = useState<Set<string>>(new Set())
   const [savedInspiredEvents, setSavedInspiredEvents]   = useState<EventWithOrganizer[]>([])
