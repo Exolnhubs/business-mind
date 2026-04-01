@@ -58,6 +58,8 @@ export interface Profile {
   phone: string | null
   signup_lat: number | null
   signup_lng: number | null
+  lat: number | null
+  lng: number | null
   created_at: string
   updated_at: string
 }

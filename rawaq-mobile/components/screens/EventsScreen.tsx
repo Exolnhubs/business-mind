@@ -122,19 +122,30 @@ export default function EventsScreen() {
       .then(({ data }) => setCategories((data ?? []) as Category[]))
   }, [])
 
-  // Silently grab coords for "Near You This Weekend" — only if permission already granted, no prompt
+  // Silently grab coords for "Near You This Weekend":
+  // 1. Last-known GPS (no prompt) if permission already granted
+  // 2. Fall back to coordinates saved in the user's profile
   useEffect(() => {
     async function detectCoords() {
       try {
         const { status } = await Location.getForegroundPermissionsAsync()
-        if (status !== 'granted') return
-        const pos = await Location.getLastKnownPositionAsync()
-        if (!pos) return
-        setWeekendCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude })
-      } catch { /* silent */ }
+        if (status === 'granted') {
+          const pos = await Location.getLastKnownPositionAsync()
+          if (pos) {
+            setWeekendCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+            return
+          }
+        }
+      } catch { /* ignore GPS errors */ }
+      // GPS unavailable — use profile's saved coordinates if present
+      const profileLat = (profile as Record<string, unknown>)?.lat as number | null | undefined
+      const profileLng = (profile as Record<string, unknown>)?.lng as number | null | undefined
+      if (profileLat != null && profileLng != null) {
+        setWeekendCoords({ lat: profileLat, lng: profileLng })
+      }
     }
     detectCoords()
-  }, [])
+  }, [profile])
 
   async function toggleNearMe() {
     if (nearMe) { setNearMe(false); setGeoCoords(null); return }
@@ -503,43 +514,42 @@ export default function EventsScreen() {
         <FlatList
           data={events}
           keyExtractor={(e) => e.id}
+          ListHeaderComponent={
+            showRecommendationRails && (nearYouWeekendEvents.length > 0 || savedInspiredEvents.length > 0)
+              ? (
+                <View>
+                  {nearYouWeekendEvents.length > 0 && (
+                    <RecommendationRail
+                      title="Near You This Weekend"
+                      subtitle={
+                        weekendCoords
+                          ? `Within ${weekendRadiusKm} km · ${getWeekendLabel()}`
+                          : `${city} · ${getWeekendLabel()}`
+                      }
+                      events={nearYouWeekendEvents}
+                      savedIds={savedIds}
+                      onSaveChange={handleSaveChange}
+                      accent="weekend"
+                      radiusKm={weekendCoords ? weekendRadiusKm : undefined}
+                      onRadiusChange={weekendCoords ? setWeekendRadiusKm : undefined}
+                    />
+                  )}
+                  {savedInspiredEvents.length > 0 && (
+                    <RecommendationRail
+                      title="Because You Saved..."
+                      subtitle="Fresh picks that match the events you bookmarked."
+                      events={savedInspiredEvents}
+                      savedIds={savedIds}
+                      onSaveChange={handleSaveChange}
+                    />
+                  )}
+                </View>
+                )
+              : null
+          }
           renderItem={({ item, index }) => (
             <View>
-              {index === 0 && showRecommendationRails && nearYouWeekendEvents.length > 0 && (
-                <RecommendationRail
-                  title="Near You This Weekend"
-                  subtitle={
-                    weekendCoords
-                      ? `Within ${weekendRadiusKm} km · ${getWeekendLabel()}`
-                      : `${city} · ${getWeekendLabel()}`
-                  }
-                  events={nearYouWeekendEvents}
-                  savedIds={savedIds}
-                  onSaveChange={handleSaveChange}
-                  accent="weekend"
-                  radiusKm={weekendCoords ? weekendRadiusKm : undefined}
-                  onRadiusChange={weekendCoords ? setWeekendRadiusKm : undefined}
-                />
-              )}
-              {index === 0 && showRecommendationRails && savedInspiredEvents.length > 0 && nearYouWeekendEvents.length === 0 && (
-                <RecommendationRail
-                  title="Because You Saved..."
-                  subtitle="Fresh picks that match the events you bookmarked."
-                  events={savedInspiredEvents}
-                  savedIds={savedIds}
-                  onSaveChange={handleSaveChange}
-                />
-              )}
-              {index === 3 && showRecommendationRails && savedInspiredEvents.length > 0 && nearYouWeekendEvents.length > 0 && (
-                <RecommendationRail
-                  title="Because You Saved..."
-                  subtitle="Fresh picks that match the events you bookmarked."
-                  events={savedInspiredEvents}
-                  savedIds={savedIds}
-                  onSaveChange={handleSaveChange}
-                />
-              )}
-              {index === 6 && showRecommendationRails && almostSoldOutEvents.length > 0 && (
+              {index === 5 && showRecommendationRails && almostSoldOutEvents.length > 0 && (
                 <RecommendationRail
                   title="Almost Sold Out"
                   subtitle="Popular events that are close to filling up."

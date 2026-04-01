@@ -252,7 +252,13 @@ export default function ProfileScreen() {
 
       const { error } = await supabase
         .from('profiles')
-        .update({ city, signup_lat: pos.coords.latitude, signup_lng: pos.coords.longitude })
+        .update({
+          city,
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          signup_lat: pos.coords.latitude,
+          signup_lng: pos.coords.longitude,
+        })
         .eq('id', user.id)
 
       if (error) {
@@ -342,17 +348,15 @@ export default function ProfileScreen() {
           </TouchableOpacity>
           <Text style={styles.displayName}>{profile?.display_name ?? t('profile.title')}</Text>
           <Text style={styles.email}>{user.email}</Text>
-          {profile?.city
-            ? <Text style={styles.city}>📍 {profile.city}</Text>
-            : !editing && (
-              <TouchableOpacity onPress={detectLocation} disabled={locating} style={{ marginTop: 4 }}>
-                {locating
-                  ? <ActivityIndicator size="small" color={Colors.brand[500]} />
-                  : <Text style={[styles.city, { color: Colors.brand[500] }]}>📍 Tap to detect location</Text>
-                }
-              </TouchableOpacity>
-            )
-          }
+          <TouchableOpacity onPress={detectLocation} disabled={locating} style={styles.cityRow}>
+            {locating
+              ? <ActivityIndicator size="small" color={Colors.brand[500]} />
+              : <Text style={styles.cityPinText}>📍</Text>
+            }
+            <Text style={[styles.city, { marginTop: 0, marginLeft: 4 }]}>
+              {locating ? 'Detecting…' : (profile?.city ?? 'Tap to set location')}
+            </Text>
+          </TouchableOpacity>
           {profile?.gender && (
             <Text style={styles.city}>{profile.gender === 'male' ? `👨 ${t('profile.male')}` : `👩 ${t('profile.female')}`}</Text>
           )}
@@ -760,6 +764,8 @@ const styles = StyleSheet.create({
   displayName: { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.gray[900] },
   email: { fontSize: FontSize.sm, color: Colors.gray[500], marginTop: 4 },
   city: { fontSize: FontSize.sm, color: Colors.gray[500], marginTop: 4 },
+  cityRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
+  cityPinText: { fontSize: FontSize.sm },
   roleBadge: { marginTop: Spacing.sm, backgroundColor: Colors.brand[50], borderRadius: Radius.full, paddingHorizontal: Spacing.lg, paddingVertical: 4 },
   roleBadgeText: { fontSize: FontSize.sm, color: Colors.brand[700], fontWeight: FontWeight.semibold },
   editToggle: { marginTop: Spacing.md },
