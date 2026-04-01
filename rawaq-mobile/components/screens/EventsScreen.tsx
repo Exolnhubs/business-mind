@@ -14,6 +14,12 @@ import { Colors, Spacing, Radius, FontSize, FontWeight } from '@/theme'
 import type { EventWithOrganizer } from '@/types/database'
 
 interface Category { id: string; name_en: string; name_ar: string; icon: string | null }
+interface SavedSignalEvent {
+  id: string
+  category_id: string | null
+  city: string
+  organizer_id: string
+}
 
 const CITIES = [
   'All',
@@ -37,11 +43,24 @@ const CITIES = [
   'Baghdad',
 ]
 
+function getSpotsLeft(event: Pick<EventWithOrganizer, 'capacity' | 'bookings_count'>) {
+  if (!event.capacity) return null
+  return event.capacity - event.bookings_count
+}
+
+function isAlmostSoldOut(event: Pick<EventWithOrganizer, 'capacity' | 'bookings_count'>) {
+  const spotsLeft = getSpotsLeft(event)
+  if (spotsLeft === null || spotsLeft <= 0 || !event.capacity) return false
+  return spotsLeft <= 10 || spotsLeft / event.capacity <= 0.15
+}
+
 export default function EventsScreen() {
   const { t, locale } = useLocale()
   const { user } = useAuth()
   const [events, setEvents]         = useState<EventWithOrganizer[]>([])
   const [savedIds, setSavedIds]     = useState<Set<string>>(new Set())
+  const [savedInspiredEvents, setSavedInspiredEvents] = useState<EventWithOrganizer[]>([])
+  const [almostSoldOutEvents, setAlmostSoldOutEvents] = useState<EventWithOrganizer[]>([])
   const [loading, setLoading]       = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [search, setSearch]         = useState('')
@@ -53,6 +72,7 @@ export default function EventsScreen() {
   const [geoCoords, setGeoCoords]   = useState<{ lat: number; lng: number } | null>(null)
   const [geoLoading, setGeoLoading] = useState(false)
   const [radiusKm, setRadiusKm]     = useState(25)
+  const showRecommendationRails = !search && !categoryId && city === 'All' && !freeOnly && !nearMe
 
   // Fade the pin icon out while the user is typing, back in when cleared
   const pinOpacity = useRef(new Animated.Value(1)).current
@@ -96,21 +116,22 @@ export default function EventsScreen() {
   const fetchEvents = useCallback(async () => {
     const geoActive = nearMe ? geoCoords : null
     setLoading(true)
+    const eventSelect = `
+      *,
+      organizer:profiles!organizer_id(
+        id, display_name, avatar_url,
+        organizer_profile:organizer_profiles!user_id(business_name, business_name_ar, logo_url, verified)
+      ),
+      category:event_categories(id, name_en, name_ar, icon)
+    `
     let query = supabase
       .from('events')
-      .select(`
-        *,
-        organizer:profiles!organizer_id(
-          id, display_name, avatar_url,
-          organizer_profile:organizer_profiles!user_id(business_name, business_name_ar, logo_url, verified)
-        ),
-        category:event_categories(id, name_en, name_ar, icon)
-      `)
+      .select(eventSelect)
       .eq('is_published', true)
       .eq('is_cancelled', false)
       .gte('start_at', new Date().toISOString())
       .order('start_at', { ascending: true })
-      .limit(30)
+      .limit(48)
 
     if (search) {
       const q = search.replace(/'/g, "''")
@@ -140,25 +161,135 @@ export default function EventsScreen() {
     }
 
     const { data } = await query
-    const list = (data ?? []) as EventWithOrganizer[]
+    const list = (data ?? []) as unknown as EventWithOrganizer[]
     setEvents(list)
+
+    let nextSavedIds = new Set<string>()
 
     if (user && list.length) {
       const { data: saves } = await supabase
-        .from('saved_events').select('event_id').eq('user_id', user.id)
+        .from('saved_events')
+        .select('event_id')
+        .eq('user_id', user.id)
         .in('event_id', list.map((e) => e.id))
-      setSavedIds(new Set((saves ?? []).map((s) => s.event_id)))
+      nextSavedIds = new Set((saves ?? []).map((s) => s.event_id))
+      setSavedIds(nextSavedIds)
+    } else {
+      setSavedIds(new Set())
+    }
+
+    if (!showRecommendationRails) {
+      setAlmostSoldOutEvents([])
+      setSavedInspiredEvents([])
+      setLoading(false)
+      setRefreshing(false)
+      return
+    }
+
+    const [urgencyRes, savedSignalsRes] = await Promise.all([
+      supabase
+        .from('events')
+        .select(eventSelect)
+        .eq('is_published', true)
+        .eq('is_cancelled', false)
+        .gte('start_at', new Date().toISOString())
+        .not('capacity', 'is', null)
+        .order('start_at', { ascending: true })
+        .limit(40),
+      user
+        ? supabase
+            .from('saved_events')
+            .select(`
+              event_id,
+              event:events!event_id(id, category_id, city, organizer_id)
+            `)
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(12)
+        : Promise.resolve({ data: null, error: null }),
+    ])
+
+    const urgencyList = ((urgencyRes.data ?? []) as unknown as EventWithOrganizer[])
+      .filter((event) => !event.is_cancelled && isAlmostSoldOut(event))
+      .sort((a, b) => {
+        const spotsA = getSpotsLeft(a) ?? Number.MAX_SAFE_INTEGER
+        const spotsB = getSpotsLeft(b) ?? Number.MAX_SAFE_INTEGER
+        if (spotsA !== spotsB) return spotsA - spotsB
+        return new Date(a.start_at).getTime() - new Date(b.start_at).getTime()
+      })
+      .slice(0, 6)
+    setAlmostSoldOutEvents(urgencyList)
+
+    const savedSignals = ((savedSignalsRes.data ?? []) as unknown as Array<{ event_id: string; event: SavedSignalEvent | null }>)
+      .map((row) => row.event)
+      .filter(Boolean) as SavedSignalEvent[]
+
+    if (savedSignals.length) {
+      const savedEventIds = new Set(((savedSignalsRes.data ?? []) as unknown as Array<{ event_id: string }>).map((row) => row.event_id))
+      const savedCategories = [...new Set(savedSignals.map((event) => event.category_id).filter(Boolean))] as string[]
+      const savedCities = [...new Set(savedSignals.map((event) => event.city).filter(Boolean))]
+      const savedOrganizers = new Set(savedSignals.map((event) => event.organizer_id))
+
+      let candidateQuery = supabase
+        .from('events')
+        .select(eventSelect)
+        .eq('is_published', true)
+        .eq('is_cancelled', false)
+        .gte('start_at', new Date().toISOString())
+        .order('start_at', { ascending: true })
+        .limit(40)
+
+      if (savedCategories.length > 0) {
+        candidateQuery = candidateQuery.in('category_id', savedCategories)
+      } else if (savedCities.length > 0) {
+        candidateQuery = candidateQuery.in('city', savedCities)
+      }
+
+      const { data: candidateData } = await candidateQuery
+      const candidateList = (candidateData ?? []) as unknown as EventWithOrganizer[]
+      const featuredIds = new Set(urgencyList.map((event) => event.id))
+
+      const ranked = candidateList
+        .filter((event) => !savedEventIds.has(event.id) && !featuredIds.has(event.id))
+        .map((event) => {
+          let score = 0
+          if (event.category_id && savedCategories.includes(event.category_id)) score += 3
+          if (savedCities.includes(event.city)) score += 2
+          if (savedOrganizers.has(event.organizer_id)) score += 1
+          if (isAlmostSoldOut(event)) score += 1
+          return { event, score }
+        })
+        .filter((item) => item.score > 0)
+        .sort((a, b) => {
+          if (b.score !== a.score) return b.score - a.score
+          return new Date(a.event.start_at).getTime() - new Date(b.event.start_at).getTime()
+        })
+        .slice(0, 6)
+        .map((item) => item.event)
+
+      setSavedInspiredEvents(ranked)
+    } else {
+      setSavedInspiredEvents([])
     }
 
     setLoading(false)
     setRefreshing(false)
-  }, [search, categoryId, city, freeOnly, nearMe, geoCoords, radiusKm, user])
+  }, [search, categoryId, city, freeOnly, nearMe, geoCoords, radiusKm, showRecommendationRails, user])
 
   useEffect(() => { fetchEvents() }, [fetchEvents])
 
   function onRefresh() {
     setRefreshing(true)
     fetchEvents()
+  }
+
+  function handleSaveChange(id: string, saved: boolean) {
+    setSavedIds((prev) => {
+      const next = new Set(prev)
+      if (saved) next.add(id)
+      else next.delete(id)
+      return next
+    })
   }
 
   return (
@@ -279,10 +410,47 @@ export default function EventsScreen() {
         <FlatList
           data={events}
           keyExtractor={(e) => e.id}
-          renderItem={({ item }) => <EventCard event={item} isSaved={savedIds.has(item.id)} />}
+          renderItem={({ item, index }) => (
+            <View>
+              {index === 0 && showRecommendationRails && savedInspiredEvents.length > 0 && (
+                <RecommendationRail
+                  title="Because You Saved..."
+                  subtitle="Fresh picks that match the events you bookmarked."
+                  events={savedInspiredEvents}
+                  savedIds={savedIds}
+                  onSaveChange={handleSaveChange}
+                />
+              )}
+              {index === 4 && showRecommendationRails && almostSoldOutEvents.length > 0 && (
+                <RecommendationRail
+                  title="Almost Sold Out"
+                  subtitle="Popular events that are close to filling up."
+                  events={almostSoldOutEvents}
+                  savedIds={savedIds}
+                  onSaveChange={handleSaveChange}
+                  urgency
+                />
+              )}
+              <EventCard event={item} isSaved={savedIds.has(item.id)} onSaveChange={handleSaveChange} />
+            </View>
+          )}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.brand[500]} />}
+          ListFooterComponent={
+            showRecommendationRails && events.length > 0 && events.length <= 4 && almostSoldOutEvents.length > 0
+              ? (
+                <RecommendationRail
+                  title="Almost Sold Out"
+                  subtitle="Popular events that are close to filling up."
+                  events={almostSoldOutEvents}
+                  savedIds={savedIds}
+                  onSaveChange={handleSaveChange}
+                  urgency
+                />
+                )
+              : null
+          }
           ListEmptyComponent={
             nearMe
               ? <EmptyState icon="📍" title="No events nearby" description={`No events found within ${radiusKm} km of your location`} />
@@ -290,6 +458,46 @@ export default function EventsScreen() {
           }
         />
       )}
+    </View>
+  )
+}
+
+function RecommendationRail({
+  title,
+  subtitle,
+  events,
+  savedIds,
+  onSaveChange,
+  urgency = false,
+}: {
+  title: string
+  subtitle: string
+  events: EventWithOrganizer[]
+  savedIds: Set<string>
+  onSaveChange: (id: string, saved: boolean) => void
+  urgency?: boolean
+}) {
+  return (
+    <View style={[styles.railSection, urgency && styles.railSectionUrgent]}>
+      <View style={styles.railHeader}>
+        <Text style={styles.railTitle}>{title}</Text>
+        <Text style={styles.railSubtitle}>{subtitle}</Text>
+      </View>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.railScroller}
+      >
+        {events.map((event) => (
+          <EventCard
+            key={event.id}
+            event={event}
+            isSaved={savedIds.has(event.id)}
+            onSaveChange={onSaveChange}
+            variant="rail"
+          />
+        ))}
+      </ScrollView>
     </View>
   )
 }
@@ -311,6 +519,35 @@ const styles = StyleSheet.create({
   miniChipText: { fontSize: FontSize.xs, color: Colors.gray[600] },
   miniChipTextActive: { color: Colors.brand[700] },
   list: { padding: Spacing.lg },
+  railSection: {
+    marginBottom: Spacing.lg,
+    marginTop: Spacing.xs,
+    marginHorizontal: -Spacing.lg,
+    paddingVertical: Spacing.md,
+    backgroundColor: Colors.white,
+    borderRadius: Radius.xl,
+  },
+  railSectionUrgent: {
+    backgroundColor: '#fff7ed',
+  },
+  railHeader: {
+    paddingHorizontal: Spacing.lg,
+    marginBottom: Spacing.sm,
+  },
+  railTitle: {
+    fontSize: FontSize.lg,
+    fontWeight: FontWeight.bold,
+    color: Colors.gray[900],
+  },
+  railSubtitle: {
+    marginTop: 4,
+    fontSize: FontSize.sm,
+    color: Colors.gray[500],
+  },
+  railScroller: {
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.xs,
+  },
 
   radiusRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.brand[50], paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.brand[100], gap: Spacing.xs },
   radiusLabel: { fontSize: FontSize.xs, color: Colors.brand[600], fontWeight: FontWeight.medium, marginRight: Spacing.xs },
