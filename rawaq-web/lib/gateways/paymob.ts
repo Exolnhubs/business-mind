@@ -147,6 +147,45 @@ interface PaymobBillingData {
   postal_code:   string
 }
 
+// ── Refund ────────────────────────────────────────────────────────────────────
+
+/**
+ * Refund a Paymob transaction.
+ *
+ * @param gatewayRef  The Paymob transaction ID stored in payment_transactions.gateway_ref
+ * @param amount      Amount to refund in SAR (will be converted to cents)
+ */
+export async function refundPaymob(
+  gatewayRef: string,
+  amount: number,
+): Promise<{ success: boolean; gatewayRefundRef?: string; error?: string }> {
+  try {
+    const authToken = await authenticate()
+
+    const res = await fetch(`${BASE_URL}/acceptance/void_refund/refund`, {
+      method:  'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': `Bearer ${authToken}`,
+      },
+      body: JSON.stringify({
+        transaction_id: gatewayRef,
+        amount_cents:   amountInCents(amount),
+      }),
+    })
+
+    const data = await res.json()
+
+    if (!res.ok || data.success === false) {
+      return { success: false, error: data.message ?? `Paymob refund failed: ${res.status}` }
+    }
+
+    return { success: true, gatewayRefundRef: String(data.id ?? gatewayRef) }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}
+
 // ── Main: Initiate Paymob Checkout ───────────────────────────────────────────
 
 export async function initiatePaymob(

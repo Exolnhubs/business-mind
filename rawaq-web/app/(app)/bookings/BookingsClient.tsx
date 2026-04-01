@@ -37,7 +37,13 @@ export default function BookingsClient({ initialBookings }: { initialBookings: B
       )
       setRefundTarget(null)
       setUserNote('')
-      setRefundMsg({ ok: true, text: 'Refund requested. You will be notified once it is processed.' })
+      const autoRefunded = json.data?.auto_refunded === true
+      setRefundMsg({
+        ok: true,
+        text: autoRefunded
+          ? '✓ Ticket cancelled. Your refund has been sent to your original payment method — allow 3–5 business days to appear.'
+          : '✓ Ticket cancelled. Your refund is queued for review and will be processed within 1–3 business days.',
+      })
     } else {
       setRefundMsg({ ok: false, text: json.error ?? 'Refund request failed.' })
     }
