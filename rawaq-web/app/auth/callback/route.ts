@@ -38,11 +38,12 @@ export async function GET(req: NextRequest) {
       if (refCode) {
         try {
           const admin = createSupabaseAdminClient()
-          const { data: refCodeRow } = await admin
+          const { data: refCodeRaw } = await admin
             .from('referral_codes')
             .select('id, user_id')
             .eq('code', refCode.toUpperCase().trim())
             .single()
+          const refCodeRow = refCodeRaw as { id: string; user_id: string } | null
 
           if (refCodeRow && refCodeRow.user_id !== data.user.id) {
             const { error: insertErr } = await admin.from('referrals').insert({

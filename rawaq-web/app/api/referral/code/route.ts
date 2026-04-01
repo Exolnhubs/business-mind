@@ -22,11 +22,12 @@ export async function GET() {
     const admin    = createSupabaseAdminClient()
 
     // Try to read existing code first
-    const { data: existing } = await supabase
+    const { data: existingRaw } = await supabase
       .from('referral_codes')
       .select('*')
       .eq('user_id', ctx.userId)
       .single()
+    const existing = existingRaw as { id: string; code: string; clicks: number } | null
 
     if (existing) {
       return ok(await buildResponse(supabase, existing, ctx.userId))
@@ -41,13 +42,14 @@ export async function GET() {
 
     const code = generateCode(profile?.display_name ?? '', ctx.userId)
 
-    const { data: created, error } = await admin
+    const { data: createdRaw, error } = await admin
       .from('referral_codes')
       .upsert({ user_id: ctx.userId, code }, { onConflict: 'user_id', ignoreDuplicates: false })
       .select()
       .single()
 
     if (error) throw error
+    const created = createdRaw as { id: string; code: string; clicks: number }
     return ok(await buildResponse(supabase, created, ctx.userId))
   } catch (err) {
     return handleApiError(err)

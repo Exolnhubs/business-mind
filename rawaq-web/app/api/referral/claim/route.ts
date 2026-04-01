@@ -19,11 +19,12 @@ export async function POST(req: NextRequest) {
     const admin = createSupabaseAdminClient()
 
     // Look up the referral code
-    const { data: refCode, error: codeErr } = await admin
+    const { data: refCodeRaw, error: codeErr } = await admin
       .from('referral_codes')
       .select('id, user_id')
       .eq('code', input.code)
       .single()
+    const refCode = refCodeRaw as { id: string; user_id: string } | null
 
     if (codeErr || !refCode) {
       return Response.json({ error: 'Invalid referral code.' }, { status: 404 })
