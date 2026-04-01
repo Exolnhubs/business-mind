@@ -10,7 +10,8 @@ export async function POST(req: NextRequest) {
     const { code } = await req.json()
     if (!code || typeof code !== 'string') return ok({ ok: true })
 
-    const admin = createSupabaseAdminClient()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const admin = createSupabaseAdminClient() as any
     await admin.rpc('increment_referral_clicks', { p_code: code.toUpperCase().trim() })
 
     return ok({ ok: true })

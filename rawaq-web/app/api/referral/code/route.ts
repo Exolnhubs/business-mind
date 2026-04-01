@@ -19,7 +19,8 @@ export async function GET() {
   try {
     const ctx = await requireAuth()
     const supabase = await createSupabaseServerClient()
-    const admin    = createSupabaseAdminClient()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const admin = createSupabaseAdminClient() as any
 
     // Try to read existing code first
     const { data: existingRaw } = await supabase

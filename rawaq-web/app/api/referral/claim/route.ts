@@ -16,7 +16,8 @@ export async function POST(req: NextRequest) {
   try {
     const ctx   = await requireAuth()
     const input = Schema.parse(await req.json())
-    const admin = createSupabaseAdminClient()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const admin = createSupabaseAdminClient() as any
 
     // Look up the referral code
     const { data: refCodeRaw, error: codeErr } = await admin

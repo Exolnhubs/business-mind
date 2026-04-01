@@ -37,7 +37,8 @@ export async function GET(req: NextRequest) {
       // Claim referral if a code was passed
       if (refCode) {
         try {
-          const admin = createSupabaseAdminClient()
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const admin = createSupabaseAdminClient() as any
           const { data: refCodeRaw } = await admin
             .from('referral_codes')
             .select('id, user_id')
