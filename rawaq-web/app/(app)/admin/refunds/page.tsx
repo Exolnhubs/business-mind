@@ -96,7 +96,8 @@ export default function AdminRefundsPage() {
       <div>
         <h1 className="text-xl font-bold text-gray-900">Refund Requests</h1>
         <p className="text-sm text-gray-500 mt-0.5">
-          Review and process ticket cancellation refunds.
+          Most refunds are processed automatically via the original gateway.
+          Only failed or unsupported gateway refunds appear here as <span className="font-medium text-amber-600">pending</span> for manual action.
         </p>
       </div>
 
@@ -143,11 +144,16 @@ export default function AdminRefundsPage() {
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-bold text-gray-900 text-lg">
                       {formatCurrency(r.amount)}
-                      {r.transaction?.currency && r.transaction.currency !== 'SAR'
-                        ? ` ${r.transaction.currency}` : ''}
                     </span>
                     <span className={`px-2 py-0.5 rounded text-xs font-semibold ${STATUS_STYLES[r.status]}`}>
                       {r.status}
+                    </span>
+                    <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
+                      r.refund_method === 'original_payment'
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-amber-100 text-amber-700'
+                    }`}>
+                      {r.refund_method === 'original_payment' ? '⚡ Auto' : '🔧 Manual'}
                     </span>
                   </div>
                   <p className="text-xs text-gray-400 mt-0.5">

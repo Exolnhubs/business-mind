@@ -104,6 +104,33 @@ interface StripeSession {
   url: string
 }
 
+// ── Refund ────────────────────────────────────────────────────────────────────
+
+/**
+ * Refund a Stripe payment.
+ *
+ * @param gatewayRef  The Stripe PaymentIntent ID (pi_...) stored in gateway_ref
+ * @param amount      Amount to refund in SAR
+ */
+export async function refundStripe(
+  gatewayRef: string,
+  amount: number,
+): Promise<{ success: boolean; gatewayRefundRef?: string; error?: string }> {
+  try {
+    const data = await stripePost<{ id: string; status: string }>('/refunds', {
+      payment_intent: gatewayRef,
+      amount:         amountInSmallestUnit(amount, 'SAR'),
+    })
+
+    const success = data.status === 'succeeded' || data.status === 'pending'
+    return { success, gatewayRefundRef: data.id }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}
+
+// ── Initiate Checkout ─────────────────────────────────────────────────────────
+
 export async function initiateStripe(
   params: InitiatePaymentParams,
 ): Promise<InitiatePaymentResult> {

@@ -1,16 +1,18 @@
 /**
  * POST /api/bookings/:id/refund
  *
- * User requests a refund for a paid, confirmed booking.
+ * Cancels a paid confirmed booking and automatically processes the refund
+ * through the original payment gateway (Paymob or Stripe).
  *
  * Flow:
- *   1. Validate booking belongs to the requesting user and is confirmed
- *   2. Find the succeeded payment_transaction for this booking
- *   3. Guard against duplicate refund requests
- *   4. Cancel the booking → triggers capacity decrement (existing DB trigger)
- *   5. Insert a refunds row with status 'pending'
- *   6. Admin later approves → completes → sets payment_transaction.status = 'refunded'
- *      which triggers organizer wallet debit (existing DB trigger)
+ *   1. Validate booking ownership, status, and that a succeeded payment exists
+ *   2. Guard against duplicate refund requests
+ *   3. Cancel booking → triggers capacity decrement (existing DB trigger)
+ *   4. Call gateway refund API automatically
+ *   5a. Gateway success → refunds.status = 'completed', tx.status = 'refunded'
+ *       (trg_payment_wallet_sync trigger debits organizer wallet automatically)
+ *   5b. Gateway failure / simulated / unknown gateway → refunds.status = 'pending'
+ *       (falls into admin manual queue)
  */
 
 import { NextRequest } from 'next/server'
@@ -19,6 +21,8 @@ import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireAuth } from '@/lib/auth'
 import { handleApiError, created, ForbiddenException, BadRequestException, NotFoundException } from '@/lib/errors'
 import { sendNotification } from '@/lib/notifications'
+import { refundPaymob } from '@/lib/gateways/paymob'
+import { refundStripe } from '@/lib/gateways/stripe-gw'
 
 const RequestRefundSchema = z.object({
   user_note: z.string().max(500).optional(),
@@ -29,10 +33,10 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const ctx        = await requireAuth()
-    const { id }     = await params
-    const body       = await req.json().catch(() => ({}))
-    const input      = RequestRefundSchema.parse(body)
+    const ctx    = await requireAuth()
+    const { id } = await params
+    const body   = await req.json().catch(() => ({}))
+    const input  = RequestRefundSchema.parse(body)
 
     const admin = createSupabaseAdminClient()
 
@@ -44,15 +48,12 @@ export async function POST(
       .maybeSingle()
 
     if (bookingErr || !booking) throw new NotFoundException('Booking')
-
     if (booking.user_id !== ctx.userId) throw new ForbiddenException()
-
     if (booking.status !== 'confirmed') {
       throw new BadRequestException('Only confirmed bookings can be refunded.')
     }
 
     const event = booking.event as { id: string; title: string; title_ar: string | null; is_free: boolean } | null
-
     if (event?.is_free) {
       throw new BadRequestException('Free bookings cannot be refunded — just cancel instead.')
     }
@@ -60,7 +61,7 @@ export async function POST(
     // ── 2. Find succeeded payment transaction ─────────────────────────────────
     const { data: tx } = await (admin as any)
       .from('payment_transactions')
-      .select('id, amount, organizer_net, currency, status, organizer_id')
+      .select('id, amount, organizer_net, currency, status, gateway, gateway_ref, is_simulated, organizer_id')
       .eq('booking_id', id)
       .eq('status', 'succeeded')
       .order('created_at', { ascending: false })
@@ -95,7 +96,38 @@ export async function POST(
 
     if (cancelErr) throw cancelErr
 
-    // ── 5. Insert refund row ──────────────────────────────────────────────────
+    // ── 5. Attempt automatic gateway refund ──────────────────────────────────
+    let refundStatus: 'pending' | 'completed' = 'pending'
+    let gatewayRefundRef: string | null = null
+    let autoRefundError: string | null = null
+
+    if (!tx.is_simulated && tx.gateway_ref) {
+      let result: { success: boolean; gatewayRefundRef?: string; error?: string }
+
+      if (tx.gateway === 'paymob' || tx.gateway === 'fawry') {
+        result = await refundPaymob(tx.gateway_ref, tx.amount)
+      } else if (tx.gateway === 'stripe') {
+        result = await refundStripe(tx.gateway_ref, tx.amount)
+      } else {
+        // Unknown gateway — fall to manual queue
+        result = { success: false, error: `Auto-refund not supported for gateway: ${tx.gateway}` }
+      }
+
+      if (result.success) {
+        refundStatus     = 'completed'
+        gatewayRefundRef = result.gatewayRefundRef ?? null
+      } else {
+        autoRefundError = result.error ?? null
+        console.error('[bookings/refund] Gateway refund failed, falling back to manual queue:', autoRefundError, 'bookingId:', id, 'txId:', tx.id)
+      }
+    } else if (tx.is_simulated) {
+      // Simulated transactions: auto-complete without gateway call
+      refundStatus = 'completed'
+      gatewayRefundRef = `sim_refund_${Date.now()}`
+    }
+    // else: no gateway_ref — goes to manual queue
+
+    // ── 6. Insert refund row ──────────────────────────────────────────────────
     const { data: refund, error: refundErr } = await (admin as any)
       .from('refunds')
       .insert({
@@ -104,8 +136,11 @@ export async function POST(
         requested_by:           ctx.userId,
         amount:                 tx.amount,
         user_note:              input.user_note ?? null,
-        status:                 'pending',
-        is_simulated:           false,
+        status:                 refundStatus,
+        refund_method:          refundStatus === 'completed' && !tx.is_simulated ? 'original_payment' : 'manual',
+        gateway_ref:            gatewayRefundRef,
+        processed_at:           refundStatus === 'completed' ? new Date().toISOString() : null,
+        is_simulated:           tx.is_simulated,
       })
       .select()
       .single()
@@ -119,7 +154,22 @@ export async function POST(
       throw refundErr
     }
 
-    // ── 6. Notify user ────────────────────────────────────────────────────────
+    // ── 7. On auto-completed refund: mark transaction as refunded ─────────────
+    // This triggers fn_sync_wallet_on_payment → debits organizer wallet.
+    if (refundStatus === 'completed') {
+      const { error: txErr } = await (admin as any)
+        .from('payment_transactions')
+        .update({ status: 'refunded', updated_at: new Date().toISOString() })
+        .eq('id', tx.id)
+
+      if (txErr) {
+        // Non-fatal: refund row is already created, wallet debit may be missed.
+        // Log for manual reconciliation.
+        console.error('[bookings/refund] Failed to mark tx as refunded:', txErr.message, 'txId:', tx.id)
+      }
+    }
+
+    // ── 8. Notify user ────────────────────────────────────────────────────────
     sendNotification({
       userId: ctx.userId,
       type:   'booking_cancelled',
@@ -130,7 +180,13 @@ export async function POST(
       },
     }).catch(() => {})
 
-    return created({ refund })
+    return created({
+      refund,
+      auto_refunded: refundStatus === 'completed' && !tx.is_simulated,
+      message: refundStatus === 'completed'
+        ? 'Your ticket has been cancelled and the refund has been processed to your original payment method.'
+        : 'Your ticket has been cancelled. The refund is queued for manual processing and will be completed within 1–3 business days.',
+    })
   } catch (err) {
     return handleApiError(err)
   }

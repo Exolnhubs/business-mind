@@ -66,9 +66,12 @@ export default function BookingsScreen() {
       return
     }
 
+    const autoRefunded = (data as any)?.auto_refunded === true
     Alert.alert(
-      'Refund requested',
-      'Your ticket has been cancelled and a refund request has been submitted. You will be notified once it is processed.',
+      'Ticket cancelled',
+      autoRefunded
+        ? 'Your ticket has been cancelled and the refund has been sent to your original payment method. It may take 3–5 business days to appear.'
+        : 'Your ticket has been cancelled. The refund is being reviewed and will be processed within 1–3 business days.',
     )
     loadBookings()
   }
