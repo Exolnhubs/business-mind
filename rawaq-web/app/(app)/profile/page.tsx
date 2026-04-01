@@ -123,7 +123,7 @@ export default function ProfilePage() {
           const patchRes = await fetch('/api/profiles/me', {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ city, signup_lat: latitude, signup_lng: longitude }),
+            body: JSON.stringify({ city, lat: latitude, lng: longitude, signup_lat: latitude, signup_lng: longitude }),
           })
           if (patchRes.ok) {
             await refreshProfile()
@@ -283,39 +283,32 @@ export default function ProfilePage() {
             />
           </div>
 
-          {/* City — location-detected, not manually editable */}
+          {/* City — location-detected, always re-detectable */}
           <div>
             <label className="label">City</label>
-            {profile?.city ? (
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={profile.city}
-                  readOnly
-                  className="input bg-gray-50 text-gray-500 cursor-default flex-1"
-                />
-                <span className="text-xs text-gray-400">📍 Detected</span>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <p className="text-xs text-gray-400">
-                  Your city is determined from your device location and cannot be typed manually.
-                </p>
-                <button
-                  type="button"
-                  onClick={detectLocation}
-                  disabled={locating}
-                  className="btn-secondary text-sm flex items-center gap-2"
-                >
-                  {locating ? <Spinner size="sm" /> : '📍'}
-                  {locating ? 'Detecting…' : 'Detect my location'}
-                </button>
-                {locMsg && (
-                  <p className={`text-xs ${locMsg.ok ? 'text-green-600' : 'text-red-600'}`}>
-                    {locMsg.text}
-                  </p>
-                )}
-              </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={profile?.city ?? ''}
+                readOnly
+                placeholder="Not set — tap 📍 to detect"
+                className="input bg-gray-50 text-gray-500 cursor-default flex-1"
+              />
+              <button
+                type="button"
+                onClick={detectLocation}
+                disabled={locating}
+                title="Detect my current location"
+                className="btn-secondary text-sm flex items-center gap-1.5 shrink-0"
+              >
+                {locating ? <Spinner size="sm" /> : '📍'}
+                {locating ? 'Detecting…' : 'Update'}
+              </button>
+            </div>
+            {locMsg && (
+              <p className={`text-xs mt-1 ${locMsg.ok ? 'text-green-600' : 'text-red-600'}`}>
+                {locMsg.text}
+              </p>
             )}
           </div>
 
