@@ -2,7 +2,7 @@ import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { EventCard, EventCardSkeleton } from '@/components/events/EventCard'
-import { EventFilters } from '@/components/events/EventFilters'
+import { EventFiltersPlayful } from '@/components/events/EventFiltersPlayful'
 import { EmptyState } from '@/components/ui/EmptyState'
 import type { EventWithOrganizer } from '@/types/database'
 
@@ -296,18 +296,88 @@ export default async function EventsPage({
   searchParams: Promise<SearchParams>
 }) {
   const params = await searchParams
+  const activeFilterCount = [
+    params.q,
+    params.category,
+    params.city,
+    params.gender,
+    params.free === 'true' ? 'free' : null,
+    params.family === 'true' ? 'family' : null,
+    params.lat && params.lng ? 'geo' : null,
+  ].filter(Boolean).length
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Discover Events</h1>
-        <p className="text-gray-500 text-sm mt-1">Find local events that matter to you</p>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-8">
+      <section className="relative overflow-hidden rounded-[2rem] border border-brand-100 bg-gradient-to-br from-brand-50 via-white to-amber-100/70 px-5 py-8 sm:px-8 sm:py-10">
+        <div className="pointer-events-none absolute -top-16 left-0 h-40 w-40 rounded-full bg-brand-200/60 blur-3xl animate-float-slow" />
+        <div className="pointer-events-none absolute right-0 top-8 h-56 w-56 rounded-full bg-orange-200/40 blur-3xl animate-float-slower" />
+        <div className="pointer-events-none absolute bottom-0 left-1/3 h-28 w-28 rounded-full bg-white/70 blur-2xl" />
+
+        <div className="relative grid gap-6 lg:grid-cols-[1.35fr_0.9fr] lg:items-end">
+          <div className="space-y-5 animate-hero-in">
+            <span className="inline-flex w-fit items-center gap-2 rounded-full border border-brand-200 bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.25em] text-brand-700 shadow-sm">
+              Curated discovery
+            </span>
+            <div className="space-y-3">
+              <h1 className="max-w-2xl text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
+                Discover events with more color, momentum, and personality.
+              </h1>
+              <p className="max-w-2xl text-sm leading-6 text-gray-600 sm:text-base">
+                Browse the next wave of concerts, workshops, festivals, and community moments.
+                Use the playful filters below to tune the vibe in seconds.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2 text-sm">
+              <span className="animate-badge-pop rounded-full border border-white/80 bg-white/85 px-3 py-2 font-medium text-gray-700 shadow-sm">
+                🎵 Music nights
+              </span>
+              <span className="animate-badge-pop reveal-delay-1 rounded-full border border-white/80 bg-white/85 px-3 py-2 font-medium text-gray-700 shadow-sm">
+                🧠 Creative workshops
+              </span>
+              <span className="animate-badge-pop reveal-delay-2 rounded-full border border-white/80 bg-white/85 px-3 py-2 font-medium text-gray-700 shadow-sm">
+                📍 Nearby picks
+              </span>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
+            <div className="rounded-3xl border border-white/70 bg-white/80 p-4 shadow-sm backdrop-blur">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-gray-400">Search Mode</p>
+              <p className="mt-2 text-2xl font-bold text-gray-900">{activeFilterCount}</p>
+              <p className="mt-1 text-sm text-gray-500">active filters shaping the feed</p>
+            </div>
+            <div className="rounded-3xl border border-white/70 bg-gray-900 p-4 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-gray-400">Weekend Pulse</p>
+              <p className="mt-2 text-2xl font-bold text-white">Live</p>
+              <p className="mt-1 text-sm text-gray-300">fresh events, updated by time and place</p>
+            </div>
+            <div className="rounded-3xl border border-white/70 bg-white/80 p-4 shadow-sm backdrop-blur">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-gray-400">Best Use</p>
+              <p className="mt-2 text-lg font-bold text-gray-900">Mix filters freely</p>
+              <p className="mt-1 text-sm text-gray-500">category, city, free, family, and near me all stack</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900 sm:text-2xl">Filter Your Mood</h2>
+            <p className="text-sm text-gray-500">Build a browse state that feels specific, fast, and fun.</p>
+          </div>
+          {activeFilterCount > 0 && (
+            <div className="inline-flex items-center gap-2 rounded-full border border-brand-200 bg-brand-50 px-3 py-1.5 text-xs font-semibold text-brand-700">
+              <span className="h-2 w-2 rounded-full bg-brand-500" />
+              {activeFilterCount} active filter{activeFilterCount === 1 ? '' : 's'}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Filters */}
       <Suspense>
-        <EventFilters />
+        <EventFiltersPlayful />
       </Suspense>
 
       {/* Near You This Weekend — geo-based when Near Me is active, city-based otherwise */}
