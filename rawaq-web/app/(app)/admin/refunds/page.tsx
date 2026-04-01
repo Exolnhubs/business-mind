@@ -4,6 +4,15 @@ import { useEffect, useState } from 'react'
 import { Spinner } from '@/components/ui/Spinner'
 import { formatCurrency } from '@/lib/utils'
 
+interface VerifyResult {
+  verified: boolean
+  status?: string
+  gateway?: string
+  note?: string
+  error?: string
+  detail?: Record<string, unknown>
+}
+
 interface RefundRow {
   id: string
   amount: number
@@ -53,6 +62,8 @@ export default function AdminRefundsPage() {
   const [actionId,   setActionId]   = useState<string | null>(null)
   const [gatewayRef, setGatewayRef] = useState('')
   const [msg,        setMsg]        = useState<{ ok: boolean; text: string } | null>(null)
+  const [verifyingId,  setVerifyingId]  = useState<string | null>(null)
+  const [verifyResult, setVerifyResult] = useState<Record<string, VerifyResult>>({})
 
   async function load(status: StatusTab) {
     setLoading(true)
@@ -65,6 +76,14 @@ export default function AdminRefundsPage() {
   }
 
   useEffect(() => { load(tab) }, [tab])
+
+  async function verify(id: string) {
+    setVerifyingId(id)
+    const res  = await fetch(`/api/admin/refunds/${id}/verify`)
+    const json = await res.json()
+    setVerifyingId(null)
+    setVerifyResult((prev) => ({ ...prev, [id]: json.data ?? { verified: false, error: 'No response' } }))
+  }
 
   async function transition(id: string, status: 'approved' | 'completed' | 'rejected', method?: string) {
     setActionId(id)
@@ -254,6 +273,63 @@ export default function AdminRefundsPage() {
                   >
                     Reject
                   </button>
+                </div>
+              )}
+
+              {/* Verify with gateway — for completed auto refunds */}
+              {r.status === 'completed' && r.refund_method === 'original_payment' && r.gateway_ref && (
+                <div className="border-t border-gray-100 pt-4">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <button
+                      onClick={() => verify(r.id)}
+                      disabled={verifyingId === r.id}
+                      className="btn-secondary text-sm disabled:opacity-50"
+                    >
+                      {verifyingId === r.id ? <Spinner size="sm" /> : '🔍 Verify with Gateway'}
+                    </button>
+                    <span className="text-xs text-gray-400 font-mono">ref: {r.gateway_ref}</span>
+                  </div>
+
+                  {verifyResult[r.id] && (
+                    <div className={`mt-3 rounded-xl px-4 py-3 text-sm space-y-1 ${
+                      verifyResult[r.id].status === 'refunded'
+                        ? 'bg-green-50 border border-green-200'
+                        : verifyResult[r.id].status === 'pending'
+                        ? 'bg-amber-50 border border-amber-200'
+                        : 'bg-red-50 border border-red-200'
+                    }`}>
+                      {verifyResult[r.id].verified ? (
+                        <>
+                          <p className={`font-semibold ${
+                            verifyResult[r.id].status === 'refunded' ? 'text-green-700'
+                            : verifyResult[r.id].status === 'pending' ? 'text-amber-700'
+                            : 'text-red-700'
+                          }`}>
+                            {verifyResult[r.id].status === 'refunded'
+                              ? '✓ Confirmed — refund settled on the user\'s card'
+                              : verifyResult[r.id].status === 'pending'
+                              ? '⏳ Pending — refund is in transit, not yet settled'
+                              : `⚠️ Status: ${verifyResult[r.id].status}`}
+                          </p>
+                          {verifyResult[r.id].note && (
+                            <p className="text-gray-500 text-xs">{verifyResult[r.id].note}</p>
+                          )}
+                          {verifyResult[r.id].detail && Object.entries(verifyResult[r.id].detail!).map(([k, v]) => (
+                            v != null && (
+                              <p key={k} className="text-xs text-gray-500">
+                                <span className="font-medium text-gray-600">{k}:</span>{' '}
+                                {String(v)}
+                              </p>
+                            )
+                          ))}
+                        </>
+                      ) : (
+                        <p className="text-red-600 font-medium">
+                          ✗ Gateway lookup failed: {verifyResult[r.id].error}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
