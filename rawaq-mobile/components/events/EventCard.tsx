@@ -1,5 +1,5 @@
 import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'expo-router'
 import { Badge } from '@/components/ui/Badge'
 import { formatDate, formatCurrency } from '@/lib/utils'
@@ -18,13 +18,25 @@ interface EventCardProps {
   event: EventWithOrganizer
   isSaved?: boolean
   onUnsave?: (id: string) => void
+  onSaveChange?: (id: string, saved: boolean) => void
+  variant?: 'default' | 'rail'
 }
 
-export function EventCard({ event, isSaved: initialSaved = false, onUnsave }: EventCardProps) {
+export function EventCard({
+  event,
+  isSaved: initialSaved = false,
+  onUnsave,
+  onSaveChange,
+  variant = 'default',
+}: EventCardProps) {
   const router = useRouter()
   const { locale } = useLocale()
   const { user } = useAuth()
   const [saved, setSaved] = useState(initialSaved)
+
+  useEffect(() => {
+    setSaved(initialSaved)
+  }, [initialSaved])
 
   const icon = CATEGORY_EMOJI[event.category?.name_en?.toLowerCase() ?? ''] ?? '📅'
   const spotsLeft = event.capacity ? event.capacity - event.bookings_count : null
@@ -35,26 +47,28 @@ export function EventCard({ event, isSaved: initialSaved = false, onUnsave }: Ev
     const next = !saved
     setSaved(next)
     if (next) {
-      await supabase.from('saved_events').upsert(
+      await (supabase.from('saved_events') as any).upsert(
         { user_id: user.id, event_id: event.id },
         { onConflict: 'user_id,event_id' }
       )
+      onSaveChange?.(event.id, true)
     } else {
       await supabase.from('saved_events').delete()
         .eq('user_id', user.id).eq('event_id', event.id)
       onUnsave?.(event.id)
+      onSaveChange?.(event.id, false)
     }
   }
   const title = locale === 'ar' && event.title_ar ? event.title_ar : event.title
 
   return (
     <TouchableOpacity
-      style={styles.card}
+      style={[styles.card, variant === 'rail' && styles.cardRail]}
       activeOpacity={0.8}
       onPress={() => router.push(`/events/${event.id}`)}
     >
       {/* Cover */}
-      <View style={styles.cover}>
+      <View style={[styles.cover, variant === 'rail' && styles.coverRail]}>
         {event.cover_image_url
           ? <Image source={{ uri: event.cover_image_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
           : <Text style={styles.coverEmoji}>{icon}</Text>
@@ -125,12 +139,20 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.lg,
     ...Shadow.card,
   },
+  cardRail: {
+    width: 268,
+    marginBottom: 0,
+    marginRight: Spacing.md,
+  },
   skeleton: { opacity: 0.7 },
   cover: {
     height: 130,
     backgroundColor: Colors.brand[100],
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  coverRail: {
+    height: 148,
   },
   coverEmoji: { fontSize: 48 },
   heartBtn: { position: 'absolute', top: Spacing.sm, right: Spacing.sm, zIndex: 10, width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.9)', justifyContent: 'center', alignItems: 'center' },
