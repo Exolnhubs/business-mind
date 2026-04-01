@@ -3,39 +3,32 @@ import type { Metadata } from 'next'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { EventCard, EventCardSkeleton } from '@/components/events/EventCard'
 import { EventFiltersPlayful } from '@/components/events/EventFiltersPlayful'
-import { EmptyState } from '@/components/ui/EmptyState'
+import { EventsPageHero } from '@/components/events/EventsPageHero'
+import { EventsPageWeekendRail } from '@/components/events/EventsPageWeekendRail'
+import { EventsGridEmpty, EventsGridError, EventsGridPagination } from '@/components/events/EventsGridFeedback'
 import type { EventWithOrganizer } from '@/types/database'
 
 export const metadata: Metadata = { title: 'Events' }
-
-// ── Weekend date range helper ─────────────────────────────────────────────────
 
 function getThisWeekendRange(): { start: string; end: string } {
   const now = new Date()
   const day = now.getDay()
   if (day === 0) {
-    const start = new Date(now); start.setHours(0, 0, 0, 0)
-    const end   = new Date(now); end.setHours(23, 59, 59, 999)
+    const start = new Date(now)
+    start.setHours(0, 0, 0, 0)
+    const end = new Date(now)
+    end.setHours(23, 59, 59, 999)
     return { start: start.toISOString(), end: end.toISOString() }
   }
   const daysToSat = day === 6 ? 0 : (6 - day + 7) % 7
-  const saturday  = new Date(now); saturday.setDate(now.getDate() + daysToSat); saturday.setHours(0, 0, 0, 0)
-  const sunday    = new Date(saturday); sunday.setDate(saturday.getDate() + 1); sunday.setHours(23, 59, 59, 999)
+  const saturday = new Date(now)
+  saturday.setDate(now.getDate() + daysToSat)
+  saturday.setHours(0, 0, 0, 0)
+  const sunday = new Date(saturday)
+  sunday.setDate(saturday.getDate() + 1)
+  sunday.setHours(23, 59, 59, 999)
   return { start: saturday.toISOString(), end: sunday.toISOString() }
 }
-
-function getWeekendLabel(): string {
-  const now = new Date()
-  const day = now.getDay()
-  if (day === 0) return 'Today'
-  const daysToSat = day === 6 ? 0 : (6 - day + 7) % 7
-  const sat = new Date(now); sat.setDate(now.getDate() + daysToSat)
-  const sun = new Date(sat);  sun.setDate(sat.getDate() + 1)
-  const fmt = (d: Date) => d.toLocaleDateString('en', { month: 'short', day: 'numeric' })
-  return `${fmt(sat)} – ${fmt(sun)}`
-}
-
-// ── Near You This Weekend ─────────────────────────────────────────────────────
 
 async function NearYouThisWeekend({
   city,
@@ -66,13 +59,12 @@ async function NearYouThisWeekend({
   let events: EventWithOrganizer[] = []
 
   if (lat && lng) {
-    // Distance-based: reuse the same PostGIS RPC
     const { data: geoIds } = await supabase.rpc('events_within_radius', {
-      user_lat:      lat,
-      user_lng:      lng,
+      user_lat: lat,
+      user_lng: lng,
       radius_meters: radiusKm * 1000,
     })
-    const ids = ((geoIds ?? []) as { id: string }[]).map((e) => e.id)
+    const ids = ((geoIds ?? []) as { id: string }[]).map((event) => event.id)
     if (ids.length > 0) {
       const { data } = await supabase
         .from('events')
@@ -87,7 +79,6 @@ async function NearYouThisWeekend({
       events = (data ?? []) as unknown as EventWithOrganizer[]
     }
   } else if (city) {
-    // City-string fallback
     const { data } = await supabase
       .from('events')
       .select(eventSelect)
@@ -103,28 +94,7 @@ async function NearYouThisWeekend({
 
   if (events.length === 0) return null
 
-  const locationLabel = lat && lng
-    ? `Within ${radiusKm} km`
-    : `In ${city}`
-
-  return (
-    <div className="bg-green-50 border border-green-100 rounded-2xl p-5">
-      <div className="mb-3">
-        <h2 className="text-base font-bold text-gray-900">📍 Near You This Weekend</h2>
-        <p className="text-xs text-gray-500 mt-0.5">
-          <span className="font-medium text-green-700">{locationLabel}</span>
-          {' · '}{getWeekendLabel()}
-        </p>
-      </div>
-      <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
-        {events.map((event) => (
-          <div key={event.id} className="shrink-0 w-56">
-            <EventCard event={event} />
-          </div>
-        ))}
-      </div>
-    </div>
-  )
+  return <EventsPageWeekendRail events={events} city={city} hasCoordinates={!!(lat && lng)} radiusKm={radiusKm} />
 }
 
 interface SearchParams {
@@ -149,20 +119,20 @@ async function EventsGrid({ searchParams }: { searchParams: SearchParams }) {
   const from = (page - 1) * PAGE_SIZE
   const to = from + PAGE_SIZE - 1
 
-  // Fetch user's saved event IDs (for heart buttons)
-  const { data: { user } } = await supabase.auth.getUser()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
   let savedIds = new Set<string>()
   if (user) {
-    const { data: saves } = await supabase
-      .from('saved_events')
-      .select('event_id')
-      .eq('user_id', user.id)
-    savedIds = new Set((saves ?? []).map((s) => s.event_id))
+    const { data: saves } = await supabase.from('saved_events').select('event_id').eq('user_id', user.id)
+    savedIds = new Set((saves ?? []).map((save) => save.event_id))
   }
 
   let query = supabase
     .from('events')
-    .select(`
+    .select(
+      `
       *,
       organizer:profiles!organizer_id(
         id, display_name, avatar_url,
@@ -170,7 +140,9 @@ async function EventsGrid({ searchParams }: { searchParams: SearchParams }) {
       ),
       category:event_categories(id, name_en, name_ar, icon),
       ticket_types(id, price, is_free, is_active)
-    `, { count: 'exact' })
+    `,
+      { count: 'exact' },
+    )
     .eq('is_published', true)
     .eq('is_cancelled', false)
     .gte('start_at', new Date().toISOString())
@@ -178,20 +150,15 @@ async function EventsGrid({ searchParams }: { searchParams: SearchParams }) {
     .range(from, to)
 
   if (searchParams.q) {
-    const q = searchParams.q.replace(/'/g, "''") // escape single quotes
+    const q = searchParams.q.replace(/'/g, "''")
     query = query.or(`title.ilike.%${q}%,title_ar.ilike.%${q}%,description.ilike.%${q}%`)
   }
   if (searchParams.city) query = query.eq('city', searchParams.city)
   if (searchParams.gender) query = query.eq('gender_restriction', searchParams.gender as import('@/types/database').GenderType)
   if (searchParams.free === 'true') query = query.eq('is_free', true)
   if (searchParams.family === 'true') query = query.eq('is_family_friendly', true)
-  
-  // Handle category filter
-  if (searchParams.category) {
-    query = query.eq('category_id', searchParams.category)
-  }
+  if (searchParams.category) query = query.eq('category_id', searchParams.category)
 
-  // Geo filter — PostGIS radius query
   if (searchParams.lat && searchParams.lng) {
     const { data: geoEvents } = await supabase.rpc('events_within_radius', {
       user_lat: Number(searchParams.lat),
@@ -199,8 +166,8 @@ async function EventsGrid({ searchParams }: { searchParams: SearchParams }) {
       radius_meters: Number(searchParams.radius_km ?? 25) * 1000,
     })
     if (geoEvents) {
-      const ids = (geoEvents as { id: string }[]).map((e) => e.id)
-      if (ids.length === 0) return <EmptyState icon="📍" title="No events nearby" description="Try a larger radius or explore all events" />
+      const ids = (geoEvents as { id: string }[]).map((event) => event.id)
+      if (ids.length === 0) return <EventsGridEmpty nearby />
       query = query.in('id', ids)
     }
   }
@@ -209,24 +176,17 @@ async function EventsGrid({ searchParams }: { searchParams: SearchParams }) {
 
   if (error) {
     console.error('Supabase query error:', error)
-    return (
-      <div className="text-center py-16 text-red-500 text-sm">
-        Failed to load events: {error.message}
-      </div>
-    )
+    return <EventsGridError message={error.message} />
   }
 
   if (!events?.length) {
-    return <EmptyState icon="📭" title="No events found" description="Try adjusting your filters" />
+    return <EventsGridEmpty />
   }
 
   const totalPages = Math.ceil((count ?? 0) / PAGE_SIZE)
 
-  // Build a URL that preserves all current filters but changes ?page
   function pageUrl(p: number) {
-    const sp = new URLSearchParams(
-      Object.entries(searchParams).filter(([, v]) => v != null) as [string, string][]
-    )
+    const sp = new URLSearchParams(Object.entries(searchParams).filter(([, v]) => v != null) as [string, string][])
     if (p === 1) sp.delete('page')
     else sp.set('page', String(p))
     const qs = sp.toString()
@@ -235,48 +195,20 @@ async function EventsGrid({ searchParams }: { searchParams: SearchParams }) {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {(events as unknown as EventWithOrganizer[]).map((event) => (
-          <EventCard
-            key={event.id}
-            event={event}
-            isSaved={savedIds.has(event.id)}
-            showSave={!!user}
-          />
+          <EventCard key={event.id} event={event} isSaved={savedIds.has(event.id)} showSave={!!user} />
         ))}
       </div>
 
       {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-2 pt-2">
-          <a
-            href={pageUrl(page - 1)}
-            aria-disabled={page <= 1}
-            className={`px-4 py-2 text-sm rounded-xl border font-medium transition-colors ${
-              page <= 1
-                ? 'pointer-events-none border-gray-100 text-gray-300 bg-white'
-                : 'border-gray-200 text-gray-700 bg-white hover:bg-gray-50'
-            }`}
-          >
-            ← Previous
-          </a>
-
-          <span className="text-sm text-gray-500 px-2">
-            Page {page} of {totalPages}
-            <span className="text-gray-400 ml-1">({count} events)</span>
-          </span>
-
-          <a
-            href={pageUrl(page + 1)}
-            aria-disabled={page >= totalPages}
-            className={`px-4 py-2 text-sm rounded-xl border font-medium transition-colors ${
-              page >= totalPages
-                ? 'pointer-events-none border-gray-100 text-gray-300 bg-white'
-                : 'border-gray-200 text-gray-700 bg-white hover:bg-gray-50'
-            }`}
-          >
-            Next →
-          </a>
-        </div>
+        <EventsGridPagination
+          page={page}
+          totalPages={totalPages}
+          count={count ?? 0}
+          previousHref={pageUrl(page - 1)}
+          nextHref={pageUrl(page + 1)}
+        />
       )}
     </div>
   )
@@ -284,8 +216,10 @@ async function EventsGrid({ searchParams }: { searchParams: SearchParams }) {
 
 function EventsGridSkeleton() {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-      {Array.from({ length: 8 }).map((_, i) => <EventCardSkeleton key={i} />)}
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      {Array.from({ length: 8 }).map((_, i) => (
+        <EventCardSkeleton key={i} />
+      ))}
     </div>
   )
 }
@@ -307,80 +241,13 @@ export default async function EventsPage({
   ].filter(Boolean).length
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-8">
-      <section className="relative overflow-hidden rounded-[2rem] border border-brand-100 bg-gradient-to-br from-brand-50 via-white to-amber-100/70 px-5 py-8 sm:px-8 sm:py-10">
-        <div className="pointer-events-none absolute -top-16 left-0 h-40 w-40 rounded-full bg-brand-200/60 blur-3xl animate-float-slow" />
-        <div className="pointer-events-none absolute right-0 top-8 h-56 w-56 rounded-full bg-orange-200/40 blur-3xl animate-float-slower" />
-        <div className="pointer-events-none absolute bottom-0 left-1/3 h-28 w-28 rounded-full bg-white/70 blur-2xl" />
-
-        <div className="relative grid gap-6 lg:grid-cols-[1.35fr_0.9fr] lg:items-end">
-          <div className="space-y-5 animate-hero-in">
-            <span className="inline-flex w-fit items-center gap-2 rounded-full border border-brand-200 bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.25em] text-brand-700 shadow-sm">
-              Curated discovery
-            </span>
-            <div className="space-y-3">
-              <h1 className="max-w-2xl text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
-                Discover events with more color, momentum, and personality.
-              </h1>
-              <p className="max-w-2xl text-sm leading-6 text-gray-600 sm:text-base">
-                Browse the next wave of concerts, workshops, festivals, and community moments.
-                Use the playful filters below to tune the vibe in seconds.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap gap-2 text-sm">
-              <span className="animate-badge-pop rounded-full border border-white/80 bg-white/85 px-3 py-2 font-medium text-gray-700 shadow-sm">
-                🎵 Music nights
-              </span>
-              <span className="animate-badge-pop reveal-delay-1 rounded-full border border-white/80 bg-white/85 px-3 py-2 font-medium text-gray-700 shadow-sm">
-                🧠 Creative workshops
-              </span>
-              <span className="animate-badge-pop reveal-delay-2 rounded-full border border-white/80 bg-white/85 px-3 py-2 font-medium text-gray-700 shadow-sm">
-                📍 Nearby picks
-              </span>
-            </div>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
-            <div className="rounded-3xl border border-white/70 bg-white/80 p-4 shadow-sm backdrop-blur">
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-gray-400">Search Mode</p>
-              <p className="mt-2 text-2xl font-bold text-gray-900">{activeFilterCount}</p>
-              <p className="mt-1 text-sm text-gray-500">active filters shaping the feed</p>
-            </div>
-            <div className="rounded-3xl border border-white/70 bg-gray-900 p-4 shadow-sm">
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-gray-400">Weekend Pulse</p>
-              <p className="mt-2 text-2xl font-bold text-white">Live</p>
-              <p className="mt-1 text-sm text-gray-300">fresh events, updated by time and place</p>
-            </div>
-            <div className="rounded-3xl border border-white/70 bg-white/80 p-4 shadow-sm backdrop-blur">
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-gray-400">Best Use</p>
-              <p className="mt-2 text-lg font-bold text-gray-900">Mix filters freely</p>
-              <p className="mt-1 text-sm text-gray-500">category, city, free, family, and near me all stack</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <div className="space-y-2">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-xl font-bold text-gray-900 sm:text-2xl">Filter Your Mood</h2>
-            <p className="text-sm text-gray-500">Build a browse state that feels specific, fast, and fun.</p>
-          </div>
-          {activeFilterCount > 0 && (
-            <div className="inline-flex items-center gap-2 rounded-full border border-brand-200 bg-brand-50 px-3 py-1.5 text-xs font-semibold text-brand-700">
-              <span className="h-2 w-2 rounded-full bg-brand-500" />
-              {activeFilterCount} active filter{activeFilterCount === 1 ? '' : 's'}
-            </div>
-          )}
-        </div>
-      </div>
+    <div className="max-w-7xl mx-auto space-y-8 px-4 py-8 sm:px-6">
+      <EventsPageHero activeFilterCount={activeFilterCount} />
 
       <Suspense>
         <EventFiltersPlayful />
       </Suspense>
 
-      {/* Near You This Weekend — geo-based when Near Me is active, city-based otherwise */}
       {(params.lat && params.lng) || params.city ? (
         <Suspense fallback={null}>
           <NearYouThisWeekend
@@ -392,7 +259,6 @@ export default async function EventsPage({
         </Suspense>
       ) : null}
 
-      {/* Grid */}
       <Suspense fallback={<EventsGridSkeleton />}>
         <EventsGrid searchParams={params} />
       </Suspense>

@@ -102,6 +102,10 @@ export function EventFilters() {
   const gender = params.get('gender') ?? ''
   const freeOnly = params.get('free') === 'true'
   const familyFriendly = params.get('family') === 'true'
+  const query = params.get('q') ?? ''
+  const activeCount = [category, city, gender, query, freeOnly ? 'free' : '', familyFriendly ? 'family' : '', hasGeo ? 'geo' : '']
+    .filter(Boolean)
+    .length
 
   return (
     <div className="flex flex-wrap gap-3 items-center">

@@ -103,21 +103,21 @@ export function EventFiltersPlayful() {
       <div className="relative space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="space-y-1">
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-gray-400">Discovery Controls</p>
-            <h3 className="text-lg font-bold text-gray-900">Tune the feed in real time</h3>
-            <p className="text-sm text-gray-500">Search broadly, then tighten the vibe with quick switches.</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-gray-400">{t('events.filters.panel.badge')}</p>
+            <h3 className="text-lg font-bold text-gray-900">{t('events.filters.panel.title')}</h3>
+            <p className="text-sm text-gray-500">{t('events.filters.panel.subtitle')}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-600">
               <span className="h-2 w-2 rounded-full bg-brand-500" />
-              {activeCount} active
+              {t('events.filters.panel.active').replace('{n}', String(activeCount))}
             </span>
             {(category || city || gender || freeOnly || familyFriendly || query || hasGeo) && (
               <button
                 onClick={() => router.push(pathname)}
                 className="inline-flex items-center gap-2 rounded-full border border-transparent bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-black"
               >
-                Reset filters
+                {t('events.filters.reset')}
               </button>
             )}
           </div>
@@ -125,10 +125,10 @@ export function EventFiltersPlayful() {
 
         <div className="grid gap-3 lg:grid-cols-[1.35fr_repeat(3,minmax(0,0.8fr))]">
           <label className="group flex min-h-[74px] flex-col justify-between rounded-[1.5rem] border border-gray-200 bg-gradient-to-br from-white to-gray-50 px-4 py-3 shadow-sm transition hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-md">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">Search</span>
+            <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">{t('common.search')}</span>
             <input
               type="search"
-              placeholder={`Search ${t('common.search').toLowerCase()}`}
+              placeholder={t('events.filters.search_placeholder')}
               defaultValue={query}
               onChange={(e) => setParam('q', e.target.value || null)}
               className="mt-2 w-full border-0 bg-transparent px-0 py-0 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-0"
@@ -136,7 +136,7 @@ export function EventFiltersPlayful() {
           </label>
 
           <label className="flex min-h-[74px] flex-col justify-between rounded-[1.5rem] border border-gray-200 bg-white px-4 py-3 shadow-sm transition hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-md">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">Category</span>
+            <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">{t('events.filters.category')}</span>
             <select
               value={category}
               onChange={(e) => setParam('category', e.target.value || null)}
@@ -152,7 +152,7 @@ export function EventFiltersPlayful() {
           </label>
 
           <label className="flex min-h-[74px] flex-col justify-between rounded-[1.5rem] border border-gray-200 bg-white px-4 py-3 shadow-sm transition hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-md">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">City</span>
+            <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">{t('auth.city')}</span>
             <select
               value={city}
               onChange={(e) => setParam('city', e.target.value || null)}
@@ -166,13 +166,13 @@ export function EventFiltersPlayful() {
           </label>
 
           <label className="flex min-h-[74px] flex-col justify-between rounded-[1.5rem] border border-gray-200 bg-white px-4 py-3 shadow-sm transition hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-md">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">Audience</span>
+            <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">{t('events.filters.audience')}</span>
             <select
               value={gender}
               onChange={(e) => setParam('gender', e.target.value || null)}
               className="mt-2 w-full cursor-pointer border-0 bg-transparent px-0 py-0 text-sm font-medium text-gray-900 focus:outline-none focus:ring-0"
             >
-              <option value="">All genders</option>
+              <option value="">{t('events.filters.all_genders')}</option>
               <option value="mixed">{t('events.filter.gender.mixed')}</option>
               <option value="male">{t('events.filter.gender.male')}</option>
               <option value="female">{t('events.filter.gender.female')}</option>
@@ -215,7 +215,7 @@ export function EventFiltersPlayful() {
             }`}
           >
             <span>{geoLoading ? '...' : hasGeo ? '📡' : '📍'}</span>
-            {hasGeo ? 'Near me active' : 'Use near me'}
+            {hasGeo ? t('events.filters.near_me_active') : t('events.filters.use_near_me')}
           </button>
         </div>
       </div>
