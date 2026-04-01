@@ -147,6 +147,57 @@ interface PaymobBillingData {
   postal_code:   string
 }
 
+// ── Transaction lookup ────────────────────────────────────────────────────────
+
+export interface PaymobTransactionStatus {
+  id: string
+  success: boolean
+  is_refunded: boolean
+  is_voided: boolean
+  pending: boolean
+  amount_cents: number
+  currency: string
+  created_at: string
+  error_message: string | null
+}
+
+/**
+ * Fetch a Paymob transaction by ID to verify its current status.
+ * Used to confirm a refund actually settled on the user's card.
+ */
+export async function getPaymobTransaction(
+  transactionId: string,
+): Promise<{ data: PaymobTransactionStatus | null; error?: string }> {
+  try {
+    const authToken = await authenticate()
+
+    const res = await fetch(`${BASE_URL}/acceptance/transactions/${transactionId}`, {
+      headers: { 'Authorization': `Bearer ${authToken}` },
+    })
+
+    if (!res.ok) {
+      return { data: null, error: `Paymob lookup failed: ${res.status}` }
+    }
+
+    const obj = await res.json()
+    return {
+      data: {
+        id:            String(obj.id),
+        success:       Boolean(obj.success),
+        is_refunded:   Boolean(obj.is_refunded),
+        is_voided:     Boolean(obj.is_voided),
+        pending:       Boolean(obj.pending),
+        amount_cents:  Number(obj.amount_cents),
+        currency:      String(obj.currency ?? 'EGP'),
+        created_at:    String(obj.created_at ?? ''),
+        error_message: obj.data?.message ?? null,
+      },
+    }
+  } catch (err) {
+    return { data: null, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}
+
 // ── Refund ────────────────────────────────────────────────────────────────────
 
 /**

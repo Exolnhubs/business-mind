@@ -104,6 +104,58 @@ interface StripeSession {
   url: string
 }
 
+// ── GET helper ───────────────────────────────────────────────────────────────
+
+async function stripeGet<T>(path: string): Promise<T> {
+  const secretKey = requireEnv('STRIPE_SECRET_KEY')
+  const res = await fetch(`${STRIPE_API}${path}`, {
+    headers: {
+      'Authorization':  `Bearer ${secretKey}`,
+      'Stripe-Version': '2024-06-20',
+    },
+  })
+  const data = await res.json() as T & { error?: { message: string } }
+  if (!res.ok) {
+    const errData = data as { error?: { message: string } }
+    throw new Error(`Stripe API error: ${errData.error?.message ?? res.status}`)
+  }
+  return data
+}
+
+// ── Refund lookup ─────────────────────────────────────────────────────────────
+
+export interface StripeRefundStatus {
+  id: string
+  status: 'succeeded' | 'pending' | 'failed' | 'canceled' | string
+  amount: number
+  currency: string
+  created: number
+  failure_reason: string | null
+}
+
+/**
+ * Fetch a Stripe refund by ID to verify its current status.
+ */
+export async function getStripeRefund(
+  refundId: string,
+): Promise<{ data: StripeRefundStatus | null; error?: string }> {
+  try {
+    const obj = await stripeGet<StripeRefundStatus & { failure_reason?: string | null }>(`/refunds/${refundId}`)
+    return {
+      data: {
+        id:             obj.id,
+        status:         obj.status,
+        amount:         obj.amount,
+        currency:       obj.currency,
+        created:        obj.created,
+        failure_reason: obj.failure_reason ?? null,
+      },
+    }
+  } catch (err) {
+    return { data: null, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}
+
 // ── Refund ────────────────────────────────────────────────────────────────────
 
 /**
