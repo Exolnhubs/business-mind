@@ -34,8 +34,13 @@ export async function GET(req: NextRequest) {
         return NextResponse.redirect(`${origin}/login?error=banned`)
       }
 
-      // Claim referral if a code was passed
-      if (refCode) {
+      // Claim referral if a code was passed — only for brand-new accounts.
+      // Guard against existing users re-visiting /register?ref= (e.g. via OAuth):
+      // created_at must be within the last 10 minutes.
+      const accountAgeMs = Date.now() - new Date(data.user.created_at).getTime()
+      const isNewAccount = accountAgeMs < 10 * 60 * 1000
+
+      if (refCode && isNewAccount) {
         try {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const admin = createSupabaseAdminClient() as any
@@ -52,8 +57,8 @@ export async function GET(req: NextRequest) {
               referred_id: data.user.id,
               code_id:     refCodeRow.id,
             })
-            // 23505 = unique violation (already claimed) — not an error
-            if (!insertErr || insertErr.code === '23505') {
+            // Only notify on a fresh insert — not on duplicate (23505)
+            if (!insertErr) {
               sendNotification({
                 userId:  refCodeRow.user_id,
                 type:    'referral_signup_reward',
