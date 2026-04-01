@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  ActivityIndicator, Alert, TextInput, Image, Modal, Platform,
+  ActivityIndicator, Alert, TextInput, Image, Modal, Platform, Linking,
 } from 'react-native'
 import * as WebBrowser from 'expo-web-browser'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
@@ -505,6 +505,41 @@ export default function EventDetailScreen() {
       )
     }
   }
+
+  async function openVenueInMaps() {
+    if (!event) return
+
+    const hasCoords = typeof event.lat === 'number' && typeof event.lng === 'number'
+    const locationParts = [
+      event.venue_name,
+      event.address,
+      event.city,
+      event.country,
+    ].filter(Boolean)
+    const searchQuery = locationParts.join(', ')
+
+    if (!hasCoords && !searchQuery) {
+      Alert.alert('Location unavailable', 'This event does not have a map location yet.')
+      return
+    }
+
+    const query = hasCoords
+      ? `${event.lat},${event.lng}`
+      : searchQuery
+
+    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`
+
+    try {
+      const supported = await Linking.canOpenURL(mapsUrl)
+      if (!supported) {
+        Alert.alert('Maps unavailable', 'Could not open Google Maps on this device.')
+        return
+      }
+      await Linking.openURL(mapsUrl)
+    } catch {
+      Alert.alert('Maps unavailable', 'Could not open Google Maps right now. Please try again.')
+    }
+  }
   
 
   if (loading) {
@@ -568,9 +603,10 @@ export default function EventDetailScreen() {
             <Text style={styles.infoValue}>{formatDate(event.start_at, locale)}</Text>
             <Text style={styles.infoSub}>{formatTime(event.start_at)}{event.end_at ? ` – ${formatTime(event.end_at)}` : ''}</Text>
           </InfoBlock>
-          <InfoBlock icon="📍" label="Location">
+          <InfoBlock icon="📍" label="Location" onPress={openVenueInMaps}>
             <Text style={styles.infoValue}>{event.venue_name ?? 'TBA'}</Text>
             <Text style={styles.infoSub}>{event.city}, {event.country}</Text>
+            <Text style={styles.infoLink}>Open in Google Maps</Text>
           </InfoBlock>
           <InfoBlock icon="👥" label="Attendees">
             <Text style={styles.infoValue}>{event.bookings_count} attending</Text>
@@ -995,7 +1031,27 @@ export default function EventDetailScreen() {
   )
 }
 
-function InfoBlock({ icon, label, children }: { icon: string; label: string; children: React.ReactNode }) {
+function InfoBlock({
+  icon,
+  label,
+  children,
+  onPress,
+}: {
+  icon: string
+  label: string
+  children: React.ReactNode
+  onPress?: () => void
+}) {
+  if (onPress) {
+    return (
+      <TouchableOpacity style={[infoStyles.block, infoStyles.blockPressable]} activeOpacity={0.8} onPress={onPress}>
+        <Text style={infoStyles.icon}>{icon}</Text>
+        <Text style={infoStyles.label}>{label}</Text>
+        {children}
+      </TouchableOpacity>
+    )
+  }
+
   return (
     <View style={infoStyles.block}>
       <Text style={infoStyles.icon}>{icon}</Text>
@@ -1007,6 +1063,7 @@ function InfoBlock({ icon, label, children }: { icon: string; label: string; chi
 
 const infoStyles = StyleSheet.create({
   block: { flex: 1, minWidth: '46%', backgroundColor: Colors.white, borderRadius: Radius.md, padding: Spacing.md, ...Shadow.card },
+  blockPressable: { borderWidth: 1, borderColor: Colors.brand[100] },
   icon: { fontSize: 20, marginBottom: 4 },
   label: { fontSize: FontSize.xs, color: Colors.gray[400], textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
 })
@@ -1036,6 +1093,7 @@ const styles = StyleSheet.create({
   infoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginBottom: Spacing.xl },
   infoValue: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[900] },
   infoSub: { fontSize: FontSize.xs, color: Colors.gray[500], marginTop: 2 },
+  infoLink: { fontSize: FontSize.xs, color: Colors.brand[600], fontWeight: FontWeight.medium, marginTop: Spacing.sm },
   section: { marginBottom: Spacing.xl },
   sectionTitle: { fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.gray[900], marginBottom: Spacing.sm },
   description: { fontSize: FontSize.base, color: Colors.gray[600], lineHeight: 22 },
