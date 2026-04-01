@@ -37,40 +37,82 @@ function getWeekendLabel(): string {
 
 // ── Near You This Weekend ─────────────────────────────────────────────────────
 
-async function NearYouThisWeekend({ city }: { city?: string }) {
-  if (!city) return null
+async function NearYouThisWeekend({
+  city,
+  lat,
+  lng,
+  radiusKm = 25,
+}: {
+  city?: string
+  lat?: number
+  lng?: number
+  radiusKm?: number
+}) {
+  if (!city && (!lat || !lng)) return null
 
   const supabase = await createSupabaseServerClient()
   const { start, end } = getThisWeekendRange()
 
-  const { data } = await supabase
-    .from('events')
-    .select(`
-      *,
-      organizer:profiles!organizer_id(
-        id, display_name, avatar_url,
-        organizer_profile:organizer_profiles!user_id(business_name, business_name_ar, logo_url, verified)
-      ),
-      category:event_categories(id, name_en, name_ar, icon),
-      ticket_types(id, price, is_free, is_active)
-    `)
-    .eq('is_published', true)
-    .eq('is_cancelled', false)
-    .eq('city', city)
-    .gte('start_at', start)
-    .lte('start_at', end)
-    .order('start_at', { ascending: true })
-    .limit(8)
+  const eventSelect = `
+    *,
+    organizer:profiles!organizer_id(
+      id, display_name, avatar_url,
+      organizer_profile:organizer_profiles!user_id(business_name, business_name_ar, logo_url, verified)
+    ),
+    category:event_categories(id, name_en, name_ar, icon),
+    ticket_types(id, price, is_free, is_active)
+  `
 
-  const events = (data ?? []) as unknown as EventWithOrganizer[]
+  let events: EventWithOrganizer[] = []
+
+  if (lat && lng) {
+    // Distance-based: reuse the same PostGIS RPC
+    const { data: geoIds } = await supabase.rpc('events_within_radius', {
+      user_lat:      lat,
+      user_lng:      lng,
+      radius_meters: radiusKm * 1000,
+    })
+    const ids = ((geoIds ?? []) as { id: string }[]).map((e) => e.id)
+    if (ids.length > 0) {
+      const { data } = await supabase
+        .from('events')
+        .select(eventSelect)
+        .in('id', ids)
+        .eq('is_published', true)
+        .eq('is_cancelled', false)
+        .gte('start_at', start)
+        .lte('start_at', end)
+        .order('start_at', { ascending: true })
+        .limit(8)
+      events = (data ?? []) as unknown as EventWithOrganizer[]
+    }
+  } else if (city) {
+    // City-string fallback
+    const { data } = await supabase
+      .from('events')
+      .select(eventSelect)
+      .eq('is_published', true)
+      .eq('is_cancelled', false)
+      .eq('city', city)
+      .gte('start_at', start)
+      .lte('start_at', end)
+      .order('start_at', { ascending: true })
+      .limit(8)
+    events = (data ?? []) as unknown as EventWithOrganizer[]
+  }
+
   if (events.length === 0) return null
+
+  const locationLabel = lat && lng
+    ? `Within ${radiusKm} km`
+    : `In ${city}`
 
   return (
     <div className="bg-green-50 border border-green-100 rounded-2xl p-5">
       <div className="mb-3">
         <h2 className="text-base font-bold text-gray-900">📍 Near You This Weekend</h2>
         <p className="text-xs text-gray-500 mt-0.5">
-          Happening in <span className="font-medium text-green-700">{city}</span>
+          <span className="font-medium text-green-700">{locationLabel}</span>
           {' · '}{getWeekendLabel()}
         </p>
       </div>
@@ -268,12 +310,17 @@ export default async function EventsPage({
         <EventFilters />
       </Suspense>
 
-      {/* Near You This Weekend — only when city filter is active */}
-      {params.city && (
+      {/* Near You This Weekend — geo-based when Near Me is active, city-based otherwise */}
+      {(params.lat && params.lng) || params.city ? (
         <Suspense fallback={null}>
-          <NearYouThisWeekend city={params.city} />
+          <NearYouThisWeekend
+            city={params.city}
+            lat={params.lat ? Number(params.lat) : undefined}
+            lng={params.lng ? Number(params.lng) : undefined}
+            radiusKm={params.radius_km ? Number(params.radius_km) : 25}
+          />
         </Suspense>
-      )}
+      ) : null}
 
       {/* Grid */}
       <Suspense fallback={<EventsGridSkeleton />}>
