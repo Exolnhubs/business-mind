@@ -5,6 +5,7 @@ import {
   TextInput, KeyboardAvoidingView, Platform, Image,
 } from 'react-native'
 import { useRouter } from 'expo-router'
+import { Ionicons } from '@expo/vector-icons'
 import * as Device from 'expo-device'
 import * as ImagePicker from 'expo-image-picker'
 import Constants from 'expo-constants'
@@ -537,6 +538,21 @@ export default function ProfileScreen() {
         </View>
 
         {/* My Plan */}
+        {/* Refer & Earn */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Rewards</Text>
+          <TouchableOpacity style={styles.row} onPress={() => router.push('/referral' as never)}>
+            <View style={styles.rowLeft}>
+              <Text style={styles.rowIcon}>🎁</Text>
+              <View>
+                <Text style={styles.rowLabel}>Refer &amp; Earn</Text>
+                <Text style={[styles.rowValue, { fontSize: 11 }]}>Invite friends · earn discount coupons</Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={Colors.gray[400]} />
+          </TouchableOpacity>
+        </View>
+
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Subscription</Text>
           <TouchableOpacity style={styles.row} onPress={() => router.push('/plans')}>

@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect, type FormEvent } from 'react'
+import { useState, useEffect, type FormEvent, Suspense } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createSupabaseBrowserClient } from '@/lib/supabase/client'
 import { useLocale } from '@/contexts/locale-context'
 import { Spinner } from '@/components/ui/Spinner'
@@ -16,9 +16,33 @@ type LocationState =
   | { status: 'denied' }
 
 export default function RegisterPage() {
+  return (
+    <Suspense>
+      <RegisterForm />
+    </Suspense>
+  )
+}
+
+function RegisterForm() {
   const { t } = useLocale()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createSupabaseBrowserClient()
+
+  // Capture referral code from URL and persist as a cookie so it survives
+  // the email-confirmation redirect back through /auth/callback
+  useEffect(() => {
+    const ref = searchParams.get('ref')
+    if (!ref) return
+    // Track the click (fire-and-forget)
+    fetch('/api/referral/click', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: ref }),
+    }).catch(() => {})
+    // Store in a short-lived cookie that /auth/callback can read
+    document.cookie = `rawaq_ref=${encodeURIComponent(ref)}; Path=/; Max-Age=600; SameSite=Lax`
+  }, [searchParams])
 
   const [form, setForm] = useState({
     email: '',
@@ -77,9 +101,13 @@ export default function RegisterPage() {
   async function handleGoogleSignIn() {
     setOauthLoading(true)
     setError(null)
+    const ref = searchParams.get('ref')
+    const callbackUrl = ref
+      ? `${window.location.origin}/auth/callback?ref=${encodeURIComponent(ref)}`
+      : `${window.location.origin}/auth/callback`
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
+      options: { redirectTo: callbackUrl },
     })
     if (error) {
       setError(error.message)
@@ -116,6 +144,17 @@ export default function RegisterPage() {
     }
 
     if (data.session) {
+      // Claim referral immediately if session exists (no email confirmation flow)
+      const ref = searchParams.get('ref')
+      if (ref) {
+        fetch('/api/referral/claim', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: ref }),
+        }).catch(() => {})
+        // Clear cookie
+        document.cookie = 'rawaq_ref=; Path=/; Max-Age=0'
+      }
       router.push('/events')
       router.refresh()
       return

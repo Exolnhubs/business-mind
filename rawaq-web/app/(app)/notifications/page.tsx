@@ -26,8 +26,10 @@ const ICONS: Record<NotificationType, string> = {
   new_attendee:        '🙋',
   new_comment:         '💬',
   event_updated:       '📝',
-  new_event_published: '🎉',
-  event_sold_out:      '🎊',
+  new_event_published:        '🎉',
+  event_sold_out:             '🎊',
+  referral_signup_reward:     '🎁',
+  referral_conversion_reward: '🎉',
 }
 
 function notificationLabel(n: Notification): { title: string; subtitle: string; href: string | null } {

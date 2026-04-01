@@ -1,7 +1,11 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import type { User, Session } from '@supabase/supabase-js'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { supabase } from '@/lib/supabase'
+import { apiPost } from '@/lib/api'
 import type { Profile } from '@/types/database'
+
+const REFERRAL_STORAGE_KEY = 'rawaq_referral_code'
 
 interface AuthContextValue {
   user: User | null
@@ -48,7 +52,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      // TOKEN_REFRESHED failure surfaces here as SIGNED_OUT with no session
       if (event === 'TOKEN_REFRESHED' && !session) {
         supabase.auth.signOut()
         return
@@ -58,6 +61,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (session?.user) fetchProfile(session.user.id)
       else setProfile(null)
       setLoading(false)
+
+      // On first sign-in, check if a referral code was saved from a deep link
+      if (event === 'SIGNED_IN' && session?.user) {
+        AsyncStorage.getItem(REFERRAL_STORAGE_KEY).then((code) => {
+          if (!code) return
+          AsyncStorage.removeItem(REFERRAL_STORAGE_KEY)
+          apiPost('/api/referral/claim', { code }).catch(() => {})
+        }).catch(() => {})
+      }
     })
 
     return () => subscription.unsubscribe()

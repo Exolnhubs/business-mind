@@ -1,19 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { createSupabaseAdminClient } from '@/lib/supabase/admin'
+import { sendNotification } from '@/lib/notifications'
 
 // GET /auth/callback
-// Handles OAuth redirects (Google, etc.) and magic-link sign-ins.
-// Supabase sends ?code=<PKCE code> after the provider redirects back.
+// Handles OAuth redirects and email-confirmation sign-ins.
+// Claims a pending referral if rawaq_ref cookie or ?ref= param is present.
 export async function GET(req: NextRequest) {
   const { searchParams, origin } = new URL(req.url)
   const code = searchParams.get('code')
   const next = searchParams.get('next') ?? '/events'
 
+  // ref arrives via cookie (email-confirmation) or ?ref= param (OAuth flow)
+  const cookieStore = await cookies()
+  const refFromCookie = cookieStore.get('rawaq_ref')?.value
+  const refFromParam  = searchParams.get('ref')
+  const refCode       = refFromParam ?? (refFromCookie ? decodeURIComponent(refFromCookie) : null)
+
   if (code) {
     const supabase = await createSupabaseServerClient()
     const { data, error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error && data.user) {
-      // Block banned accounts before they enter the app
+      // Block banned accounts
       const { data: profile } = await supabase
         .from('profiles')
         .select('is_banned')
@@ -25,10 +34,41 @@ export async function GET(req: NextRequest) {
         return NextResponse.redirect(`${origin}/login?error=banned`)
       }
 
-      return NextResponse.redirect(`${origin}${next}`)
+      // Claim referral if a code was passed
+      if (refCode) {
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const admin = createSupabaseAdminClient() as any
+          const { data: refCodeRaw } = await admin
+            .from('referral_codes')
+            .select('id, user_id')
+            .eq('code', refCode.toUpperCase().trim())
+            .single()
+          const refCodeRow = refCodeRaw as { id: string; user_id: string } | null
+
+          if (refCodeRow && refCodeRow.user_id !== data.user.id) {
+            const { error: insertErr } = await admin.from('referrals').insert({
+              referrer_id: refCodeRow.user_id,
+              referred_id: data.user.id,
+              code_id:     refCodeRow.id,
+            })
+            // 23505 = unique violation (already claimed) — not an error
+            if (!insertErr || insertErr.code === '23505') {
+              sendNotification({
+                userId:  refCodeRow.user_id,
+                type:    'referral_signup_reward',
+                payload: { referred_user_id: data.user.id },
+              }).catch(() => {})
+            }
+          }
+        } catch { /* don't break auth on referral errors */ }
+      }
+
+      const res = NextResponse.redirect(`${origin}${next}`)
+      res.cookies.set('rawaq_ref', '', { path: '/', maxAge: 0 })
+      return res
     }
   }
 
-  // On error, send to login with message
   return NextResponse.redirect(`${origin}/login?error=oauth_failed`)
 }

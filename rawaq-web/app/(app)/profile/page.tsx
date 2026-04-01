@@ -497,6 +497,18 @@ export default function ProfilePage() {
         </div>
       )}
 
+      {/* ── Refer & Earn ──────────────────────────────────── */}
+      <a href="/profile/referral" className="card p-5 flex items-center justify-between hover:shadow-md transition-shadow group">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-xl">🎁</span>
+            <h2 className="text-base font-semibold text-gray-900">Refer &amp; Earn</h2>
+          </div>
+          <p className="text-sm text-gray-500">Invite friends with your link · earn 15% and 25% discount coupons</p>
+        </div>
+        <span className="text-gray-400 group-hover:text-brand-500 text-lg">→</span>
+      </a>
+
       {/* ── My Plan ────────────────────────────────────────── */}
       <div className="card p-6">
         <div className="flex items-center justify-between mb-1">
