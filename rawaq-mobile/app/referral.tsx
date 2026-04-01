@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react'
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  Share, ActivityIndicator, Alert,
+  Share, ActivityIndicator, Alert, Clipboard,
 } from 'react-native'
-import * as Clipboard from 'expo-clipboard'
 import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { apiGet } from '@/lib/api'
@@ -43,13 +42,13 @@ export default function ReferralScreen() {
 
   async function handleCopy() {
     if (!data) return
-    await Clipboard.setStringAsync(data.referral_url)
+    Clipboard.setString(data.referral_url)
     setCopied(true)
     setTimeout(() => setCopied(false), 2500)
   }
 
   function copyCouponCode(code: string) {
-    Clipboard.setStringAsync(code)
+    Clipboard.setString(code)
     Alert.alert('Copied!', `Coupon code "${code}" copied to clipboard.`)
   }
 
