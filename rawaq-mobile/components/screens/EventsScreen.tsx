@@ -84,10 +84,17 @@ function isAlmostSoldOut(event: Pick<EventWithOrganizer, 'capacity' | 'bookings_
   return spotsLeft <= 10 || spotsLeft / event.capacity <= 0.15
 }
 
+function pickWeekendRailEvents(
+  candidates: EventWithOrganizer[],
+  shownIds: Set<string>,
+) {
+  const preferred = candidates.filter((event) => !shownIds.has(event.id))
+  return (preferred.length > 0 ? preferred : candidates).slice(0, 6)
+}
+
 export default function EventsScreen() {
   const { t, locale } = useLocale()
-  const { user, profile } = useAuth()
-  const router = useRouter()
+  const { user } = useAuth()
   const [events, setEvents]         = useState<EventWithOrganizer[]>([])
   const [savedIds, setSavedIds]     = useState<Set<string>>(new Set())
   const [savedInspiredEvents, setSavedInspiredEvents]   = useState<EventWithOrganizer[]>([])
@@ -129,18 +136,8 @@ export default function EventsScreen() {
       .then(({ data }) => setCategories((data ?? []) as Category[]))
   }, [])
 
-  useEffect(() => {
-    if (!user) { setJoinedCommunities([]); return }
-    apiGet<{ data: JoinedCommunity[]; has_more: boolean }>('/api/communities?per_page=20')
-      .then(({ data }) => {
-        if (data) setJoinedCommunities(data.data.filter((c: any) => c.is_member))
-      })
-      .catch(() => {})
-  }, [user])
-
-  // Silently grab coords for "Near You This Weekend":
-  // 1. Last-known GPS (no prompt) if permission already granted
-  // 2. Fall back to coordinates saved in the user's profile
+  // Silently grab coords for "Near You This Weekend" only if permission
+  // was already granted. If not, we can later prompt from the rail itself.
   useEffect(() => {
     async function detectCoords() {
       try {
@@ -153,15 +150,23 @@ export default function EventsScreen() {
           }
         }
       } catch { /* ignore GPS errors */ }
-      // GPS unavailable — use profile's saved coordinates if present
-      const profileLat = (profile as Record<string, unknown>)?.lat as number | null | undefined
-      const profileLng = (profile as Record<string, unknown>)?.lng as number | null | undefined
-      if (profileLat != null && profileLng != null) {
-        setWeekendCoords({ lat: profileLat, lng: profileLng })
-      }
     }
     detectCoords()
-  }, [profile])
+  }, [])
+
+  async function requestWeekendLocation() {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync()
+      if (status !== 'granted') {
+        Alert.alert('Location denied', 'Enable location access to see events near you this weekend.')
+        return
+      }
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
+      setWeekendCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+    } catch {
+      Alert.alert('Location error', 'Could not get your location. Please try again.')
+    }
+  }
 
   async function toggleNearMe() {
     if (nearMe) { setNearMe(false); setGeoCoords(null); return }
@@ -301,7 +306,7 @@ export default function EventsScreen() {
         : Promise.resolve({ data: null, error: null }),
     ])
 
-    const urgencyList = ((urgencyRes.data ?? []) as unknown as EventWithOrganizer[])
+    const rawUrgencyList = ((urgencyRes.data ?? []) as unknown as EventWithOrganizer[])
       .filter((event) => !event.is_cancelled && isAlmostSoldOut(event))
       .sort((a, b) => {
         const spotsA = getSpotsLeft(a) ?? Number.MAX_SAFE_INTEGER
@@ -310,13 +315,10 @@ export default function EventsScreen() {
         return new Date(a.start_at).getTime() - new Date(b.start_at).getTime()
       })
       .slice(0, 6)
-    setAlmostSoldOutEvents(urgencyList)
-
     const savedSignals = ((savedSignalsRes.data ?? []) as unknown as Array<{ event_id: string; event: SavedSignalEvent | null }>)
       .map((row) => row.event)
       .filter(Boolean) as SavedSignalEvent[]
-
-    let savedInspiredIds = new Set<string>()
+    let rankedSavedEvents: EventWithOrganizer[] = []
 
     if (savedSignals.length) {
       const savedEventIds = new Set(((savedSignalsRes.data ?? []) as unknown as Array<{ event_id: string }>).map((row) => row.event_id))
@@ -341,10 +343,9 @@ export default function EventsScreen() {
 
       const { data: candidateData } = await candidateQuery
       const candidateList = (candidateData ?? []) as unknown as EventWithOrganizer[]
-      const featuredIds = new Set(urgencyList.map((event) => event.id))
 
-      const ranked = candidateList
-        .filter((event) => !savedEventIds.has(event.id) && !featuredIds.has(event.id))
+      rankedSavedEvents = candidateList
+        .filter((event) => !savedEventIds.has(event.id))
         .map((event) => {
           let score = 0
           if (event.category_id && savedCategories.includes(event.category_id)) score += 3
@@ -360,16 +361,12 @@ export default function EventsScreen() {
         })
         .slice(0, 6)
         .map((item) => item.event)
-
-      setSavedInspiredEvents(ranked)
-      savedInspiredIds = new Set(ranked.map((e) => e.id))
-    } else {
-      setSavedInspiredEvents([])
     }
 
     // ── Near You This Weekend ─────────────────────────────────────────────────
     const { start: wStart, end: wEnd } = getThisWeekendRange()
-    const shownIds = new Set([...urgencyList.map((e) => e.id), ...savedInspiredIds])
+
+    let weekendCandidates: EventWithOrganizer[] = []
 
     if (weekendCoords) {
       // Prefer GPS radius — use same RPC as the Near Me toggle
@@ -390,28 +387,23 @@ export default function EventsScreen() {
           .lte('start_at', wEnd)
           .order('start_at', { ascending: true })
           .limit(8)
-        const weekendList = (weekendData ?? []) as unknown as EventWithOrganizer[]
-        setNearYouWeekendEvents(weekendList.filter((e) => !shownIds.has(e.id)).slice(0, 6))
-      } else {
-        setNearYouWeekendEvents([])
+        weekendCandidates = (weekendData ?? []) as unknown as EventWithOrganizer[]
       }
-    } else if (city !== 'All') {
-      // City-string fallback when no GPS coords are available
-      const { data: weekendData } = await supabase
-        .from('events')
-        .select(eventSelect)
-        .eq('is_published', true)
-        .eq('is_cancelled', false)
-        .eq('city', city)
-        .gte('start_at', wStart)
-        .lte('start_at', wEnd)
-        .order('start_at', { ascending: true })
-        .limit(8)
-      const weekendList = (weekendData ?? []) as unknown as EventWithOrganizer[]
-      setNearYouWeekendEvents(weekendList.filter((e) => !shownIds.has(e.id)).slice(0, 6))
-    } else {
-      setNearYouWeekendEvents([])
     }
+
+    const weekendRailEvents = weekendCandidates.slice(0, 6)
+    const weekendIds = new Set(weekendRailEvents.map((event) => event.id))
+    setNearYouWeekendEvents(weekendRailEvents)
+
+    const filteredUrgencyEvents = rawUrgencyList
+      .filter((event) => !weekendIds.has(event.id))
+      .slice(0, 6)
+    setAlmostSoldOutEvents(filteredUrgencyEvents)
+
+    const filteredSavedEvents = rankedSavedEvents
+      .filter((event) => !weekendIds.has(event.id) && !filteredUrgencyEvents.some((urgencyEvent) => urgencyEvent.id === event.id))
+      .slice(0, 6)
+    setSavedInspiredEvents(filteredSavedEvents)
 
     setLoading(false)
     setRefreshing(false)
@@ -589,25 +581,32 @@ export default function EventsScreen() {
           data={events}
           keyExtractor={(e) => e.id}
           ListHeaderComponent={
-            showRecommendationRails && (nearYouWeekendEvents.length > 0 || savedInspiredEvents.length > 0)
+            showRecommendationRails
               ? (
                 <View>
-                  {nearYouWeekendEvents.length > 0 && (
-                    <RecommendationRail
-                      title="Near You This Weekend"
-                      subtitle={
-                        weekendCoords
-                          ? `Within ${weekendRadiusKm} km · ${getWeekendLabel()}`
-                          : `${city} · ${getWeekendLabel()}`
-                      }
-                      events={nearYouWeekendEvents}
-                      savedIds={savedIds}
-                      onSaveChange={handleSaveChange}
-                      accent="weekend"
-                      radiusKm={weekendCoords ? weekendRadiusKm : undefined}
-                      onRadiusChange={weekendCoords ? setWeekendRadiusKm : undefined}
-                    />
-                  )}
+                  <RecommendationRail
+                    title="Near You This Weekend"
+                    subtitle={
+                      weekendCoords
+                        ? `Within ${weekendRadiusKm} km · ${getWeekendLabel()}`
+                        : `Use your location · ${getWeekendLabel()}`
+                    }
+                    events={nearYouWeekendEvents}
+                    savedIds={savedIds}
+                    onSaveChange={handleSaveChange}
+                    accent="weekend"
+                    radiusKm={weekendCoords ? weekendRadiusKm : undefined}
+                    onRadiusChange={weekendCoords ? setWeekendRadiusKm : undefined}
+                    emptyTitle={weekendCoords ? 'No weekend events nearby yet' : 'Turn on location'}
+                    emptyDescription={
+                      weekendCoords
+                        ? 'Try widening the radius to discover more events around you this weekend.'
+                        : 'Allow location access to see events happening near you this weekend.'
+                    }
+                    emptyActionLabel={weekendCoords ? undefined : 'Enable location'}
+                    onEmptyAction={weekendCoords ? undefined : requestWeekendLocation}
+                    forceShow
+                  />
                   {savedInspiredEvents.length > 0 && (
                     <RecommendationRail
                       title="Because You Saved..."
@@ -618,7 +617,7 @@ export default function EventsScreen() {
                     />
                   )}
                 </View>
-                )
+              )
               : null
           }
           renderItem={({ item, index }) => (
@@ -676,6 +675,11 @@ function RecommendationRail({
   accent,
   radiusKm,
   onRadiusChange,
+  emptyTitle,
+  emptyDescription,
+  emptyActionLabel,
+  onEmptyAction,
+  forceShow = false,
 }: {
   title: string
   subtitle: string
@@ -686,7 +690,14 @@ function RecommendationRail({
   accent?: 'weekend'
   radiusKm?: number
   onRadiusChange?: (km: number) => void
+  emptyTitle?: string
+  emptyDescription?: string
+  emptyActionLabel?: string
+  onEmptyAction?: () => void
+  forceShow?: boolean
 }) {
+  if (!forceShow && events.length === 0) return null
+
   return (
     <View style={[styles.railSection, urgency && styles.railSectionUrgent, accent === 'weekend' && styles.railSectionWeekend]}>
       <View style={styles.railHeader}>
@@ -711,19 +722,31 @@ function RecommendationRail({
         </View>
       </View>
       <ScrollView
-        horizontal
+        horizontal={events.length > 0}
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.railScroller}
+        contentContainerStyle={[styles.railScroller, events.length === 0 && styles.railScrollerEmpty]}
       >
-        {events.map((event) => (
-          <EventCard
-            key={event.id}
-            event={event}
-            isSaved={savedIds.has(event.id)}
-            onSaveChange={onSaveChange}
-            variant="rail"
-          />
-        ))}
+        {events.length > 0 ? (
+          events.map((event) => (
+            <EventCard
+              key={event.id}
+              event={event}
+              isSaved={savedIds.has(event.id)}
+              onSaveChange={onSaveChange}
+              variant="rail"
+            />
+          ))
+        ) : (
+          <View style={styles.railEmptyCard}>
+            <Text style={styles.railEmptyTitle}>{emptyTitle ?? 'Nothing here yet'}</Text>
+            {emptyDescription ? <Text style={styles.railEmptyDescription}>{emptyDescription}</Text> : null}
+            {emptyActionLabel && onEmptyAction ? (
+              <TouchableOpacity style={styles.railEmptyButton} onPress={onEmptyAction}>
+                <Text style={styles.railEmptyButtonText}>{emptyActionLabel}</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        )}
       </ScrollView>
     </View>
   )
@@ -804,6 +827,41 @@ const styles = StyleSheet.create({
   railScroller: {
     paddingHorizontal: Spacing.lg,
     paddingBottom: Spacing.xs,
+  },
+  railScrollerEmpty: {
+    paddingRight: Spacing.lg,
+  },
+  railEmptyCard: {
+    width: '100%',
+    backgroundColor: Colors.white,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.gray[200],
+    padding: Spacing.lg,
+  },
+  railEmptyTitle: {
+    fontSize: FontSize.base,
+    fontWeight: FontWeight.semibold,
+    color: Colors.gray[900],
+  },
+  railEmptyDescription: {
+    marginTop: Spacing.xs,
+    fontSize: FontSize.sm,
+    color: Colors.gray[500],
+    lineHeight: 20,
+  },
+  railEmptyButton: {
+    marginTop: Spacing.md,
+    alignSelf: 'flex-start',
+    backgroundColor: Colors.brand[500],
+    borderRadius: Radius.full,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  railEmptyButtonText: {
+    color: Colors.white,
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.semibold,
   },
 
   radiusRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.brand[50], paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.brand[100], gap: Spacing.xs },

@@ -208,7 +208,7 @@ export function Navbar() {
         {/* Desktop links */}
         <div className="hidden md:flex items-center gap-6">
           {navLink('/events', t('nav.events'))}
-          {user && navLink('/feed', '👥 Following')}
+          {user && navLink('/feed', `👥 ${t('nav.feed')}`)}
           {user && navLink('/saved', `🤍 ${t('nav.saved')}`)}
           {user && navLink('/chat', t('nav.chat'))}
         </div>
