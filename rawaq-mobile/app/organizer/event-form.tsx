@@ -9,14 +9,17 @@ import { useRouter, useLocalSearchParams } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { supabase } from '@/lib/supabase'
+import { apiGet, apiPatch } from '@/lib/api'
 import { uploadViaApi } from '@/lib/upload'
 import { useAuth } from '@/contexts/auth-context'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
+import type { Community, EventVisibility } from '@/types/database'
 
 const CITIES = ['Riyadh', 'Jeddah', 'Dammam', 'Mecca', 'Medina', 'Khobar', 'Tabuk', 'Abha', 'Taif']
 const TEMPLATES_KEY = 'rawaq_ticket_templates'
 
 interface Category { id: string; name_en: string; icon: string | null }
+type CommunityOption = Pick<Community, 'id' | 'name' | 'name_ar' | 'slug' | 'level'>
 type TicketDraft = { name: string; is_free: boolean; price: string; capacity: string }
 type TicketTemplate = TicketDraft & { id: string }
 
@@ -39,6 +42,9 @@ export default function EventFormScreen() {
   const [loading,    setLoading]    = useState(isEdit)
   const [saving,     setSaving]     = useState(false)
   const [error,      setError]      = useState<string | null>(null)
+  const [communities, setCommunities] = useState<CommunityOption[]>([])
+  const [selectedCommunities, setSelectedCommunities] = useState<string[]>([])
+  const [visibilityType, setVisibilityType] = useState<EventVisibility>('city')
 
   // Wizard step (create only): 1 = details, 2 = tickets, 3 = review
   const [step,           setStep]           = useState<1 | 2 | 3>(1)
@@ -111,6 +117,11 @@ export default function EventFormScreen() {
 
   useEffect(() => {
     async function init() {
+      if (!user) {
+        setLoading(false)
+        return
+      }
+
       const { data: cats } = await supabase
         .from('event_categories')
         .select('id, name_en, icon')
@@ -118,13 +129,24 @@ export default function EventFormScreen() {
         .order('sort_order')
       setCategories((cats ?? []) as Category[])
 
+      const { data: communityData } = await apiGet<{
+        data: CommunityOption[]
+      }>('/api/communities?per_page=50')
+      setCommunities(communityData?.data ?? [])
+
       if (id) {
-        const { data: ev } = await supabase
-          .from('events')
-          .select('*')
-          .eq('id', id)
-          .eq('organizer_id', user!.id)
-          .single()
+        const [{ data: ev }, { data: eventCommunities }] = await Promise.all([
+          supabase
+            .from('events')
+            .select('*')
+            .eq('id', id)
+            .eq('organizer_id', user!.id)
+            .single(),
+          supabase
+            .from('event_communities')
+            .select('community_id')
+            .eq('event_id', id),
+        ])
 
         if (ev) {
           setTitle(ev.title)
@@ -143,13 +165,17 @@ export default function EventFormScreen() {
           setIsFamilyFriendly(ev.is_family_friendly)
           setIsPublished(ev.is_published)
           setCoverImageUrl(ev.cover_image_url ?? '')
+          setVisibilityType(ev.visibility_type ?? 'city')
+          setSelectedCommunities((eventCommunities ?? []).map((row) => row.community_id))
         }
+        setLoading(false)
+      } else {
         setLoading(false)
       }
     }
     init()
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id])
+  }, [id, user])
 
   function parseDate(val: string) {
     return new Date(val.includes('T') ? val : val.replace(' ', 'T'))
@@ -217,34 +243,30 @@ export default function EventFormScreen() {
     setError(null)
     setSaving(true)
 
-    const { error: dbError } = await supabase
-      .from('events')
-      .update({
-        organizer_id:       user!.id,
-        title:              title.trim(),
-        title_ar:           titleAr.trim() || null,
-        description:        description.trim() || null,
-        category_id:        categoryId || null,
-        city,
-        country:            'SA',
-        venue_name:         venueName.trim() || null,
-        address:            address.trim() || null,
-        start_at:           parsedStart.toISOString(),
-        end_at:             parsedEnd?.toISOString() ?? null,
-        capacity:           capacity ? Number(capacity) : null,
-        is_free:            isFree,
-        price:              isFree ? null : Number(price),
-        currency:           'SAR',
-        gender_restriction: genderRestriction,
-        is_family_friendly: isFamilyFriendly,
-        is_published:       isPublished,
-        cover_image_url:    coverImageUrl || null,
-      })
-      .eq('id', id)
-      .eq('organizer_id', user!.id)
-
+    const { error: apiError } = await apiPatch(`/api/events/${id}`, {
+      title: title.trim(),
+      title_ar: titleAr.trim() || null,
+      description: description.trim() || null,
+      category_id: categoryId || null,
+      city,
+      country: 'SA',
+      venue_name: venueName.trim() || null,
+      address: address.trim() || null,
+      start_at: parsedStart.toISOString(),
+      end_at: parsedEnd?.toISOString() ?? null,
+      capacity: capacity ? Number(capacity) : null,
+      is_free: isFree,
+      price: isFree ? null : Number(price),
+      currency: 'SAR',
+      gender_restriction: genderRestriction,
+      is_family_friendly: isFamilyFriendly,
+      is_published: isPublished,
+      cover_image_url: coverImageUrl || null,
+      visibility_type: visibilityType,
+      community_ids: selectedCommunities,
+    })
     setSaving(false)
-    if (dbError) { setError(dbError.message); return }
+    if (apiError) { setError(apiError); return }
 
     Alert.alert('Saved', 'Event updated.', [{ text: 'OK', onPress: () => router.back() }])
   }
@@ -281,6 +303,7 @@ export default function EventFormScreen() {
       is_family_friendly: isFamilyFriendly,
       is_published:       false,
       cover_image_url:    coverImageUrl || null,
+      visibility_type:    visibilityType,
     }
 
     // If user went back from step 2 and re-submitted, update the existing draft
@@ -352,12 +375,13 @@ export default function EventFormScreen() {
   // ─── Create wizard step 3: finalize ─────────────────────────────────────────
   async function finalize(publish: boolean) {
     setSaving(true)
-    const { error: dbError } = await supabase
-      .from('events')
-      .update({ is_published: publish })
-      .eq('id', createdEventId!)
+    const { error: apiError } = await apiPatch(`/api/events/${createdEventId!}`, {
+      is_published: publish,
+      visibility_type: visibilityType,
+      community_ids: selectedCommunities,
+    })
     setSaving(false)
-    if (dbError) { Alert.alert('Error', dbError.message); return }
+    if (apiError) { Alert.alert('Error', apiError); return }
     Alert.alert(
       publish ? 'Published!' : 'Saved as Draft',
       publish ? 'Your event is now live.' : 'You can publish it from your dashboard.',
@@ -539,6 +563,55 @@ export default function EventFormScreen() {
               )}
             </Field>
 
+            <Field label="Visibility">
+              <View style={styles.chipRow}>
+                {([
+                  { value: 'city', label: 'City' },
+                  { value: 'national', label: 'National' },
+                  { value: 'interest', label: 'Interest' },
+                  { value: 'micro', label: 'Micro' },
+                ] as const).map((option) => (
+                  <TouchableOpacity
+                    key={option.value}
+                    style={[styles.chip, visibilityType === option.value && styles.chipActive]}
+                    onPress={() => setVisibilityType(option.value)}
+                  >
+                    <Text style={[styles.chipText, visibilityType === option.value && styles.chipTextActive]}>
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </Field>
+
+            {communities.length > 0 && (
+              <Field label="Tag Communities (optional)">
+                <Text style={styles.helperText}>
+                  Members of tagged communities will be notified when you publish.
+                </Text>
+                <View style={styles.chipRow}>
+                  {communities.map((community) => {
+                    const selected = selectedCommunities.includes(community.id)
+                    return (
+                      <TouchableOpacity
+                        key={community.id}
+                        style={[styles.chip, selected && styles.chipActive]}
+                        onPress={() =>
+                          setSelectedCommunities((prev) =>
+                            selected ? prev.filter((id) => id !== community.id) : [...prev, community.id],
+                          )
+                        }
+                      >
+                        <Text style={[styles.chipText, selected && styles.chipTextActive]}>
+                          {community.name}
+                        </Text>
+                      </TouchableOpacity>
+                    )
+                  })}
+                </View>
+              </Field>
+            )}
+
             {error && <View style={styles.errorBox}><Text style={styles.errorText}>{error}</Text></View>}
 
             <TouchableOpacity
@@ -630,6 +703,13 @@ export default function EventFormScreen() {
               <ReviewRow label="City" value={city} />
               <ReviewRow label="Starts" value={startAt} />
               {venueName ? <ReviewRow label="Venue" value={venueName} /> : null}
+              <ReviewRow label="Visibility" value={visibilityType} />
+              {selectedCommunities.length > 0 ? (
+                <ReviewRow
+                  label="Communities"
+                  value={communities.filter((community) => selectedCommunities.includes(community.id)).map((community) => community.name).join(', ')}
+                />
+              ) : null}
             </View>
 
             <View style={[styles.reviewCard, { marginTop: Spacing.md }]}>
@@ -783,6 +863,7 @@ const styles = StyleSheet.create({
   dateClear:           { fontSize: FontSize.sm, color: Colors.gray[400], paddingLeft: Spacing.sm },
   switchRow:           { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: Colors.white, borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderWidth: 1, borderColor: Colors.gray[200] },
   switchLabel:         { fontSize: FontSize.base, color: Colors.gray[800] },
+  helperText:          { fontSize: FontSize.xs, color: Colors.gray[500], marginBottom: Spacing.sm },
 
   // Ticket card
   ticketCard:          { backgroundColor: Colors.white, borderRadius: Radius.lg, padding: Spacing.md, marginBottom: Spacing.md, borderWidth: 1, borderColor: Colors.gray[200] },

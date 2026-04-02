@@ -43,6 +43,7 @@ function notifIcon(type: string): string {
     case 'event_updated':        return '📝'
     case 'new_event_published':  return '🎉'
     case 'event_sold_out':       return '🎊'
+    case 'community_new_event':  return '🗓️'
     default:                     return '🔔'
   }
 }
@@ -69,17 +70,23 @@ function notifText(type: string, payload: NotifPayload): string {
     case 'event_updated':       return `"${et}" has been updated — check the new details`
     case 'new_event_published': return `${payload.organizer_name ?? 'An organizer'} published "${et}"`
     case 'event_sold_out':      return `Your event "${et}" just sold out! 🎊`
+    case 'community_new_event': return `New event in ${payload.community_name ?? 'your community'}: "${et}"`
     default:                    return 'New notification'
   }
 }
 
-function notifRoute(type: string, profile: { role?: string } | null): string {
+function notifRoute(type: string, payload: NotifPayload, profile: { role?: string } | null): string {
+  const eventId = typeof payload.event_id === 'string' ? payload.event_id : null
   switch (type) {
     case 'booking_confirmed':
     case 'booking_cancelled':
     case 'waitlist_promoted':
     case 'event_reminder':
       return '/(tabs)/bookings'
+    case 'community_new_event':
+    case 'new_event_published':
+    case 'event_updated':
+      return eventId ? `/events/${eventId}` : '/(tabs)/home'
     case 'new_follower':
     case 'new_review':
     case 'organizer_approved':
@@ -194,7 +201,7 @@ export default function NotificationsScreen() {
           renderItem={({ item }) => (
             <TouchableOpacity
               style={[styles.row, !item.is_read && styles.rowUnread]}
-              onPress={() => router.push(notifRoute(item.type, profile) as any)}
+              onPress={() => router.push(notifRoute(item.type, item.payload, profile) as any)}
               activeOpacity={0.7}
             >
               <View style={styles.iconWrap}>

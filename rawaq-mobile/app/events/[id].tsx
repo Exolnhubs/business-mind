@@ -14,7 +14,7 @@ import { Badge } from '@/components/ui/Badge'
 import { CommentThread } from '@/components/comments/CommentThread'
 import { formatDate, formatTime, formatCurrency } from '@/lib/utils'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
-import type { EventWithOrganizer, CommentWithAuthor, TicketType } from '@/types/database'
+import type { Community, EventWithOrganizer, CommentWithAuthor, TicketType } from '@/types/database'
 
 interface PaymentOption {
   id: string
@@ -69,6 +69,7 @@ export default function EventDetailScreen() {
   const [fawryRef,               setFawryRef]               = useState<string | null>(null)
   const [fawryContext,           setFawryContext]           = useState<'ticket' | 'donation'>('ticket')
   const [paymentIntent,          setPaymentIntent]          = useState<PaymentIntent>(null)
+  const [eventCommunities,       setEventCommunities]       = useState<Array<Pick<Community, 'id' | 'name' | 'name_ar' | 'slug' | 'level'>>>([])
 
   useEffect(() => {
     if (!id) return
@@ -108,13 +109,26 @@ export default function EventDetailScreen() {
         : Promise.resolve({ data: null }),
       supabase.from('ticket_types').select('*')
         .eq('event_id', id).eq('is_active', true).order('sort_order'),
-    ]).then(([{ data: ev }, { data: cmts }, { data: booking }, { data: wl }, { data: tts }]) => {
+      supabase.from('event_communities').select('community_id').eq('event_id', id),
+    ]).then(([{ data: ev }, { data: cmts }, { data: booking }, { data: wl }, { data: tts }, { data: eventCommunityRows }]) => {
       setEvent(ev as EventWithOrganizer)
       setComments((cmts ?? []) as CommentWithAuthor[])
       setIsBooked(booking?.status === 'confirmed')
       setBookingPending(booking?.status === 'pending')
       setOnWaitlist(!!wl)
       setTicketTypes((tts ?? []) as TicketType[])
+      const communityIds = (eventCommunityRows ?? []).map((row) => row.community_id)
+      if (communityIds.length > 0) {
+        supabase
+          .from('communities')
+          .select('id, name, name_ar, slug, level')
+          .in('id', communityIds)
+          .then(({ data: communities }) =>
+            setEventCommunities((communities ?? []) as Array<Pick<Community, 'id' | 'name' | 'name_ar' | 'slug' | 'level'>>),
+          )
+      } else {
+        setEventCommunities([])
+      }
       setLoading(false)
     })
   }, [id, user])
@@ -595,6 +609,24 @@ export default function EventDetailScreen() {
           <Text style={styles.categoryLabel}>
             {event.category.icon} {locale === 'ar' ? event.category.name_ar : event.category.name_en}
           </Text>
+        )}
+        {eventCommunities.length > 0 && (
+          <View style={styles.communitySection}>
+            <Text style={styles.communitySectionLabel}>Inside communities</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.communityPills}>
+              {eventCommunities.map((community) => (
+                <TouchableOpacity
+                  key={community.id}
+                  style={styles.communityPill}
+                  onPress={() => router.push(`/communities/${community.slug}` as any)}
+                >
+                  <Text style={styles.communityPillText}>
+                    {locale === 'ar' && community.name_ar ? community.name_ar : community.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
         )}
 
         {/* Info cards */}
@@ -1090,6 +1122,11 @@ const styles = StyleSheet.create({
   body: { padding: Spacing.lg },
   title: { fontSize: FontSize['2xl'], fontWeight: FontWeight.bold, color: Colors.gray[900], marginBottom: Spacing.xs },
   categoryLabel: { fontSize: FontSize.sm, color: Colors.brand[600], fontWeight: FontWeight.medium, marginBottom: Spacing.lg },
+  communitySection: { marginBottom: Spacing.lg },
+  communitySectionLabel: { fontSize: FontSize.xs, color: Colors.gray[500], fontWeight: FontWeight.semibold, textTransform: 'uppercase', marginBottom: Spacing.sm },
+  communityPills: { gap: Spacing.sm },
+  communityPill: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs + 2, borderRadius: Radius.full, backgroundColor: Colors.brand[50], borderWidth: 1, borderColor: Colors.brand[100], marginRight: Spacing.sm },
+  communityPillText: { fontSize: FontSize.xs, color: Colors.brand[700], fontWeight: FontWeight.semibold },
   infoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginBottom: Spacing.xl },
   infoValue: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[900] },
   infoSub: { fontSize: FontSize.xs, color: Colors.gray[500], marginTop: 2 },

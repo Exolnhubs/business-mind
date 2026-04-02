@@ -4,7 +4,7 @@ import {
   TouchableOpacity, ScrollView, RefreshControl, Alert, ActivityIndicator,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { useRouter } from 'expo-router'
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router'
 import * as Location from 'expo-location'
 import { supabase } from '@/lib/supabase'
 import { apiGet } from '@/lib/api'
@@ -16,6 +16,7 @@ import { Colors, Spacing, Radius, FontSize, FontWeight } from '@/theme'
 import type { Community, EventWithOrganizer } from '@/types/database'
 
 type JoinedCommunity = Pick<Community, 'id' | 'name' | 'name_ar' | 'slug' | 'level'>
+type CommunityListItem = JoinedCommunity & { is_member: boolean }
 
 interface Category { id: string; name_en: string; name_ar: string; icon: string | null }
 interface SavedSignalEvent {
@@ -31,12 +32,12 @@ function getThisWeekendRange(): { start: string; end: string } {
   if (day === 0) {
     // Sunday — treat today as the weekend
     const start = new Date(now); start.setHours(0, 0, 0, 0)
-    const end   = new Date(now); end.setHours(23, 59, 59, 999)
+    const end = new Date(now); end.setHours(23, 59, 59, 999)
     return { start: start.toISOString(), end: end.toISOString() }
   }
   const daysToSat = day === 6 ? 0 : (6 - day + 7) % 7
-  const saturday  = new Date(now); saturday.setDate(now.getDate() + daysToSat); saturday.setHours(0, 0, 0, 0)
-  const sunday    = new Date(saturday); sunday.setDate(saturday.getDate() + 1); sunday.setHours(23, 59, 59, 999)
+  const saturday = new Date(now); saturday.setDate(now.getDate() + daysToSat); saturday.setHours(0, 0, 0, 0)
+  const sunday = new Date(saturday); sunday.setDate(saturday.getDate() + 1); sunday.setHours(23, 59, 59, 999)
   return { start: saturday.toISOString(), end: sunday.toISOString() }
 }
 
@@ -46,7 +47,7 @@ function getWeekendLabel(): string {
   if (day === 0) return 'Today'
   const daysToSat = day === 6 ? 0 : (6 - day + 7) % 7
   const sat = new Date(now); sat.setDate(now.getDate() + daysToSat)
-  const sun = new Date(sat);  sun.setDate(sat.getDate() + 1)
+  const sun = new Date(sat); sun.setDate(sat.getDate() + 1)
   const fmt = (d: Date) => d.toLocaleDateString('en', { month: 'short', day: 'numeric' })
   return `${fmt(sat)} – ${fmt(sun)}`
 }
@@ -95,24 +96,27 @@ function pickWeekendRailEvents(
 export default function EventsScreen() {
   const { t, locale } = useLocale()
   const { user } = useAuth()
-  const [events, setEvents]         = useState<EventWithOrganizer[]>([])
-  const [savedIds, setSavedIds]     = useState<Set<string>>(new Set())
-  const [savedInspiredEvents, setSavedInspiredEvents]   = useState<EventWithOrganizer[]>([])
-  const [almostSoldOutEvents, setAlmostSoldOutEvents]   = useState<EventWithOrganizer[]>([])
+  const router = useRouter()
+  const params = useLocalSearchParams<{ community?: string }>()
+  const routeCommunitySlug = typeof params.community === 'string' ? params.community : null
+  const [events, setEvents] = useState<EventWithOrganizer[]>([])
+  const [savedIds, setSavedIds] = useState<Set<string>>(new Set())
+  const [savedInspiredEvents, setSavedInspiredEvents] = useState<EventWithOrganizer[]>([])
+  const [almostSoldOutEvents, setAlmostSoldOutEvents] = useState<EventWithOrganizer[]>([])
   const [nearYouWeekendEvents, setNearYouWeekendEvents] = useState<EventWithOrganizer[]>([])
   const [weekendCoords, setWeekendCoords] = useState<{ lat: number; lng: number } | null>(null)
   const [weekendRadiusKm, setWeekendRadiusKm] = useState(25)
-  const [loading, setLoading]       = useState(true)
+  const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-  const [search, setSearch]         = useState('')
+  const [search, setSearch] = useState('')
   const [categories, setCategories] = useState<Category[]>([])
   const [categoryId, setCategoryId] = useState<string | null>(null)
-  const [city, setCity]             = useState('All')
-  const [freeOnly, setFreeOnly]     = useState(false)
-  const [nearMe, setNearMe]         = useState(false)
-  const [geoCoords, setGeoCoords]   = useState<{ lat: number; lng: number } | null>(null)
+  const [city, setCity] = useState('All')
+  const [freeOnly, setFreeOnly] = useState(false)
+  const [nearMe, setNearMe] = useState(false)
+  const [geoCoords, setGeoCoords] = useState<{ lat: number; lng: number } | null>(null)
   const [geoLoading, setGeoLoading] = useState(false)
-  const [radiusKm, setRadiusKm]     = useState(25)
+  const [radiusKm, setRadiusKm] = useState(25)
   const [communitySlug, setCommunitySlug] = useState<string | null>(null)
   const [joinedCommunities, setJoinedCommunities] = useState<JoinedCommunity[]>([])
   const showRecommendationRails = !search && !categoryId && city === 'All' && !freeOnly && !nearMe && !communitySlug
@@ -135,6 +139,44 @@ export default function EventsScreen() {
       .order('sort_order')
       .then(({ data }) => setCategories((data ?? []) as Category[]))
   }, [])
+
+  const loadJoinedCommunities = useCallback(async () => {
+    if (!user) {
+      setJoinedCommunities([])
+      setCommunitySlug(null)
+      return
+    }
+
+    const { data, error } = await apiGet<{ data: CommunityListItem[] }>(
+      '/api/communities?member_only=true&per_page=20',
+    )
+
+    if (error) {
+      setJoinedCommunities([])
+      setCommunitySlug(null)
+      return
+    }
+
+    const nextCommunities = data?.data ?? []
+    setJoinedCommunities(nextCommunities)
+    setCommunitySlug((current) =>
+      current && !nextCommunities.some((community) => community.slug === current) ? null : current,
+    )
+  }, [user])
+
+  useEffect(() => {
+    loadJoinedCommunities()
+  }, [loadJoinedCommunities])
+
+  useEffect(() => {
+    setCommunitySlug(routeCommunitySlug)
+  }, [routeCommunitySlug])
+
+  useFocusEffect(
+    useCallback(() => {
+      loadJoinedCommunities()
+    }, [loadJoinedCommunities]),
+  )
 
   // Silently grab coords for "Near You This Weekend" only if permission
   // was already granted. If not, we can later prompt from the rail itself.
@@ -212,9 +254,9 @@ export default function EventsScreen() {
       const q = search.replace(/'/g, "''")
       query = query.or(`title.ilike.%${q}%,title_ar.ilike.%${q}%,description.ilike.%${q}%`)
     }
-    if (city !== 'All')   query = query.eq('city', city)
-    if (freeOnly)         query = query.eq('is_free', true)
-    if (categoryId)       query = query.eq('category_id', categoryId)
+    if (city !== 'All') query = query.eq('city', city)
+    if (freeOnly) query = query.eq('is_free', true)
+    if (categoryId) query = query.eq('category_id', categoryId)
 
     // Community filter: resolve slug → event IDs via event_communities
     if (communitySlug) {
@@ -295,14 +337,14 @@ export default function EventsScreen() {
         .limit(40),
       user
         ? supabase
-            .from('saved_events')
-            .select(`
+          .from('saved_events')
+          .select(`
               event_id,
               event:events!event_id(id, category_id, city, organizer_id)
             `)
-            .eq('user_id', user.id)
-            .order('created_at', { ascending: false })
-            .limit(12)
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(12)
         : Promise.resolve({ data: null, error: null }),
     ])
 
@@ -371,8 +413,8 @@ export default function EventsScreen() {
     if (weekendCoords) {
       // Prefer GPS radius — use same RPC as the Near Me toggle
       const { data: geoIds } = await supabase.rpc('events_within_radius', {
-        user_lat:      weekendCoords.lat,
-        user_lng:      weekendCoords.lng,
+        user_lat: weekendCoords.lat,
+        user_lng: weekendCoords.lng,
         radius_meters: weekendRadiusKm * 1000,
       })
       const ids = ((geoIds ?? []) as { id: string }[]).map((e) => e.id)
@@ -413,6 +455,7 @@ export default function EventsScreen() {
 
   function onRefresh() {
     setRefreshing(true)
+    loadJoinedCommunities()
     fetchEvents()
   }
 
@@ -457,10 +500,10 @@ export default function EventsScreen() {
               {geoLoading
                 ? <ActivityIndicator size="small" color={Colors.brand[500]} />
                 : <Ionicons
-                    name={nearMe ? 'location' : 'location-outline'}
-                    size={20}
-                    color={nearMe ? Colors.brand[500] : Colors.gray[400]}
-                  />
+                  name={nearMe ? 'location' : 'location-outline'}
+                  size={20}
+                  color={nearMe ? Colors.brand[500] : Colors.gray[400]}
+                />
               }
             </TouchableOpacity>
           </Animated.View>
@@ -509,34 +552,11 @@ export default function EventsScreen() {
         </ScrollView>
       </View>
 
-      {/* City + free filter row */}
+      {/*  Community filter chips (only when user has joined communities) + Free toggle */}
       <View style={styles.filterRow}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {CITIES.map((c) => (
-            <TouchableOpacity
-              key={c}
-              onPress={() => setCity(c)}
-              style={[styles.miniChip, city === c && styles.miniChipActive]}
-            >
-              <Text style={[styles.miniChipText, city === c && styles.miniChipTextActive]}>
-                {c === 'All' ? t('events.all_cities') : c}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-        <TouchableOpacity
-          onPress={() => setFreeOnly((v) => !v)}
-          style={[styles.miniChip, freeOnly && styles.miniChipActiveGreen, { marginLeft: Spacing.sm }]}
-        >
-          <Text style={[styles.miniChipText, freeOnly && { color: Colors.green.text }]}>
-            {t('events.free_filter')}
-          </Text>
-        </TouchableOpacity>
-      </View>
 
-      {/* Community filter chips (only when user has joined communities) */}
-      {joinedCommunities.length > 0 && (
-        <View style={styles.communityRow}>
+        {joinedCommunities.length > 0 && (
+          // <View style={styles.communityRow}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <TouchableOpacity
               onPress={() => setCommunitySlug(null)}
@@ -568,6 +588,31 @@ export default function EventsScreen() {
               <Text style={styles.communityExploreBtnText}>Explore →</Text>
             </TouchableOpacity>
           </ScrollView>
+          // </View>
+        )}
+
+        <TouchableOpacity
+          onPress={() => setFreeOnly((v) => !v)}
+          style={[styles.miniChip, freeOnly && styles.miniChipActiveGreen]}
+        >
+          <Text style={[styles.miniChipText, freeOnly && { color: Colors.green.text }]}>
+            {t('events.free_filter')}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+
+      {communitySlug && (
+        <View style={styles.activeCommunityBanner}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.activeCommunityLabel}>Community Filter</Text>
+            <Text style={styles.activeCommunityName}>
+              {joinedCommunities.find((community) => community.slug === communitySlug)?.name ?? communitySlug}
+            </Text>
+          </View>
+          <TouchableOpacity onPress={() => setCommunitySlug(null)} style={styles.activeCommunityClear}>
+            <Text style={styles.activeCommunityClearText}>Clear</Text>
+          </TouchableOpacity>
         </View>
       )}
 
@@ -649,7 +694,7 @@ export default function EventsScreen() {
                   onSaveChange={handleSaveChange}
                   urgency
                 />
-                )
+              )
               : null
           }
           ListEmptyComponent={
@@ -877,4 +922,22 @@ const styles = StyleSheet.create({
   communityChipTextActive: { color: Colors.white },
   communityExploreBtn: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs + 1, marginRight: Spacing.lg },
   communityExploreBtnText: { fontSize: FontSize.xs, color: Colors.brand[600], fontWeight: FontWeight.medium },
+  activeCommunityBanner: {
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.xl,
+    backgroundColor: Colors.brand[50],
+    borderWidth: 1,
+    borderColor: Colors.brand[100],
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  activeCommunityLabel: { fontSize: FontSize.xs, color: Colors.brand[600], fontWeight: FontWeight.semibold, textTransform: 'uppercase' },
+  activeCommunityName: { fontSize: FontSize.sm, color: Colors.gray[900], fontWeight: FontWeight.semibold, marginTop: 2 },
+  activeCommunityClear: { paddingHorizontal: Spacing.sm, paddingVertical: Spacing.xs, borderRadius: Radius.full, backgroundColor: Colors.white },
+  activeCommunityClearText: { fontSize: FontSize.xs, color: Colors.brand[700], fontWeight: FontWeight.semibold },
 })

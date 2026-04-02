@@ -19,6 +19,8 @@ type CommunityDetail = Community & {
   event_count: number
   ancestors: Pick<Community, 'id' | 'name' | 'name_ar' | 'slug' | 'level'>[]
   recent_events: Pick<Event, 'id' | 'title' | 'title_ar' | 'cover_image_url' | 'start_at' | 'city' | 'is_free' | 'price' | 'currency'>[]
+  recent_members: Array<{ id: string; display_name: string; avatar_url: string | null; joined_at: string }>
+  activity: Array<{ id: string; type: 'member_joined' | 'event_published'; title: string; subtitle: string; created_at: string; href: string | null }>
 }
 
 type EventItem = Pick<Event, 'id' | 'title' | 'title_ar' | 'cover_image_url' | 'start_at' | 'city' | 'is_free' | 'price' | 'currency'>
@@ -171,11 +173,61 @@ export default function CommunityDetailScreen() {
         </TouchableOpacity>
       </View>
 
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Members</Text>
+        {community.recent_members.length === 0 ? (
+          <EmptyState icon="👥" title="No members yet" description="Be the first to join this community" />
+        ) : (
+          <View style={styles.panel}>
+            {community.recent_members.map((member) => (
+              <View key={member.id} style={styles.memberRow}>
+                <View style={styles.memberAvatar}>
+                  {member.avatar_url ? (
+                    <Image source={{ uri: member.avatar_url }} style={styles.memberAvatarImage} />
+                  ) : (
+                    <Text style={styles.memberAvatarText}>{member.display_name.slice(0, 1).toUpperCase()}</Text>
+                  )}
+                </View>
+                <View>
+                  <Text style={styles.memberName}>{member.display_name}</Text>
+                  <Text style={styles.memberMeta}>Joined {formatDate(member.joined_at)}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Recent Activity</Text>
+        {community.activity.length === 0 ? (
+          <EmptyState icon="✨" title="No activity yet" description="Community activity will appear here" />
+        ) : (
+          <View style={styles.panel}>
+            {community.activity.map((item) => (
+              <TouchableOpacity
+                key={item.id}
+                style={styles.activityRow}
+                activeOpacity={item.href ? 0.8 : 1}
+                onPress={item.href ? () => router.push(item.href as any) : undefined}
+              >
+                <Text style={styles.activityIcon}>{item.type === 'member_joined' ? '👋' : '🗓️'}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.activityTitle}>{item.title}</Text>
+                  <Text style={styles.activitySubtitle}>{item.subtitle}</Text>
+                  <Text style={styles.activityMeta}>{formatDate(item.created_at)}</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+      </View>
+
       {/* Events */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Upcoming Events</Text>
-          <TouchableOpacity onPress={() => router.push({ pathname: '/', params: { community: slug } } as any)}>
+          <TouchableOpacity onPress={() => router.push({ pathname: '/(tabs)/home', params: { community: slug } } as any)}>
             <Text style={styles.sectionLink}>View all</Text>
           </TouchableOpacity>
         </View>
@@ -267,6 +319,18 @@ const styles = StyleSheet.create({
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing[3] },
   sectionTitle:  { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.gray[900] },
   sectionLink:   { fontSize: FontSize.sm, color: Colors.brand[600] },
+  panel:         { backgroundColor: Colors.white, borderRadius: Radius.xl, padding: Spacing[4], ...Shadow.sm },
+  memberRow:     { flexDirection: 'row', alignItems: 'center', gap: Spacing[3], marginBottom: Spacing[3] },
+  memberAvatar:  { width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.brand[100], alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  memberAvatarImage: { width: '100%', height: '100%' },
+  memberAvatarText: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.brand[700] },
+  memberName:    { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[900] },
+  memberMeta:    { fontSize: FontSize.xs, color: Colors.gray[500], marginTop: 2 },
+  activityRow:   { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing[3], paddingVertical: Spacing[2] },
+  activityIcon:  { fontSize: 18, marginTop: 2 },
+  activityTitle: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[900] },
+  activitySubtitle: { fontSize: FontSize.xs, color: Colors.gray[500], marginTop: 1 },
+  activityMeta:  { fontSize: FontSize.xs, color: Colors.gray[400], marginTop: 3 },
 
   eventCard:           { backgroundColor: '#fff', borderRadius: Radius.xl, padding: Spacing[3], marginBottom: Spacing[2], flexDirection: 'row', alignItems: 'center', gap: Spacing[3], ...Shadow.sm },
   eventThumb:          { width: 64, height: 52, borderRadius: Radius.lg, resizeMode: 'cover' },
