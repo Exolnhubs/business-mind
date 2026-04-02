@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
-  View, Text, FlatList, StyleSheet,
-  TouchableOpacity, ScrollView, ActivityIndicator, Image, Alert,
+  View, Text, ScrollView, StyleSheet,
+  TouchableOpacity, ActivityIndicator, Image, Alert,
 } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
@@ -23,31 +23,22 @@ type CommunityDetail = Community & {
   activity: Array<{ id: string; type: 'member_joined' | 'event_published'; title: string; subtitle: string; created_at: string; href: string | null }>
 }
 type MembershipMutationResponse = { is_member?: boolean; member_count?: number }
-
 type EventItem = Pick<Event, 'id' | 'title' | 'title_ar' | 'cover_image_url' | 'start_at' | 'city' | 'is_free' | 'price' | 'currency'>
 
-const LEVEL_META: Record<CommunityLevel, { label: string; icon: keyof typeof Ionicons.glyphMap; tint: string; bg: string }> = {
-  micro:    { label: 'Micro', icon: 'home-outline', tint: '#166534', bg: '#dcfce7' },
-  interest: { label: 'Interest', icon: 'sparkles-outline', tint: '#7c3aed', bg: '#f3e8ff' },
-  district: { label: 'District', icon: 'business-outline', tint: '#b45309', bg: '#fef3c7' },
-  city:     { label: 'City', icon: 'location-outline', tint: '#1d4ed8', bg: '#dbeafe' },
-  country:  { label: 'Country', icon: 'earth-outline', tint: '#be123c', bg: '#ffe4e6' },
-}
-
-const LEVEL_ICONS: Record<CommunityLevel, string> = {
-  micro:    '🏘️',
-  interest: '🎯',
-  district: '🏙️',
-  city:     '🌆',
-  country:  '🌍',
+const LEVEL_META: Record<CommunityLevel, { label: string; icon: keyof typeof Ionicons.glyphMap; tint: string; bg: string; accent: string }> = {
+  micro:    { label: 'Micro',    icon: 'home-outline',     tint: '#166534', bg: '#dcfce7', accent: '#16a34a' },
+  interest: { label: 'Interest', icon: 'sparkles-outline', tint: '#6d28d9', bg: '#ede9fe', accent: '#7c3aed' },
+  district: { label: 'District', icon: 'business-outline', tint: '#92400e', bg: '#fef3c7', accent: '#d97706' },
+  city:     { label: 'City',     icon: 'location-outline', tint: '#1e40af', bg: '#dbeafe', accent: '#2563eb' },
+  country:  { label: 'Country',  icon: 'earth-outline',    tint: '#9f1239', bg: '#ffe4e6', accent: '#e11d48' },
 }
 
 export default function CommunityDetailScreen() {
-  const { slug }    = useLocalSearchParams<{ slug: string }>()
-  const { user }    = useAuth()
-  const { locale }  = useLocale()
-  const router      = useRouter()
-  const isRTL       = locale === 'ar'
+  const { slug }   = useLocalSearchParams<{ slug: string }>()
+  const { user }   = useAuth()
+  const { locale } = useLocale()
+  const router     = useRouter()
+  const isRTL      = locale === 'ar'
 
   const [community, setCommunity] = useState<CommunityDetail | null>(null)
   const [loading, setLoading]     = useState(true)
@@ -58,10 +49,7 @@ export default function CommunityDetailScreen() {
 
   useEffect(() => {
     apiGet<CommunityDetail>(`/api/communities/${slug}`)
-      .then(({ data }) => {
-        if (data) setCommunity(data)
-        else router.back()
-      })
+      .then(({ data }) => { if (data) setCommunity(data); else router.back() })
       .finally(() => setLoading(false))
   }, [slug])
 
@@ -70,10 +58,7 @@ export default function CommunityDetailScreen() {
     setEventsLoading(true)
     const params = new URLSearchParams({ per_page: '10' })
     if (cursor) params.set('cursor', cursor)
-
-    const { data } = await apiGet<{ events: EventItem[]; next_cursor: string | null }>(
-      `/api/communities/${slug}/events?${params}`
-    )
+    const { data } = await apiGet<{ events: EventItem[]; next_cursor: string | null }>(`/api/communities/${slug}/events?${params}`)
     if (data) {
       setEvents((prev) => cursor ? [...prev, ...data.events] : data.events)
       setNextCursor(data.next_cursor)
@@ -81,10 +66,7 @@ export default function CommunityDetailScreen() {
     setEventsLoading(false)
   }
 
-  useEffect(() => {
-    if (community) loadEvents()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [community?.id])
+  useEffect(() => { if (community) loadEvents() }, [community?.id])
 
   async function toggleMembership() {
     if (!user) { router.push('/auth/login' as any); return }
@@ -93,285 +75,320 @@ export default function CommunityDetailScreen() {
     const { data, error } = community.is_member
       ? await apiDelete<MembershipMutationResponse>(`/api/communities/${slug}/leave`)
       : await apiPost<MembershipMutationResponse>(`/api/communities/${slug}/join`, {})
-
     if (error) {
       Alert.alert('Error', error)
     } else {
-      setCommunity((prev) =>
-        prev
-          ? {
-              ...prev,
-              is_member: data?.is_member ?? !prev.is_member,
-              member_count: data?.member_count ?? (!prev.is_member ? prev.member_count + 1 : Math.max(prev.member_count - 1, 0)),
-            }
-          : prev
+      setCommunity((prev) => prev
+        ? { ...prev, is_member: data?.is_member ?? !prev.is_member, member_count: data?.member_count ?? (!prev.is_member ? prev.member_count + 1 : Math.max(prev.member_count - 1, 0)) }
+        : prev
       )
     }
     setJoining(false)
   }
 
-  if (loading) {
-    return <View style={styles.center}><Spinner /></View>
-  }
-
+  if (loading) return <View style={styles.center}><Spinner /></View>
   if (!community) return null
 
-  const name = isRTL && community.name_ar ? community.name_ar : community.name
+  const name        = isRTL && community.name_ar ? community.name_ar : community.name
   const description = isRTL && community.description_ar ? community.description_ar : community.description
-  const levelMeta = LEVEL_META[community.level]
+  const meta        = LEVEL_META[community.level]
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* Hero */}
-      <View style={styles.hero}>
-        {community.cover_url ? (
-          <Image source={{ uri: community.cover_url }} style={styles.heroImage} />
-        ) : (
-          <View style={[styles.heroPlaceholder, { backgroundColor: levelMeta.bg }]}>
-            <Ionicons name={levelMeta.icon} size={48} color={levelMeta.tint} />
-          </View>
-        )}
+    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
-        {/* Ancestors breadcrumb */}
+      {/* ── Hero ─────────────────────────────────────────────── */}
+      <View style={styles.hero}>
+        {community.cover_url
+          ? <Image source={{ uri: community.cover_url }} style={styles.heroImg} />
+          : (
+            <View style={[styles.heroPlaceholder, { backgroundColor: meta.bg }]}>
+              <Ionicons name={meta.icon} size={56} color={meta.tint} />
+            </View>
+          )
+        }
+        {/* Gradient-ish bottom overlay for breadcrumb */}
         {community.ancestors.length > 0 && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.breadcrumb}>
-            {community.ancestors.map((a, i) => (
-              <View key={a.id} style={styles.breadcrumbItem}>
-                {i > 0 && <Text style={styles.breadcrumbSep}>›</Text>}
-                <TouchableOpacity onPress={() => router.push(`/communities/${a.slug}` as any)}>
-                  <Text style={styles.breadcrumbText}>{LEVEL_ICONS[a.level]} {a.name}</Text>
-                </TouchableOpacity>
-              </View>
-            ))}
-          </ScrollView>
+          <View style={styles.breadcrumbBar}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {community.ancestors.map((a, i) => (
+                <View key={a.id} style={styles.bcItem}>
+                  {i > 0 && <Text style={styles.bcSep}>›</Text>}
+                  <TouchableOpacity onPress={() => router.push(`/communities/${a.slug}` as any)}>
+                    <Text style={styles.bcText}>{LEVEL_META[a.level].label} · {a.name}</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
         )}
       </View>
 
-      {/* Info card */}
-      <View style={styles.infoCard}>
-        <View style={styles.nameRow}>
-          <Text style={styles.name}>{name}</Text>
-          {community.is_verified && (
-            <Ionicons name="checkmark-circle" size={18} color={Colors.brand[500]} />
-          )}
-        </View>
-
-        <View style={styles.metaRow}>
-          <Text style={styles.metaText}>📍 {community.city ?? community.country}</Text>
-          <Text style={styles.metaDot}>·</Text>
-          <Text style={styles.metaText}>👥 {community.member_count.toLocaleString()} members</Text>
-          <Text style={styles.metaDot}>·</Text>
-          <Text style={styles.metaText}>📅 {community.event_count} events</Text>
-        </View>
-        <View style={styles.statusRow}>
-          <View style={[styles.levelPill, { backgroundColor: levelMeta.bg }]}>
-            <Ionicons name={levelMeta.icon} size={13} color={levelMeta.tint} />
-            <Text style={[styles.levelPillText, { color: levelMeta.tint }]}>{levelMeta.label} community</Text>
+      {/* ── Identity card ────────────────────────────────────── */}
+      <View style={styles.identityCard}>
+        {/* Top: icon + name + verified */}
+        <View style={styles.identityTop}>
+          <View style={[styles.identityIcon, { backgroundColor: meta.bg }]}>
+            <Ionicons name={meta.icon} size={24} color={meta.tint} />
           </View>
-          {community.is_member ? (
-            <View style={styles.memberBadge}>
-              <Ionicons name="checkmark-circle" size={13} color={Colors.green.text} />
-              <Text style={styles.memberBadgeText}>You joined this community</Text>
+          <View style={styles.identityText}>
+            <View style={styles.nameRow}>
+              <Text style={styles.name}>{name}</Text>
+              {community.is_verified && <Ionicons name="checkmark-circle" size={18} color={Colors.brand[500]} />}
             </View>
-          ) : null}
+            <View style={styles.tagRow}>
+              <View style={[styles.levelTag, { backgroundColor: meta.bg }]}>
+                <Text style={[styles.levelTagText, { color: meta.tint }]}>{meta.label}</Text>
+              </View>
+              {community.city && <Text style={styles.cityText}>📍 {community.city}</Text>}
+            </View>
+          </View>
         </View>
 
-        {description ? (
-          <Text style={styles.description}>{description}</Text>
-        ) : null}
+        {/* Stats row */}
+        <View style={styles.statsRow}>
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>{community.member_count.toLocaleString()}</Text>
+            <Text style={styles.statLabel}>Members</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>{community.event_count}</Text>
+            <Text style={styles.statLabel}>Events</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>{community.recent_members.length}</Text>
+            <Text style={styles.statLabel}>Recent joins</Text>
+          </View>
+        </View>
 
+        {/* Description */}
+        {description ? <Text style={styles.description}>{description}</Text> : null}
+
+        {/* Join / Leave */}
         <TouchableOpacity
           onPress={toggleMembership}
           disabled={joining}
-          style={[styles.joinBtn, community.is_member ? styles.joinBtnJoined : styles.joinBtnNotJoined]}
+          style={[styles.joinBtn, community.is_member ? styles.joinBtnJoined : styles.joinBtnDefault]}
+          activeOpacity={0.85}
         >
-          {joining ? (
-            <ActivityIndicator size="small" color={community.is_member ? Colors.green.text : '#fff'} />
-          ) : (
-            <Text style={[styles.joinBtnText, community.is_member && styles.joinBtnTextJoined]}>
-              {community.is_member ? '✓ Joined — Leave community' : 'Join community'}
-            </Text>
-          )}
+          {joining
+            ? <ActivityIndicator size="small" color={community.is_member ? '#15803d' : '#fff'} />
+            : (
+              <View style={styles.joinBtnInner}>
+                <Ionicons
+                  name={community.is_member ? 'checkmark-circle' : 'add-circle-outline'}
+                  size={18}
+                  color={community.is_member ? '#15803d' : '#fff'}
+                />
+                <Text style={[styles.joinBtnText, community.is_member && styles.joinBtnTextJoined]}>
+                  {community.is_member ? 'Joined · Tap to leave' : 'Join community'}
+                </Text>
+              </View>
+            )
+          }
         </TouchableOpacity>
       </View>
 
+      {/* ── Members ──────────────────────────────────────────── */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Members</Text>
-        {community.recent_members.length === 0 ? (
-          <EmptyState icon="👥" title="No members yet" description="Be the first to join this community" />
-        ) : (
-          <View style={styles.panel}>
-            {community.recent_members.map((member) => (
-              <View key={member.id} style={styles.memberRow}>
-                <View style={styles.memberAvatar}>
-                  {member.avatar_url ? (
-                    <Image source={{ uri: member.avatar_url }} style={styles.memberAvatarImage} />
-                  ) : (
-                    <Text style={styles.memberAvatarText}>{member.display_name.slice(0, 1).toUpperCase()}</Text>
-                  )}
+        {community.recent_members.length === 0
+          ? <EmptyState icon="👥" title="No members yet" description="Be the first to join" />
+          : (
+            <View style={styles.membersList}>
+              {community.recent_members.map((m, i) => (
+                <View key={m.id} style={[styles.memberRow, i < community.recent_members.length - 1 && styles.memberRowBorder]}>
+                  <View style={styles.avatar}>
+                    {m.avatar_url
+                      ? <Image source={{ uri: m.avatar_url }} style={styles.avatarImg} />
+                      : <Text style={styles.avatarInitial}>{m.display_name.slice(0, 1).toUpperCase()}</Text>
+                    }
+                  </View>
+                  <View style={styles.memberInfo}>
+                    <Text style={styles.memberName}>{m.display_name}</Text>
+                    <Text style={styles.memberMeta}>Joined {formatDate(m.joined_at)}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={14} color={Colors.gray[300]} />
                 </View>
-                <View>
-                  <Text style={styles.memberName}>{member.display_name}</Text>
-                  <Text style={styles.memberMeta}>Joined {formatDate(member.joined_at)}</Text>
-                </View>
-              </View>
-            ))}
-          </View>
-        )}
+              ))}
+            </View>
+          )
+        }
       </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Recent Activity</Text>
-        {community.activity.length === 0 ? (
-          <EmptyState icon="✨" title="No activity yet" description="Community activity will appear here" />
-        ) : (
-          <View style={styles.panel}>
-            {community.activity.map((item) => (
-              <TouchableOpacity
-                key={item.id}
-                style={styles.activityRow}
-                activeOpacity={item.href ? 0.8 : 1}
-                onPress={item.href ? () => router.push(item.href as any) : undefined}
-              >
-                <Text style={styles.activityIcon}>{item.type === 'member_joined' ? '👋' : '🗓️'}</Text>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.activityTitle}>{item.title}</Text>
-                  <Text style={styles.activitySubtitle}>{item.subtitle}</Text>
-                  <Text style={styles.activityMeta}>{formatDate(item.created_at)}</Text>
-                </View>
-              </TouchableOpacity>
-            ))}
+      {/* ── Activity feed ────────────────────────────────────── */}
+      {community.activity.length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Recent Activity</Text>
+          <View style={styles.activityList}>
+            {community.activity.map((item, i) => {
+              const isEvent = item.type === 'event_published'
+              return (
+                <TouchableOpacity
+                  key={item.id}
+                  style={[styles.activityItem, i < community.activity.length - 1 && styles.activityItemBorder]}
+                  activeOpacity={item.href ? 0.8 : 1}
+                  onPress={item.href ? () => router.push(item.href as any) : undefined}
+                >
+                  <View style={[styles.activityDot, { backgroundColor: isEvent ? Colors.brand[100] : '#dcfce7' }]}>
+                    <Ionicons name={isEvent ? 'calendar-outline' : 'person-add-outline'} size={14} color={isEvent ? Colors.brand[600] : '#15803d'} />
+                  </View>
+                  <View style={styles.activityBody}>
+                    <Text style={styles.activityTitle}>{item.title}</Text>
+                    <Text style={styles.activitySub}>{item.subtitle}</Text>
+                  </View>
+                  <Text style={styles.activityDate}>{formatDate(item.created_at)}</Text>
+                </TouchableOpacity>
+              )
+            })}
           </View>
-        )}
-      </View>
+        </View>
+      )}
 
-      {/* Events */}
+      {/* ── Events ───────────────────────────────────────────── */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Upcoming Events</Text>
           <TouchableOpacity onPress={() => router.push({ pathname: '/(tabs)/home', params: { community: slug } } as any)}>
-            <Text style={styles.sectionLink}>View all</Text>
+            <Text style={styles.sectionLink}>View all →</Text>
           </TouchableOpacity>
         </View>
 
-        {eventsLoading && events.length === 0 ? (
-          <View style={styles.centerSmall}><Spinner /></View>
-        ) : events.length === 0 ? (
-          <EmptyState icon="📅" title="No upcoming events" description="Check back soon" />
-        ) : (
-          <>
-            {events.map((ev) => {
-              const evTitle = isRTL && ev.title_ar ? ev.title_ar : ev.title
-              return (
-                <TouchableOpacity
-                  key={ev.id}
-                  style={styles.eventCard}
-                  onPress={() => router.push(`/events/${ev.id}` as any)}
-                  activeOpacity={0.85}
-                >
-                  {ev.cover_image_url ? (
-                    <Image source={{ uri: ev.cover_image_url }} style={styles.eventThumb} />
-                  ) : (
-                    <View style={[styles.eventThumb, styles.eventThumbPlaceholder]}>
-                      <Text style={{ fontSize: 22 }}>📅</Text>
-                    </View>
-                  )}
-                  <View style={styles.eventInfo}>
-                    <Text style={styles.eventTitle} numberOfLines={1}>{evTitle}</Text>
-                    <Text style={styles.eventMeta}>{formatDate(ev.start_at)}</Text>
-                    <Text style={styles.eventMeta}>📍 {ev.city}</Text>
-                  </View>
-                  <View style={[styles.priceBadge, ev.is_free && styles.priceBadgeFree]}>
-                    <Text style={[styles.priceText, ev.is_free && styles.priceTextFree]}>
-                      {ev.is_free ? 'Free' : `${ev.price} ${ev.currency}`}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              )
-            })}
-
-            {nextCursor && (
-              <TouchableOpacity
-                onPress={() => loadEvents(nextCursor)}
-                style={styles.loadMoreBtn}
-                disabled={eventsLoading}
-              >
-                {eventsLoading
-                  ? <ActivityIndicator size="small" color={Colors.brand[600]} />
-                  : <Text style={styles.loadMoreText}>Load more events</Text>
-                }
-              </TouchableOpacity>
-            )}
-          </>
-        )}
+        {eventsLoading && events.length === 0
+          ? <View style={styles.centerSmall}><Spinner /></View>
+          : events.length === 0
+            ? <EmptyState icon="📅" title="No upcoming events" description="Check back soon" />
+            : (
+              <>
+                {events.map((ev) => {
+                  const title = isRTL && ev.title_ar ? ev.title_ar : ev.title
+                  return (
+                    <TouchableOpacity
+                      key={ev.id}
+                      style={styles.eventCard}
+                      onPress={() => router.push(`/events/${ev.id}` as any)}
+                      activeOpacity={0.85}
+                    >
+                      {ev.cover_image_url
+                        ? <Image source={{ uri: ev.cover_image_url }} style={styles.eventThumb} />
+                        : (
+                          <View style={[styles.eventThumb, styles.eventThumbEmpty]}>
+                            <Ionicons name="calendar-outline" size={22} color={Colors.brand[300]} />
+                          </View>
+                        )
+                      }
+                      <View style={styles.eventDetails}>
+                        <Text style={styles.eventTitle} numberOfLines={1}>{title}</Text>
+                        <Text style={styles.eventMeta}>
+                          <Ionicons name="time-outline" size={11} color={Colors.gray[400]} /> {formatDate(ev.start_at)}
+                        </Text>
+                        <Text style={styles.eventMeta}>📍 {ev.city}</Text>
+                      </View>
+                      <View style={[styles.priceBadge, ev.is_free && styles.priceBadgeFree]}>
+                        <Text style={[styles.priceText, ev.is_free && styles.priceTextFree]}>
+                          {ev.is_free ? 'Free' : `${ev.price} ${ev.currency}`}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  )
+                })}
+                {nextCursor && (
+                  <TouchableOpacity style={styles.loadMoreBtn} onPress={() => loadEvents(nextCursor)} disabled={eventsLoading}>
+                    {eventsLoading
+                      ? <ActivityIndicator size="small" color={Colors.brand[500]} />
+                      : <Text style={styles.loadMoreText}>Load more events</Text>
+                    }
+                  </TouchableOpacity>
+                )}
+              </>
+            )
+        }
       </View>
     </ScrollView>
   )
 }
 
 const styles = StyleSheet.create({
-  container:    { flex: 1, backgroundColor: '#f7f8fc' },
-  content:      { paddingBottom: Spacing[10] },
-  center:       { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  centerSmall:  { alignItems: 'center', paddingVertical: Spacing[6] },
+  container:  { flex: 1, backgroundColor: '#f4f5f9' },
+  content:    { paddingBottom: Spacing[12] },
+  center:     { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  centerSmall:{ alignItems: 'center', paddingVertical: Spacing[6] },
 
-  hero:           { position: 'relative' },
-  heroImage:      { width: '100%', height: 180 },
-  heroPlaceholder:{ width: '100%', height: 180, alignItems: 'center', justifyContent: 'center' },
-  heroIcon:       { fontSize: 56 },
-  breadcrumb:     { backgroundColor: 'rgba(0,0,0,0.45)', position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: Spacing[4], paddingVertical: Spacing[2] },
-  breadcrumbItem: { flexDirection: 'row', alignItems: 'center' },
-  breadcrumbSep:  { color: 'rgba(255,255,255,0.6)', marginHorizontal: 4, fontSize: 12 },
-  breadcrumbText: { color: '#fff', fontSize: FontSize.xs },
+  // Hero
+  hero:              { position: 'relative' },
+  heroImg:           { width: '100%', height: 200, resizeMode: 'cover' },
+  heroPlaceholder:   { width: '100%', height: 200, alignItems: 'center', justifyContent: 'center' },
+  breadcrumbBar:     { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.48)', paddingHorizontal: Spacing[4], paddingVertical: Spacing[2] + 2 },
+  bcItem:            { flexDirection: 'row', alignItems: 'center' },
+  bcSep:             { color: 'rgba(255,255,255,0.5)', marginHorizontal: 5, fontSize: 12 },
+  bcText:            { color: 'rgba(255,255,255,0.9)', fontSize: FontSize.xs, fontWeight: FontWeight.medium },
 
-  infoCard:    { backgroundColor: '#fff', margin: Spacing[4], borderRadius: Radius['2xl'], padding: Spacing[4], borderWidth: 1, borderColor: Colors.gray[200], ...Shadow.sm },
-  nameRow:     { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: Spacing[2] },
-  name:        { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.gray[900], flex: 1 },
-  metaRow:     { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: Spacing[1], marginBottom: Spacing[3] },
-  metaText:    { fontSize: FontSize.xs, color: Colors.gray[500] },
-  metaDot:     { fontSize: FontSize.xs, color: Colors.gray[300] },
-  statusRow:    { flexDirection: 'row', alignItems: 'center', gap: Spacing[2], flexWrap: 'wrap', marginBottom: Spacing[4] },
-  levelPill:    { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: Spacing[2], paddingVertical: 6, borderRadius: Radius.full },
-  levelPillText:{ fontSize: FontSize.xs, fontWeight: FontWeight.semibold },
-  memberBadge:  { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: Spacing[2], paddingVertical: 6, borderRadius: Radius.full, backgroundColor: Colors.green.light },
-  memberBadgeText: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.green.text },
-  description: { fontSize: FontSize.sm, color: Colors.gray[600], lineHeight: 22, marginBottom: Spacing[4] },
+  // Identity card
+  identityCard:  { backgroundColor: '#fff', marginHorizontal: Spacing[4], marginTop: -Spacing[3], borderRadius: Radius['2xl'], padding: Spacing[4], ...Shadow.md ?? Shadow.sm, zIndex: 10, marginBottom: Spacing[4] },
+  identityTop:   { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing[3], marginBottom: Spacing[4] },
+  identityIcon:  { width: 52, height: 52, borderRadius: Radius.xl, alignItems: 'center', justifyContent: 'center' },
+  identityText:  { flex: 1 },
+  nameRow:       { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  name:          { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.gray[900], flex: 1 },
+  tagRow:        { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 6 },
+  levelTag:      { paddingHorizontal: Spacing[2], paddingVertical: 3, borderRadius: Radius.full },
+  levelTagText:  { fontSize: 11, fontWeight: FontWeight.semibold },
+  cityText:      { fontSize: FontSize.xs, color: Colors.gray[500] },
 
-  joinBtn:          { borderRadius: Radius.xl, paddingVertical: Spacing[3], alignItems: 'center', justifyContent: 'center' },
-  joinBtnContent:   { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  joinBtnNotJoined: { backgroundColor: Colors.brand[600] },
-  joinBtnJoined:    { backgroundColor: Colors.green.light, borderWidth: 1, borderColor: '#86efac' },
-  joinBtnText:      { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: '#fff' },
-  joinBtnTextJoined:{ color: Colors.green.text },
+  statsRow:     { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.gray[50], borderRadius: Radius.xl, padding: Spacing[4], marginBottom: Spacing[4] },
+  statItem:     { flex: 1, alignItems: 'center' },
+  statValue:    { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.gray[900] },
+  statLabel:    { fontSize: 11, color: Colors.gray[500], marginTop: 2 },
+  statDivider:  { width: 1, height: 32, backgroundColor: Colors.gray[200] },
 
-  section:       { paddingHorizontal: Spacing[4] },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing[3] },
-  sectionTitle:  { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.gray[900] },
-  sectionLink:   { fontSize: FontSize.sm, color: Colors.brand[600] },
-  panel:         { backgroundColor: Colors.white, borderRadius: Radius.xl, padding: Spacing[4], borderWidth: 1, borderColor: Colors.gray[200], ...Shadow.sm },
-  memberRow:     { flexDirection: 'row', alignItems: 'center', gap: Spacing[3], marginBottom: Spacing[3] },
-  memberAvatar:  { width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.brand[100], alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  memberAvatarImage: { width: '100%', height: '100%' },
-  memberAvatarText: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.brand[700] },
+  description:  { fontSize: FontSize.sm, color: Colors.gray[600], lineHeight: 22, marginBottom: Spacing[4] },
+
+  joinBtn:          { borderRadius: Radius.xl, paddingVertical: Spacing[3] + 2, alignItems: 'center' },
+  joinBtnDefault:   { backgroundColor: Colors.brand[600] },
+  joinBtnJoined:    { backgroundColor: '#f0fdf4', borderWidth: 1.5, borderColor: '#86efac' },
+  joinBtnInner:     { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  joinBtnText:      { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: '#fff' },
+  joinBtnTextJoined:{ color: '#15803d' },
+
+  // Sections
+  section:       { paddingHorizontal: Spacing[4], marginBottom: Spacing[5] },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing[3] },
+  sectionTitle:  { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.gray[900], marginBottom: Spacing[3] },
+  sectionLink:   { fontSize: FontSize.sm, color: Colors.brand[600], fontWeight: FontWeight.medium },
+
+  // Members
+  membersList:   { backgroundColor: '#fff', borderRadius: Radius.xl, overflow: 'hidden', borderWidth: 1, borderColor: Colors.gray[200], ...Shadow.sm },
+  memberRow:     { flexDirection: 'row', alignItems: 'center', gap: Spacing[3], padding: Spacing[3] },
+  memberRowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.gray[100] },
+  avatar:        { width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.brand[100], alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  avatarImg:     { width: '100%', height: '100%' },
+  avatarInitial: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.brand[700] },
+  memberInfo:    { flex: 1 },
   memberName:    { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[900] },
-  memberMeta:    { fontSize: FontSize.xs, color: Colors.gray[500], marginTop: 2 },
-  activityRow:   { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing[3], paddingVertical: Spacing[2] },
-  activityIcon:  { fontSize: 18, marginTop: 2 },
-  activityTitle: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[900] },
-  activitySubtitle: { fontSize: FontSize.xs, color: Colors.gray[500], marginTop: 1 },
-  activityMeta:  { fontSize: FontSize.xs, color: Colors.gray[400], marginTop: 3 },
+  memberMeta:    { fontSize: FontSize.xs, color: Colors.gray[400], marginTop: 2 },
 
-  eventCard:           { backgroundColor: '#fff', borderRadius: Radius.xl, padding: Spacing[3], marginBottom: Spacing[2], flexDirection: 'row', alignItems: 'center', gap: Spacing[3], borderWidth: 1, borderColor: Colors.gray[200], ...Shadow.sm },
-  eventThumb:          { width: 64, height: 52, borderRadius: Radius.lg, resizeMode: 'cover' },
-  eventThumbPlaceholder:{ backgroundColor: Colors.brand[50], alignItems: 'center', justifyContent: 'center' },
-  eventInfo:           { flex: 1 },
-  eventTitle:          { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[900] },
-  eventMeta:           { fontSize: FontSize.xs, color: Colors.gray[500], marginTop: 2 },
-  priceBadge:          { backgroundColor: Colors.brand[50], borderRadius: Radius.full, paddingHorizontal: Spacing[2], paddingVertical: 4 },
-  priceBadgeFree:      { backgroundColor: '#f0fdf4' },
-  priceText:           { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.brand[700] },
-  priceTextFree:       { color: '#15803d' },
+  // Activity
+  activityList:      { backgroundColor: '#fff', borderRadius: Radius.xl, overflow: 'hidden', borderWidth: 1, borderColor: Colors.gray[200], ...Shadow.sm },
+  activityItem:      { flexDirection: 'row', alignItems: 'center', gap: Spacing[3], padding: Spacing[3] },
+  activityItemBorder:{ borderBottomWidth: 1, borderBottomColor: Colors.gray[100] },
+  activityDot:       { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  activityBody:      { flex: 1 },
+  activityTitle:     { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[900] },
+  activitySub:       { fontSize: FontSize.xs, color: Colors.gray[500], marginTop: 1 },
+  activityDate:      { fontSize: 11, color: Colors.gray[400] },
 
-  loadMoreBtn:  { alignItems: 'center', paddingVertical: Spacing[4] },
-  loadMoreText: { fontSize: FontSize.sm, color: Colors.brand[600], fontWeight: FontWeight.medium },
+  // Events
+  eventCard:         { backgroundColor: '#fff', borderRadius: Radius.xl, padding: Spacing[3], marginBottom: Spacing[2], flexDirection: 'row', alignItems: 'center', gap: Spacing[3], borderWidth: 1, borderColor: Colors.gray[200], ...Shadow.sm },
+  eventThumb:        { width: 68, height: 56, borderRadius: Radius.lg, resizeMode: 'cover' },
+  eventThumbEmpty:   { backgroundColor: Colors.brand[50], alignItems: 'center', justifyContent: 'center' },
+  eventDetails:      { flex: 1 },
+  eventTitle:        { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[900] },
+  eventMeta:         { fontSize: FontSize.xs, color: Colors.gray[500], marginTop: 3 },
+  priceBadge:        { backgroundColor: Colors.brand[50], borderRadius: Radius.full, paddingHorizontal: Spacing[2], paddingVertical: 5 },
+  priceBadgeFree:    { backgroundColor: '#f0fdf4' },
+  priceText:         { fontSize: 11, fontWeight: FontWeight.bold, color: Colors.brand[700] },
+  priceTextFree:     { color: '#15803d' },
+  loadMoreBtn:       { alignItems: 'center', paddingVertical: Spacing[4] },
+  loadMoreText:      { fontSize: FontSize.sm, color: Colors.brand[600], fontWeight: FontWeight.medium },
 })
