@@ -518,6 +518,12 @@ export interface CommunityMembership {
   joined_at: string
 }
 
+export interface CommunityHierarchy {
+  parent_id: string
+  child_id: string
+  depth: number
+}
+
 export interface EventCommunity {
   event_id: string
   community_id: string
@@ -592,6 +598,7 @@ export type Database = {
       subscriptions: { Row: R<Subscription>; Insert: R<Omit<Subscription, 'id' | 'created_at' | 'updated_at'>>; Update: R<Partial<Subscription>>; Relationships: [] }
       communities: { Row: R<Community>; Insert: R<Omit<Community, 'id' | 'member_count' | 'created_at' | 'updated_at'>>; Update: R<Partial<Community>>; Relationships: [] }
       community_memberships: { Row: R<CommunityMembership>; Insert: R<Omit<CommunityMembership, 'id' | 'joined_at'>>; Update: R<Partial<CommunityMembership>>; Relationships: [] }
+      community_hierarchy: { Row: R<CommunityHierarchy>; Insert: R<CommunityHierarchy>; Update: R<Partial<CommunityHierarchy>>; Relationships: [] }
       event_communities: { Row: R<EventCommunity>; Insert: R<EventCommunity>; Update: R<Partial<EventCommunity>>; Relationships: [] }
     }
     Views: Record<string, never>
