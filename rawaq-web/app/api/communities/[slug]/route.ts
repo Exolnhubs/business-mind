@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { optionalAuth } from '@/lib/auth'
 import { handleApiError, ok, NotFoundException } from '@/lib/errors'
 import type { Community, CommunityHierarchy } from '@/types/database'
@@ -12,6 +13,7 @@ export async function GET(
   try {
     const { slug } = await params
     const supabase = await createSupabaseServerClient()
+    const admin    = createSupabaseAdminClient()
     const ctx      = await optionalAuth()
 
     const { data: community, error } = await supabase
@@ -48,7 +50,7 @@ export async function GET(
     // Membership status
     let is_member = false
     if (ctx?.userId) {
-      const { data: mem } = await supabase
+      const { data: mem } = await admin
         .from('community_memberships')
         .select('id')
         .eq('community_id', community.id)
@@ -79,7 +81,7 @@ export async function GET(
       recent_events = events ?? []
     }
 
-    const { data: membershipRows } = await supabase
+    const { data: membershipRows } = await admin
       .from('community_memberships')
       .select('user_id, joined_at')
       .eq('community_id', community.id)
@@ -89,7 +91,7 @@ export async function GET(
     const memberIds = (membershipRows ?? []).map((row) => row.user_id)
     let recent_members: Array<{ id: string; display_name: string; avatar_url: string | null; joined_at: string }> = []
     if (memberIds.length > 0) {
-      const { data: profiles } = await supabase
+      const { data: profiles } = await admin
         .from('profiles')
         .select('id, display_name, avatar_url')
         .in('id', memberIds)

@@ -43,6 +43,19 @@ export const CreateEventSchema = EventBaseSchema.extend(EventCommunityFields).re
 )
 
 export const UpdateEventSchema = EventBaseSchema.partial().extend({
+  category_id: z.string().uuid().nullable().optional(),
+  title_ar: z.string().min(3).max(200).nullable().optional(),
+  description: z.string().max(5000).nullable().optional(),
+  description_ar: z.string().max(5000).nullable().optional(),
+  cover_image_url: z.string().url().nullable().optional(),
+  end_at: z.string().datetime().nullable().optional(),
+  venue_name: z.string().max(200).nullable().optional(),
+  venue_name_ar: z.string().max(200).nullable().optional(),
+  address: z.string().max(500).nullable().optional(),
+  lat: z.number().min(-90).max(90).nullable().optional(),
+  lng: z.number().min(-180).max(180).nullable().optional(),
+  capacity: z.number().int().positive().nullable().optional(),
+  price: z.number().positive().nullable().optional(),
   is_cancelled: z.boolean().optional(),
   cancelled_reason: z.string().max(500).optional(),
   visibility_type: z.enum(['micro', 'interest', 'city', 'national']).optional(),

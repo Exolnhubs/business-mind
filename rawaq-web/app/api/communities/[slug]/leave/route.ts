@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireAuth } from '@/lib/auth'
 import { handleApiError, ok, NotFoundException } from '@/lib/errors'
 
@@ -12,22 +13,34 @@ export async function DELETE(
     const { slug } = await params
     const ctx      = await requireAuth()
     const supabase = await createSupabaseServerClient()
+    const admin    = createSupabaseAdminClient()
 
     const { data: community, error: cErr } = await supabase
       .from('communities')
-      .select('id')
+      .select('id, member_count')
       .eq('slug', slug)
       .single()
 
     if (cErr || !community) throw new NotFoundException('Community not found')
 
-    await supabase
+    const { data: existingMembership } = await admin
+      .from('community_memberships')
+      .select('id')
+      .eq('community_id', community.id)
+      .eq('user_id', ctx.userId)
+      .maybeSingle()
+
+    if (!existingMembership) {
+      return ok({ left: true, is_member: false, member_count: community.member_count })
+    }
+
+    await admin
       .from('community_memberships')
       .delete()
       .eq('community_id', community.id)
       .eq('user_id', ctx.userId)
 
-    return ok({ left: true })
+    return ok({ left: true, is_member: false, member_count: Math.max(community.member_count - 1, 0) })
   } catch (err) {
     return handleApiError(err)
   }

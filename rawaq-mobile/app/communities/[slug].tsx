@@ -22,8 +22,17 @@ type CommunityDetail = Community & {
   recent_members: Array<{ id: string; display_name: string; avatar_url: string | null; joined_at: string }>
   activity: Array<{ id: string; type: 'member_joined' | 'event_published'; title: string; subtitle: string; created_at: string; href: string | null }>
 }
+type MembershipMutationResponse = { is_member?: boolean; member_count?: number }
 
 type EventItem = Pick<Event, 'id' | 'title' | 'title_ar' | 'cover_image_url' | 'start_at' | 'city' | 'is_free' | 'price' | 'currency'>
+
+const LEVEL_META: Record<CommunityLevel, { label: string; icon: keyof typeof Ionicons.glyphMap; tint: string; bg: string }> = {
+  micro:    { label: 'Micro', icon: 'home-outline', tint: '#166534', bg: '#dcfce7' },
+  interest: { label: 'Interest', icon: 'sparkles-outline', tint: '#7c3aed', bg: '#f3e8ff' },
+  district: { label: 'District', icon: 'business-outline', tint: '#b45309', bg: '#fef3c7' },
+  city:     { label: 'City', icon: 'location-outline', tint: '#1d4ed8', bg: '#dbeafe' },
+  country:  { label: 'Country', icon: 'earth-outline', tint: '#be123c', bg: '#ffe4e6' },
+}
 
 const LEVEL_ICONS: Record<CommunityLevel, string> = {
   micro:    '🏘️',
@@ -81,9 +90,9 @@ export default function CommunityDetailScreen() {
     if (!user) { router.push('/auth/login' as any); return }
     if (!community) return
     setJoining(true)
-    const { error } = community.is_member
-      ? await apiDelete(`/api/communities/${slug}/leave`)
-      : await apiPost(`/api/communities/${slug}/join`, {})
+    const { data, error } = community.is_member
+      ? await apiDelete<MembershipMutationResponse>(`/api/communities/${slug}/leave`)
+      : await apiPost<MembershipMutationResponse>(`/api/communities/${slug}/join`, {})
 
     if (error) {
       Alert.alert('Error', error)
@@ -92,8 +101,8 @@ export default function CommunityDetailScreen() {
         prev
           ? {
               ...prev,
-              is_member: !prev.is_member,
-              member_count: !prev.is_member ? prev.member_count + 1 : Math.max(prev.member_count - 1, 0),
+              is_member: data?.is_member ?? !prev.is_member,
+              member_count: data?.member_count ?? (!prev.is_member ? prev.member_count + 1 : Math.max(prev.member_count - 1, 0)),
             }
           : prev
       )
@@ -109,6 +118,7 @@ export default function CommunityDetailScreen() {
 
   const name = isRTL && community.name_ar ? community.name_ar : community.name
   const description = isRTL && community.description_ar ? community.description_ar : community.description
+  const levelMeta = LEVEL_META[community.level]
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -117,8 +127,8 @@ export default function CommunityDetailScreen() {
         {community.cover_url ? (
           <Image source={{ uri: community.cover_url }} style={styles.heroImage} />
         ) : (
-          <View style={styles.heroPlaceholder}>
-            <Text style={styles.heroIcon}>{LEVEL_ICONS[community.level]}</Text>
+          <View style={[styles.heroPlaceholder, { backgroundColor: levelMeta.bg }]}>
+            <Ionicons name={levelMeta.icon} size={48} color={levelMeta.tint} />
           </View>
         )}
 
@@ -153,6 +163,18 @@ export default function CommunityDetailScreen() {
           <Text style={styles.metaDot}>·</Text>
           <Text style={styles.metaText}>📅 {community.event_count} events</Text>
         </View>
+        <View style={styles.statusRow}>
+          <View style={[styles.levelPill, { backgroundColor: levelMeta.bg }]}>
+            <Ionicons name={levelMeta.icon} size={13} color={levelMeta.tint} />
+            <Text style={[styles.levelPillText, { color: levelMeta.tint }]}>{levelMeta.label} community</Text>
+          </View>
+          {community.is_member ? (
+            <View style={styles.memberBadge}>
+              <Ionicons name="checkmark-circle" size={13} color={Colors.green.text} />
+              <Text style={styles.memberBadgeText}>You joined this community</Text>
+            </View>
+          ) : null}
+        </View>
 
         {description ? (
           <Text style={styles.description}>{description}</Text>
@@ -161,10 +183,10 @@ export default function CommunityDetailScreen() {
         <TouchableOpacity
           onPress={toggleMembership}
           disabled={joining}
-          style={[styles.joinBtn, community.is_member && styles.joinBtnJoined]}
+          style={[styles.joinBtn, community.is_member ? styles.joinBtnJoined : styles.joinBtnNotJoined]}
         >
           {joining ? (
-            <ActivityIndicator size="small" color={community.is_member ? Colors.gray[700] : '#fff'} />
+            <ActivityIndicator size="small" color={community.is_member ? Colors.green.text : '#fff'} />
           ) : (
             <Text style={[styles.joinBtnText, community.is_member && styles.joinBtnTextJoined]}>
               {community.is_member ? '✓ Joined — Leave community' : 'Join community'}
@@ -288,38 +310,45 @@ export default function CommunityDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  container:    { flex: 1, backgroundColor: Colors.gray[50] },
+  container:    { flex: 1, backgroundColor: '#f7f8fc' },
   content:      { paddingBottom: Spacing[10] },
   center:       { flex: 1, alignItems: 'center', justifyContent: 'center' },
   centerSmall:  { alignItems: 'center', paddingVertical: Spacing[6] },
 
   hero:           { position: 'relative' },
   heroImage:      { width: '100%', height: 180 },
-  heroPlaceholder:{ width: '100%', height: 180, backgroundColor: Colors.brand[50], alignItems: 'center', justifyContent: 'center' },
+  heroPlaceholder:{ width: '100%', height: 180, alignItems: 'center', justifyContent: 'center' },
   heroIcon:       { fontSize: 56 },
   breadcrumb:     { backgroundColor: 'rgba(0,0,0,0.45)', position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: Spacing[4], paddingVertical: Spacing[2] },
   breadcrumbItem: { flexDirection: 'row', alignItems: 'center' },
   breadcrumbSep:  { color: 'rgba(255,255,255,0.6)', marginHorizontal: 4, fontSize: 12 },
   breadcrumbText: { color: '#fff', fontSize: FontSize.xs },
 
-  infoCard:    { backgroundColor: '#fff', margin: Spacing[4], borderRadius: Radius['2xl'], padding: Spacing[4], ...Shadow.sm },
+  infoCard:    { backgroundColor: '#fff', margin: Spacing[4], borderRadius: Radius['2xl'], padding: Spacing[4], borderWidth: 1, borderColor: Colors.gray[200], ...Shadow.sm },
   nameRow:     { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: Spacing[2] },
   name:        { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.gray[900], flex: 1 },
   metaRow:     { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: Spacing[1], marginBottom: Spacing[3] },
   metaText:    { fontSize: FontSize.xs, color: Colors.gray[500] },
   metaDot:     { fontSize: FontSize.xs, color: Colors.gray[300] },
+  statusRow:    { flexDirection: 'row', alignItems: 'center', gap: Spacing[2], flexWrap: 'wrap', marginBottom: Spacing[4] },
+  levelPill:    { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: Spacing[2], paddingVertical: 6, borderRadius: Radius.full },
+  levelPillText:{ fontSize: FontSize.xs, fontWeight: FontWeight.semibold },
+  memberBadge:  { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: Spacing[2], paddingVertical: 6, borderRadius: Radius.full, backgroundColor: Colors.green.light },
+  memberBadgeText: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.green.text },
   description: { fontSize: FontSize.sm, color: Colors.gray[600], lineHeight: 22, marginBottom: Spacing[4] },
 
-  joinBtn:          { backgroundColor: Colors.brand[600], borderRadius: Radius.xl, paddingVertical: Spacing[3], alignItems: 'center' },
-  joinBtnJoined:    { backgroundColor: Colors.gray[100] },
+  joinBtn:          { borderRadius: Radius.xl, paddingVertical: Spacing[3], alignItems: 'center', justifyContent: 'center' },
+  joinBtnContent:   { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  joinBtnNotJoined: { backgroundColor: Colors.brand[600] },
+  joinBtnJoined:    { backgroundColor: Colors.green.light, borderWidth: 1, borderColor: '#86efac' },
   joinBtnText:      { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: '#fff' },
-  joinBtnTextJoined:{ color: Colors.gray[700] },
+  joinBtnTextJoined:{ color: Colors.green.text },
 
   section:       { paddingHorizontal: Spacing[4] },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing[3] },
   sectionTitle:  { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.gray[900] },
   sectionLink:   { fontSize: FontSize.sm, color: Colors.brand[600] },
-  panel:         { backgroundColor: Colors.white, borderRadius: Radius.xl, padding: Spacing[4], ...Shadow.sm },
+  panel:         { backgroundColor: Colors.white, borderRadius: Radius.xl, padding: Spacing[4], borderWidth: 1, borderColor: Colors.gray[200], ...Shadow.sm },
   memberRow:     { flexDirection: 'row', alignItems: 'center', gap: Spacing[3], marginBottom: Spacing[3] },
   memberAvatar:  { width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.brand[100], alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   memberAvatarImage: { width: '100%', height: '100%' },
@@ -332,7 +361,7 @@ const styles = StyleSheet.create({
   activitySubtitle: { fontSize: FontSize.xs, color: Colors.gray[500], marginTop: 1 },
   activityMeta:  { fontSize: FontSize.xs, color: Colors.gray[400], marginTop: 3 },
 
-  eventCard:           { backgroundColor: '#fff', borderRadius: Radius.xl, padding: Spacing[3], marginBottom: Spacing[2], flexDirection: 'row', alignItems: 'center', gap: Spacing[3], ...Shadow.sm },
+  eventCard:           { backgroundColor: '#fff', borderRadius: Radius.xl, padding: Spacing[3], marginBottom: Spacing[2], flexDirection: 'row', alignItems: 'center', gap: Spacing[3], borderWidth: 1, borderColor: Colors.gray[200], ...Shadow.sm },
   eventThumb:          { width: 64, height: 52, borderRadius: Radius.lg, resizeMode: 'cover' },
   eventThumbPlaceholder:{ backgroundColor: Colors.brand[50], alignItems: 'center', justifyContent: 'center' },
   eventInfo:           { flex: 1 },

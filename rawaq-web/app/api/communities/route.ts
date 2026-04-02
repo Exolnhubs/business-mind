@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { optionalAuth } from '@/lib/auth'
 import { handleApiError, ok } from '@/lib/errors'
 import { z } from 'zod'
@@ -22,13 +23,14 @@ export async function GET(req: NextRequest) {
     )
 
     const supabase  = await createSupabaseServerClient()
+    const admin     = createSupabaseAdminClient()
     const ctx       = await optionalAuth()
     const from      = (params.page - 1) * params.per_page
     const to        = from + params.per_page - 1
 
     let memberIds: string[] = []
     if (ctx?.userId) {
-      const { data: memberships } = await supabase
+      const { data: memberships } = await admin
         .from('community_memberships')
         .select('community_id')
         .eq('user_id', ctx.userId)
@@ -55,7 +57,9 @@ export async function GET(req: NextRequest) {
       })
     }
 
-    let query = supabase
+    const communitiesClient = params.member_only ? admin : supabase
+
+    let query = communitiesClient
       .from('communities')
       .select('id, name, name_ar, slug, description, description_ar, level, type, city, country, cover_url, member_count, is_verified, is_private', { count: 'exact' })
       .order('member_count', { ascending: false })
