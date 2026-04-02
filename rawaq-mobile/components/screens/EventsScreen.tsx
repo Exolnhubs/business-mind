@@ -554,10 +554,10 @@ export default function EventsScreen() {
 
       {/*  Community filter chips  + Free toggle */}
       <View style={styles.filterRow}>
-
         {/*  Community filter chips (only when user has joined communities) */}
-        {/* {joinedCommunities.length > 0 && ( */}
-          <View style={styles.communityRow}>
+
+        {joinedCommunities.length > 0 && (
+          // <View style={styles.communityRow}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <TouchableOpacity
                 onPress={() => setCommunitySlug(null)}
@@ -591,8 +591,8 @@ export default function EventsScreen() {
                 <Text style={styles.communityExploreBtnText}>Explore →</Text>
               </TouchableOpacity>
             </ScrollView>
-          </View>
-        {/* )} */}
+          // </View>
+        )}
         {/* Free toggle */}
 
         <TouchableOpacity

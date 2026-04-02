@@ -311,40 +311,40 @@ export default function CommunityDetailScreen() {
 
 const styles = StyleSheet.create({
   container:  { flex: 1, backgroundColor: '#f4f5f9' },
-  content:    { paddingBottom: Spacing[12] },
+  content:    { paddingBottom: Spacing['5xl'] },
   center:     { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  centerSmall:{ alignItems: 'center', paddingVertical: Spacing[6] },
+  centerSmall:{ alignItems: 'center', paddingVertical: Spacing['2xl'] },
 
   // Hero
   hero:              { position: 'relative' },
   heroImg:           { width: '100%', height: 200, resizeMode: 'cover' },
   heroPlaceholder:   { width: '100%', height: 200, alignItems: 'center', justifyContent: 'center' },
-  breadcrumbBar:     { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.48)', paddingHorizontal: Spacing[4], paddingVertical: Spacing[2] + 2 },
+  breadcrumbBar:     { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.48)', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm + 2 },
   bcItem:            { flexDirection: 'row', alignItems: 'center' },
   bcSep:             { color: 'rgba(255,255,255,0.5)', marginHorizontal: 5, fontSize: 12 },
   bcText:            { color: 'rgba(255,255,255,0.9)', fontSize: FontSize.xs, fontWeight: FontWeight.medium },
 
   // Identity card
-  identityCard:  { backgroundColor: '#fff', marginHorizontal: Spacing[4], marginTop: -Spacing[3], borderRadius: Radius['2xl'], padding: Spacing[4], ...Shadow.md ?? Shadow.sm, zIndex: 10, marginBottom: Spacing[4] },
-  identityTop:   { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing[3], marginBottom: Spacing[4] },
+  identityCard:  { backgroundColor: '#fff', marginHorizontal: Spacing.lg, marginTop: -Spacing.md, borderRadius: Radius['xl'], padding: Spacing.lg, ...Shadow.card, zIndex: 10, marginBottom: Spacing.lg },
+  identityTop:   { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.md, marginBottom: Spacing.lg },
   identityIcon:  { width: 52, height: 52, borderRadius: Radius.xl, alignItems: 'center', justifyContent: 'center' },
   identityText:  { flex: 1 },
   nameRow:       { flexDirection: 'row', alignItems: 'center', gap: 6 },
   name:          { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.gray[900], flex: 1 },
   tagRow:        { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 6 },
-  levelTag:      { paddingHorizontal: Spacing[2], paddingVertical: 3, borderRadius: Radius.full },
+  levelTag:      { paddingHorizontal: Spacing.sm, paddingVertical: 3, borderRadius: Radius.full },
   levelTagText:  { fontSize: 11, fontWeight: FontWeight.semibold },
   cityText:      { fontSize: FontSize.xs, color: Colors.gray[500] },
 
-  statsRow:     { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.gray[50], borderRadius: Radius.xl, padding: Spacing[4], marginBottom: Spacing[4] },
+  statsRow:     { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.gray[50], borderRadius: Radius.xl, padding: Spacing.lg, marginBottom: Spacing.lg },
   statItem:     { flex: 1, alignItems: 'center' },
   statValue:    { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.gray[900] },
   statLabel:    { fontSize: 11, color: Colors.gray[500], marginTop: 2 },
   statDivider:  { width: 1, height: 32, backgroundColor: Colors.gray[200] },
 
-  description:  { fontSize: FontSize.sm, color: Colors.gray[600], lineHeight: 22, marginBottom: Spacing[4] },
+  description:  { fontSize: FontSize.sm, color: Colors.gray[600], lineHeight: 22, marginBottom: Spacing.lg },
 
-  joinBtn:          { borderRadius: Radius.xl, paddingVertical: Spacing[3] + 2, alignItems: 'center' },
+  joinBtn:          { borderRadius: Radius.xl, paddingVertical: Spacing.md + 2, alignItems: 'center' },
   joinBtnDefault:   { backgroundColor: Colors.brand[600] },
   joinBtnJoined:    { backgroundColor: '#f0fdf4', borderWidth: 1.5, borderColor: '#86efac' },
   joinBtnInner:     { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -352,14 +352,14 @@ const styles = StyleSheet.create({
   joinBtnTextJoined:{ color: '#15803d' },
 
   // Sections
-  section:       { paddingHorizontal: Spacing[4], marginBottom: Spacing[5] },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing[3] },
-  sectionTitle:  { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.gray[900], marginBottom: Spacing[3] },
+  section:       { paddingHorizontal: Spacing.lg, marginBottom: Spacing.xl },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.md },
+  sectionTitle:  { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.gray[900], marginBottom: Spacing.md },
   sectionLink:   { fontSize: FontSize.sm, color: Colors.brand[600], fontWeight: FontWeight.medium },
 
   // Members
-  membersList:   { backgroundColor: '#fff', borderRadius: Radius.xl, overflow: 'hidden', borderWidth: 1, borderColor: Colors.gray[200], ...Shadow.sm },
-  memberRow:     { flexDirection: 'row', alignItems: 'center', gap: Spacing[3], padding: Spacing[3] },
+  membersList:   { backgroundColor: '#fff', borderRadius: Radius.xl, overflow: 'hidden', borderWidth: 1, borderColor: Colors.gray[200], ...Shadow.card },
+  memberRow:     { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md },
   memberRowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.gray[100] },
   avatar:        { width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.brand[100], alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   avatarImg:     { width: '100%', height: '100%' },
@@ -369,8 +369,8 @@ const styles = StyleSheet.create({
   memberMeta:    { fontSize: FontSize.xs, color: Colors.gray[400], marginTop: 2 },
 
   // Activity
-  activityList:      { backgroundColor: '#fff', borderRadius: Radius.xl, overflow: 'hidden', borderWidth: 1, borderColor: Colors.gray[200], ...Shadow.sm },
-  activityItem:      { flexDirection: 'row', alignItems: 'center', gap: Spacing[3], padding: Spacing[3] },
+  activityList:      { backgroundColor: '#fff', borderRadius: Radius.xl, overflow: 'hidden', borderWidth: 1, borderColor: Colors.gray[200], ...Shadow.card },
+  activityItem:      { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md },
   activityItemBorder:{ borderBottomWidth: 1, borderBottomColor: Colors.gray[100] },
   activityDot:       { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
   activityBody:      { flex: 1 },
@@ -379,16 +379,16 @@ const styles = StyleSheet.create({
   activityDate:      { fontSize: 11, color: Colors.gray[400] },
 
   // Events
-  eventCard:         { backgroundColor: '#fff', borderRadius: Radius.xl, padding: Spacing[3], marginBottom: Spacing[2], flexDirection: 'row', alignItems: 'center', gap: Spacing[3], borderWidth: 1, borderColor: Colors.gray[200], ...Shadow.sm },
+  eventCard:         { backgroundColor: '#fff', borderRadius: Radius.xl, padding: Spacing.md, marginBottom: Spacing.sm, flexDirection: 'row', alignItems: 'center', gap: Spacing.md, borderWidth: 1, borderColor: Colors.gray[200], ...Shadow.card },
   eventThumb:        { width: 68, height: 56, borderRadius: Radius.lg, resizeMode: 'cover' },
   eventThumbEmpty:   { backgroundColor: Colors.brand[50], alignItems: 'center', justifyContent: 'center' },
   eventDetails:      { flex: 1 },
   eventTitle:        { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[900] },
   eventMeta:         { fontSize: FontSize.xs, color: Colors.gray[500], marginTop: 3 },
-  priceBadge:        { backgroundColor: Colors.brand[50], borderRadius: Radius.full, paddingHorizontal: Spacing[2], paddingVertical: 5 },
+  priceBadge:        { backgroundColor: Colors.brand[50], borderRadius: Radius.full, paddingHorizontal: Spacing.sm, paddingVertical: 5 },
   priceBadgeFree:    { backgroundColor: '#f0fdf4' },
   priceText:         { fontSize: 11, fontWeight: FontWeight.bold, color: Colors.brand[700] },
   priceTextFree:     { color: '#15803d' },
-  loadMoreBtn:       { alignItems: 'center', paddingVertical: Spacing[4] },
+  loadMoreBtn:       { alignItems: 'center', paddingVertical: Spacing.lg },
   loadMoreText:      { fontSize: FontSize.sm, color: Colors.brand[600], fontWeight: FontWeight.medium },
 })

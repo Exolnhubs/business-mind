@@ -83,7 +83,7 @@ export default function CommunitiesScreen() {
   useFocusEffect(useCallback(() => { load(1, search, levelFilter, joinedOnly, false) }, [load, search, levelFilter, joinedOnly]))
 
   async function handleJoinLeave(community: CommunityWithMembership) {
-    if (!user) { router.push('/auth/login'); return }
+    if (!user) { router.push('/auth/login' as any); return }
     setJoining(community.id)
     const { data, error } = community.is_member
       ? await apiDelete<MembershipMutationResponse>(`/api/communities/${community.slug}/leave`)
@@ -212,6 +212,7 @@ export default function CommunitiesScreen() {
         horizontal
         data={LEVEL_FILTER_OPTIONS}
         keyExtractor={(f) => f.key}
+        style={styles.filterList}
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.filterRow}
         renderItem={({ item: f }) => (
@@ -264,9 +265,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: Spacing[4],
-    paddingTop: Spacing[6],
-    paddingBottom: Spacing[4],
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing['2xl'],
+    paddingBottom: Spacing.lg,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: Colors.gray[100],
@@ -274,34 +275,35 @@ const styles = StyleSheet.create({
   headerEyebrow: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.brand[500], letterSpacing: 0.8, textTransform: 'uppercase' },
   headerTitle:   { fontSize: FontSize['2xl'], fontWeight: FontWeight.bold, color: Colors.gray[900], marginTop: 2 },
 
-  myBtn:         { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: Spacing[3], paddingVertical: Spacing[2], borderRadius: Radius.full, backgroundColor: Colors.brand[50], borderWidth: 1, borderColor: Colors.brand[200] },
+  myBtn:         { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: Radius.full, backgroundColor: Colors.brand[50], borderWidth: 1, borderColor: Colors.brand[200] },
   myBtnActive:   { backgroundColor: Colors.brand[600], borderColor: Colors.brand[600] },
   myBtnText:     { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.brand[600] },
   myBtnTextActive: { color: '#fff' },
 
-  searchWrap:  { flexDirection: 'row', alignItems: 'center', gap: Spacing[2], backgroundColor: '#fff', marginHorizontal: Spacing[4], marginTop: Spacing[3], marginBottom: Spacing[1], borderRadius: Radius.xl, paddingHorizontal: Spacing[3], paddingVertical: Spacing[2] + 2, borderWidth: 1, borderColor: Colors.gray[200], ...Shadow.sm },
+  searchWrap:  { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: '#fff', marginHorizontal: Spacing.lg, marginTop: Spacing.md, marginBottom: Spacing.xs, borderRadius: Radius.xl, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2, borderWidth: 1, borderColor: Colors.gray[200], ...Shadow.card },
   searchInput: { flex: 1, fontSize: FontSize.sm, color: Colors.gray[900] },
 
-  filterRow: { paddingHorizontal: Spacing[4], paddingVertical: Spacing[3], gap: Spacing[2] },
-  filterChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: Spacing[3], paddingVertical: Spacing[2], borderRadius: Radius.full, backgroundColor: '#fff', borderWidth: 1, borderColor: Colors.gray[200] },
+  filterList: { minHeight: 56 },
+  filterRow: { paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, gap: Spacing.sm, alignItems: 'center' },
+  filterChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: Radius.full, backgroundColor: '#fff', borderWidth: 1, borderColor: Colors.gray[200] },
   filterChipActive: { backgroundColor: Colors.brand[600], borderColor: Colors.brand[600] },
   filterChipText:   { fontSize: FontSize.xs, fontWeight: FontWeight.medium, color: Colors.gray[700] },
   filterChipTextActive: { color: '#fff' },
 
-  list: { paddingHorizontal: Spacing[4], paddingBottom: Spacing[8], gap: Spacing[3] },
+  list: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing['3xl'], gap: Spacing.md },
 
   card: {
     flexDirection: 'row',
     backgroundColor: '#fff',
-    borderRadius: Radius['2xl'],
+    borderRadius: Radius['sm'],
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: Colors.gray[150] ?? Colors.gray[200],
-    ...Shadow.sm,
+    borderColor: Colors.gray[100] ?? Colors.gray[200],
+    ...Shadow.card,
   },
   cardAccent: { width: 4 },
-  cardBody:   { flex: 1, padding: Spacing[4] },
-  cardTop:    { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing[3] },
+  cardBody:   { flex: 1, padding: Spacing.lg },
+  cardTop:    { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.md },
 
   iconWrap:  { width: 46, height: 46, borderRadius: Radius.xl, alignItems: 'center', justifyContent: 'center' },
   cardCenter:{ flex: 1 },
@@ -309,10 +311,10 @@ const styles = StyleSheet.create({
   cardName:  { fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.gray[900], flex: 1 },
 
   tagRow:      { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginTop: 6 },
-  levelTag:    { paddingHorizontal: Spacing[2], paddingVertical: 3, borderRadius: Radius.full },
+  levelTag:    { paddingHorizontal: Spacing.sm, paddingVertical: 3, borderRadius: Radius.full },
   levelTagText:{ fontSize: 11, fontWeight: FontWeight.semibold },
   cityText:    { fontSize: 11, color: Colors.gray[500] },
-  joinedTag:   { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: Spacing[2], paddingVertical: 3, borderRadius: Radius.full, backgroundColor: '#dcfce7' },
+  joinedTag:   { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: Spacing.sm, paddingVertical: 3, borderRadius: Radius.full, backgroundColor: '#dcfce7' },
   joinedTagText: { fontSize: 11, fontWeight: FontWeight.semibold, color: '#15803d' },
 
   joinBtn:         { paddingHorizontal: 14, paddingVertical: 8, borderRadius: Radius.lg, alignItems: 'center', justifyContent: 'center', minWidth: 68 },
@@ -321,10 +323,10 @@ const styles = StyleSheet.create({
   joinBtnText:     { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: '#fff' },
   joinBtnTextJoined: { color: '#15803d' },
 
-  desc:       { fontSize: FontSize.xs, color: Colors.gray[500], lineHeight: 18, marginTop: Spacing[3] },
+  desc:       { fontSize: FontSize.xs, color: Colors.gray[500], lineHeight: 18, marginTop: Spacing.md },
 
-  cardFooter: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: Spacing[3] },
+  cardFooter: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: Spacing.md },
   footerText: { fontSize: 11, color: Colors.gray[400] },
 
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: Spacing[10] },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: Spacing['4xl'] },
 })
