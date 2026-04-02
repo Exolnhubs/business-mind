@@ -31,7 +31,7 @@ export async function GET() {
     const existing = existingRaw as { id: string; code: string; clicks: number } | null
 
     if (existing) {
-      return ok(await buildResponse(supabase, existing, ctx.userId))
+      return ok(await buildResponse(admin, existing, ctx.userId))
     }
 
     // Lazy-create using admin client (bypasses RLS insert restriction)
@@ -51,7 +51,7 @@ export async function GET() {
 
     if (error) throw error
     const created = createdRaw as { id: string; code: string; clicks: number }
-    return ok(await buildResponse(supabase, created, ctx.userId))
+    return ok(await buildResponse(admin, created, ctx.userId))
   } catch (err) {
     return handleApiError(err)
   }
