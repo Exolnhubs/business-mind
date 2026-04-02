@@ -140,6 +140,17 @@ export default function CommunityDetailPage() {
                 <span>👥 {community.member_count.toLocaleString()} members</span>
                 <span>📅 {community.event_count} events</span>
               </div>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <span
+                  className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                    community.is_member
+                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                      : 'border-gray-200 bg-gray-50 text-gray-600'
+                  }`}
+                >
+                  {community.is_member ? 'You joined this community' : 'Not joined yet'}
+                </span>
+              </div>
             </div>
 
             <button
@@ -147,11 +158,11 @@ export default function CommunityDetailPage() {
               disabled={joining}
               className={`shrink-0 px-5 py-2.5 rounded-xl font-semibold transition-colors ${
                 community.is_member
-                  ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  ? 'border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
                   : 'bg-brand-600 text-white hover:bg-brand-700'
               }`}
             >
-              {joining ? <Spinner size="sm" /> : community.is_member ? 'Leave community' : 'Join community'}
+              {joining ? <Spinner size="sm" /> : community.is_member ? 'Joined · Leave community' : 'Join community'}
             </button>
           </div>
 

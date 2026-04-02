@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/auth-context'
 import { Spinner } from '@/components/ui/Spinner'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -41,8 +41,10 @@ function CommunityCard({ community, onToggleMembership }: {
   onToggleMembership: (slug: string, joined: boolean, memberCount?: number) => void
 }) {
   const [loading, setLoading] = useState(false)
+  const router = useRouter()
 
-  async function handleJoinLeave() {
+  async function handleJoinLeave(e: React.MouseEvent<HTMLButtonElement>) {
+    e.stopPropagation()
     setLoading(true)
     const method = community.is_member ? 'DELETE' : 'POST'
     const endpoint = community.is_member
@@ -61,43 +63,50 @@ function CommunityCard({ community, onToggleMembership }: {
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow overflow-hidden">
+    <article
+      className="group cursor-pointer overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-md"
+      onClick={() => router.push(`/communities/${community.slug}`)}
+    >
       {community.cover_url ? (
-        <img src={community.cover_url} alt="" className="w-full h-28 object-cover" />
+        <img src={community.cover_url} alt="" className="h-32 w-full object-cover" />
       ) : (
-        <div className={`w-full h-28 flex items-center justify-center text-4xl ${LEVEL_COLORS[community.level].split(' ')[0]}`}>
+        <div className={`flex h-32 w-full items-center justify-center text-4xl ${LEVEL_COLORS[community.level].split(' ')[0]}`}>
           {LEVEL_ICONS[community.level]}
         </div>
       )}
-      <div className="p-4">
-        <div className="flex items-start justify-between gap-2 mb-2">
+      <div className="p-5">
+        <div className="mb-3 flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <Link
-              href={`/communities/${community.slug}`}
-              className="font-semibold text-gray-900 hover:text-brand-600 transition-colors line-clamp-1"
-            >
+            <h2 className="line-clamp-1 font-semibold text-gray-900 transition-colors group-hover:text-brand-600">
               {community.name}
-            </Link>
+            </h2>
             {community.name_ar && (
-              <p className="text-xs text-gray-400 mt-0.5" dir="rtl">{community.name_ar}</p>
+              <p className="mt-0.5 text-xs text-gray-400" dir="rtl">{community.name_ar}</p>
             )}
           </div>
           {community.is_verified && (
-            <span className="shrink-0 text-sm">✓</span>
+            <span className="shrink-0 rounded-full bg-brand-50 px-2 py-1 text-[11px] font-semibold text-brand-700">
+              Verified
+            </span>
           )}
         </div>
 
-        <div className="flex items-center gap-1.5 flex-wrap mb-3">
-          <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${LEVEL_COLORS[community.level]}`}>
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${LEVEL_COLORS[community.level]}`}>
             {LEVEL_ICONS[community.level]} {LEVEL_LABELS[community.level]}
           </span>
+          {community.is_member && (
+            <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+              Joined
+            </span>
+          )}
           {community.city && (
             <span className="text-xs text-gray-500">{community.city}</span>
           )}
         </div>
 
         {community.description && (
-          <p className="text-xs text-gray-500 mb-3 line-clamp-2">{community.description}</p>
+          <p className="mb-4 line-clamp-2 text-xs leading-5 text-gray-500">{community.description}</p>
         )}
 
         <div className="flex items-center justify-between">
@@ -107,17 +116,17 @@ function CommunityCard({ community, onToggleMembership }: {
           <button
             onClick={handleJoinLeave}
             disabled={loading}
-            className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
+            className={`rounded-xl px-3.5 py-2 text-xs font-semibold transition-colors ${
               community.is_member
-                ? 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                ? 'border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
                 : 'bg-brand-600 text-white hover:bg-brand-700'
             }`}
           >
-            {loading ? '...' : community.is_member ? 'Joined ✓' : 'Join'}
+            {loading ? '...' : community.is_member ? 'Joined' : 'Join'}
           </button>
         </div>
       </div>
-    </div>
+    </article>
   )
 }
 
@@ -127,15 +136,17 @@ export default function CommunitiesPage() {
   const [loading, setLoading]         = useState(true)
   const [level, setLevel]             = useState<CommunityLevel | 'all'>('all')
   const [search, setSearch]           = useState('')
+  const [joinedOnly, setJoinedOnly]   = useState(false)
   const [page, setPage]               = useState(1)
   const [hasMore, setHasMore]         = useState(false)
   const PER_PAGE = 18
 
-  const fetchCommunities = useCallback(async (p: number, lvl: CommunityLevel | 'all', q: string) => {
+  const fetchCommunities = useCallback(async (p: number, lvl: CommunityLevel | 'all', q: string, memberOnly = false) => {
     setLoading(true)
     const sp = new URLSearchParams({ page: String(p), per_page: String(PER_PAGE) })
     if (lvl !== 'all') sp.set('level', lvl)
     if (q.trim()) sp.set('q', q.trim())
+    if (memberOnly) sp.set('member_only', 'true')
 
     const res = await fetch(`/api/communities?${sp}`)
     if (res.ok) {
@@ -152,9 +163,9 @@ export default function CommunitiesPage() {
   }, [])
 
   useEffect(() => {
-    const t = setTimeout(() => fetchCommunities(1, level, search), search ? 300 : 0)
+    const t = setTimeout(() => fetchCommunities(1, level, search, joinedOnly), search ? 300 : 0)
     return () => clearTimeout(t)
-  }, [level, search, fetchCommunities])
+  }, [level, search, joinedOnly, fetchCommunities])
 
   function handleToggleMembership(slug: string, joined: boolean, memberCount?: number) {
     setCommunities((prev) =>
@@ -166,20 +177,39 @@ export default function CommunitiesPage() {
               member_count: memberCount ?? (joined ? c.member_count + 1 : Math.max(c.member_count - 1, 0)),
             }
           : c
-      )
+      ).filter((c) => !joinedOnly || c.is_member)
     )
   }
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Communities</h1>
-        <p className="text-gray-500 mt-1">Find your people. Join communities around you.</p>
+      <div className="mb-8 rounded-3xl border border-brand-100 bg-gradient-to-br from-brand-50 via-white to-amber-50 px-6 py-8">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-600">Rawaq Communities</p>
+            <h1 className="mt-2 text-3xl font-bold text-gray-900">Find your people</h1>
+            <p className="mt-2 max-w-2xl text-sm text-gray-600">Explore local circles, interest groups, and city communities where events turn into real relationships.</p>
+          </div>
+          {user && (
+            <button
+              onClick={() => setJoinedOnly((prev) => !prev)}
+              className={`inline-flex items-center gap-2 self-start rounded-full border px-4 py-2 text-sm font-semibold transition-colors ${
+                joinedOnly
+                  ? 'border-brand-600 bg-brand-600 text-white'
+                  : 'border-brand-200 bg-white text-brand-700 hover:border-brand-300'
+              }`}
+            >
+              <span>{joinedOnly ? '✓' : '◎'}</span>
+              My Communities
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3 mb-6">
+      <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-col gap-3 sm:flex-row">
         <input
           type="search"
           value={search}
@@ -187,7 +217,7 @@ export default function CommunitiesPage() {
           placeholder="Search communities..."
           className="input flex-1"
         />
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex min-h-[44px] flex-wrap gap-2">
           <button
             onClick={() => setLevel('all')}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
@@ -209,12 +239,21 @@ export default function CommunitiesPage() {
           ))}
         </div>
       </div>
+      </div>
 
       {/* Grid */}
       {loading && communities.length === 0 ? (
         <div className="flex justify-center py-20"><Spinner size="lg" /></div>
       ) : communities.length === 0 ? (
-        <EmptyState icon="🏘️" title="No communities found" description="Try a different search or filter" />
+        <EmptyState
+          icon="Groups"
+          title={joinedOnly ? 'No joined communities yet' : 'No communities found'}
+          description={
+            joinedOnly
+              ? 'Communities you join will appear here so you can filter by them quickly.'
+              : 'Try a different search or filter.'
+          }
+        />
       ) : (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -230,7 +269,7 @@ export default function CommunitiesPage() {
           {hasMore && (
             <div className="text-center pt-8">
               <button
-                onClick={() => fetchCommunities(page + 1, level, search)}
+                onClick={() => fetchCommunities(page + 1, level, search, joinedOnly)}
                 disabled={loading}
                 className="btn-secondary"
               >
