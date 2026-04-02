@@ -16,43 +16,27 @@ import type { Community, CommunityLevel } from '@/types/database'
 type CommunityWithMembership = Community & { is_member: boolean }
 type MembershipMutationResponse = { is_member?: boolean; member_count?: number }
 
-const LEVEL_META: Record<CommunityLevel, { label: string; icon: keyof typeof Ionicons.glyphMap; tint: string; bg: string }> = {
-  micro:    { label: 'Micro', icon: 'home-outline', tint: '#166534', bg: '#dcfce7' },
-  interest: { label: 'Interest', icon: 'sparkles-outline', tint: '#7c3aed', bg: '#f3e8ff' },
-  district: { label: 'District', icon: 'business-outline', tint: '#b45309', bg: '#fef3c7' },
-  city:     { label: 'City', icon: 'location-outline', tint: '#1d4ed8', bg: '#dbeafe' },
-  country:  { label: 'Country', icon: 'earth-outline', tint: '#be123c', bg: '#ffe4e6' },
+const LEVEL_META: Record<CommunityLevel, { label: string; icon: keyof typeof Ionicons.glyphMap; tint: string; bg: string; accent: string }> = {
+  micro:    { label: 'Micro',    icon: 'home-outline',     tint: '#166534', bg: '#dcfce7', accent: '#16a34a' },
+  interest: { label: 'Interest', icon: 'sparkles-outline', tint: '#6d28d9', bg: '#ede9fe', accent: '#7c3aed' },
+  district: { label: 'District', icon: 'business-outline', tint: '#92400e', bg: '#fef3c7', accent: '#d97706' },
+  city:     { label: 'City',     icon: 'location-outline', tint: '#1e40af', bg: '#dbeafe', accent: '#2563eb' },
+  country:  { label: 'Country',  icon: 'earth-outline',    tint: '#9f1239', bg: '#ffe4e6', accent: '#e11d48' },
 }
 
 const LEVEL_FILTER_OPTIONS: { key: CommunityLevel | 'all'; label: string }[] = [
-  { key: 'all', label: 'All' },
-  { key: 'micro', label: 'Micro' },
+  { key: 'all',      label: 'All' },
+  { key: 'micro',    label: 'Micro' },
   { key: 'interest', label: 'Interest' },
   { key: 'district', label: 'District' },
-  { key: 'city', label: 'City' },
-]
-
-const LEVEL_ICONS: Record<CommunityLevel, string> = {
-  micro:    '🏘️',
-  interest: '🎯',
-  district: '🏙️',
-  city:     '🌆',
-  country:  '🌍',
-}
-
-const LEVEL_FILTERS: { key: CommunityLevel | 'all'; label: string }[] = [
-  { key: 'all',      label: 'All' },
-  { key: 'micro',    label: '🏘️ Micro' },
-  { key: 'interest', label: '🎯 Interest' },
-  { key: 'district', label: '🏙️ District' },
-  { key: 'city',     label: '🌆 City' },
+  { key: 'city',     label: 'City' },
 ]
 
 export default function CommunitiesScreen() {
-  const { user }       = useAuth()
-  const { locale }     = useLocale()
-  const router         = useRouter()
-  const isRTL          = locale === 'ar'
+  const { user }   = useAuth()
+  const { locale } = useLocale()
+  const router     = useRouter()
+  const isRTL      = locale === 'ar'
 
   const [communities, setCommunities] = useState<CommunityWithMembership[]>([])
   const [loading, setLoading]         = useState(true)
@@ -68,26 +52,17 @@ export default function CommunitiesScreen() {
   const load = useCallback(async (p: number, q: string, lvl: CommunityLevel | 'all', memberOnly = false, append = false) => {
     if (isLoadingPageRef.current) return
     isLoadingPageRef.current = true
-
     const params = new URLSearchParams({ page: String(p), per_page: '20' })
     if (q.trim()) params.set('q', q.trim())
     if (lvl !== 'all') params.set('level', lvl)
     if (memberOnly) params.set('member_only', 'true')
-
     try {
-      const { data } = await apiGet<{ data: CommunityWithMembership[]; has_more: boolean }>(
-        `/api/communities?${params}`
-      )
-
+      const { data } = await apiGet<{ data: CommunityWithMembership[]; has_more: boolean }>(`/api/communities?${params}`)
       if (data) {
         setCommunities((prev) => {
           const next = append ? [...prev, ...data.data] : data.data
           const seen = new Set<string>()
-          return next.filter((community) => {
-            if (seen.has(community.id)) return false
-            seen.add(community.id)
-            return true
-          })
+          return next.filter((c) => { if (seen.has(c.id)) return false; seen.add(c.id); return true })
         })
         setHasMore(data.has_more)
         setPage(p)
@@ -105,11 +80,7 @@ export default function CommunitiesScreen() {
     return () => clearTimeout(t)
   }, [search, levelFilter, joinedOnly, load])
 
-  useFocusEffect(
-    useCallback(() => {
-      load(1, search, levelFilter, joinedOnly, false)
-    }, [load, search, levelFilter, joinedOnly]),
-  )
+  useFocusEffect(useCallback(() => { load(1, search, levelFilter, joinedOnly, false) }, [load, search, levelFilter, joinedOnly]))
 
   async function handleJoinLeave(community: CommunityWithMembership) {
     if (!user) { router.push('/auth/login'); return }
@@ -117,297 +88,243 @@ export default function CommunitiesScreen() {
     const { data, error } = community.is_member
       ? await apiDelete<MembershipMutationResponse>(`/api/communities/${community.slug}/leave`)
       : await apiPost<MembershipMutationResponse>(`/api/communities/${community.slug}/join`, {})
-
     if (!error) {
       setCommunities((prev) =>
-        prev
-        .map((c) =>
-          c.id === community.id
-            ? {
-                ...c,
-                is_member: data?.is_member ?? !c.is_member,
-                member_count: data?.member_count ?? (!c.is_member ? c.member_count + 1 : Math.max(c.member_count - 1, 0)),
-              }
-            : c
-        )
-        .filter((c) => !joinedOnly || c.is_member)
+        prev.map((c) => c.id === community.id
+          ? { ...c, is_member: data?.is_member ?? !c.is_member, member_count: data?.member_count ?? (!c.is_member ? c.member_count + 1 : Math.max(c.member_count - 1, 0)) }
+          : c
+        ).filter((c) => !joinedOnly || c.is_member)
       )
     }
     setJoining(null)
   }
 
   function renderItem({ item }: { item: CommunityWithMembership }) {
-    const name = isRTL && item.name_ar ? item.name_ar : item.name
+    const name        = isRTL && item.name_ar ? item.name_ar : item.name
     const description = isRTL && item.description_ar ? item.description_ar : item.description
-    const isJoining = joining === item.id
-    const levelMeta = LEVEL_META[item.level]
+    const isJoining   = joining === item.id
+    const meta        = LEVEL_META[item.level]
 
     return (
       <TouchableOpacity
         style={styles.card}
         onPress={() => router.push(`/communities/${item.slug}` as any)}
-        activeOpacity={0.85}
+        activeOpacity={0.88}
       >
-        <View style={styles.cardTop}>
-          <View style={[styles.iconCircle, { backgroundColor: levelMeta.bg }]}>
-            <Ionicons name={levelMeta.icon} size={20} color={levelMeta.tint} />
-          </View>
-          <View style={styles.cardInfo}>
-            <View style={styles.cardNameRow}>
-              <Text style={styles.cardName} numberOfLines={1}>{name}</Text>
-              {item.is_verified && (
-                <Ionicons name="checkmark-circle" size={14} color={Colors.brand[500]} />
-              )}
+        {/* Left accent bar */}
+        <View style={[styles.cardAccent, { backgroundColor: meta.accent }]} />
+
+        <View style={styles.cardBody}>
+          {/* Top row */}
+          <View style={styles.cardTop}>
+            <View style={[styles.iconWrap, { backgroundColor: meta.bg }]}>
+              <Ionicons name={meta.icon} size={22} color={meta.tint} />
             </View>
-            <View style={styles.pillRow}>
-              <View style={[styles.levelPill, { backgroundColor: levelMeta.bg }]}>
-                <Text style={[styles.levelPillText, { color: levelMeta.tint }]}>{levelMeta.label}</Text>
+
+            <View style={styles.cardCenter}>
+              <View style={styles.nameRow}>
+                <Text style={styles.cardName} numberOfLines={1}>{name}</Text>
+                {item.is_verified && <Ionicons name="checkmark-circle" size={15} color={Colors.brand[500]} />}
               </View>
-              {item.is_member && (
-                <View style={styles.memberBadge}>
-                  <Ionicons name="checkmark-circle" size={12} color={Colors.green.text} />
-                  <Text style={styles.memberBadgeText}>Joined</Text>
+              <View style={styles.tagRow}>
+                <View style={[styles.levelTag, { backgroundColor: meta.bg }]}>
+                  <Text style={[styles.levelTagText, { color: meta.tint }]}>{meta.label}</Text>
                 </View>
-              )}
-            </View>
-            <Text style={styles.cardMeta}>
-              {item.city ? `📍 ${item.city} · ` : ''}{item.member_count.toLocaleString()} members
-            </Text>
-          </View>
-          <TouchableOpacity
-            onPress={() => handleJoinLeave(item)}
-            disabled={!!isJoining}
-            style={[styles.joinBtn, item.is_member ? styles.joinBtnJoined : styles.joinBtnNotJoined]}
-          >
-            {isJoining ? (
-              <ActivityIndicator size="small" color={item.is_member ? Colors.green.text : '#fff'} />
-            ) : (
-              <View style={styles.joinBtnContent}>
-                <Ionicons
-                  name={item.is_member ? 'checkmark-circle' : 'add-circle-outline'}
-                  size={14}
-                  color={item.is_member ? Colors.green.text : '#fff'}
-                />
-                <Text style={[styles.joinBtnText, item.is_member && styles.joinBtnTextJoined]}>
-                  {item.is_member ? 'Joined' : 'Join'}
-                </Text>
+                {item.city ? <Text style={styles.cityText}>{item.city}</Text> : null}
+                {item.is_member && (
+                  <View style={styles.joinedTag}>
+                    <Ionicons name="checkmark-circle" size={11} color="#15803d" />
+                    <Text style={styles.joinedTagText}>Joined</Text>
+                  </View>
+                )}
               </View>
-            )}
-          </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              onPress={() => handleJoinLeave(item)}
+              disabled={!!isJoining}
+              style={[styles.joinBtn, item.is_member ? styles.joinBtnJoined : styles.joinBtnDefault]}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              {isJoining
+                ? <ActivityIndicator size="small" color={item.is_member ? '#15803d' : '#fff'} />
+                : <Text style={[styles.joinBtnText, item.is_member && styles.joinBtnTextJoined]}>
+                    {item.is_member ? 'Joined' : 'Join'}
+                  </Text>
+              }
+            </TouchableOpacity>
+          </View>
+
+          {/* Description */}
+          {description
+            ? <Text style={styles.desc} numberOfLines={2}>{description}</Text>
+            : null
+          }
+
+          {/* Footer */}
+          <View style={styles.cardFooter}>
+            <Ionicons name="people-outline" size={13} color={Colors.gray[400]} />
+            <Text style={styles.footerText}>{item.member_count.toLocaleString()} members</Text>
+          </View>
         </View>
-        {description ? (
-          <Text style={styles.cardDesc} numberOfLines={2}>
-            {description}
-          </Text>
-        ) : null}
       </TouchableOpacity>
     )
   }
 
   return (
     <View style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerEyebrow}>Community Explorer</Text>
-        <Text style={styles.headerTitle}>Find your people</Text>
-        <Text style={styles.headerSub}>Browse local groups, interest circles, and city communities that fit your real-world life.</Text>
+        <View>
+          <Text style={styles.headerEyebrow}>Rawaq Communities</Text>
+          <Text style={styles.headerTitle}>Find your people</Text>
+        </View>
+        {user && (
+          <TouchableOpacity
+            onPress={() => setJoinedOnly((v) => !v)}
+            style={[styles.myBtn, joinedOnly && styles.myBtnActive]}
+          >
+            <Ionicons name={joinedOnly ? 'people' : 'people-outline'} size={16} color={joinedOnly ? '#fff' : Colors.brand[600]} />
+            <Text style={[styles.myBtnText, joinedOnly && styles.myBtnTextActive]}>Mine</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
-      <View style={styles.filtersCard}>
-        <View style={styles.searchRow}>
-          <Ionicons name="search" size={16} color={Colors.gray[400]} style={styles.searchIcon} />
-          <TextInput
-            value={search}
-            onChangeText={setSearch}
-            placeholder="Search communities..."
-            placeholderTextColor={Colors.gray[400]}
-            style={styles.searchInput}
-          />
-        </View>
-
-        <View style={styles.filterHeaderRow}>
-          <Text style={styles.filterTitle}>Filter by type</Text>
-          {user ? (
-            <TouchableOpacity
-              onPress={() => setJoinedOnly((prev) => !prev)}
-              style={[styles.memberFilterChip, joinedOnly && styles.memberFilterChipActive]}
-            >
-              <Ionicons
-                name={joinedOnly ? 'people' : 'people-outline'}
-                size={14}
-                color={joinedOnly ? Colors.white : Colors.brand[600]}
-              />
-              <Text style={[styles.memberFilterText, joinedOnly && styles.memberFilterTextActive]}>
-                My Communities
-              </Text>
-            </TouchableOpacity>
-          ) : null}
-        </View>
-
-        <FlatList
-          horizontal
-          data={LEVEL_FILTER_OPTIONS}
-          keyExtractor={(f) => f.key}
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filterRow}
-          renderItem={({ item: f }) => (
-            <TouchableOpacity
-              onPress={() => setLevelFilter(f.key)}
-              style={[styles.filterChip, levelFilter === f.key && styles.filterChipActive]}
-            >
-              <Text style={[styles.filterChipText, levelFilter === f.key && styles.filterChipTextActive]}>
-                {f.label}
-              </Text>
-            </TouchableOpacity>
-          )}
+      {/* Search */}
+      <View style={styles.searchWrap}>
+        <Ionicons name="search-outline" size={16} color={Colors.gray[400]} />
+        <TextInput
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Search communities..."
+          placeholderTextColor={Colors.gray[400]}
+          style={styles.searchInput}
         />
+        {search.length > 0 && (
+          <TouchableOpacity onPress={() => setSearch('')}>
+            <Ionicons name="close-circle" size={16} color={Colors.gray[400]} />
+          </TouchableOpacity>
+        )}
       </View>
+
+      {/* Level filter chips */}
+      <FlatList
+        horizontal
+        data={LEVEL_FILTER_OPTIONS}
+        keyExtractor={(f) => f.key}
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.filterRow}
+        renderItem={({ item: f }) => (
+          <TouchableOpacity
+            onPress={() => setLevelFilter(f.key)}
+            style={[styles.filterChip, levelFilter === f.key && styles.filterChipActive]}
+          >
+            {f.key !== 'all' && (
+              <Ionicons
+                name={LEVEL_META[f.key as CommunityLevel].icon}
+                size={13}
+                color={levelFilter === f.key ? '#fff' : Colors.gray[600]}
+              />
+            )}
+            <Text style={[styles.filterChipText, levelFilter === f.key && styles.filterChipTextActive]}>
+              {f.label}
+            </Text>
+          </TouchableOpacity>
+        )}
+      />
 
       {/* List */}
-      {loading ? (
-        <View style={styles.center}><Spinner /></View>
-      ) : communities.length === 0 ? (
-        <EmptyState icon="🏘️" title="No communities found" description="Try a different search" />
-      ) : (
-        <FlatList
-          data={communities}
-          keyExtractor={(c) => c.id}
-          renderItem={renderItem}
-          contentContainerStyle={styles.list}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(1, search, levelFilter, joinedOnly, false) }} />
-          }
-          onEndReached={() => {
-            if (hasMore && !loading && !isLoadingPageRef.current) {
-              load(page + 1, search, levelFilter, joinedOnly, true)
-            }
-          }}
-          onEndReachedThreshold={0.4}
-          ListFooterComponent={hasMore ? <View style={styles.center}><Spinner /></View> : null}
-        />
-      )}
+      {loading
+        ? <View style={styles.center}><Spinner /></View>
+        : communities.length === 0
+          ? <EmptyState icon="🏘️" title="No communities found" description="Try a different search or filter" />
+          : (
+            <FlatList
+              data={communities}
+              keyExtractor={(c) => c.id}
+              renderItem={renderItem}
+              contentContainerStyle={styles.list}
+              refreshControl={
+                <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(1, search, levelFilter, joinedOnly, false) }} />
+              }
+              onEndReached={() => { if (hasMore && !loading && !isLoadingPageRef.current) load(page + 1, search, levelFilter, joinedOnly, true) }}
+              onEndReachedThreshold={0.4}
+              ListFooterComponent={hasMore ? <View style={styles.center}><Spinner /></View> : null}
+            />
+          )
+      }
     </View>
   )
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f7f8fc' },
+  container: { flex: 1, backgroundColor: '#f4f5f9' },
+
   header: {
-    paddingHorizontal: Spacing[4],
-    paddingTop: Spacing[6],
-    paddingBottom: Spacing[3],
-    backgroundColor: '#eef3ff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#dbe7ff',
-  },
-  headerEyebrow: {
-    fontSize: FontSize.xs,
-    fontWeight: FontWeight.semibold,
-    color: Colors.brand[600],
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-  },
-  headerTitle: { fontSize: FontSize['2xl'], fontWeight: FontWeight.bold, color: Colors.gray[900], marginTop: 6 },
-  headerSub: { fontSize: FontSize.sm, color: Colors.gray[600], marginTop: 6, lineHeight: 20 },
-  filtersCard: {
-    marginHorizontal: Spacing[4],
-    marginTop: Spacing[4],
-    marginBottom: Spacing[3],
-    backgroundColor: Colors.white,
-    borderRadius: Radius['2xl'],
-    padding: Spacing[4],
-    borderWidth: 1,
-    borderColor: Colors.gray[200],
-    ...Shadow.sm,
-  },
-  searchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.gray[50],
-    borderRadius: Radius.xl,
-    paddingHorizontal: Spacing[3],
-    borderWidth: 1,
-    borderColor: Colors.gray[200],
-  },
-  searchIcon: { marginRight: Spacing[2] },
-  searchInput: { flex: 1, paddingVertical: Spacing[3], fontSize: FontSize.sm, color: Colors.gray[900] },
-  filterHeaderRow: {
-    marginTop: Spacing[4],
-    marginBottom: Spacing[2],
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: Spacing[2],
+    paddingHorizontal: Spacing[4],
+    paddingTop: Spacing[6],
+    paddingBottom: Spacing[4],
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.gray[100],
   },
-  filterTitle: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[800] },
-  memberFilterChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: Spacing[3],
-    paddingVertical: Spacing[2],
-    borderRadius: Radius.full,
-    backgroundColor: Colors.brand[50],
-    borderWidth: 1,
-    borderColor: Colors.brand[100],
-  },
-  memberFilterChipActive: { backgroundColor: Colors.brand[600], borderColor: Colors.brand[600] },
-  memberFilterText: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.brand[600] },
-  memberFilterTextActive: { color: Colors.white },
-  filterRow: { paddingTop: Spacing[1], gap: Spacing[2] },
-  filterChip: {
-    paddingHorizontal: Spacing[3],
-    paddingVertical: Spacing[2],
-    borderRadius: Radius.full,
-    backgroundColor: Colors.gray[50],
-    borderWidth: 1,
-    borderColor: Colors.gray[200],
-    marginRight: Spacing[2],
-  },
+  headerEyebrow: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.brand[500], letterSpacing: 0.8, textTransform: 'uppercase' },
+  headerTitle:   { fontSize: FontSize['2xl'], fontWeight: FontWeight.bold, color: Colors.gray[900], marginTop: 2 },
+
+  myBtn:         { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: Spacing[3], paddingVertical: Spacing[2], borderRadius: Radius.full, backgroundColor: Colors.brand[50], borderWidth: 1, borderColor: Colors.brand[200] },
+  myBtnActive:   { backgroundColor: Colors.brand[600], borderColor: Colors.brand[600] },
+  myBtnText:     { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.brand[600] },
+  myBtnTextActive: { color: '#fff' },
+
+  searchWrap:  { flexDirection: 'row', alignItems: 'center', gap: Spacing[2], backgroundColor: '#fff', marginHorizontal: Spacing[4], marginTop: Spacing[3], marginBottom: Spacing[1], borderRadius: Radius.xl, paddingHorizontal: Spacing[3], paddingVertical: Spacing[2] + 2, borderWidth: 1, borderColor: Colors.gray[200], ...Shadow.sm },
+  searchInput: { flex: 1, fontSize: FontSize.sm, color: Colors.gray[900] },
+
+  filterRow: { paddingHorizontal: Spacing[4], paddingVertical: Spacing[3], gap: Spacing[2] },
+  filterChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: Spacing[3], paddingVertical: Spacing[2], borderRadius: Radius.full, backgroundColor: '#fff', borderWidth: 1, borderColor: Colors.gray[200] },
   filterChipActive: { backgroundColor: Colors.brand[600], borderColor: Colors.brand[600] },
-  filterChipText: { fontSize: FontSize.xs, fontWeight: FontWeight.medium, color: Colors.gray[700] },
+  filterChipText:   { fontSize: FontSize.xs, fontWeight: FontWeight.medium, color: Colors.gray[700] },
   filterChipTextActive: { color: '#fff' },
-  list: { paddingHorizontal: Spacing[4], paddingBottom: Spacing[6], gap: Spacing[3] },
+
+  list: { paddingHorizontal: Spacing[4], paddingBottom: Spacing[8], gap: Spacing[3] },
+
   card: {
+    flexDirection: 'row',
     backgroundColor: '#fff',
     borderRadius: Radius['2xl'],
-    padding: Spacing[4],
+    overflow: 'hidden',
     borderWidth: 1,
-    borderColor: Colors.gray[200],
+    borderColor: Colors.gray[150] ?? Colors.gray[200],
     ...Shadow.sm,
   },
-  cardTop: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing[3] },
-  iconCircle: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
-  levelIcon: { fontSize: 20 },
-  cardInfo: { flex: 1 },
-  cardNameRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  cardName: { fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.gray[900], flex: 1 },
-  pillRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 8 },
-  levelPill: { paddingHorizontal: Spacing[2], paddingVertical: 4, borderRadius: Radius.full },
-  levelPillText: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold },
-  memberBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: Spacing[2],
-    paddingVertical: 4,
-    borderRadius: Radius.full,
-    backgroundColor: Colors.green.light,
-  },
-  memberBadgeText: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.green.text },
-  cardMeta: { fontSize: FontSize.xs, color: Colors.gray[500], marginTop: 8 },
-  cardDesc: { fontSize: FontSize.xs, color: Colors.gray[600], marginTop: Spacing[3], lineHeight: 18 },
-  joinBtn: {
-    borderRadius: Radius.xl,
-    paddingHorizontal: Spacing[3],
-    paddingVertical: Spacing[2],
-    minWidth: 88,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  joinBtnContent: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  joinBtnNotJoined: { backgroundColor: Colors.brand[600] },
-  joinBtnJoined: { backgroundColor: Colors.green.light, borderWidth: 1, borderColor: '#86efac' },
-  joinBtnText: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: '#fff' },
-  joinBtnTextJoined: { color: Colors.green.text },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: Spacing[8] },
+  cardAccent: { width: 4 },
+  cardBody:   { flex: 1, padding: Spacing[4] },
+  cardTop:    { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing[3] },
+
+  iconWrap:  { width: 46, height: 46, borderRadius: Radius.xl, alignItems: 'center', justifyContent: 'center' },
+  cardCenter:{ flex: 1 },
+  nameRow:   { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  cardName:  { fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.gray[900], flex: 1 },
+
+  tagRow:      { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginTop: 6 },
+  levelTag:    { paddingHorizontal: Spacing[2], paddingVertical: 3, borderRadius: Radius.full },
+  levelTagText:{ fontSize: 11, fontWeight: FontWeight.semibold },
+  cityText:    { fontSize: 11, color: Colors.gray[500] },
+  joinedTag:   { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: Spacing[2], paddingVertical: 3, borderRadius: Radius.full, backgroundColor: '#dcfce7' },
+  joinedTagText: { fontSize: 11, fontWeight: FontWeight.semibold, color: '#15803d' },
+
+  joinBtn:         { paddingHorizontal: 14, paddingVertical: 8, borderRadius: Radius.lg, alignItems: 'center', justifyContent: 'center', minWidth: 68 },
+  joinBtnDefault:  { backgroundColor: Colors.brand[600] },
+  joinBtnJoined:   { backgroundColor: '#f0fdf4', borderWidth: 1, borderColor: '#86efac' },
+  joinBtnText:     { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: '#fff' },
+  joinBtnTextJoined: { color: '#15803d' },
+
+  desc:       { fontSize: FontSize.xs, color: Colors.gray[500], lineHeight: 18, marginTop: Spacing[3] },
+
+  cardFooter: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: Spacing[3] },
+  footerText: { fontSize: 11, color: Colors.gray[400] },
+
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: Spacing[10] },
 })
