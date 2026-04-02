@@ -552,44 +552,48 @@ export default function EventsScreen() {
         </ScrollView>
       </View>
 
-      {/*  Community filter chips (only when user has joined communities) + Free toggle */}
+      {/*  Community filter chips  + Free toggle */}
       <View style={styles.filterRow}>
 
-        {joinedCommunities.length > 0 && (
-          // <View style={styles.communityRow}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <TouchableOpacity
-              onPress={() => setCommunitySlug(null)}
-              style={[styles.communityChip, !communitySlug && styles.communityChipActive]}
-            >
-              <Text style={[styles.communityChipText, !communitySlug && styles.communityChipTextActive]}>
-                🏠 All
-              </Text>
-            </TouchableOpacity>
-            {joinedCommunities.map((c) => {
-              const name = locale === 'ar' && c.name_ar ? c.name_ar : c.name
-              const active = communitySlug === c.slug
-              return (
-                <TouchableOpacity
-                  key={c.id}
-                  onPress={() => setCommunitySlug(active ? null : c.slug)}
-                  style={[styles.communityChip, active && styles.communityChipActive]}
-                >
-                  <Text style={[styles.communityChipText, active && styles.communityChipTextActive]} numberOfLines={1}>
-                    {name}
-                  </Text>
-                </TouchableOpacity>
-              )
-            })}
-            <TouchableOpacity
-              onPress={() => router.push('/communities' as any)}
-              style={styles.communityExploreBtn}
-            >
-              <Text style={styles.communityExploreBtnText}>Explore →</Text>
-            </TouchableOpacity>
-          </ScrollView>
-          // </View>
-        )}
+        {/*  Community filter chips (only when user has joined communities) */}
+        {/* {joinedCommunities.length > 0 && ( */}
+          <View style={styles.communityRow}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <TouchableOpacity
+                onPress={() => setCommunitySlug(null)}
+                style={[styles.communityChip, !communitySlug && styles.communityChipActive]}
+              >
+                <Text style={[styles.communityChipText, !communitySlug && styles.communityChipTextActive]}>
+                  🏠 All
+                </Text>
+              </TouchableOpacity>
+              {joinedCommunities.map((c) => {
+                const name = locale === 'ar' && c.name_ar ? c.name_ar : c.name
+                const active = communitySlug === c.slug
+                return (
+                  <TouchableOpacity
+                    key={c.id}
+                    onPress={() => setCommunitySlug(active ? null : c.slug)}
+                    style={[styles.communityChip, active && styles.communityChipActive]}
+                  >
+                    <Text style={[styles.communityChipText, active && styles.communityChipTextActive]} numberOfLines={1}>
+                      {name}
+                    </Text>
+                  </TouchableOpacity>
+                )
+              })}
+
+
+              <TouchableOpacity
+                onPress={() => router.push('/communities' as any)}
+                style={styles.communityExploreBtn}
+              >
+                <Text style={styles.communityExploreBtnText}>Explore →</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        {/* )} */}
+        {/* Free toggle */}
 
         <TouchableOpacity
           onPress={() => setFreeOnly((v) => !v)}

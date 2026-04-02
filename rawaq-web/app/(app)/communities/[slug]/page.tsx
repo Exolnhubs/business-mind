@@ -17,6 +17,7 @@ type CommunityDetail = Community & {
   recent_members: Array<{ id: string; display_name: string; avatar_url: string | null; joined_at: string }>
   activity: Array<{ id: string; type: 'member_joined' | 'event_published'; title: string; subtitle: string; created_at: string; href: string | null }>
 }
+type MembershipMutationResponse = { is_member?: boolean; member_count?: number }
 
 const LEVEL_ICONS: Record<CommunityLevel, string> = {
   micro:    '🏘️',
@@ -74,12 +75,13 @@ export default function CommunityDetailPage() {
       : `/api/communities/${slug}/join`
     const res = await fetch(endpoint, { method })
     if (res.ok) {
+      const json = await res.json() as { data?: MembershipMutationResponse }
       setCommunity((prev) =>
         prev
           ? {
               ...prev,
-              is_member: !prev.is_member,
-              member_count: !prev.is_member ? prev.member_count + 1 : Math.max(prev.member_count - 1, 0),
+              is_member: json.data?.is_member ?? !prev.is_member,
+              member_count: json.data?.member_count ?? (!prev.is_member ? prev.member_count + 1 : Math.max(prev.member_count - 1, 0)),
             }
           : prev
       )

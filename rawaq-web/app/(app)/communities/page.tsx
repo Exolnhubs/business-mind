@@ -8,6 +8,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import type { Community, CommunityLevel } from '@/types/database'
 
 type CommunityWithMembership = Community & { is_member: boolean }
+type MembershipMutationResponse = { is_member?: boolean; member_count?: number }
 
 const LEVEL_LABELS: Record<CommunityLevel, string> = {
   micro:    'Micro',
@@ -37,7 +38,7 @@ const ALL_LEVELS: CommunityLevel[] = ['micro', 'interest', 'district', 'city', '
 
 function CommunityCard({ community, onToggleMembership }: {
   community: CommunityWithMembership
-  onToggleMembership: (slug: string, joined: boolean) => void
+  onToggleMembership: (slug: string, joined: boolean, memberCount?: number) => void
 }) {
   const [loading, setLoading] = useState(false)
 
@@ -48,7 +49,14 @@ function CommunityCard({ community, onToggleMembership }: {
       ? `/api/communities/${community.slug}/leave`
       : `/api/communities/${community.slug}/join`
     const res = await fetch(endpoint, { method })
-    if (res.ok) onToggleMembership(community.slug, !community.is_member)
+    if (res.ok) {
+      const json = await res.json() as { data?: MembershipMutationResponse }
+      onToggleMembership(
+        community.slug,
+        json.data?.is_member ?? !community.is_member,
+        json.data?.member_count,
+      )
+    }
     setLoading(false)
   }
 
@@ -148,11 +156,15 @@ export default function CommunitiesPage() {
     return () => clearTimeout(t)
   }, [level, search, fetchCommunities])
 
-  function handleToggleMembership(slug: string, joined: boolean) {
+  function handleToggleMembership(slug: string, joined: boolean, memberCount?: number) {
     setCommunities((prev) =>
       prev.map((c) =>
         c.slug === slug
-          ? { ...c, is_member: joined, member_count: joined ? c.member_count + 1 : Math.max(c.member_count - 1, 0) }
+          ? {
+              ...c,
+              is_member: joined,
+              member_count: memberCount ?? (joined ? c.member_count + 1 : Math.max(c.member_count - 1, 0)),
+            }
           : c
       )
     )
