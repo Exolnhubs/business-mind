@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { optionalAuth } from '@/lib/auth'
 import { handleApiError, ok, NotFoundException } from '@/lib/errors'
+import type { Community, CommunityHierarchy } from '@/types/database'
 
 // GET /api/communities/:slug — community detail
 export async function GET(
@@ -34,9 +35,9 @@ export async function GET(
       .eq('child_id', community.id)
       .order('depth')
 
-    let ancestors: unknown[] = []
+    let ancestors: Pick<Community, 'id' | 'name' | 'name_ar' | 'slug' | 'level'>[] = []
     if (hierarchyRows?.length) {
-      const parentIds = hierarchyRows.map((r) => r.parent_id)
+      const parentIds = (hierarchyRows as Pick<CommunityHierarchy, 'parent_id'>[]).map((r) => r.parent_id)
       const { data: parents } = await supabase
         .from('communities')
         .select('id, name, name_ar, slug, level')
@@ -68,7 +69,7 @@ export async function GET(
       const eIds = ecRows.map((r) => r.event_id)
       const { data: events } = await supabase
         .from('events')
-        .select('id, title, title_ar, cover_image_url, start_at, city, is_free, price, currency, bookings_count')
+        .select('id, title, title_ar, cover_image_url, start_at, city, is_free, price, currency, bookings_count, created_at')
         .in('id', eIds)
         .eq('is_published', true)
         .eq('is_cancelled', false)
@@ -78,12 +79,70 @@ export async function GET(
       recent_events = events ?? []
     }
 
+    const { data: membershipRows } = await supabase
+      .from('community_memberships')
+      .select('user_id, joined_at')
+      .eq('community_id', community.id)
+      .order('joined_at', { ascending: false })
+      .limit(8)
+
+    const memberIds = (membershipRows ?? []).map((row) => row.user_id)
+    let recent_members: Array<{ id: string; display_name: string; avatar_url: string | null; joined_at: string }> = []
+    if (memberIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, display_name, avatar_url')
+        .in('id', memberIds)
+
+      const profileById = new Map((profiles ?? []).map((profile) => [profile.id, profile]))
+      recent_members = (membershipRows ?? [])
+        .map((row) => {
+          const profile = profileById.get(row.user_id)
+          if (!profile) return null
+          return {
+            id: profile.id,
+            display_name: profile.display_name,
+            avatar_url: profile.avatar_url,
+            joined_at: row.joined_at,
+          }
+        })
+        .filter(Boolean) as Array<{ id: string; display_name: string; avatar_url: string | null; joined_at: string }>
+    }
+
+    const activity: Array<{ id: string; type: 'member_joined' | 'event_published'; title: string; subtitle: string; created_at: string; href: string | null }> = []
+
+    for (const member of recent_members.slice(0, 4)) {
+      activity.push({
+        id: `member-${member.id}-${member.joined_at}`,
+        type: 'member_joined',
+        title: member.display_name,
+        subtitle: 'Joined this community',
+        created_at: member.joined_at,
+        href: null,
+      })
+    }
+
+    for (const event of (recent_events as Array<{ id: string; title: string; created_at?: string; start_at: string }>).slice(0, 4)) {
+      activity.push({
+        id: `event-${event.id}`,
+        type: 'event_published',
+        title: event.title,
+        subtitle: 'Event published in this community',
+        created_at: event.created_at ?? event.start_at,
+        href: `/events/${event.id}`,
+      })
+    }
+
+    activity.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+
     return ok({
       ...community,
       is_member,
       event_count: eventCount ?? 0,
       ancestors,
       recent_events,
+      recent_members,
+      activity: activity.slice(0, 6),
     })
   } catch (err) {
     return handleApiError(err)
