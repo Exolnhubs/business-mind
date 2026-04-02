@@ -9,7 +9,7 @@ import { TipPanel } from '@/components/events/TipPanel'
 import { ReportEventButton } from '@/components/events/ReportEventButton'
 import { CommentThread } from '@/components/comments/CommentThread'
 import { formatDate, formatTime, formatCurrency } from '@/lib/utils'
-import type { EventWithOrganizer, CommentWithAuthor, TicketType } from '@/types/database'
+import type { Community, EventWithOrganizer, CommentWithAuthor, TicketType } from '@/types/database'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
@@ -69,6 +69,21 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
     .eq('is_active', true)
     .order('sort_order')
 
+  const { data: eventCommunityRows } = await supabase
+    .from('event_communities')
+    .select('community_id')
+    .eq('event_id', id)
+
+  const eventCommunityIds = (eventCommunityRows ?? []).map((row) => row.community_id)
+  let eventCommunities: Array<Pick<Community, 'id' | 'name' | 'name_ar' | 'slug' | 'level'>> = []
+  if (eventCommunityIds.length > 0) {
+    const { data: communities } = await supabase
+      .from('communities')
+      .select('id, name, name_ar, slug, level')
+      .in('id', eventCommunityIds)
+    eventCommunities = (communities ?? []) as Array<Pick<Community, 'id' | 'name' | 'name_ar' | 'slug' | 'level'>>
+  }
+
   // Fetch top-level comments with authors
   const { data: comments } = await supabase
     .from('comments')
@@ -124,6 +139,19 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
               <span className="text-sm text-brand-600 font-medium mt-1 inline-block">
                 {ev.category.icon} {ev.category.name_en}
               </span>
+            )}
+            {eventCommunities.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {eventCommunities.map((community) => (
+                  <Link
+                    key={community.id}
+                    href={`/communities/${community.slug}`}
+                    className="rounded-full border border-brand-100 bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700 hover:bg-brand-100"
+                  >
+                    {community.name}
+                  </Link>
+                ))}
+              </div>
             )}
           </div>
 

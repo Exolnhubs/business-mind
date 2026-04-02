@@ -14,6 +14,8 @@ type CommunityDetail = Community & {
   event_count: number
   ancestors: Pick<Community, 'id' | 'name' | 'name_ar' | 'slug' | 'level'>[]
   recent_events: Pick<Event, 'id' | 'title' | 'title_ar' | 'cover_image_url' | 'start_at' | 'city' | 'is_free' | 'price' | 'currency' | 'bookings_count'>[]
+  recent_members: Array<{ id: string; display_name: string; avatar_url: string | null; joined_at: string }>
+  activity: Array<{ id: string; type: 'member_joined' | 'event_published'; title: string; subtitle: string; created_at: string; href: string | null }>
 }
 
 const LEVEL_ICONS: Record<CommunityLevel, string> = {
@@ -153,6 +155,60 @@ export default function CommunityDetailPage() {
 
           {community.description && (
             <p className="mt-4 text-gray-600 text-sm leading-relaxed">{community.description}</p>
+          )}
+        </div>
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-2 mb-8">
+        <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-gray-900">Members</h2>
+            <span className="text-sm text-gray-500">{community.member_count.toLocaleString()} total</span>
+          </div>
+          {community.recent_members.length === 0 ? (
+            <p className="text-sm text-gray-500">No members yet.</p>
+          ) : (
+            <div className="space-y-3">
+              {community.recent_members.map((member) => (
+                <div key={member.id} className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-brand-100 text-sm font-semibold text-brand-700">
+                    {member.avatar_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={member.avatar_url} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      member.display_name.slice(0, 1).toUpperCase()
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">{member.display_name}</p>
+                    <p className="text-xs text-gray-500">Joined {formatDate(member.joined_at)}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+          <h2 className="text-lg font-bold text-gray-900 mb-4">Recent Activity</h2>
+          {community.activity.length === 0 ? (
+            <p className="text-sm text-gray-500">No activity yet.</p>
+          ) : (
+            <div className="space-y-3">
+              {community.activity.map((item) => {
+                const row = (
+                  <div className="flex items-start gap-3 rounded-xl bg-gray-50 px-3 py-3">
+                    <div className="mt-0.5 text-lg">{item.type === 'member_joined' ? '👋' : '🗓️'}</div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-gray-900">{item.title}</p>
+                      <p className="text-xs text-gray-500">{item.subtitle}</p>
+                      <p className="text-xs text-gray-400 mt-1">{formatDate(item.created_at)}</p>
+                    </div>
+                  </div>
+                )
+                return item.href ? <Link key={item.id} href={item.href}>{row}</Link> : <div key={item.id}>{row}</div>
+              })}
+            </div>
           )}
         </div>
       </div>

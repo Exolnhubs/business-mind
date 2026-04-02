@@ -1,5 +1,6 @@
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { EventCard, EventCardSkeleton } from '@/components/events/EventCard'
 import { EventFiltersPlayful } from '@/components/events/EventFiltersPlayful'
@@ -97,10 +98,42 @@ async function NearYouThisWeekend({
   return <EventsPageWeekendRail events={events} city={city} hasCoordinates={!!(lat && lng)} radiusKm={radiusKm} />
 }
 
+async function ActiveCommunitySpotlight({ slug }: { slug?: string }) {
+  if (!slug) return null
+
+  const supabase = await createSupabaseServerClient()
+  const { data: community } = await supabase
+    .from('communities')
+    .select('id, name, name_ar, slug, level, city, member_count')
+    .eq('slug', slug)
+    .single()
+
+  if (!community) return null
+
+  return (
+    <div className="rounded-2xl border border-brand-100 bg-brand-50 px-5 py-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-brand-600">Community Lens</p>
+          <h2 className="mt-1 text-lg font-semibold text-gray-900">{community.name}</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            Showing events connected to this community
+            {community.city ? ` in ${community.city}` : ''}. {community.member_count.toLocaleString()} members.
+          </p>
+        </div>
+        <Link href={`/communities/${community.slug}`} className="text-sm font-semibold text-brand-700 hover:text-brand-800">
+          View community →
+        </Link>
+      </div>
+    </div>
+  )
+}
+
 interface SearchParams {
   q?: string
   category?: string
   city?: string
+  community?: string
   gender?: string
   free?: string
   family?: string
@@ -158,6 +191,26 @@ async function EventsGrid({ searchParams }: { searchParams: SearchParams }) {
   if (searchParams.free === 'true') query = query.eq('is_free', true)
   if (searchParams.family === 'true') query = query.eq('is_family_friendly', true)
   if (searchParams.category) query = query.eq('category_id', searchParams.category)
+  if (searchParams.community) {
+    const { data: community } = await supabase
+      .from('communities')
+      .select('id')
+      .eq('slug', searchParams.community)
+      .single()
+
+    if (!community) {
+      return <EventsGridEmpty />
+    }
+
+    const { data: eventCommunityRows } = await supabase
+      .from('event_communities')
+      .select('event_id')
+      .eq('community_id', community.id)
+
+    const ids = (eventCommunityRows ?? []).map((row) => row.event_id)
+    if (ids.length === 0) return <EventsGridEmpty />
+    query = query.in('id', ids)
+  }
 
   if (searchParams.lat && searchParams.lng) {
     const { data: geoEvents } = await supabase.rpc('events_within_radius', {
@@ -234,6 +287,7 @@ export default async function EventsPage({
     params.q,
     params.category,
     params.city,
+    params.community,
     params.gender,
     params.free === 'true' ? 'free' : null,
     params.family === 'true' ? 'family' : null,
@@ -246,6 +300,10 @@ export default async function EventsPage({
 
       <Suspense>
         <EventFiltersPlayful />
+      </Suspense>
+
+      <Suspense fallback={null}>
+        <ActiveCommunitySpotlight slug={params.community} />
       </Suspense>
 
       {(params.lat && params.lng) || params.city ? (

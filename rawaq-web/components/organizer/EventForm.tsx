@@ -11,6 +11,7 @@ import type { Event, EventCategory, Community, EventVisibility } from '@/types/d
 interface EventFormProps {
   categories: Pick<EventCategory, 'id' | 'name_en' | 'name_ar' | 'icon'>[]
   event?: Event
+  initialCommunityIds?: string[]
 }
 
 const CITIES = ['Riyadh', 'Jeddah', 'Dammam', 'Mecca', 'Medina', 'Khobar', 'Tabuk', 'Abha', 'Taif']
@@ -46,7 +47,7 @@ function StepIndicator({ step }: { step: 1 | 2 | 3 }) {
   )
 }
 
-export function EventForm({ categories, event }: EventFormProps) {
+export function EventForm({ categories, event, initialCommunityIds = [] }: EventFormProps) {
   const { user } = useAuth()
   const router = useRouter()
   const supabase = createSupabaseBrowserClient()
@@ -79,8 +80,8 @@ export function EventForm({ categories, event }: EventFormProps) {
   const [loading, setLoading]         = useState(false)
   const [error, setError]             = useState<string | null>(null)
   const [communities, setCommunities] = useState<Pick<Community, 'id' | 'name' | 'level' | 'type'>[]>([])
-  const [selectedCommunities, setSelectedCommunities] = useState<string[]>([])
-  const [visibilityType, setVisibilityType] = useState<EventVisibility>('city')
+  const [selectedCommunities, setSelectedCommunities] = useState<string[]>(initialCommunityIds)
+  const [visibilityType, setVisibilityType] = useState<EventVisibility>(event?.visibility_type ?? 'city')
 
   useEffect(() => {
     fetch('/api/communities?per_page=50')
@@ -104,31 +105,37 @@ export function EventForm({ categories, event }: EventFormProps) {
     setError(null)
     setLoading(true)
 
-    const { error: dbError } = await supabase
-      .from('events')
-      .update({
-        title:              form.title,
-        title_ar:           form.title_ar || null,
-        description:        form.description || null,
-        description_ar:     form.description_ar || null,
-        category_id:        form.category_id || null,
-        city:               form.city,
-        venue_name:         form.venue_name || null,
-        address:            form.address || null,
-        start_at:           new Date(form.start_at).toISOString(),
-        end_at:             form.end_at ? new Date(form.end_at).toISOString() : null,
-        capacity:           form.capacity ? Number(form.capacity) : null,
-        is_free:            form.is_free,
-        price:              form.is_free ? null : Number(form.price),
-        currency:           'SAR',
-        gender_restriction: form.gender_restriction as 'mixed' | 'male' | 'female',
+    const res = await fetch(`/api/events/${event!.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: form.title,
+        title_ar: form.title_ar || null,
+        description: form.description || null,
+        description_ar: form.description_ar || null,
+        category_id: form.category_id || null,
+        city: form.city,
+        venue_name: form.venue_name || null,
+        address: form.address || null,
+        start_at: new Date(form.start_at).toISOString(),
+        end_at: form.end_at ? new Date(form.end_at).toISOString() : null,
+        capacity: form.capacity ? Number(form.capacity) : null,
+        is_free: form.is_free,
+        price: form.is_free ? null : Number(form.price),
+        currency: 'SAR',
+        gender_restriction: form.gender_restriction,
         is_family_friendly: form.is_family_friendly,
-        is_published:       form.is_published,
-      })
-      .eq('id', event!.id)
-
+        is_published: form.is_published,
+        visibility_type: visibilityType,
+        community_ids: selectedCommunities,
+      }),
+    })
     setLoading(false)
-    if (dbError) { setError(dbError.message); return }
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}))
+      setError(json?.error ?? 'Failed to save event')
+      return
+    }
     router.push('/organizer')
     router.refresh()
   }
@@ -236,6 +243,52 @@ export function EventForm({ categories, event }: EventFormProps) {
             <input type="checkbox" checked={form.is_published} onChange={setCheck('is_published')} className="rounded" />
             <span className="text-sm text-gray-700">Published</span>
           </label>
+        </div>
+
+        <div className="border-t border-gray-100 pt-5 space-y-4">
+          <div>
+            <label className="label">Visibility</label>
+            <select
+              value={visibilityType}
+              onChange={(e) => setVisibilityType(e.target.value as EventVisibility)}
+              className="input cursor-pointer"
+            >
+              <option value="city">🌆 City — visible to everyone in the city</option>
+              <option value="national">🌍 National — visible to everyone on the platform</option>
+              <option value="interest">🎯 Interest community — interest group members</option>
+              <option value="micro">🏘️ Micro community — compound / university members</option>
+            </select>
+          </div>
+
+          {communities.length > 0 && (
+            <div>
+              <label className="label">Tag Communities (optional)</label>
+              <p className="text-xs text-gray-400 mb-2">Members of tagged communities will be notified when you publish.</p>
+              <div className="flex flex-wrap gap-2">
+                {communities.map((c) => {
+                  const selected = selectedCommunities.includes(c.id)
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() =>
+                        setSelectedCommunities((prev) =>
+                          selected ? prev.filter((id) => id !== c.id) : [...prev, c.id]
+                        )
+                      }
+                      className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${
+                        selected
+                          ? 'bg-brand-600 text-white border-brand-600'
+                          : 'bg-white text-gray-600 border-gray-200 hover:border-brand-300'
+                      }`}
+                    >
+                      {c.name}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">{error}</div>}

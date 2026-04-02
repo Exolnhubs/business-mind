@@ -10,7 +10,7 @@ export default async function EditEventPage({ params }: { params: Promise<{ id: 
   const supabase = await createSupabaseServerClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const [{ data: event }, { data: categories }] = await Promise.all([
+  const [{ data: event }, { data: categories }, { data: eventCommunities }] = await Promise.all([
     supabase
       .from('events')
       .select('*')
@@ -22,6 +22,10 @@ export default async function EditEventPage({ params }: { params: Promise<{ id: 
       .select('id, name_en, name_ar, icon')
       .eq('is_active', true)
       .order('sort_order'),
+    supabase
+      .from('event_communities')
+      .select('community_id')
+      .eq('event_id', id),
   ])
 
   if (!event) notFound()
@@ -29,7 +33,11 @@ export default async function EditEventPage({ params }: { params: Promise<{ id: 
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
       <h1 className="text-2xl font-bold text-gray-900 mb-6">Edit Event</h1>
-      <EventForm categories={categories ?? []} event={event} />
+      <EventForm
+        categories={categories ?? []}
+        event={event}
+        initialCommunityIds={(eventCommunities ?? []).map((row) => row.community_id)}
+      />
     </div>
   )
 }
