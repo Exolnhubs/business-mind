@@ -4,14 +4,18 @@ import {
   TouchableOpacity, ScrollView, RefreshControl, Alert, ActivityIndicator,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
+import { useRouter } from 'expo-router'
 import * as Location from 'expo-location'
 import { supabase } from '@/lib/supabase'
+import { apiGet } from '@/lib/api'
 import { useAuth } from '@/contexts/auth-context'
 import { EventCard, EventCardSkeleton } from '@/components/events/EventCard'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { useLocale } from '@/contexts/locale-context'
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '@/theme'
-import type { EventWithOrganizer } from '@/types/database'
+import type { Community, EventWithOrganizer } from '@/types/database'
+
+type JoinedCommunity = Pick<Community, 'id' | 'name' | 'name_ar' | 'slug' | 'level'>
 
 interface Category { id: string; name_en: string; name_ar: string; icon: string | null }
 interface SavedSignalEvent {
@@ -83,6 +87,7 @@ function isAlmostSoldOut(event: Pick<EventWithOrganizer, 'capacity' | 'bookings_
 export default function EventsScreen() {
   const { t, locale } = useLocale()
   const { user, profile } = useAuth()
+  const router = useRouter()
   const [events, setEvents]         = useState<EventWithOrganizer[]>([])
   const [savedIds, setSavedIds]     = useState<Set<string>>(new Set())
   const [savedInspiredEvents, setSavedInspiredEvents]   = useState<EventWithOrganizer[]>([])
@@ -101,7 +106,9 @@ export default function EventsScreen() {
   const [geoCoords, setGeoCoords]   = useState<{ lat: number; lng: number } | null>(null)
   const [geoLoading, setGeoLoading] = useState(false)
   const [radiusKm, setRadiusKm]     = useState(25)
-  const showRecommendationRails = !search && !categoryId && city === 'All' && !freeOnly && !nearMe
+  const [communitySlug, setCommunitySlug] = useState<string | null>(null)
+  const [joinedCommunities, setJoinedCommunities] = useState<JoinedCommunity[]>([])
+  const showRecommendationRails = !search && !categoryId && city === 'All' && !freeOnly && !nearMe && !communitySlug
 
   // Fade the pin icon out while the user is typing, back in when cleared
   const pinOpacity = useRef(new Animated.Value(1)).current
@@ -121,6 +128,15 @@ export default function EventsScreen() {
       .order('sort_order')
       .then(({ data }) => setCategories((data ?? []) as Category[]))
   }, [])
+
+  useEffect(() => {
+    if (!user) { setJoinedCommunities([]); return }
+    apiGet<{ data: JoinedCommunity[]; has_more: boolean }>('/api/communities?per_page=20')
+      .then(({ data }) => {
+        if (data) setJoinedCommunities(data.data.filter((c: any) => c.is_member))
+      })
+      .catch(() => {})
+  }, [user])
 
   // Silently grab coords for "Near You This Weekend":
   // 1. Last-known GPS (no prompt) if permission already granted
@@ -194,6 +210,27 @@ export default function EventsScreen() {
     if (city !== 'All')   query = query.eq('city', city)
     if (freeOnly)         query = query.eq('is_free', true)
     if (categoryId)       query = query.eq('category_id', categoryId)
+
+    // Community filter: resolve slug → event IDs via event_communities
+    if (communitySlug) {
+      const { data: communityRow } = await supabase
+        .from('communities')
+        .select('id')
+        .eq('slug', communitySlug)
+        .single()
+      if (communityRow) {
+        const { data: ecRows } = await supabase
+          .from('event_communities')
+          .select('event_id')
+          .eq('community_id', communityRow.id)
+        const ids = (ecRows ?? []).map((r) => r.event_id)
+        if (ids.length === 0) {
+          setEvents([])
+          setLoading(false); setRefreshing(false); return
+        }
+        query = query.in('id', ids)
+      }
+    }
 
     if (geoActive) {
       const { data: geoEvents, error: rpcErr } = await supabase.rpc('events_within_radius', {
@@ -378,7 +415,7 @@ export default function EventsScreen() {
 
     setLoading(false)
     setRefreshing(false)
-  }, [search, categoryId, city, freeOnly, nearMe, geoCoords, radiusKm, showRecommendationRails, user, weekendCoords, weekendRadiusKm])
+  }, [search, categoryId, city, freeOnly, nearMe, geoCoords, radiusKm, communitySlug, showRecommendationRails, user, weekendCoords, weekendRadiusKm])
 
   useEffect(() => { fetchEvents() }, [fetchEvents])
 
@@ -504,6 +541,43 @@ export default function EventsScreen() {
           </Text>
         </TouchableOpacity>
       </View>
+
+      {/* Community filter chips (only when user has joined communities) */}
+      {joinedCommunities.length > 0 && (
+        <View style={styles.communityRow}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <TouchableOpacity
+              onPress={() => setCommunitySlug(null)}
+              style={[styles.communityChip, !communitySlug && styles.communityChipActive]}
+            >
+              <Text style={[styles.communityChipText, !communitySlug && styles.communityChipTextActive]}>
+                🏠 All
+              </Text>
+            </TouchableOpacity>
+            {joinedCommunities.map((c) => {
+              const name = locale === 'ar' && c.name_ar ? c.name_ar : c.name
+              const active = communitySlug === c.slug
+              return (
+                <TouchableOpacity
+                  key={c.id}
+                  onPress={() => setCommunitySlug(active ? null : c.slug)}
+                  style={[styles.communityChip, active && styles.communityChipActive]}
+                >
+                  <Text style={[styles.communityChipText, active && styles.communityChipTextActive]} numberOfLines={1}>
+                    {name}
+                  </Text>
+                </TouchableOpacity>
+              )
+            })}
+            <TouchableOpacity
+              onPress={() => router.push('/communities' as any)}
+              style={styles.communityExploreBtn}
+            >
+              <Text style={styles.communityExploreBtnText}>Explore →</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+      )}
 
       {/* List */}
       {loading ? (
@@ -738,4 +812,11 @@ const styles = StyleSheet.create({
   radiusChipActive: { backgroundColor: Colors.brand[500], borderColor: Colors.brand[500] },
   radiusChipText: { fontSize: FontSize.xs, color: Colors.brand[600] },
   radiusChipTextActive: { color: Colors.white, fontWeight: FontWeight.semibold },
+  communityRow: { backgroundColor: Colors.white, paddingVertical: Spacing.sm, paddingLeft: Spacing.lg, borderBottomWidth: 1, borderBottomColor: Colors.gray[100] },
+  communityChip: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs + 1, borderRadius: Radius.full, borderWidth: 1, borderColor: Colors.gray[200], backgroundColor: Colors.gray[50], marginRight: Spacing.sm },
+  communityChipActive: { backgroundColor: Colors.brand[600], borderColor: Colors.brand[600] },
+  communityChipText: { fontSize: FontSize.xs, color: Colors.gray[700], fontWeight: FontWeight.medium },
+  communityChipTextActive: { color: Colors.white },
+  communityExploreBtn: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs + 1, marginRight: Spacing.lg },
+  communityExploreBtnText: { fontSize: FontSize.xs, color: Colors.brand[600], fontWeight: FontWeight.medium },
 })

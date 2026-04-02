@@ -27,6 +27,7 @@ export type NotificationType =
   | 'event_sold_out'
   | 'referral_signup_reward'
   | 'referral_conversion_reward'
+  | 'community_new_event'
 export type ReactionType = 'like' | 'interested'
 export type ReportReason = 'spam' | 'inappropriate' | 'harassment' | 'misinformation' | 'other'
 export type ReportStatus = 'pending' | 'resolved' | 'dismissed'
@@ -162,6 +163,7 @@ export interface Event {
   is_published: boolean
   is_cancelled: boolean
   cancelled_reason: string | null
+  visibility_type: EventVisibility
   bookings_count: number
   views_count: number
   tips_total: number
@@ -479,6 +481,53 @@ export interface UserReviewWithReviewer extends UserReview {
   reviewer: Pick<Profile, 'id' | 'display_name' | 'avatar_url'>
 }
 
+// ── Community types ────────────────────────────────────────
+export type CommunityLevel = 'micro' | 'interest' | 'district' | 'city' | 'country'
+export type CommunityType =
+  | 'compound' | 'neighborhood' | 'university' | 'company' | 'coworking'
+  | 'tech' | 'sports' | 'gaming' | 'book_club' | 'entrepreneur' | 'arts' | 'other'
+  | 'district' | 'city' | 'country'
+export type CommunityRole = 'member' | 'moderator' | 'admin'
+export type EventVisibility = 'micro' | 'interest' | 'city' | 'national'
+
+export interface Community {
+  id: string
+  name: string
+  name_ar: string | null
+  slug: string
+  description: string | null
+  description_ar: string | null
+  level: CommunityLevel
+  type: CommunityType
+  city: string | null
+  country: string
+  cover_url: string | null
+  member_count: number
+  is_verified: boolean
+  is_private: boolean
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface CommunityMembership {
+  id: string
+  community_id: string
+  user_id: string
+  role: CommunityRole
+  joined_at: string
+}
+
+export interface EventCommunity {
+  event_id: string
+  community_id: string
+}
+
+export interface CommunityWithMembership extends Community {
+  is_member?: boolean
+  ancestors?: Pick<Community, 'id' | 'name' | 'name_ar' | 'slug' | 'level'>[]
+}
+
 // ── Join shapes used in API responses ──────────────────────
 export interface EventWithOrganizer extends Event {
   organizer: Pick<Profile, 'id' | 'display_name' | 'avatar_url'> & {
@@ -541,12 +590,16 @@ export type Database = {
       organizer_monthly_usage: { Row: R<OrganizerMonthlyUsage>; Insert: R<OrganizerMonthlyUsage>; Update: R<Partial<OrganizerMonthlyUsage>>; Relationships: [] }
       organizer_wallet: { Row: R<OrganizerWalletRow>; Insert: R<OrganizerWalletRow>; Update: R<Partial<OrganizerWalletRow>>; Relationships: [] }
       subscriptions: { Row: R<Subscription>; Insert: R<Omit<Subscription, 'id' | 'created_at' | 'updated_at'>>; Update: R<Partial<Subscription>>; Relationships: [] }
+      communities: { Row: R<Community>; Insert: R<Omit<Community, 'id' | 'member_count' | 'created_at' | 'updated_at'>>; Update: R<Partial<Community>>; Relationships: [] }
+      community_memberships: { Row: R<CommunityMembership>; Insert: R<Omit<CommunityMembership, 'id' | 'joined_at'>>; Update: R<Partial<CommunityMembership>>; Relationships: [] }
+      event_communities: { Row: R<EventCommunity>; Insert: R<EventCommunity>; Update: R<Partial<EventCommunity>>; Relationships: [] }
     }
     Views: Record<string, never>
     Functions: {
       is_admin: { Args: Record<string, never>; Returns: boolean }
       get_my_role: { Args: Record<string, never>; Returns: UserRole }
       events_within_radius: { Args: { user_lat: number; user_lng: number; radius_meters: number }; Returns: Array<{ id: string }> }
+      get_user_communities: { Args: { p_user_id: string }; Returns: Array<{ community_id: string; community_name: string; community_slug: string; community_level: CommunityLevel; community_type: CommunityType }> }
     }
     Enums: {
       user_role: UserRole

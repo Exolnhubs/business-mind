@@ -30,6 +30,7 @@ const ICONS: Record<NotificationType, string> = {
   event_sold_out:             '🎊',
   referral_signup_reward:     '🎁',
   referral_conversion_reward: '🎉',
+  community_new_event:        '🗓️',
 }
 
 function notificationLabel(n: Notification): { title: string; subtitle: string; href: string | null } {
@@ -57,6 +58,8 @@ function notificationLabel(n: Notification): { title: string; subtitle: string; 
       return { title: `New event from ${p.organizer_name ?? 'an organizer you follow'}`, subtitle: p.event_title ?? '', href: p.event_id ? `/events/${p.event_id}` : null }
     case 'event_sold_out':
       return { title: 'Your event sold out! 🎊', subtitle: p.event_title ?? '', href: p.event_id ? `/events/${p.event_id}` : null }
+    case 'community_new_event':
+      return { title: `New event in ${p.community_name ?? 'your community'}`, subtitle: p.event_title ?? '', href: p.event_id ? `/events/${p.event_id}` : null }
     default:
       return { title: n.type, subtitle: '', href: null }
   }
