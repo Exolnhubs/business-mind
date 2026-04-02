@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, type FormEvent } from 'react'
+import { useState, useEffect, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { createSupabaseBrowserClient } from '@/lib/supabase/client'
 import { useAuth } from '@/contexts/auth-context'
 import { Spinner } from '@/components/ui/Spinner'
 import { FileUpload } from '@/components/ui/FileUpload'
-import type { Event, EventCategory } from '@/types/database'
+import type { Event, EventCategory, Community, EventVisibility } from '@/types/database'
 
 interface EventFormProps {
   categories: Pick<EventCategory, 'id' | 'name_en' | 'name_ar' | 'icon'>[]
@@ -75,9 +75,21 @@ export function EventForm({ categories, event }: EventFormProps) {
     is_published:       event?.is_published ?? false,
   })
 
-  const [tickets, setTickets] = useState<TicketDraft[]>([{ ...EMPTY_TICKET, name: 'General Admission' }])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [tickets, setTickets]         = useState<TicketDraft[]>([{ ...EMPTY_TICKET, name: 'General Admission' }])
+  const [loading, setLoading]         = useState(false)
+  const [error, setError]             = useState<string | null>(null)
+  const [communities, setCommunities] = useState<Pick<Community, 'id' | 'name' | 'level' | 'type'>[]>([])
+  const [selectedCommunities, setSelectedCommunities] = useState<string[]>([])
+  const [visibilityType, setVisibilityType] = useState<EventVisibility>('city')
+
+  useEffect(() => {
+    fetch('/api/communities?per_page=50')
+      .then((r) => r.ok ? r.json() : null)
+      .then((json) => {
+        if (json?.data?.data) setCommunities(json.data.data)
+      })
+      .catch(() => {})
+  }, [])
 
   const set = (k: keyof typeof form) => (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
@@ -336,15 +348,24 @@ export function EventForm({ categories, event }: EventFormProps) {
     setStep(3)
   }
 
-  // Step 3: publish or save draft
+  // Step 3: publish or save draft (via API to handle community notifications)
   async function finalize(publish: boolean) {
     setLoading(true)
-    const { error: dbError } = await supabase
-      .from('events')
-      .update({ is_published: publish })
-      .eq('id', createdEventId!)
+    const res = await fetch(`/api/events/${createdEventId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        is_published:   publish,
+        visibility_type: visibilityType,
+        community_ids:  selectedCommunities,
+      }),
+    })
     setLoading(false)
-    if (dbError) { setError(dbError.message); return }
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}))
+      setError(json?.error ?? 'Failed to save event')
+      return
+    }
     router.push('/organizer')
     router.refresh()
   }
@@ -443,6 +464,53 @@ export function EventForm({ categories, event }: EventFormProps) {
               <input type="checkbox" checked={form.is_family_friendly} onChange={setCheck('is_family_friendly')} className="rounded" />
               <span className="text-sm text-gray-700">Family Friendly</span>
             </label>
+          </div>
+
+          {/* ── Community tagging ── */}
+          <div className="border-t border-gray-100 pt-5 space-y-4">
+            <div>
+              <label className="label">Visibility</label>
+              <select
+                value={visibilityType}
+                onChange={(e) => setVisibilityType(e.target.value as EventVisibility)}
+                className="input cursor-pointer"
+              >
+                <option value="city">🌆 City — visible to everyone in the city</option>
+                <option value="national">🌍 National — visible to everyone on the platform</option>
+                <option value="interest">🎯 Interest community — interest group members</option>
+                <option value="micro">🏘️ Micro community — compound / university members</option>
+              </select>
+            </div>
+
+            {communities.length > 0 && (
+              <div>
+                <label className="label">Tag Communities (optional)</label>
+                <p className="text-xs text-gray-400 mb-2">Members of tagged communities will be notified when you publish.</p>
+                <div className="flex flex-wrap gap-2">
+                  {communities.map((c) => {
+                    const selected = selectedCommunities.includes(c.id)
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() =>
+                          setSelectedCommunities((prev) =>
+                            selected ? prev.filter((id) => id !== c.id) : [...prev, c.id]
+                          )
+                        }
+                        className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${
+                          selected
+                            ? 'bg-brand-600 text-white border-brand-600'
+                            : 'bg-white text-gray-600 border-gray-200 hover:border-brand-300'
+                        }`}
+                      >
+                        {c.name}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">{error}</div>}
@@ -551,6 +619,19 @@ export function EventForm({ categories, event }: EventFormProps) {
                 </div>
               )}
             </dl>
+
+            {selectedCommunities.length > 0 && (
+              <div className="col-span-2">
+                <dt className="text-gray-500 text-xs font-medium uppercase tracking-wide">Communities</dt>
+                <dd className="text-gray-900 font-medium mt-0.5 text-sm">
+                  {communities.filter((c) => selectedCommunities.includes(c.id)).map((c) => c.name).join(', ')}
+                </dd>
+              </div>
+            )}
+            <div className="col-span-2">
+              <dt className="text-gray-500 text-xs font-medium uppercase tracking-wide">Visibility</dt>
+              <dd className="text-gray-900 font-medium mt-0.5 text-sm capitalize">{visibilityType}</dd>
+            </div>
 
             <div>
               <dt className="text-gray-500 text-xs font-medium uppercase tracking-wide mb-2">Ticket Types</dt>

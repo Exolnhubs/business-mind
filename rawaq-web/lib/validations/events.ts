@@ -28,7 +28,13 @@ const EventBaseSchema = z.object({
   is_published: z.boolean().default(false),
 })
 
-export const CreateEventSchema = EventBaseSchema.refine(
+// Extend base with community fields
+const EventCommunityFields = {
+  visibility_type: z.enum(['micro', 'interest', 'city', 'national']).default('city'),
+  community_ids: z.array(z.string().uuid()).max(10).optional(),
+}
+
+export const CreateEventSchema = EventBaseSchema.extend(EventCommunityFields).refine(
   (d) => d.is_free || (d.price !== undefined && d.price > 0),
   { message: 'Paid events must have a price', path: ['price'] }
 ).refine(
@@ -39,6 +45,8 @@ export const CreateEventSchema = EventBaseSchema.refine(
 export const UpdateEventSchema = EventBaseSchema.partial().extend({
   is_cancelled: z.boolean().optional(),
   cancelled_reason: z.string().max(500).optional(),
+  visibility_type: z.enum(['micro', 'interest', 'city', 'national']).optional(),
+  community_ids: z.array(z.string().uuid()).max(10).optional(),
 })
 
 export const ListEventsSchema = z.object({
@@ -57,6 +65,8 @@ export const ListEventsSchema = z.object({
   radius_km: z.coerce.number().positive().max(500).optional(),
   organizer_id: z.string().uuid().optional(),
   organizer_own: z.coerce.boolean().optional(),
+  community: z.string().optional(),            // community slug filter
+  visibility: z.enum(['micro', 'interest', 'city', 'national']).optional(),
 })
 
 export type CreateEventInput = z.infer<typeof CreateEventSchema>

@@ -73,14 +73,27 @@ export async function PATCH(
       .eq('id', id)
       .single()
 
+    // Extract community_ids before updating (not a DB column)
+    const { community_ids, ...eventInput } = input
+
     const { data, error } = await adminClient
       .from('events')
-      .update(input)
+      .update(eventInput)
       .eq('id', id)
       .select()
       .single()
 
     if (error) throw error
+
+    // Sync community tags if provided
+    if (community_ids !== undefined) {
+      await adminClient.from('event_communities').delete().eq('event_id', id) as any
+      if (community_ids.length > 0) {
+        await adminClient
+          .from('event_communities')
+          .insert(community_ids.map((cid) => ({ event_id: id, community_id: cid })) as any)
+      }
+    }
 
     const eventTitle = data?.title ?? before?.title ?? ''
 
@@ -123,6 +136,19 @@ export async function PATCH(
             payload: { event_id: id, event_title: eventTitle },
           }))
         ).catch(() => {})
+      }
+    }
+
+    // ── Notify community members: new event published ──────────────────────
+    if (input.is_published === true && !before?.is_published) {
+      const taggedIds = community_ids ?? []
+      if (taggedIds.length === 0) {
+        // Fetch existing community tags in case we're publishing a previously drafted event
+        const { data: ecRows } = await adminClient.from('event_communities').select('community_id').eq('event_id', id) as any
+        if (ecRows?.length) taggedIds.push(...(ecRows as { community_id: string }[]).map((r) => r.community_id))
+      }
+      if (taggedIds.length > 0) {
+        notifyCommunityMembersOnPublish({ adminClient, communityIds: taggedIds, eventId: id, eventTitle }).catch(() => {})
       }
     }
 
@@ -194,4 +220,43 @@ export async function DELETE(
   } catch (err) {
     return handleApiError(err)
   }
+}
+
+// Notify community members when an event is published (fire-and-forget)
+async function notifyCommunityMembersOnPublish({
+  adminClient,
+  communityIds,
+  eventId,
+  eventTitle,
+}: {
+  adminClient: ReturnType<typeof createSupabaseAdminClient>
+  communityIds: string[]
+  eventId: string
+  eventTitle: string
+}) {
+  const [{ data: communities }, { data: memberships }] = await Promise.all([
+    adminClient.from('communities').select('id, name').in('id', communityIds) as any,
+    adminClient.from('community_memberships').select('user_id, community_id').in('community_id', communityIds) as any,
+  ])
+
+  if (!memberships?.length) return
+
+  const communityNameById = new Map<string, string>(
+    (communities ?? []).map((c: { id: string; name: string }) => [c.id, c.name])
+  )
+
+  const userMap = new Map<string, string>()
+  for (const m of memberships as { user_id: string; community_id: string }[]) {
+    if (!userMap.has(m.user_id)) {
+      userMap.set(m.user_id, communityNameById.get(m.community_id) ?? 'your community')
+    }
+  }
+
+  await sendNotifications(
+    Array.from(userMap.entries()).map(([userId, communityName]) => ({
+      userId,
+      type: 'community_new_event' as const,
+      payload: { event_id: eventId, event_title: eventTitle, community_name: communityName },
+    }))
+  )
 }
