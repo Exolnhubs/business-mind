@@ -14,7 +14,7 @@ import { Badge } from '@/components/ui/Badge'
 import { CommentThread } from '@/components/comments/CommentThread'
 import { formatDate, formatTime, formatCurrency } from '@/lib/utils'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
-import type { Community, EventWithOrganizer, CommentWithAuthor, TicketType } from '@/types/database'
+import type { Community, EventWithOrganizer, CommentWithAuthor, TicketType, Waitlist, ReportReason } from '@/types/database'
 
 interface PaymentOption {
   id: string
@@ -58,7 +58,7 @@ export default function EventDetailScreen() {
   const [showTip, setShowTip]       = useState(false)
   // Report event
   const [showReport, setShowReport]   = useState(false)
-  const [reportReason, setReportReason] = useState<string>('spam')
+  const [reportReason, setReportReason] = useState<ReportReason>('spam')
   const [reportDetails, setReportDetails] = useState('')
   const [reportLoading, setReportLoading] = useState(false)
   const [reportDone, setReportDone]   = useState(false)
@@ -79,7 +79,7 @@ export default function EventDetailScreen() {
         .select(`*, gender_restriction,
           organizer:profiles!organizer_id(
             id, display_name, avatar_url,
-            organizer_profile:organizer_profiles!user_id(business_name, logo_url, verified)
+            organizer_profile:organizer_profiles!user_id(business_name, business_name_ar, logo_url, verified)
           ),
           category:event_categories(id, name_en, name_ar, icon)
         `)
@@ -111,8 +111,8 @@ export default function EventDetailScreen() {
         .eq('event_id', id).eq('is_active', true).order('sort_order'),
       supabase.from('event_communities').select('community_id').eq('event_id', id),
     ]).then(([{ data: ev }, { data: cmts }, { data: booking }, { data: wl }, { data: tts }, { data: eventCommunityRows }]) => {
-      setEvent(ev as EventWithOrganizer)
-      setComments((cmts ?? []) as CommentWithAuthor[])
+      setEvent((ev as unknown as EventWithOrganizer | null) ?? null)
+      setComments((cmts ?? []) as unknown as CommentWithAuthor[])
       setIsBooked(booking?.status === 'confirmed')
       setBookingPending(booking?.status === 'pending')
       setOnWaitlist(!!wl)
@@ -391,8 +391,16 @@ export default function EventDetailScreen() {
   async function handleJoinWaitlist() {
     if (!user) { router.push('/(auth)/login'); return }
     setBL(true)
+    const waitlistInsert: Omit<Waitlist, 'id' | 'created_at'> = {
+      user_id: user.id,
+      event_id: id as string,
+      position: 0,
+      notified_at: null,
+      expires_at: null,
+      status: 'waiting',
+    }
     const { error } = await supabase.from('waitlist')
-      .insert({ user_id: user.id, event_id: id as string, status: 'waiting' })
+      .insert(waitlistInsert)
     if (error) {
       Alert.alert('Error', error.message)
     } else {
@@ -933,18 +941,18 @@ export default function EventDetailScreen() {
             ) : (
               <View style={styles.reportPanel}>
                 <Text style={styles.reportTitle}>Report Event</Text>
-                {[
+                {([
                   { value: 'spam',           label: 'Spam or misleading' },
                   { value: 'inappropriate',  label: 'Inappropriate content' },
                   { value: 'harassment',     label: 'Harassment or hate' },
                   { value: 'misinformation', label: 'False information' },
                   { value: 'other',          label: 'Other' },
-                ].map((r) => (
+                ] as Array<{ value: ReportReason; label: string }>).map((r) => (
                   <TouchableOpacity
                     key={r.value}
                     style={styles.reportOption}
                     onPress={() => setReportReason(r.value)}
-                  >
+                  >  
                     <View style={[styles.reportRadio, reportReason === r.value && styles.reportRadioSelected]} />
                     <Text style={styles.reportOptionLabel}>{r.label}</Text>
                   </TouchableOpacity>
@@ -971,6 +979,9 @@ export default function EventDetailScreen() {
                         reason:      reportReason,
                         details:     reportDetails.trim() || null,
                         status:      'pending',
+                        resolved_by: null,
+                        resolved_at: null,
+                        resolution_note: null,
                       })
                       if (error && error.code !== '23505') {
                         Alert.alert('Error', error.message)
