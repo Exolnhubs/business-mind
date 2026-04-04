@@ -155,7 +155,8 @@ export default function CommunityDetailScreen() {
   const meta        = LEVEL_META[community.level]
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <>
+      <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
       {/* ── Hero ─────────────────────────────────────────────── */}
       <View style={styles.hero}>
@@ -521,6 +522,7 @@ export default function CommunityDetailScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+    </>
   )
 }
 
@@ -608,31 +610,31 @@ const styles = StyleSheet.create({
   loadMoreText:      { fontSize: FontSize.sm, color: Colors.brand[600], fontWeight: FontWeight.medium },
 
   // Section subtitle
-  sectionSub:        { fontSize: FontSize.xs, color: Colors.gray[400], marginBottom: Spacing[3] },
+  sectionSub:        { fontSize: FontSize.xs, color: Colors.gray[400], marginBottom: Spacing.md },
 
   // Post happening button
-  postHappeningBtn:      { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.brand[600], borderRadius: Radius.lg, paddingHorizontal: Spacing[3], paddingVertical: Spacing[2] },
+  postHappeningBtn:      { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.brand[600], borderRadius: Radius.lg, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm },
   postHappeningBtnText:  { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: '#fff' },
 
   // Happenings empty
-  happeningsEmpty:     { alignItems: 'center', paddingVertical: Spacing[8], backgroundColor: '#fff', borderRadius: Radius.xl, borderWidth: 1, borderColor: Colors.gray[200], borderStyle: 'dashed' },
-  happeningsEmptyIcon: { fontSize: 28, marginBottom: Spacing[2] },
+  happeningsEmpty:     { alignItems: 'center', paddingVertical: Spacing['3xl'], backgroundColor: '#fff', borderRadius: Radius.xl, borderWidth: 1, borderColor: Colors.gray[200], borderStyle: 'dashed' },
+  happeningsEmptyIcon: { fontSize: 28, marginBottom: Spacing.sm },
   happeningsEmptyText: { fontSize: FontSize.sm, fontWeight: FontWeight.medium, color: Colors.gray[600] },
   happeningsEmptyHint: { fontSize: FontSize.xs, color: Colors.gray[400], marginTop: 4 },
 
   // Happening cards
   happeningsList:    { backgroundColor: '#fff', borderRadius: Radius.xl, overflow: 'hidden', borderWidth: 1, borderColor: Colors.gray[200], ...Shadow.sm },
-  happeningCard:     { padding: Spacing[3] },
+  happeningCard:     { padding: Spacing.md },
   happeningCardBorder: { borderBottomWidth: 1, borderBottomColor: Colors.gray[100] },
-  happeningHeader:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing[2] },
-  happeningAuthorRow:{ flexDirection: 'row', alignItems: 'center', gap: Spacing[2] },
+  happeningHeader:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.sm },
+  happeningAuthorRow:{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   happeningAuthor:   { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[900] },
   happeningTtl:      { fontSize: 11, color: Colors.gray[400], marginTop: 1 },
   happeningTypeBadge:{ width: 30, height: 30, borderRadius: 15, backgroundColor: Colors.gray[100], alignItems: 'center', justifyContent: 'center' },
   happeningTypeText: { fontSize: 14 },
-  happeningBody:     { fontSize: FontSize.sm, color: Colors.gray[800], lineHeight: 20, marginBottom: Spacing[3] },
-  happeningActions:  { flexDirection: 'row', gap: Spacing[2] },
-  happeningActionBtn:      { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing[3], paddingVertical: 6, borderRadius: Radius.lg, backgroundColor: Colors.gray[100] },
+  happeningBody:     { fontSize: FontSize.sm, color: Colors.gray[800], lineHeight: 20, marginBottom: Spacing.md },
+  happeningActions:  { flexDirection: 'row', gap: Spacing.sm },
+  happeningActionBtn:      { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.md, paddingVertical: 6, borderRadius: Radius.lg, backgroundColor: Colors.gray[100] },
   happeningActionBtnActive:{ backgroundColor: Colors.brand[600] },
   happeningReactActive:    { backgroundColor: '#fef9c3' },
   happeningActionText:     { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.gray[700] },
@@ -641,26 +643,26 @@ const styles = StyleSheet.create({
 
   // Post Happening Modal
   modalOverlay:   { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' },
-  modalSheet:     { backgroundColor: '#fff', borderTopLeftRadius: Radius['2xl'], borderTopRightRadius: Radius['2xl'], padding: Spacing[5], paddingBottom: Spacing[8] },
-  modalHandle:    { width: 36, height: 4, borderRadius: 2, backgroundColor: Colors.gray[300], alignSelf: 'center', marginBottom: Spacing[4] },
-  modalTitle:     { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.gray[900], marginBottom: Spacing[4] },
-  typeChips:      { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing[2], marginBottom: Spacing[4] },
-  typeChip:       { paddingHorizontal: Spacing[3], paddingVertical: Spacing[2], borderRadius: Radius.full, backgroundColor: Colors.gray[100], borderWidth: 1, borderColor: Colors.gray[200] },
+  modalSheet:     { backgroundColor: '#fff', borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, padding: Spacing.xl, paddingBottom: Spacing['3xl'] },
+  modalHandle:    { width: 36, height: 4, borderRadius: 2, backgroundColor: Colors.gray[300], alignSelf: 'center', marginBottom: Spacing.lg },
+  modalTitle:     { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.gray[900], marginBottom: Spacing.lg },
+  typeChips:      { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginBottom: Spacing.lg },
+  typeChip:       { paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: Radius.full, backgroundColor: Colors.gray[100], borderWidth: 1, borderColor: Colors.gray[200] },
   typeChipActive: { backgroundColor: Colors.brand[600], borderColor: Colors.brand[600] },
   typeChipText:   { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.gray[700] },
   typeChipTextActive: { color: '#fff' },
-  postInput:      { borderWidth: 1, borderColor: Colors.gray[200], borderRadius: Radius.xl, padding: Spacing[3], fontSize: FontSize.sm, color: Colors.gray[900], minHeight: 100, textAlignVertical: 'top', marginBottom: Spacing[1] },
-  charCount:      { fontSize: 11, color: Colors.gray[400], textAlign: 'right', marginBottom: Spacing[3] },
-  expiryRow:      { flexDirection: 'row', alignItems: 'center', gap: Spacing[2], marginBottom: Spacing[5], flexWrap: 'wrap' },
+  postInput:      { borderWidth: 1, borderColor: Colors.gray[200], borderRadius: Radius.xl, padding: Spacing.md, fontSize: FontSize.sm, color: Colors.gray[900], minHeight: 100, textAlignVertical: 'top', marginBottom: Spacing.xs },
+  charCount:      { fontSize: 11, color: Colors.gray[400], textAlign: 'right', marginBottom: Spacing.md },
+  expiryRow:      { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.xl, flexWrap: 'wrap' },
   expiryLabel:    { fontSize: FontSize.xs, color: Colors.gray[500] },
-  expiryChip:     { paddingHorizontal: Spacing[2] + 2, paddingVertical: 5, borderRadius: Radius.full, backgroundColor: Colors.gray[100], borderWidth: 1, borderColor: Colors.gray[200] },
+  expiryChip:     { paddingHorizontal: Spacing.sm + 2, paddingVertical: 5, borderRadius: Radius.full, backgroundColor: Colors.gray[100], borderWidth: 1, borderColor: Colors.gray[200] },
   expiryChipActive:     { backgroundColor: Colors.brand[100], borderColor: Colors.brand[300] },
   expiryChipText:       { fontSize: 11, fontWeight: FontWeight.semibold, color: Colors.gray[600] },
   expiryChipTextActive: { color: Colors.brand[700] },
-  modalActions:   { flexDirection: 'row', gap: Spacing[3] },
-  modalCancelBtn: { flex: 1, alignItems: 'center', paddingVertical: Spacing[3], borderRadius: Radius.xl, backgroundColor: Colors.gray[100] },
+  modalActions:   { flexDirection: 'row', gap: Spacing.md },
+  modalCancelBtn: { flex: 1, alignItems: 'center', paddingVertical: Spacing.md, borderRadius: Radius.xl, backgroundColor: Colors.gray[100] },
   modalCancelText:{ fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[700] },
-  modalPostBtn:   { flex: 2, alignItems: 'center', paddingVertical: Spacing[3], borderRadius: Radius.xl, backgroundColor: Colors.brand[600] },
+  modalPostBtn:   { flex: 2, alignItems: 'center', paddingVertical: Spacing.md, borderRadius: Radius.xl, backgroundColor: Colors.brand[600] },
   modalPostBtnDisabled: { opacity: 0.5 },
   modalPostText:  { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: '#fff' },
 })

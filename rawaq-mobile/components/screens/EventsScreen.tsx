@@ -17,6 +17,13 @@ import type { Community, EventWithOrganizer } from '@/types/database'
 
 type JoinedCommunity = Pick<Community, 'id' | 'name' | 'name_ar' | 'slug' | 'level'>
 type CommunityListItem = JoinedCommunity & { is_member: boolean }
+type EventsApiListResponse = {
+  data: EventWithOrganizer[]
+  total: number
+  page: number
+  per_page: number
+  has_more: boolean
+}
 
 interface Category { id: string; name_en: string; name_ar: string; icon: string | null }
 interface SavedSignalEvent {
@@ -241,65 +248,42 @@ export default function EventsScreen() {
       ),
       category:event_categories(id, name_en, name_ar, icon)
     `
-    let query = supabase
-      .from('events')
-      .select(eventSelect)
-      .eq('is_published', true)
-      .eq('is_cancelled', false)
-      .gte('start_at', new Date().toISOString())
-      .order('start_at', { ascending: true })
-      .limit(48)
+    const params = new URLSearchParams({
+      per_page: '48',
+      date_from: new Date().toISOString(),
+    })
 
-    if (search) {
-      const q = search.replace(/'/g, "''")
-      query = query.or(`title.ilike.%${q}%,title_ar.ilike.%${q}%,description.ilike.%${q}%`)
-    }
-    if (city !== 'All') query = query.eq('city', city)
-    if (freeOnly) query = query.eq('is_free', true)
-    if (categoryId) query = query.eq('category_id', categoryId)
+    if (search) params.set('search', search)
+    if (city !== 'All') params.set('city', city)
+    if (freeOnly) params.set('is_free', 'true')
+    if (categoryId) params.set('category_id', categoryId)
 
     // Community filter: resolve slug → event IDs via event_communities
-    if (communitySlug) {
-      const { data: communityRow } = await supabase
-        .from('communities')
-        .select('id')
-        .eq('slug', communitySlug)
-        .single()
-      if (communityRow) {
-        const { data: ecRows } = await supabase
-          .from('event_communities')
-          .select('event_id')
-          .eq('community_id', communityRow.id)
-        const ids = (ecRows ?? []).map((r) => r.event_id)
-        if (ids.length === 0) {
-          setEvents([])
-          setLoading(false); setRefreshing(false); return
-        }
-        query = query.in('id', ids)
-      }
-    }
+    if (communitySlug) params.set('community', communitySlug)
 
     if (geoActive) {
-      const { data: geoEvents, error: rpcErr } = await supabase.rpc('events_within_radius', {
-        user_lat: geoActive.lat,
-        user_lng: geoActive.lng,
-        radius_meters: radiusKm * 1000,
-      })
-      if (rpcErr) {
-        Alert.alert('Location error', rpcErr.message ?? 'Could not find events near you.')
-        setNearMe(false); setGeoCoords(null)
-        setLoading(false); setRefreshing(false); return
-      }
-      const ids = ((geoEvents ?? []) as { id: string }[]).map((e) => e.id)
-      if (ids.length === 0) {
-        setEvents([])
-        setLoading(false); setRefreshing(false); return
-      }
-      query = query.in('id', ids)
+      params.set('lat', String(geoActive.lat))
+      params.set('lng', String(geoActive.lng))
+      params.set('radius_km', String(radiusKm))
     }
 
-    const { data } = await query
-    const list = (data ?? []) as unknown as EventWithOrganizer[]
+    const { data: eventsPayload, error: eventsError } = await apiGet<EventsApiListResponse>(
+      `/api/events?${params.toString()}`,
+    )
+
+    if (eventsError) {
+      setEvents([])
+      setSavedIds(new Set())
+      setAlmostSoldOutEvents([])
+      setSavedInspiredEvents([])
+      setNearYouWeekendEvents([])
+      setLoading(false)
+      setRefreshing(false)
+      Alert.alert('Events unavailable', eventsError)
+      return
+    }
+
+    const list = eventsPayload?.data ?? []
     setEvents(list)
 
     let nextSavedIds = new Set<string>()
