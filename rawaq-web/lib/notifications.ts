@@ -132,6 +132,7 @@ function getPushTitle(type: NotificationType): string {
     referral_signup_reward:    'You earned a reward! 🎁',
     referral_conversion_reward:'Bonus reward unlocked! 🎉',
     community_new_event:       'New event in your community 🗓️',
+    community_happening:       'Something\'s happening nearby 📍',
   }
   return titles[type] ?? 'Rawaq Notification'
 }
@@ -160,6 +161,7 @@ function getPushBody(type: NotificationType, payload: Record<string, unknown>): 
     case 'referral_signup_reward':      return 'A friend joined using your link — you earned a 15% coupon!'
     case 'referral_conversion_reward':  return 'Your friend just made their first booking — you earned a 25% coupon!'
     case 'community_new_event':         return `New event in ${str('community_name')}: "${str('event_title')}"`
+    case 'community_happening':         return `${str('community_name')}: "${str('body')}"`
     default:                            return 'You have a new notification'
   }
 }
