@@ -6,6 +6,9 @@ import Link from 'next/link'
 import { useAuth } from '@/contexts/auth-context'
 import { Spinner } from '@/components/ui/Spinner'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { HappeningCard } from '@/components/communities/HappeningCard'
+import { PostHappeningForm } from '@/components/communities/PostHappeningForm'
+import { useHappenings } from '@/hooks/useHappenings'
 import { formatDate } from '@/lib/utils'
 import type { Community, CommunityLevel, Event } from '@/types/database'
 
@@ -38,6 +41,11 @@ export default function CommunityDetailPage() {
   const [events, setEvents]       = useState<Event[]>([])
   const [eventsLoading, setEventsLoading] = useState(false)
   const [nextCursor, setNextCursor]       = useState<string | null>(null)
+  const [showPostForm, setShowPostForm]   = useState(false)
+
+  const isMember = community?.is_member ?? false
+  const { happenings, loading: happeningsLoading, posting, post, toggleRsvp, toggleReact, remove } =
+    useHappenings(slug, isMember)
 
   useEffect(() => {
     fetch(`/api/communities/${slug}`)
@@ -213,6 +221,60 @@ export default function CommunityDetailPage() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Happenings section */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">What&apos;s Happening Now</h2>
+            <p className="text-xs text-gray-400 mt-0.5">Spontaneous, time-limited posts from members</p>
+          </div>
+          {isMember && !showPostForm && (
+            <button
+              onClick={() => setShowPostForm(true)}
+              className="text-sm font-semibold bg-brand-600 text-white px-4 py-2 rounded-xl hover:bg-brand-700 transition-colors"
+            >
+              + Post happening
+            </button>
+          )}
+        </div>
+
+        {showPostForm && (
+          <PostHappeningForm
+            posting={posting}
+            onPost={async (data) => {
+              const ok = await post(data)
+              if (ok) setShowPostForm(false)
+              return ok
+            }}
+            onCancel={() => setShowPostForm(false)}
+          />
+        )}
+
+        {happeningsLoading ? (
+          <div className="flex justify-center py-8"><Spinner size="lg" /></div>
+        ) : happenings.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 py-10 text-center">
+            <p className="text-2xl mb-2">📍</p>
+            <p className="text-sm font-medium text-gray-600">Nothing happening right now</p>
+            {isMember && (
+              <p className="text-xs text-gray-400 mt-1">Be the first — post a happening!</p>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {happenings.map((h) => (
+              <HappeningCard
+                key={h.id}
+                happening={h}
+                onRsvp={toggleRsvp}
+                onReact={toggleReact}
+                onDelete={remove}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Events section */}
