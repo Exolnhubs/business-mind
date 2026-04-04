@@ -4,7 +4,7 @@ import {
   TouchableOpacity, RefreshControl, Alert, Modal,
   KeyboardAvoidingView, Platform, TextInput, ActivityIndicator,
 } from 'react-native'
-import { useRouter } from 'expo-router'
+import { useLocalSearchParams, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '@/lib/supabase'
 import { apiPost } from '@/lib/api'
@@ -21,6 +21,7 @@ export default function BookingsScreen() {
   const { user } = useAuth()
   const { t, locale } = useLocale()
   const router = useRouter()
+  const { refundBookingId } = useLocalSearchParams<{ refundBookingId?: string }>()
   const [bookings,    setBookings]    = useState<BookingWithEvent[]>([])
   const [loading,     setLoading]     = useState(true)
   const [refreshing,  setRefreshing]  = useState(false)
@@ -43,6 +44,19 @@ export default function BookingsScreen() {
   }, [user])
 
   useEffect(() => { loadBookings() }, [loadBookings])
+
+  useEffect(() => {
+    if (!refundBookingId || bookings.length === 0) return
+
+    const target = bookings.find((booking) => booking.id === refundBookingId) ?? null
+    if (target && canRefundBooking(target)) {
+      openRefundModal(target)
+    } else {
+      Alert.alert('Manage booking', 'This booking cannot be cancelled or refunded from here right now.')
+    }
+
+    router.replace('/(tabs)/bookings' as any)
+  }, [bookings, refundBookingId, router])
 
   function openRefundModal(b: BookingWithEvent) {
     setUserNote('')
@@ -132,9 +146,7 @@ export default function BookingsScreen() {
           const b = item.booking!
           const title = locale === 'ar' && b.event?.title_ar ? b.event.title_ar : b.event?.title ?? 'Event'
           const isActive     = b.status === 'confirmed' && !b.event?.is_cancelled
-          const isPaid       = !b.event?.is_free && (b.event?.price ?? 0) > 0
-          const isUpcoming   = b.event ? new Date(b.event.start_at) > new Date() : false
-          const canRefund    = isActive && isPaid && isUpcoming
+          const canRefund    = canRefundBooking(b)
 
           return (
             <TouchableOpacity
@@ -238,6 +250,13 @@ export default function BookingsScreen() {
       </Modal>
     </>
   )
+}
+
+function canRefundBooking(booking: BookingWithEvent) {
+  const isActive = booking.status === 'confirmed' && !booking.event?.is_cancelled
+  const isPaid = !booking.event?.is_free && (booking.event?.price ?? 0) > 0
+  const isUpcoming = booking.event ? new Date(booking.event.start_at) > new Date() : false
+  return isActive && isPaid && isUpcoming
 }
 
 const styles = StyleSheet.create({

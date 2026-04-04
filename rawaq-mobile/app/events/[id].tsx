@@ -7,7 +7,7 @@ import * as WebBrowser from 'expo-web-browser'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '@/lib/supabase'
-import { apiPost, apiPatch, apiGet } from '@/lib/api'
+import { apiPost, apiGet } from '@/lib/api'
 import { useAuth } from '@/contexts/auth-context'
 import { useLocale } from '@/contexts/locale-context'
 import { Badge } from '@/components/ui/Badge'
@@ -39,6 +39,7 @@ export default function EventDetailScreen() {
   const [ticketTypes, setTicketTypes] = useState<TicketType[]>([])
   const [loading, setLoading]         = useState(true)
   const [isBooked, setIsBooked]       = useState(false)
+  const [currentBookingId, setCurrentBookingId] = useState<string | null>(null)
   const [bookingPending, setBookingPending] = useState(false)
   const [onWaitlist, setOnWaitlist]   = useState(false)
   const [bookingLoading, setBL]       = useState(false)
@@ -113,6 +114,7 @@ export default function EventDetailScreen() {
     ]).then(([{ data: ev }, { data: cmts }, { data: booking }, { data: wl }, { data: tts }, { data: eventCommunityRows }]) => {
       setEvent((ev as unknown as EventWithOrganizer | null) ?? null)
       setComments((cmts ?? []) as unknown as CommentWithAuthor[])
+      setCurrentBookingId(booking?.id ?? null)
       setIsBooked(booking?.status === 'confirmed')
       setBookingPending(booking?.status === 'pending')
       setOnWaitlist(!!wl)
@@ -248,6 +250,7 @@ export default function EventDetailScreen() {
     if (data.free || !data.redirect_url) {
       setIsBooked(true)
       setNewBookingId(data.booking_id ?? null)
+      setCurrentBookingId(data.booking_id ?? null)
       setShowBookingSuccess(true)
       return
     }
@@ -281,6 +284,7 @@ export default function EventDetailScreen() {
     }
 
     setNewBookingId(bookingId)
+    setCurrentBookingId(bookingId)
 
     // ── Fast path: gateway confirmed success via browser redirect ────────────
     // Paymob's Transaction Response Callback includes ?success=true when the
@@ -362,15 +366,12 @@ export default function EventDetailScreen() {
     setBL(true)
 
     if (isBooked) {
-      const { data: booking } = await supabase
-        .from('bookings').select('id')
-        .eq('event_id', id).eq('user_id', user.id).eq('status', 'confirmed').single()
-      if (booking) {
-        const { error } = await apiPatch(`/api/bookings/${booking.id}`, { status: 'cancelled' })
-        if (error) { Alert.alert('Error', error); setBL(false); return }
-      }
-      setIsBooked(false)
       setBL(false)
+      if (currentBookingId) {
+        router.push({ pathname: '/(tabs)/bookings', params: { refundBookingId: currentBookingId } } as any)
+      } else {
+        router.push('/(tabs)/bookings' as any)
+      }
       return
     }
 
@@ -695,14 +696,19 @@ export default function EventDetailScreen() {
         {!event.is_cancelled && (
           <View style={styles.bookingSection}>
             {isBooked ? (
-              <TouchableOpacity
-                style={[styles.bookBtn, styles.bookBtnOutline]}
-                onPress={handleBooking} disabled={bookingLoading}
-              >
-                {bookingLoading
-                  ? <ActivityIndicator color={Colors.brand[500]} />
-                  : <Text style={[styles.bookBtnText, { color: Colors.gray[700] }]}>✓ Cancel Booking</Text>}
-              </TouchableOpacity>
+              <View style={styles.manageBookingBlock}>
+                <TouchableOpacity
+                  style={[styles.bookBtn, styles.bookBtnOutline]}
+                  onPress={handleBooking} disabled={bookingLoading}
+                >
+                  {bookingLoading
+                    ? <ActivityIndicator color={Colors.brand[500]} />
+                    : <Text style={[styles.bookBtnText, { color: Colors.gray[700] }]}>Open in My Bookings</Text>}
+                </TouchableOpacity>
+                <Text style={styles.manageBookingHint}>
+                  Cancellations and refunds are handled from My Bookings.
+                </Text>
+              </View>
             ) : bookingPending ? (
               <View style={styles.waitlistBadge}>
                 <Text style={styles.waitlistBadgeText}>⏳ Payment is being processed</Text>
@@ -1155,6 +1161,8 @@ const styles = StyleSheet.create({
   bookBtnAmber: { backgroundColor: '#f59e0b' },
   bookBtnText: { color: Colors.white, fontWeight: FontWeight.semibold, fontSize: FontSize.base },
   bookingSection: { marginBottom: Spacing.sm, gap: Spacing.sm },
+  manageBookingBlock: { gap: Spacing.xs },
+  manageBookingHint: { fontSize: FontSize.xs, color: Colors.gray[500], textAlign: 'center', marginTop: -2 },
   // Waitlist
   waitlistRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   waitlistBadge: { flex: 1, backgroundColor: '#fefce8', borderRadius: Radius.lg, paddingVertical: 12, paddingHorizontal: 16, borderWidth: 1, borderColor: '#fde68a' },

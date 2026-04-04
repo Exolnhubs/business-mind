@@ -12,27 +12,27 @@ import type { Notification, NotificationType } from '@/types/database'
 
 // ── Notification bell ───────────────────────────────────────
 const NOTIF_ICONS: Partial<Record<NotificationType, string>> = {
-  booking_confirmed:  '🎟️',
-  booking_cancelled:  '❌',
-  event_reminder:     '🔔',
-  comment_reply:      '💬',
-  mention:            '👋',
+  booking_confirmed: '🎟️',
+  booking_cancelled: '❌',
+  event_reminder: '🔔',
+  comment_reply: '💬',
+  mention: '👋',
   organizer_approved: '✅',
-  event_cancelled:    '🚫',
-  tip_received:       '💰',
+  event_cancelled: '🚫',
+  tip_received: '💰',
 }
 
 function notifTitle(n: Notification, t: (k: string) => string): string {
   const p = n.payload as Record<string, string>
   switch (n.type) {
-    case 'booking_confirmed':   return `${t('notif.booking_confirmed')}: ${p.event_title ?? ''}`
-    case 'booking_cancelled':   return `${t('notif.booking_cancelled')}: ${p.event_title ?? ''}`
-    case 'event_reminder':      return `${p.event_title ?? ''} — ${t('notif.event_reminder')}`
-    case 'comment_reply':       return t('notif.comment_reply')
-    case 'mention':             return t('notif.mention')
-    case 'organizer_approved':  return t('notif.organizer_approved')
-    case 'event_cancelled':     return `${t('notif.event_cancelled')}: ${p.event_title ?? ''}`
-    case 'tip_received':        return `${t('notif.tip_received')} — SAR ${p.amount ?? ''}`
+    case 'booking_confirmed': return `${t('notif.booking_confirmed')}: ${p.event_title ?? ''}`
+    case 'booking_cancelled': return `${t('notif.booking_cancelled')}: ${p.event_title ?? ''}`
+    case 'event_reminder': return `${p.event_title ?? ''} — ${t('notif.event_reminder')}`
+    case 'comment_reply': return t('notif.comment_reply')
+    case 'mention': return t('notif.mention')
+    case 'organizer_approved': return t('notif.organizer_approved')
+    case 'event_cancelled': return `${t('notif.event_cancelled')}: ${p.event_title ?? ''}`
+    case 'tip_received': return `${t('notif.tip_received')} — SAR ${p.amount ?? ''}`
     default: return n.type
   }
 }
@@ -134,9 +134,8 @@ function NotificationBell({ userId }: { userId: string }) {
                 {notifications.map((n) => (
                   <div
                     key={n.id}
-                    className={`flex items-start gap-3 px-4 py-3 border-b border-gray-50 last:border-0 ${
-                      n.is_read ? '' : 'bg-brand-50'
-                    }`}
+                    className={`flex items-start gap-3 px-4 py-3 border-b border-gray-50 last:border-0 ${n.is_read ? '' : 'bg-brand-50'
+                      }`}
                   >
                     <span className="text-lg shrink-0 mt-0.5">{NOTIF_ICONS[n.type] ?? '🔔'}</span>
                     <div className="flex-1 min-w-0">
@@ -188,9 +187,8 @@ export function Navbar() {
   const navLink = (href: string, label: string) => (
     <Link
       href={href}
-      className={`text-sm font-medium transition-colors hover:text-brand-600 ${
-        pathname.startsWith(href) ? 'text-brand-600' : 'text-gray-600'
-      }`}
+      className={`text-sm font-medium transition-colors hover:text-brand-600 ${pathname.startsWith(href) ? 'text-brand-600' : 'text-gray-600'
+        }`}
     >
       {label}
     </Link>
@@ -208,6 +206,7 @@ export function Navbar() {
         {/* Desktop links */}
         <div className="hidden md:flex items-center gap-6">
           {navLink('/events', t('nav.events'))}
+          {navLink('/communities', t('nav.communities'))}
           {user && navLink('/feed', `👥 ${t('nav.feed')}`)}
           {user && navLink('/saved', `🤍 ${t('nav.saved')}`)}
           {user && navLink('/chat', t('nav.chat'))}
@@ -258,6 +257,10 @@ export function Navbar() {
                           📊 {t('nav.dashboard')}
                         </Link>
                       )}
+                      <Link href="/communities" onClick={() => setMenuOpen(false)}
+                        className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50">
+                        🏘️ {t('nav.communities')}
+                      </Link>
                       {profile?.role === 'admin' && (
                         <Link href="/admin" onClick={() => setMenuOpen(false)}
                           className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50">
