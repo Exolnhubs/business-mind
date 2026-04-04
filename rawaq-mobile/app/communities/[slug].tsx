@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import {
-  View, Text, ScrollView, StyleSheet,
-  TouchableOpacity, ActivityIndicator, Image, Alert,
+  View, Text, ScrollView, StyleSheet, Modal,
+  TouchableOpacity, ActivityIndicator, Image, Alert, TextInput,
+  KeyboardAvoidingView, Platform,
 } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
@@ -12,7 +13,7 @@ import { Spinner } from '@/components/ui/Spinner'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { formatDate } from '@/lib/utils'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
-import type { Community, CommunityLevel, Event } from '@/types/database'
+import type { Community, CommunityLevel, Event, HappeningType, HappeningWithAuthor } from '@/types/database'
 
 type CommunityDetail = Community & {
   is_member: boolean
@@ -47,6 +48,15 @@ export default function CommunityDetailScreen() {
   const [eventsLoading, setEventsLoading] = useState(false)
   const [nextCursor, setNextCursor]       = useState<string | null>(null)
 
+  // Happenings state
+  const [happenings, setHappenings]       = useState<HappeningWithAuthor[]>([])
+  const [happeningsLoading, setHappeningsLoading] = useState(false)
+  const [showPostModal, setShowPostModal] = useState(false)
+  const [postType, setPostType]           = useState<HappeningType>('open_invite')
+  const [postBody, setPostBody]           = useState('')
+  const [postExpiry, setPostExpiry]       = useState(6)
+  const [posting, setPosting]             = useState(false)
+
   useEffect(() => {
     apiGet<CommunityDetail>(`/api/communities/${slug}`)
       .then(({ data }) => { if (data) setCommunity(data); else router.back() })
@@ -67,6 +77,57 @@ export default function CommunityDetailScreen() {
   }
 
   useEffect(() => { if (community) loadEvents() }, [community?.id])
+
+  async function loadHappenings() {
+    setHappeningsLoading(true)
+    const { data } = await apiGet<{ happenings: HappeningWithAuthor[] }>(`/api/communities/${slug}/happenings?per_page=20`)
+    if (data) setHappenings(data.happenings ?? [])
+    setHappeningsLoading(false)
+  }
+
+  useEffect(() => { if (community) loadHappenings() }, [community?.id])
+
+  async function submitHappening() {
+    if (!postBody.trim()) return
+    setPosting(true)
+    const { data, error } = await apiPost<HappeningWithAuthor>(`/api/communities/${slug}/happenings`, {
+      type: postType, body: postBody.trim(), expires_in_hours: postExpiry,
+    })
+    if (error) {
+      Alert.alert('Error', error)
+    } else if (data) {
+      setHappenings((prev) => [data, ...prev])
+      setShowPostModal(false)
+      setPostBody('')
+      setPostType('open_invite')
+      setPostExpiry(6)
+    }
+    setPosting(false)
+  }
+
+  async function toggleHappeningRsvp(h: HappeningWithAuthor) {
+    if (!user) { router.push('/auth/login' as any); return }
+    const { data } = h.user_has_rsvp
+      ? await apiDelete<{ rsvp: boolean; rsvp_count: number }>(`/api/happenings/${h.id}/rsvp`)
+      : await apiPost<{ rsvp: boolean; rsvp_count: number }>(`/api/happenings/${h.id}/rsvp`, {})
+    if (data) {
+      setHappenings((prev) => prev.map((item) =>
+        item.id === h.id ? { ...item, user_has_rsvp: data.rsvp, rsvp_count: data.rsvp_count } : item
+      ))
+    }
+  }
+
+  async function toggleHappeningReact(h: HappeningWithAuthor) {
+    if (!user) { router.push('/auth/login' as any); return }
+    const { data } = h.user_has_reacted
+      ? await apiDelete<{ reacted: boolean; reaction_count: number }>(`/api/happenings/${h.id}/react`)
+      : await apiPost<{ reacted: boolean; reaction_count: number }>(`/api/happenings/${h.id}/react`, { emoji: '👍' })
+    if (data) {
+      setHappenings((prev) => prev.map((item) =>
+        item.id === h.id ? { ...item, user_has_reacted: data.reacted, reaction_count: data.reaction_count } : item
+      ))
+    }
+  }
 
   async function toggleMembership() {
     if (!user) { router.push('/auth/login' as any); return }
@@ -246,6 +307,91 @@ export default function CommunityDetailScreen() {
         </View>
       )}
 
+      {/* ── Happenings ───────────────────────────────────────── */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <View>
+            <Text style={[styles.sectionTitle, { marginBottom: 2 }]}>What&apos;s Happening Now</Text>
+            <Text style={styles.sectionSub}>Spontaneous, time-limited posts</Text>
+          </View>
+          {community.is_member && (
+            <TouchableOpacity
+              onPress={() => setShowPostModal(true)}
+              style={styles.postHappeningBtn}
+            >
+              <Ionicons name="add" size={14} color="#fff" />
+              <Text style={styles.postHappeningBtnText}>Post</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {happeningsLoading ? (
+          <View style={styles.centerSmall}><Spinner /></View>
+        ) : happenings.length === 0 ? (
+          <View style={styles.happeningsEmpty}>
+            <Text style={styles.happeningsEmptyIcon}>📍</Text>
+            <Text style={styles.happeningsEmptyText}>Nothing happening right now</Text>
+            {community.is_member && (
+              <Text style={styles.happeningsEmptyHint}>Be the first — post a happening!</Text>
+            )}
+          </View>
+        ) : (
+          <View style={styles.happeningsList}>
+            {happenings.map((h, i) => {
+              const ttlMs  = new Date(h.expires_at).getTime() - Date.now()
+              const ttlH   = Math.floor(ttlMs / 3_600_000)
+              const ttlM   = Math.floor((ttlMs % 3_600_000) / 60_000)
+              const ttl    = ttlMs <= 0 ? 'Expired' : ttlH > 0 ? `${ttlH}h ${ttlM}m left` : `${ttlM}m left`
+              const TYPE_EMOJI: Record<HappeningType, string> = { open_invite: '🙋', info: 'ℹ️', question: '❓', alert: '🚨' }
+              const isLast = i === happenings.length - 1
+
+              return (
+                <View key={h.id} style={[styles.happeningCard, !isLast && styles.happeningCardBorder]}>
+                  <View style={styles.happeningHeader}>
+                    <View style={styles.happeningAuthorRow}>
+                      <View style={styles.avatar}>
+                        {h.author.avatar_url
+                          ? <Image source={{ uri: h.author.avatar_url }} style={styles.avatarImg} />
+                          : <Text style={styles.avatarInitial}>{h.author.display_name.slice(0, 1).toUpperCase()}</Text>
+                        }
+                      </View>
+                      <View>
+                        <Text style={styles.happeningAuthor}>{h.author.display_name}</Text>
+                        <Text style={styles.happeningTtl}>{ttl}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.happeningTypeBadge}>
+                      <Text style={styles.happeningTypeText}>{TYPE_EMOJI[h.type]}</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.happeningBody}>{h.body}</Text>
+                  {user && ttlMs > 0 && (
+                    <View style={styles.happeningActions}>
+                      <TouchableOpacity
+                        onPress={() => toggleHappeningRsvp(h)}
+                        style={[styles.happeningActionBtn, h.user_has_rsvp && styles.happeningActionBtnActive]}
+                      >
+                        <Text style={[styles.happeningActionText, h.user_has_rsvp && styles.happeningActionTextActive]}>
+                          🙋 {h.user_has_rsvp ? "I'm in" : 'Join'} · {h.rsvp_count}
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => toggleHappeningReact(h)}
+                        style={[styles.happeningActionBtn, h.user_has_reacted && styles.happeningReactActive]}
+                      >
+                        <Text style={[styles.happeningActionText, h.user_has_reacted && styles.happeningReactTextActive]}>
+                          👍 {h.reaction_count}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+              )
+            })}
+          </View>
+        )}
+      </View>
+
       {/* ── Events ───────────────────────────────────────────── */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
@@ -306,6 +452,75 @@ export default function CommunityDetailScreen() {
         }
       </View>
     </ScrollView>
+
+      {/* ── Post Happening Modal ──────────────────────────────── */}
+      <Modal visible={showPostModal} animationType="slide" transparent onRequestClose={() => setShowPostModal(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHandle} />
+            <Text style={styles.modalTitle}>Post a Happening</Text>
+
+            {/* Type chips */}
+            <View style={styles.typeChips}>
+              {(['open_invite', 'info', 'question', 'alert'] as HappeningType[]).map((t) => {
+                const labels: Record<HappeningType, string> = { open_invite: '🙋 Invite', info: 'ℹ️ Info', question: '❓ Question', alert: '🚨 Alert' }
+                return (
+                  <TouchableOpacity
+                    key={t}
+                    onPress={() => setPostType(t)}
+                    style={[styles.typeChip, postType === t && styles.typeChipActive]}
+                  >
+                    <Text style={[styles.typeChipText, postType === t && styles.typeChipTextActive]}>
+                      {labels[t]}
+                    </Text>
+                  </TouchableOpacity>
+                )
+              })}
+            </View>
+
+            <TextInput
+              value={postBody}
+              onChangeText={(v) => setPostBody(v.slice(0, 280))}
+              placeholder="What's happening? (e.g. Anyone for padel in 30 min?)"
+              placeholderTextColor={Colors.gray[400]}
+              multiline
+              maxLength={280}
+              style={styles.postInput}
+            />
+            <Text style={styles.charCount}>{postBody.length}/280</Text>
+
+            {/* Expiry */}
+            <View style={styles.expiryRow}>
+              <Text style={styles.expiryLabel}>Expires in:</Text>
+              {[1, 3, 6, 12, 24].map((h) => (
+                <TouchableOpacity
+                  key={h}
+                  onPress={() => setPostExpiry(h)}
+                  style={[styles.expiryChip, postExpiry === h && styles.expiryChipActive]}
+                >
+                  <Text style={[styles.expiryChipText, postExpiry === h && styles.expiryChipTextActive]}>{h}h</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity onPress={() => setShowPostModal(false)} style={styles.modalCancelBtn}>
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={submitHappening}
+                disabled={posting || !postBody.trim()}
+                style={[styles.modalPostBtn, (posting || !postBody.trim()) && styles.modalPostBtnDisabled]}
+              >
+                {posting
+                  ? <ActivityIndicator size="small" color="#fff" />
+                  : <Text style={styles.modalPostText}>Post</Text>
+                }
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
   )
 }
 
@@ -391,4 +606,61 @@ const styles = StyleSheet.create({
   priceTextFree:     { color: '#15803d' },
   loadMoreBtn:       { alignItems: 'center', paddingVertical: Spacing[4] },
   loadMoreText:      { fontSize: FontSize.sm, color: Colors.brand[600], fontWeight: FontWeight.medium },
+
+  // Section subtitle
+  sectionSub:        { fontSize: FontSize.xs, color: Colors.gray[400], marginBottom: Spacing[3] },
+
+  // Post happening button
+  postHappeningBtn:      { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.brand[600], borderRadius: Radius.lg, paddingHorizontal: Spacing[3], paddingVertical: Spacing[2] },
+  postHappeningBtnText:  { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: '#fff' },
+
+  // Happenings empty
+  happeningsEmpty:     { alignItems: 'center', paddingVertical: Spacing[8], backgroundColor: '#fff', borderRadius: Radius.xl, borderWidth: 1, borderColor: Colors.gray[200], borderStyle: 'dashed' },
+  happeningsEmptyIcon: { fontSize: 28, marginBottom: Spacing[2] },
+  happeningsEmptyText: { fontSize: FontSize.sm, fontWeight: FontWeight.medium, color: Colors.gray[600] },
+  happeningsEmptyHint: { fontSize: FontSize.xs, color: Colors.gray[400], marginTop: 4 },
+
+  // Happening cards
+  happeningsList:    { backgroundColor: '#fff', borderRadius: Radius.xl, overflow: 'hidden', borderWidth: 1, borderColor: Colors.gray[200], ...Shadow.sm },
+  happeningCard:     { padding: Spacing[3] },
+  happeningCardBorder: { borderBottomWidth: 1, borderBottomColor: Colors.gray[100] },
+  happeningHeader:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing[2] },
+  happeningAuthorRow:{ flexDirection: 'row', alignItems: 'center', gap: Spacing[2] },
+  happeningAuthor:   { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[900] },
+  happeningTtl:      { fontSize: 11, color: Colors.gray[400], marginTop: 1 },
+  happeningTypeBadge:{ width: 30, height: 30, borderRadius: 15, backgroundColor: Colors.gray[100], alignItems: 'center', justifyContent: 'center' },
+  happeningTypeText: { fontSize: 14 },
+  happeningBody:     { fontSize: FontSize.sm, color: Colors.gray[800], lineHeight: 20, marginBottom: Spacing[3] },
+  happeningActions:  { flexDirection: 'row', gap: Spacing[2] },
+  happeningActionBtn:      { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing[3], paddingVertical: 6, borderRadius: Radius.lg, backgroundColor: Colors.gray[100] },
+  happeningActionBtnActive:{ backgroundColor: Colors.brand[600] },
+  happeningReactActive:    { backgroundColor: '#fef9c3' },
+  happeningActionText:     { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.gray[700] },
+  happeningActionTextActive:   { color: '#fff' },
+  happeningReactTextActive:    { color: '#713f12' },
+
+  // Post Happening Modal
+  modalOverlay:   { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' },
+  modalSheet:     { backgroundColor: '#fff', borderTopLeftRadius: Radius['2xl'], borderTopRightRadius: Radius['2xl'], padding: Spacing[5], paddingBottom: Spacing[8] },
+  modalHandle:    { width: 36, height: 4, borderRadius: 2, backgroundColor: Colors.gray[300], alignSelf: 'center', marginBottom: Spacing[4] },
+  modalTitle:     { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.gray[900], marginBottom: Spacing[4] },
+  typeChips:      { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing[2], marginBottom: Spacing[4] },
+  typeChip:       { paddingHorizontal: Spacing[3], paddingVertical: Spacing[2], borderRadius: Radius.full, backgroundColor: Colors.gray[100], borderWidth: 1, borderColor: Colors.gray[200] },
+  typeChipActive: { backgroundColor: Colors.brand[600], borderColor: Colors.brand[600] },
+  typeChipText:   { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.gray[700] },
+  typeChipTextActive: { color: '#fff' },
+  postInput:      { borderWidth: 1, borderColor: Colors.gray[200], borderRadius: Radius.xl, padding: Spacing[3], fontSize: FontSize.sm, color: Colors.gray[900], minHeight: 100, textAlignVertical: 'top', marginBottom: Spacing[1] },
+  charCount:      { fontSize: 11, color: Colors.gray[400], textAlign: 'right', marginBottom: Spacing[3] },
+  expiryRow:      { flexDirection: 'row', alignItems: 'center', gap: Spacing[2], marginBottom: Spacing[5], flexWrap: 'wrap' },
+  expiryLabel:    { fontSize: FontSize.xs, color: Colors.gray[500] },
+  expiryChip:     { paddingHorizontal: Spacing[2] + 2, paddingVertical: 5, borderRadius: Radius.full, backgroundColor: Colors.gray[100], borderWidth: 1, borderColor: Colors.gray[200] },
+  expiryChipActive:     { backgroundColor: Colors.brand[100], borderColor: Colors.brand[300] },
+  expiryChipText:       { fontSize: 11, fontWeight: FontWeight.semibold, color: Colors.gray[600] },
+  expiryChipTextActive: { color: Colors.brand[700] },
+  modalActions:   { flexDirection: 'row', gap: Spacing[3] },
+  modalCancelBtn: { flex: 1, alignItems: 'center', paddingVertical: Spacing[3], borderRadius: Radius.xl, backgroundColor: Colors.gray[100] },
+  modalCancelText:{ fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[700] },
+  modalPostBtn:   { flex: 2, alignItems: 'center', paddingVertical: Spacing[3], borderRadius: Radius.xl, backgroundColor: Colors.brand[600] },
+  modalPostBtnDisabled: { opacity: 0.5 },
+  modalPostText:  { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: '#fff' },
 })
