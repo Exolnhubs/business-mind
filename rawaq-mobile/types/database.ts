@@ -491,6 +491,29 @@ export interface CommunityWithMembership extends Community {
   ancestors?: Pick<Community, 'id' | 'name' | 'name_ar' | 'slug' | 'level'>[]
 }
 
+export type HappeningType = 'open_invite' | 'info' | 'question' | 'alert'
+
+export interface Happening {
+  id:             string
+  community_id:   string
+  author_id:      string
+  type:           HappeningType
+  body:           string
+  lat:            number | null
+  lng:            number | null
+  expires_at:     string
+  rsvp_count:     number
+  reaction_count: number
+  is_pinned:      boolean
+  created_at:     string
+}
+
+export interface HappeningWithAuthor extends Happening {
+  author: Pick<Profile, 'id' | 'display_name' | 'avatar_url'>
+  user_has_rsvp?:    boolean
+  user_has_reacted?: boolean
+}
+
 // ── Join shapes used in API responses ──────────────────────
 export interface EventWithOrganizer extends Event {
   organizer: Pick<Profile, 'id' | 'display_name' | 'avatar_url'> & {
