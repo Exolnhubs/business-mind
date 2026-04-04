@@ -28,6 +28,7 @@ export type NotificationType =
   | 'referral_signup_reward'
   | 'referral_conversion_reward'
   | 'community_new_event'
+  | 'community_happening'
 export type ReactionType = 'like' | 'interested'
 export type ReportReason = 'spam' | 'inappropriate' | 'harassment' | 'misinformation' | 'other'
 export type ReportStatus = 'pending' | 'resolved' | 'dismissed'
@@ -527,6 +528,29 @@ export interface CommunityHierarchy {
 export interface EventCommunity {
   event_id: string
   community_id: string
+}
+
+export type HappeningType = 'open_invite' | 'info' | 'question' | 'alert'
+
+export interface Happening {
+  id:             string
+  community_id:   string
+  author_id:      string
+  type:           HappeningType
+  body:           string
+  lat:            number | null
+  lng:            number | null
+  expires_at:     string
+  rsvp_count:     number
+  reaction_count: number
+  is_pinned:      boolean
+  created_at:     string
+}
+
+export interface HappeningWithAuthor extends Happening {
+  author: Pick<Profile, 'id' | 'display_name' | 'avatar_url'>
+  user_has_rsvp?:    boolean
+  user_has_reacted?: boolean
 }
 
 export interface CommunityWithMembership extends Community {

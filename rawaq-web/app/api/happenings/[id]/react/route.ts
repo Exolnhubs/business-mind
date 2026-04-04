@@ -1,0 +1,68 @@
+import { NextRequest } from 'next/server'
+import { createSupabaseAdminClient } from '@/lib/supabase/admin'
+import { requireAuth } from '@/lib/auth'
+import { handleApiError, ok, NotFoundException } from '@/lib/errors'
+
+// POST /api/happenings/:id/react — react to a happening
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params
+    const ctx    = await requireAuth()
+    const admin  = createSupabaseAdminClient()
+    const body   = await req.json().catch(() => ({}))
+    const emoji  = typeof body.emoji === 'string' && body.emoji.length <= 8 ? body.emoji : '👍'
+
+    const { data: happening } = await (admin as any)
+      .from('happenings')
+      .select('id, expires_at')
+      .eq('id', id)
+      .maybeSingle()
+
+    if (!happening) throw new NotFoundException('Happening not found')
+
+    await (admin as any)
+      .from('happening_reactions')
+      .upsert({ happening_id: id, user_id: ctx.userId, emoji }, { onConflict: 'happening_id,user_id' })
+
+    const { data: updated } = await (admin as any)
+      .from('happenings')
+      .select('reaction_count')
+      .eq('id', id)
+      .single()
+
+    return ok({ reacted: true, emoji, reaction_count: (updated as { reaction_count: number })?.reaction_count ?? 0 })
+  } catch (err) {
+    return handleApiError(err)
+  }
+}
+
+// DELETE /api/happenings/:id/react — remove reaction
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params
+    const ctx    = await requireAuth()
+    const admin  = createSupabaseAdminClient()
+
+    await (admin as any)
+      .from('happening_reactions')
+      .delete()
+      .eq('happening_id', id)
+      .eq('user_id', ctx.userId)
+
+    const { data: updated } = await (admin as any)
+      .from('happenings')
+      .select('reaction_count')
+      .eq('id', id)
+      .single()
+
+    return ok({ reacted: false, reaction_count: (updated as { reaction_count: number })?.reaction_count ?? 0 })
+  } catch (err) {
+    return handleApiError(err)
+  }
+}
