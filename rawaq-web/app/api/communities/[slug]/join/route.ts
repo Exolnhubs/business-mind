@@ -17,7 +17,7 @@ export async function POST(
 
     const { data: community, error: cErr } = await supabase
       .from('communities')
-      .select('id, name, member_count')
+      .select('id, name, member_count, owner_user_id')
       .eq('slug', slug)
       .single()
 
@@ -25,24 +25,35 @@ export async function POST(
 
     const { data: existingMembership } = await admin
       .from('community_memberships')
-      .select('id')
+      .select('id, role')
       .eq('community_id', community.id)
       .eq('user_id', ctx.userId)
       .maybeSingle()
 
     if (existingMembership) {
-      return ok({ community_id: community.id, member_count: community.member_count, is_member: true })
+      return ok({
+        community_id: community.id,
+        member_count: community.member_count,
+        is_member: true,
+        member_role: existingMembership.role,
+      })
     }
 
+    const memberRole = community.owner_user_id === ctx.userId ? 'owner' : 'member'
     const { error: insertErr } = await admin
       .from('community_memberships')
-      .insert({ community_id: community.id, user_id: ctx.userId } as any)
+      .insert({ community_id: community.id, user_id: ctx.userId, role: memberRole } as any)
 
     if (insertErr) {
       throw insertErr
     }
 
-    return ok({ community_id: community.id, member_count: community.member_count + 1, is_member: true })
+    return ok({
+      community_id: community.id,
+      member_count: community.member_count + 1,
+      is_member: true,
+      member_role: memberRole,
+    })
   } catch (err) {
     return handleApiError(err)
   }

@@ -488,7 +488,7 @@ export type CommunityType =
   | 'compound' | 'neighborhood' | 'university' | 'company' | 'coworking'
   | 'tech' | 'sports' | 'gaming' | 'book_club' | 'entrepreneur' | 'arts' | 'other'
   | 'district' | 'city' | 'country'
-export type CommunityRole = 'member' | 'moderator' | 'admin'
+export type CommunityRole = 'member' | 'community_admin' | 'owner'
 export type EventVisibility = 'micro' | 'interest' | 'city' | 'national'
 
 export interface Community {
@@ -507,6 +507,7 @@ export interface Community {
   is_verified: boolean
   is_private: boolean
   created_by: string | null
+  owner_user_id: string | null
   created_at: string
   updated_at: string
 }
@@ -556,6 +557,7 @@ export interface HappeningWithAuthor extends Happening {
 
 export interface CommunityWithMembership extends Community {
   is_member?: boolean
+  member_role?: CommunityRole | null
   ancestors?: Pick<Community, 'id' | 'name' | 'name_ar' | 'slug' | 'level'>[]
 }
 

@@ -49,14 +49,16 @@ export async function GET(
 
     // Membership status
     let is_member = false
+    let member_role: 'member' | 'community_admin' | 'owner' | null = null
     if (ctx?.userId) {
       const { data: mem } = await admin
         .from('community_memberships')
-        .select('id')
+        .select('id, role')
         .eq('community_id', community.id)
         .eq('user_id', ctx.userId)
         .maybeSingle()
       is_member = !!mem
+      member_role = (mem?.role as 'member' | 'community_admin' | 'owner' | undefined) ?? null
     }
 
     // 5 recent upcoming events
@@ -140,6 +142,7 @@ export async function GET(
     return ok({
       ...community,
       is_member,
+      member_role,
       event_count: eventCount ?? 0,
       ancestors,
       recent_events,

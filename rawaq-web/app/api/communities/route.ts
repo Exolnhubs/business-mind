@@ -29,12 +29,16 @@ export async function GET(req: NextRequest) {
     const to        = from + params.per_page - 1
 
     let memberIds: string[] = []
+    const memberRoleByCommunityId = new Map<string, string>()
     if (ctx?.userId) {
       const { data: memberships } = await admin
         .from('community_memberships')
-        .select('community_id')
+        .select('community_id, role')
         .eq('user_id', ctx.userId)
       memberIds = (memberships ?? []).map((membership) => membership.community_id)
+      for (const membership of memberships ?? []) {
+        memberRoleByCommunityId.set(membership.community_id, membership.role)
+      }
     }
 
     if (params.member_only && !ctx?.userId) {
@@ -61,7 +65,7 @@ export async function GET(req: NextRequest) {
 
     let query = communitiesClient
       .from('communities')
-      .select('id, name, name_ar, slug, description, description_ar, level, type, city, country, cover_url, member_count, is_verified, is_private', { count: 'exact' })
+      .select('id, name, name_ar, slug, description, description_ar, level, type, city, country, cover_url, member_count, is_verified, is_private, created_by, owner_user_id, created_at, updated_at', { count: 'exact' })
       .order('member_count', { ascending: false })
       .order('name')
       .range(from, to)
@@ -78,7 +82,11 @@ export async function GET(req: NextRequest) {
     // If authenticated, annotate is_member for each community
     const memberSet = new Set(memberIds)
 
-    const enriched = (data ?? []).map((c) => ({ ...c, is_member: memberSet.has(c.id) }))
+    const enriched = (data ?? []).map((c) => ({
+      ...c,
+      is_member: memberSet.has(c.id),
+      member_role: memberRoleByCommunityId.get(c.id) ?? null,
+    }))
 
     return ok({
       data: enriched,
