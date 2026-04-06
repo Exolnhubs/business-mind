@@ -7,14 +7,14 @@ import * as WebBrowser from 'expo-web-browser'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '@/lib/supabase'
-import { apiPost, apiPatch, apiGet } from '@/lib/api'
+import { apiPost, apiGet } from '@/lib/api'
 import { useAuth } from '@/contexts/auth-context'
 import { useLocale } from '@/contexts/locale-context'
 import { Badge } from '@/components/ui/Badge'
 import { CommentThread } from '@/components/comments/CommentThread'
 import { formatDate, formatTime, formatCurrency } from '@/lib/utils'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
-import type { Community, EventWithOrganizer, CommentWithAuthor, TicketType } from '@/types/database'
+import type { Community, EventWithOrganizer, CommentWithAuthor, TicketType, Waitlist, ReportReason } from '@/types/database'
 
 interface PaymentOption {
   id: string
@@ -39,6 +39,7 @@ export default function EventDetailScreen() {
   const [ticketTypes, setTicketTypes] = useState<TicketType[]>([])
   const [loading, setLoading]         = useState(true)
   const [isBooked, setIsBooked]       = useState(false)
+  const [currentBookingId, setCurrentBookingId] = useState<string | null>(null)
   const [bookingPending, setBookingPending] = useState(false)
   const [onWaitlist, setOnWaitlist]   = useState(false)
   const [bookingLoading, setBL]       = useState(false)
@@ -58,7 +59,7 @@ export default function EventDetailScreen() {
   const [showTip, setShowTip]       = useState(false)
   // Report event
   const [showReport, setShowReport]   = useState(false)
-  const [reportReason, setReportReason] = useState<string>('spam')
+  const [reportReason, setReportReason] = useState<ReportReason>('spam')
   const [reportDetails, setReportDetails] = useState('')
   const [reportLoading, setReportLoading] = useState(false)
   const [reportDone, setReportDone]   = useState(false)
@@ -79,7 +80,7 @@ export default function EventDetailScreen() {
         .select(`*, gender_restriction,
           organizer:profiles!organizer_id(
             id, display_name, avatar_url,
-            organizer_profile:organizer_profiles!user_id(business_name, logo_url, verified)
+            organizer_profile:organizer_profiles!user_id(business_name, business_name_ar, logo_url, verified)
           ),
           category:event_categories(id, name_en, name_ar, icon)
         `)
@@ -111,8 +112,9 @@ export default function EventDetailScreen() {
         .eq('event_id', id).eq('is_active', true).order('sort_order'),
       supabase.from('event_communities').select('community_id').eq('event_id', id),
     ]).then(([{ data: ev }, { data: cmts }, { data: booking }, { data: wl }, { data: tts }, { data: eventCommunityRows }]) => {
-      setEvent(ev as EventWithOrganizer)
-      setComments((cmts ?? []) as CommentWithAuthor[])
+      setEvent((ev as unknown as EventWithOrganizer | null) ?? null)
+      setComments((cmts ?? []) as unknown as CommentWithAuthor[])
+      setCurrentBookingId(booking?.id ?? null)
       setIsBooked(booking?.status === 'confirmed')
       setBookingPending(booking?.status === 'pending')
       setOnWaitlist(!!wl)
@@ -248,6 +250,7 @@ export default function EventDetailScreen() {
     if (data.free || !data.redirect_url) {
       setIsBooked(true)
       setNewBookingId(data.booking_id ?? null)
+      setCurrentBookingId(data.booking_id ?? null)
       setShowBookingSuccess(true)
       return
     }
@@ -281,6 +284,7 @@ export default function EventDetailScreen() {
     }
 
     setNewBookingId(bookingId)
+    setCurrentBookingId(bookingId)
 
     // ── Fast path: gateway confirmed success via browser redirect ────────────
     // Paymob's Transaction Response Callback includes ?success=true when the
@@ -362,15 +366,12 @@ export default function EventDetailScreen() {
     setBL(true)
 
     if (isBooked) {
-      const { data: booking } = await supabase
-        .from('bookings').select('id')
-        .eq('event_id', id).eq('user_id', user.id).eq('status', 'confirmed').single()
-      if (booking) {
-        const { error } = await apiPatch(`/api/bookings/${booking.id}`, { status: 'cancelled' })
-        if (error) { Alert.alert('Error', error); setBL(false); return }
-      }
-      setIsBooked(false)
       setBL(false)
+      if (currentBookingId) {
+        router.push({ pathname: '/(tabs)/bookings', params: { refundBookingId: currentBookingId } } as any)
+      } else {
+        router.push('/(tabs)/bookings' as any)
+      }
       return
     }
 
@@ -391,8 +392,16 @@ export default function EventDetailScreen() {
   async function handleJoinWaitlist() {
     if (!user) { router.push('/(auth)/login'); return }
     setBL(true)
+    const waitlistInsert: Omit<Waitlist, 'id' | 'created_at'> = {
+      user_id: user.id,
+      event_id: id as string,
+      position: 0,
+      notified_at: null,
+      expires_at: null,
+      status: 'waiting',
+    }
     const { error } = await supabase.from('waitlist')
-      .insert({ user_id: user.id, event_id: id as string, status: 'waiting' })
+      .insert(waitlistInsert)
     if (error) {
       Alert.alert('Error', error.message)
     } else {
@@ -687,14 +696,19 @@ export default function EventDetailScreen() {
         {!event.is_cancelled && (
           <View style={styles.bookingSection}>
             {isBooked ? (
-              <TouchableOpacity
-                style={[styles.bookBtn, styles.bookBtnOutline]}
-                onPress={handleBooking} disabled={bookingLoading}
-              >
-                {bookingLoading
-                  ? <ActivityIndicator color={Colors.brand[500]} />
-                  : <Text style={[styles.bookBtnText, { color: Colors.gray[700] }]}>✓ Cancel Booking</Text>}
-              </TouchableOpacity>
+              <View style={styles.manageBookingBlock}>
+                <TouchableOpacity
+                  style={[styles.bookBtn, styles.bookBtnOutline]}
+                  onPress={handleBooking} disabled={bookingLoading}
+                >
+                  {bookingLoading
+                    ? <ActivityIndicator color={Colors.brand[500]} />
+                    : <Text style={[styles.bookBtnText, { color: Colors.gray[700] }]}>Open in My Bookings</Text>}
+                </TouchableOpacity>
+                <Text style={styles.manageBookingHint}>
+                  Cancellations and refunds are handled from My Bookings.
+                </Text>
+              </View>
             ) : bookingPending ? (
               <View style={styles.waitlistBadge}>
                 <Text style={styles.waitlistBadgeText}>⏳ Payment is being processed</Text>
@@ -933,18 +947,18 @@ export default function EventDetailScreen() {
             ) : (
               <View style={styles.reportPanel}>
                 <Text style={styles.reportTitle}>Report Event</Text>
-                {[
+                {([
                   { value: 'spam',           label: 'Spam or misleading' },
                   { value: 'inappropriate',  label: 'Inappropriate content' },
                   { value: 'harassment',     label: 'Harassment or hate' },
                   { value: 'misinformation', label: 'False information' },
                   { value: 'other',          label: 'Other' },
-                ].map((r) => (
+                ] as Array<{ value: ReportReason; label: string }>).map((r) => (
                   <TouchableOpacity
                     key={r.value}
                     style={styles.reportOption}
                     onPress={() => setReportReason(r.value)}
-                  >
+                  >  
                     <View style={[styles.reportRadio, reportReason === r.value && styles.reportRadioSelected]} />
                     <Text style={styles.reportOptionLabel}>{r.label}</Text>
                   </TouchableOpacity>
@@ -971,6 +985,9 @@ export default function EventDetailScreen() {
                         reason:      reportReason,
                         details:     reportDetails.trim() || null,
                         status:      'pending',
+                        resolved_by: null,
+                        resolved_at: null,
+                        resolution_note: null,
                       })
                       if (error && error.code !== '23505') {
                         Alert.alert('Error', error.message)
@@ -1144,6 +1161,8 @@ const styles = StyleSheet.create({
   bookBtnAmber: { backgroundColor: '#f59e0b' },
   bookBtnText: { color: Colors.white, fontWeight: FontWeight.semibold, fontSize: FontSize.base },
   bookingSection: { marginBottom: Spacing.sm, gap: Spacing.sm },
+  manageBookingBlock: { gap: Spacing.xs },
+  manageBookingHint: { fontSize: FontSize.xs, color: Colors.gray[500], textAlign: 'center', marginTop: -2 },
   // Waitlist
   waitlistRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   waitlistBadge: { flex: 1, backgroundColor: '#fefce8', borderRadius: Radius.lg, paddingVertical: 12, paddingHorizontal: 16, borderWidth: 1, borderColor: '#fde68a' },

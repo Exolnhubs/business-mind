@@ -15,6 +15,7 @@ const translations: Record<Locale, Record<string, string>> = {
   en: {
     // Nav
     'nav.events': 'Events',
+    'nav.communities': 'Communities',
     'nav.chat': 'Chat',
     'nav.login': 'Sign In',
     'nav.register': 'Sign Up',
@@ -185,6 +186,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'landing.hero_line2': 'across the Arab world',
     'landing.hero_sub': 'Rawaq connects communities through sport, culture, business, and entertainment — in Arabic and English, from Riyadh to Marrakech.',
     'landing.browse_events': 'Browse Events →',
+    'landing.browse_communities': 'Explore Communities',
     'landing.create_account': 'Create Free Account',
     'landing.categories_title': 'Every interest covered',
     'landing.how_title': 'How Rawaq works',
@@ -261,6 +263,7 @@ const translations: Record<Locale, Record<string, string>> = {
   ar: {
     // Nav
     'nav.events': 'الفعاليات',
+    'nav.communities': 'المجتمعات',
     'nav.chat': 'الدردشة',
     'nav.login': 'تسجيل الدخول',
     'nav.register': 'إنشاء حساب',
@@ -431,6 +434,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'landing.hero_line2': 'في أرجاء العالم العربي',
     'landing.hero_sub': 'رواق يربط المجتمعات عبر الرياضة والثقافة والأعمال والترفيه — بالعربية والإنجليزية، من الرياض إلى مراكش.',
     'landing.browse_events': 'استعرض الفعاليات ←',
+    'landing.browse_communities': 'استكشف المجتمعات',
     'landing.create_account': 'أنشئ حساباً مجانياً',
     'landing.categories_title': 'لكل اهتمام مكانه',
     'landing.how_title': 'كيف يعمل رواق',

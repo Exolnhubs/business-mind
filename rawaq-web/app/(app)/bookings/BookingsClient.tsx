@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Badge } from '@/components/ui/Badge'
 import { Spinner } from '@/components/ui/Spinner'
 import { formatDate } from '@/lib/utils'
@@ -10,6 +10,7 @@ import type { BookingRow } from './page'
 
 export default function BookingsClient({ initialBookings }: { initialBookings: BookingRow[] }) {
   const router   = useRouter()
+  const searchParams = useSearchParams()
   const [bookings, setBookings] = useState(initialBookings)
 
   // Refund modal state
@@ -17,6 +18,24 @@ export default function BookingsClient({ initialBookings }: { initialBookings: B
   const [userNote,     setUserNote]     = useState('')
   const [submitting,   setSubmitting]   = useState(false)
   const [refundMsg,    setRefundMsg]    = useState<{ ok: boolean; text: string } | null>(null)
+
+  useEffect(() => {
+    const refundBookingId = searchParams.get('refund')
+    if (!refundBookingId) return
+
+    const target = bookings.find((booking) => booking.id === refundBookingId) ?? null
+    if (target && canRefundBooking(target)) {
+      setRefundTarget(target)
+      setRefundMsg(null)
+    } else {
+      setRefundMsg({
+        ok: false,
+        text: 'This booking cannot be cancelled from here right now.',
+      })
+    }
+
+    router.replace('/bookings')
+  }, [bookings, router, searchParams])
 
   async function submitRefund() {
     if (!refundTarget) return
@@ -141,6 +160,12 @@ export default function BookingsClient({ initialBookings }: { initialBookings: B
   )
 }
 
+function canRefundBooking(booking: BookingRow) {
+  const isUpcoming = booking.event ? new Date(booking.event.start_at) > new Date() : false
+  const isPaid = !booking.event?.is_free && (booking.event?.price ?? 0) > 0
+  return booking.status === 'confirmed' && !booking.event?.is_cancelled && isPaid && isUpcoming
+}
+
 function BookingSection({
   title,
   bookings,
@@ -165,9 +190,7 @@ function BookingSection({
       ) : (
         <div className="space-y-3">
           {bookings.map((booking) => {
-            const isUpcoming  = booking.event ? new Date(booking.event.start_at) > new Date() : false
-            const isPaid      = !booking.event?.is_free && (booking.event?.price ?? 0) > 0
-            const canRefund   = booking.status === 'confirmed' && !booking.event?.is_cancelled && isPaid && isUpcoming
+            const canRefund   = canRefundBooking(booking)
 
             return (
               <div

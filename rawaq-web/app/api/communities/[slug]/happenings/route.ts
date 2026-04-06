@@ -22,20 +22,35 @@ export async function GET(
   try {
     const { slug } = await params
     const supabase = await createSupabaseServerClient()
+    const admin    = createSupabaseAdminClient()
     const ctx      = await optionalAuth()
 
     const { data: community, error: cErr } = await supabase
       .from('communities')
-      .select('id')
+      .select('id, type')
       .eq('slug', slug)
       .single()
 
     if (cErr || !community) throw new NotFoundException('Community not found')
 
+    let isMember = false
+    if (ctx?.userId) {
+      const { data: membership } = await admin
+        .from('community_memberships')
+        .select('id')
+        .eq('community_id', community.id)
+        .eq('user_id', ctx.userId)
+        .maybeSingle()
+      isMember = !!membership
+    }
+
+    const canRead = community.type === 'country' || isMember || ctx?.role === 'admin'
+    if (!canRead) throw new ForbiddenException('You must join this community to view happenings')
+
     const limit   = Math.min(Number(req.nextUrl.searchParams.get('per_page') ?? '20'), 50)
     const cursor  = req.nextUrl.searchParams.get('cursor') // ISO timestamp
 
-    let query = (supabase as any)
+    let query = (admin as any)
       .from('happenings')
       .select(`
         id, type, body, lat, lng, expires_at, rsvp_count, reaction_count, is_pinned, created_at,
@@ -58,7 +73,6 @@ export async function GET(
 
     if (ctx?.userId && happenings?.length) {
       const ids = happenings.map((h: { id: string }) => h.id)
-      const admin = createSupabaseAdminClient()
       const [{ data: rsvps }, { data: reactions }] = await Promise.all([
         admin.from('happening_rsvps').select('happening_id').eq('user_id', ctx.userId).in('happening_id', ids) as any,
         admin.from('happening_reactions').select('happening_id').eq('user_id', ctx.userId).in('happening_id', ids) as any,

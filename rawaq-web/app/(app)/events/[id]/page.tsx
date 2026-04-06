@@ -227,17 +227,6 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
             </div>
           </div>
 
-          {/* Comments */}
-          <div>
-            <h2 className="font-semibold text-gray-900 mb-4">
-              Comments ({comments?.length ?? 0})
-            </h2>
-            <CommentThread
-              eventId={id}
-              initialComments={(comments ?? []) as unknown as CommentWithAuthor[]}
-              currentUserId={user?.id ?? null}
-            />
-          </div>
         </div>
 
         {/* ── Sidebar ── */}
@@ -310,6 +299,18 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
           {user && user.id !== ev.organizer_id && (
             <ReportEventButton eventId={id} />
           )}
+        </div>
+
+        {/* Comments */}
+        <div className="lg:col-span-2">
+          <h2 className="font-semibold text-gray-900 mb-4">
+            Comments ({comments?.length ?? 0})
+          </h2>
+          <CommentThread
+            eventId={id}
+            initialComments={(comments ?? []) as unknown as CommentWithAuthor[]}
+            currentUserId={user?.id ?? null}
+          />
         </div>
       </div>
     </div>

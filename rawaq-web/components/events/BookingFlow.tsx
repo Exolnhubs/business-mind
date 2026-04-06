@@ -88,7 +88,7 @@ export function BookingFlow({
   const { user }  = useAuth()
   const router    = useRouter()
 
-  const [booked,      setBooked]      = useState(initialBooked)
+  const [booked]                   = useState(initialBooked)
   const [onWaitlist,  setOnWaitlist]  = useState(initialWaitlist)
   const [loading,     setLoading]     = useState(false)
   const [error,       setError]       = useState<string | null>(null)
@@ -102,7 +102,7 @@ export function BookingFlow({
   const effectiveFree = selectedType ? selectedType.is_free : isFree
 
   // ── Cancel booking ──────────────────────────────────────────────────────
-  async function handleCancel() {
+  async function handleManageBooking() {
     if (!user) return
     setLoading(true)
     setError(null)
@@ -113,15 +113,13 @@ export function BookingFlow({
       .from('bookings').select('id')
       .eq('event_id', eventId).eq('user_id', user.id).eq('status', 'confirmed').single()
 
-    if (!booking) { setLoading(false); return }
+    if (!booking) {
+      setError('Booking not found.')
+      setLoading(false)
+      return
+    }
 
-    const res = await fetch(`/api/bookings/${booking.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'cancelled' }),
-    })
-    if (!res.ok) { const j = await res.json().catch(() => ({})); setError(j.error ?? 'Failed to cancel.') }
-    else { setBooked(false); router.refresh() }
+    router.push(`/bookings?refund=${booking.id}`)
     setLoading(false)
   }
 
@@ -159,9 +157,14 @@ export function BookingFlow({
   return (
     <div className="space-y-3">
       {booked ? (
-        <button onClick={handleCancel} disabled={loading} className="btn-secondary w-full">
-          {loading ? <Spinner size="sm" /> : '✓ Cancel Booking'}
-        </button>
+        <div className="space-y-2">
+          <button onClick={handleManageBooking} disabled={loading} className="btn-secondary w-full">
+            {loading ? <Spinner size="sm" /> : 'Open in My Bookings'}
+          </button>
+          <p className="text-center text-xs text-gray-500">
+            Cancellations and refunds are handled from My Bookings.
+          </p>
+        </div>
       ) : isFull ? (
         onWaitlist ? (
           <div className="space-y-2">
