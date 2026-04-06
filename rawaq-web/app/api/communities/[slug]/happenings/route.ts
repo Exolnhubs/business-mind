@@ -34,17 +34,18 @@ export async function GET(
 
     if (cErr || !community) throw new NotFoundException('Community not found')
 
-    let isMember = false
+    let membershipStatus: 'active' | 'timed_out' | 'removed' | 'banned' | null = null
     if (ctx?.userId) {
       const { data: membership } = await admin
         .from('community_memberships')
-        .select('id')
+        .select('id, status')
         .eq('community_id', community.id)
         .eq('user_id', ctx.userId)
         .maybeSingle()
-      isMember = !!membership
+      membershipStatus = (membership?.status as 'active' | 'timed_out' | 'removed' | 'banned' | undefined) ?? null
     }
 
+    const isMember = membershipStatus !== null && membershipStatus !== 'removed' && membershipStatus !== 'banned'
     const canRead = community.type === 'country' || isMember || ctx?.role === 'admin'
     if (!canRead) throw new ForbiddenException('You must join this community to view happenings')
 
@@ -124,12 +125,15 @@ export async function POST(
     // Must be a community member
     const { data: membership } = await admin
       .from('community_memberships')
-      .select('id')
+      .select('id, status')
       .eq('community_id', community.id)
       .eq('user_id', ctx.userId)
       .maybeSingle()
 
     if (!membership) throw new ForbiddenException('You must be a member to post happenings')
+    if (membership.status !== 'active' && ctx.role !== 'admin') {
+      throw new ForbiddenException('Your community membership cannot post happenings right now')
+    }
 
     const expiresAt = new Date(Date.now() + parsed.expires_in_hours * 60 * 60 * 1000).toISOString()
 
@@ -191,6 +195,7 @@ async function notifyCommunityMembers({
     .from('community_memberships')
     .select('user_id')
     .eq('community_id', communityId)
+    .eq('status', 'active')
 
   if (!memberships?.length) return
 

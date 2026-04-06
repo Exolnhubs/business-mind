@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireAuth } from '@/lib/auth'
-import { handleApiError, ok, NotFoundException } from '@/lib/errors'
+import { ForbiddenException, handleApiError, ok, NotFoundException } from '@/lib/errors'
 
 // POST /api/happenings/:id/rsvp — join a happening
 export async function POST(
@@ -22,6 +22,19 @@ export async function POST(
     if (!happening) throw new NotFoundException('Happening not found')
     if (new Date((happening as { expires_at: string }).expires_at) < new Date()) {
       throw new NotFoundException('Happening has expired')
+    }
+
+    if (ctx.role !== 'admin') {
+      const { data: membership } = await (admin as any)
+        .from('community_memberships')
+        .select('status')
+        .eq('community_id', (happening as { community_id: string }).community_id)
+        .eq('user_id', ctx.userId)
+        .maybeSingle()
+
+      if (!membership || membership.status !== 'active') {
+        throw new ForbiddenException('Your community membership cannot RSVP to happenings right now')
+      }
     }
 
     // Idempotent — ignore conflict

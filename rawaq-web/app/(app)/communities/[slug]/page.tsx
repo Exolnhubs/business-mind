@@ -15,13 +15,20 @@ import type { Community, CommunityLevel, CommunityRole, Event } from '@/types/da
 type CommunityDetail = Community & {
   is_member: boolean
   member_role: CommunityRole | null
+  member_status: 'active' | 'timed_out' | 'removed' | 'banned' | null
   event_count: number
   ancestors: Pick<Community, 'id' | 'name' | 'name_ar' | 'slug' | 'level'>[]
   recent_events: Pick<Event, 'id' | 'title' | 'title_ar' | 'cover_image_url' | 'start_at' | 'city' | 'is_free' | 'price' | 'currency' | 'bookings_count'>[]
   recent_members: Array<{ id: string; display_name: string; avatar_url: string | null; joined_at: string }>
   activity: Array<{ id: string; type: 'member_joined' | 'event_published'; title: string; subtitle: string; created_at: string; href: string | null }>
 }
-type MembershipMutationResponse = { is_member?: boolean; member_count?: number; member_role?: CommunityRole | null; message?: string }
+type MembershipMutationResponse = {
+  is_member?: boolean
+  member_count?: number
+  member_role?: CommunityRole | null
+  member_status?: 'active' | 'timed_out' | 'removed' | 'banned' | null
+  message?: string
+}
 type CommunityAdminEntry = {
   user_id: string
   role: CommunityRole
@@ -98,6 +105,16 @@ export default function CommunityDetailPage() {
   const [reportsLoading, setReportsLoading] = useState(false)
   const [auditLogs, setAuditLogs] = useState<CommunityAuditLogEntry[]>([])
   const [auditLogsLoading, setAuditLogsLoading] = useState(false)
+  const [settingsForm, setSettingsForm] = useState({
+    name: '',
+    name_ar: '',
+    description: '',
+    description_ar: '',
+    city: '',
+    cover_url: '',
+    is_private: false,
+  })
+  const [savingSettings, setSavingSettings] = useState(false)
   const [selectedMemberHistory, setSelectedMemberHistory] = useState<{
     member: CommunityDetail['recent_members'][number]
     warnings: CommunityWarningEntry[]
@@ -109,8 +126,16 @@ export default function CommunityDetailPage() {
 
   const isMember = community?.is_member ?? false
   const memberRole = community?.member_role ?? null
-  const isCommunityOwner = memberRole === 'owner'
-  const canModerate = memberRole === 'owner' || memberRole === 'community_admin'
+  const memberStatus = community?.member_status ?? null
+  const derivedRole = user?.id
+    ? community?.owner_user_id === user.id
+      ? 'owner'
+      : admins.find((entry) => entry.user_id === user.id)?.role ?? null
+    : null
+  const effectiveRole = memberRole ?? derivedRole
+  const isCommunityOwner = effectiveRole === 'owner'
+  const canModerate = effectiveRole === 'owner' || effectiveRole === 'community_admin'
+  const canParticipateInHappenings = memberStatus ? memberStatus === 'active' : isMember
   const { happenings, loading: happeningsLoading, posting, post, toggleRsvp, toggleReact, remove, report } =
     useHappenings(slug, isMember)
 
@@ -140,8 +165,21 @@ export default function CommunityDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [community?.id])
 
+  useEffect(() => {
+    if (!community) return
+    setSettingsForm({
+      name: community.name ?? '',
+      name_ar: community.name_ar ?? '',
+      description: community.description ?? '',
+      description_ar: community.description_ar ?? '',
+      city: community.city ?? '',
+      cover_url: community.cover_url ?? '',
+      is_private: community.is_private ?? false,
+    })
+  }, [community])
+
   async function loadAdmins() {
-    if (!canModerate) return
+    if (!user || !isMember) return
     setAdminsLoading(true)
     try {
       const res = await fetch(`/api/communities/${slug}/admins`)
@@ -183,10 +221,10 @@ export default function CommunityDetailPage() {
   }
 
   useEffect(() => {
-    if (canModerate) loadAdmins()
+    if (user && isMember) loadAdmins()
     else setAdmins([])
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slug, canModerate])
+  }, [slug, isMember, user?.id, canModerate])
 
   useEffect(() => {
     if (canModerate) loadReports()
@@ -217,6 +255,7 @@ export default function CommunityDetailPage() {
               ...prev,
               is_member: json.data?.is_member ?? !prev.is_member,
               member_role: json.data?.member_role ?? (json.data?.is_member ? prev.member_role : null),
+              member_status: json.data?.is_member ? (json.data?.member_status ?? prev.member_status ?? 'active') : null,
               member_count: json.data?.member_count ?? (!prev.is_member ? prev.member_count + 1 : Math.max(prev.member_count - 1, 0)),
             }
           : prev
@@ -254,6 +293,50 @@ export default function CommunityDetailPage() {
     } finally {
       setMemberActionLoading(null)
     }
+  }
+
+  async function saveCommunitySettings() {
+    setSavingSettings(true)
+    try {
+      const res = await fetch(`/api/communities/${slug}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: settingsForm.name.trim(),
+          name_ar: settingsForm.name_ar.trim() || null,
+          description: settingsForm.description.trim() || null,
+          description_ar: settingsForm.description_ar.trim() || null,
+          city: settingsForm.city.trim() || null,
+          cover_url: settingsForm.cover_url.trim() || null,
+          is_private: settingsForm.is_private,
+        }),
+      })
+
+      if (res.ok) {
+        const json = await res.json() as { data: Community }
+        setCommunity((prev) => (prev ? { ...prev, ...json.data } : prev))
+      } else {
+        window.alert('Failed to update community settings')
+      }
+    } finally {
+      setSavingSettings(false)
+    }
+  }
+
+  async function handleHappeningRsvp(target: Parameters<typeof toggleRsvp>[0]) {
+    if (!canParticipateInHappenings) {
+      window.alert('Your membership is temporarily restricted from interacting with happenings.')
+      return
+    }
+    await toggleRsvp(target)
+  }
+
+  async function handleHappeningReact(target: Parameters<typeof toggleReact>[0]) {
+    if (!canParticipateInHappenings) {
+      window.alert('Your membership is temporarily restricted from interacting with happenings.')
+      return
+    }
+    await toggleReact(target)
   }
 
   async function issueWarning(userId: string) {
@@ -454,6 +537,54 @@ export default function CommunityDetailPage() {
           )}
         </div>
       </div>
+
+      {isCommunityOwner && (
+        <div className="mb-8 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-center justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">Community Settings</h2>
+              <p className="mt-1 text-xs text-gray-500">Edit the public details and access mode for this community.</p>
+            </div>
+            <button
+              onClick={saveCommunitySettings}
+              disabled={savingSettings || !settingsForm.name.trim()}
+              className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:opacity-50"
+            >
+              {savingSettings ? 'Saving...' : 'Save changes'}
+            </button>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">Name</span>
+              <input value={settingsForm.name} onChange={(e) => setSettingsForm((prev) => ({ ...prev, name: e.target.value }))} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900" />
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">Arabic name</span>
+              <input value={settingsForm.name_ar} dir="rtl" onChange={(e) => setSettingsForm((prev) => ({ ...prev, name_ar: e.target.value }))} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900" />
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">City</span>
+              <input value={settingsForm.city} onChange={(e) => setSettingsForm((prev) => ({ ...prev, city: e.target.value }))} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900" />
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">Cover image URL</span>
+              <input value={settingsForm.cover_url} onChange={(e) => setSettingsForm((prev) => ({ ...prev, cover_url: e.target.value }))} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900" />
+            </label>
+            <label className="block md:col-span-2">
+              <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">Description</span>
+              <textarea value={settingsForm.description} rows={4} onChange={(e) => setSettingsForm((prev) => ({ ...prev, description: e.target.value }))} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900" />
+            </label>
+            <label className="block md:col-span-2">
+              <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">Arabic description</span>
+              <textarea value={settingsForm.description_ar} rows={4} dir="rtl" onChange={(e) => setSettingsForm((prev) => ({ ...prev, description_ar: e.target.value }))} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900" />
+            </label>
+            <label className="md:col-span-2 flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+              <input type="checkbox" checked={settingsForm.is_private} onChange={(e) => setSettingsForm((prev) => ({ ...prev, is_private: e.target.checked }))} />
+              <span className="text-sm text-gray-700">Make this community private</span>
+            </label>
+          </div>
+        </div>
+      )}
 
       <div className="grid gap-6 md:grid-cols-2 mb-8">
         <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
@@ -776,7 +907,7 @@ export default function CommunityDetailPage() {
             <h2 className="text-lg font-bold text-gray-900">What&apos;s Happening Now</h2>
             <p className="text-xs text-gray-400 mt-0.5">Spontaneous, time-limited posts from members</p>
           </div>
-          {isMember && !showPostForm && (
+          {canParticipateInHappenings && !showPostForm && (
             <button
               onClick={() => setShowPostForm(true)}
               className="text-sm font-semibold bg-brand-600 text-white px-4 py-2 rounded-xl hover:bg-brand-700 transition-colors"
@@ -804,7 +935,7 @@ export default function CommunityDetailPage() {
           <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 py-10 text-center">
             <p className="text-2xl mb-2">📍</p>
             <p className="text-sm font-medium text-gray-600">Nothing happening right now</p>
-            {isMember && (
+            {canParticipateInHappenings && (
               <p className="text-xs text-gray-400 mt-1">Be the first — post a happening!</p>
             )}
           </div>
@@ -814,8 +945,8 @@ export default function CommunityDetailPage() {
               <HappeningCard
                 key={h.id}
                 happening={h}
-                onRsvp={toggleRsvp}
-                onReact={toggleReact}
+                onRsvp={handleHappeningRsvp}
+                onReact={handleHappeningReact}
                 onDelete={remove}
                 onReport={report}
               />

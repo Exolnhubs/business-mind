@@ -1,9 +1,21 @@
 import { NextRequest } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
-import { optionalAuth } from '@/lib/auth'
+import { optionalAuth, requireAuth } from '@/lib/auth'
 import { handleApiError, ok, NotFoundException } from '@/lib/errors'
+import { requireCommunityOwner } from '@/lib/community-governance'
 import type { Community, CommunityHierarchy } from '@/types/database'
+import { z } from 'zod'
+
+const UpdateCommunitySchema = z.object({
+  name: z.string().trim().min(2).max(100),
+  name_ar: z.string().trim().max(100).nullable().optional(),
+  description: z.string().trim().max(2000).nullable().optional(),
+  description_ar: z.string().trim().max(2000).nullable().optional(),
+  city: z.string().trim().max(80).nullable().optional(),
+  cover_url: z.string().trim().url().nullable().optional(),
+  is_private: z.boolean().optional(),
+})
 
 // GET /api/communities/:slug — community detail
 export async function GET(
@@ -153,6 +165,42 @@ export async function GET(
       recent_members,
       activity: activity.slice(0, 6),
     })
+  } catch (err) {
+    return handleApiError(err)
+  }
+}
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ slug: string }> }
+) {
+  try {
+    const { slug } = await params
+    const input = UpdateCommunitySchema.parse(await req.json())
+    const ctx = await requireAuth()
+    const gov = await requireCommunityOwner(slug, ctx.userId, ctx.role)
+    const admin = createSupabaseAdminClient()
+
+    const updatePayload = {
+      name: input.name,
+      name_ar: input.name_ar?.trim() ? input.name_ar.trim() : null,
+      description: input.description?.trim() ? input.description.trim() : null,
+      description_ar: input.description_ar?.trim() ? input.description_ar.trim() : null,
+      city: input.city?.trim() ? input.city.trim() : null,
+      cover_url: input.cover_url?.trim() ? input.cover_url.trim() : null,
+      is_private: input.is_private,
+      updated_at: new Date().toISOString(),
+    }
+
+    const { data, error } = await admin
+      .from('communities')
+      .update(updatePayload)
+      .eq('id', gov.community.id)
+      .select('*')
+      .single()
+
+    if (error || !data) throw error ?? new NotFoundException('Community not found')
+    return ok(data)
   } catch (err) {
     return handleApiError(err)
   }

@@ -19,13 +19,20 @@ import type { Community, CommunityLevel, CommunityRole, Event, HappeningType, Ha
 type CommunityDetail = Community & {
   is_member: boolean
   member_role: CommunityRole | null
+  member_status: 'active' | 'timed_out' | 'removed' | 'banned' | null
   event_count: number
   ancestors: Pick<Community, 'id' | 'name' | 'name_ar' | 'slug' | 'level'>[]
   recent_events: Pick<Event, 'id' | 'title' | 'title_ar' | 'cover_image_url' | 'start_at' | 'city' | 'is_free' | 'price' | 'currency'>[]
   recent_members: Array<{ id: string; display_name: string; avatar_url: string | null; joined_at: string }>
   activity: Array<{ id: string; type: 'member_joined' | 'event_published'; title: string; subtitle: string; created_at: string; href: string | null }>
 }
-type MembershipMutationResponse = { is_member?: boolean; member_count?: number; member_role?: CommunityRole | null; message?: string }
+type MembershipMutationResponse = {
+  is_member?: boolean
+  member_count?: number
+  member_role?: CommunityRole | null
+  member_status?: 'active' | 'timed_out' | 'removed' | 'banned' | null
+  message?: string
+}
 type EventItem = Pick<Event, 'id' | 'title' | 'title_ar' | 'cover_image_url' | 'start_at' | 'city' | 'is_free' | 'price' | 'currency'>
 type CommunityAdminEntry = {
   user_id: string
@@ -42,6 +49,23 @@ type HappeningReportEntry = {
   created_at: string
   happening: { id: string; body: string; author_id: string; created_at: string; author: { id: string; display_name: string; avatar_url: string | null } | null } | null
   reporter: { id: string; display_name: string; avatar_url: string | null } | null
+}
+type CommunityWarningEntry = {
+  id: string
+  severity: 'low' | 'medium' | 'high'
+  reason: string
+  internal_note: string | null
+  created_at: string
+}
+type CommunitySanctionEntry = {
+  id: string
+  sanction_type: 'timeout' | 'removed' | 'banned'
+  reason: string
+  starts_at: string
+  ends_at: string | null
+  revoked_at: string | null
+  revoke_note: string | null
+  created_at: string
 }
 
 const LEVEL_META: Record<CommunityLevel, { label: string; icon: keyof typeof Ionicons.glyphMap; tint: string; bg: string; accent: string }> = {
@@ -78,14 +102,36 @@ export default function CommunityDetailScreen() {
   const [adminsLoading, setAdminsLoading] = useState(false)
   const [reports, setReports] = useState<HappeningReportEntry[]>([])
   const [reportsLoading, setReportsLoading] = useState(false)
+  const [hasModerationAccess, setHasModerationAccess] = useState(false)
   const [memberActionLoading, setMemberActionLoading] = useState<string | null>(null)
   const [reportActionLoading, setReportActionLoading] = useState<string | null>(null)
   const [showLocationPicker, setShowLocationPicker] = useState(false)
   const [postLocation, setPostLocation] = useState<PickedLocation | null>(null)
+  const [showModerationModal, setShowModerationModal] = useState(false)
+  const [moderationTarget, setModerationTarget] = useState<CommunityDetail['recent_members'][number] | null>(null)
+  const [moderationMode, setModerationMode] = useState<'warning' | 'timeout' | 'removed' | 'banned'>('warning')
+  const [moderationReason, setModerationReason] = useState('')
+  const [moderationSeverity, setModerationSeverity] = useState<'low' | 'medium' | 'high'>('medium')
+  const [moderationDurationHours, setModerationDurationHours] = useState(24)
+  const [showHistoryModal, setShowHistoryModal] = useState(false)
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [selectedMemberHistory, setSelectedMemberHistory] = useState<{
+    member: CommunityDetail['recent_members'][number]
+    warnings: CommunityWarningEntry[]
+    sanctions: CommunitySanctionEntry[]
+  } | null>(null)
 
   const memberRole = community?.member_role ?? null
-  const isCommunityOwner = memberRole === 'owner'
-  const canModerate = memberRole === 'owner' || memberRole === 'community_admin'
+  const memberStatus = community?.member_status ?? null
+  const derivedRole = user?.id
+    ? community?.owner_user_id === user.id
+      ? 'owner'
+      : admins.find((entry) => entry.user_id === user.id)?.role ?? null
+    : null
+  const effectiveRole = memberRole ?? derivedRole ?? (hasModerationAccess ? 'community_admin' : null)
+  const isCommunityOwner = effectiveRole === 'owner'
+  const canModerate = effectiveRole === 'owner' || effectiveRole === 'community_admin'
+  const canParticipateInHappenings = memberStatus ? memberStatus === 'active' : !!community?.is_member
 
   function openLocationPicker() {
     setShowPostModal(false)
@@ -130,25 +176,41 @@ export default function CommunityDetailScreen() {
   useEffect(() => { if (community) loadHappenings() }, [community?.id])
 
   async function loadAdmins() {
-    if (!canModerate) return
+    if (!user || !community?.is_member) return
     setAdminsLoading(true)
-    const { data } = await apiGet<CommunityAdminEntry[]>(`/api/communities/${slug}/admins`)
-    setAdmins(data ?? [])
+    const { data, error } = await apiGet<CommunityAdminEntry[]>(`/api/communities/${slug}/admins`)
+    if (!error) {
+      setAdmins(data ?? [])
+      if ((data ?? []).some((entry) => entry.user_id === user.id && (entry.role === 'owner' || entry.role === 'community_admin'))) {
+        setHasModerationAccess(true)
+      }
+    }
     setAdminsLoading(false)
   }
 
-  async function loadReports() {
-    if (!canModerate) return
+  async function loadReports(force = false) {
+    if (!force && !canModerate) return
     setReportsLoading(true)
-    const { data } = await apiGet<{ reports: HappeningReportEntry[] }>(`/api/communities/${slug}/reports/happenings?status=pending`)
-    setReports(data?.reports ?? [])
+    const { data, error } = await apiGet<{ reports: HappeningReportEntry[] }>(`/api/communities/${slug}/reports/happenings?status=pending`)
+    if (!error) {
+      setReports(data?.reports ?? [])
+      setHasModerationAccess(true)
+    }
     setReportsLoading(false)
   }
 
   useEffect(() => {
-    if (canModerate) loadAdmins()
+    if (user && community?.is_member) loadAdmins()
     else setAdmins([])
-  }, [slug, canModerate])
+  }, [slug, community?.is_member, user?.id, canModerate])
+
+  useEffect(() => {
+    if (user && community?.is_member) {
+      void loadReports(true)
+    } else {
+      setHasModerationAccess(false)
+    }
+  }, [slug, community?.is_member, user?.id])
 
   useEffect(() => {
     if (canModerate) loadReports()
@@ -157,6 +219,10 @@ export default function CommunityDetailScreen() {
 
   async function submitHappening() {
     if (!postBody.trim()) return
+    if (!canParticipateInHappenings) {
+      Alert.alert('Restricted', 'Your membership is temporarily restricted from posting happenings.')
+      return
+    }
     setPosting(true)
     const { data, error } = await apiPost<HappeningWithAuthor>(`/api/communities/${slug}/happenings`, {
       type: postType, body: postBody.trim(), expires_in_hours: postExpiry,
@@ -183,6 +249,10 @@ export default function CommunityDetailScreen() {
 
   async function toggleHappeningRsvp(h: HappeningWithAuthor) {
     if (!user) { router.push('/auth/login' as any); return }
+    if (!canParticipateInHappenings) {
+      Alert.alert('Restricted', 'Your membership is temporarily restricted from interacting with happenings.')
+      return
+    }
     const { data } = h.user_has_rsvp
       ? await apiDelete<{ rsvp: boolean; rsvp_count: number }>(`/api/happenings/${h.id}/rsvp`)
       : await apiPost<{ rsvp: boolean; rsvp_count: number }>(`/api/happenings/${h.id}/rsvp`, {})
@@ -214,6 +284,10 @@ export default function CommunityDetailScreen() {
 
   async function toggleHappeningReact(h: HappeningWithAuthor) {
     if (!user) { router.push('/auth/login' as any); return }
+    if (!canParticipateInHappenings) {
+      Alert.alert('Restricted', 'Your membership is temporarily restricted from interacting with happenings.')
+      return
+    }
     const { data } = h.user_has_reacted
       ? await apiDelete<{ reacted: boolean; reaction_count: number }>(`/api/happenings/${h.id}/react`)
       : await apiPost<{ reacted: boolean; reaction_count: number }>(`/api/happenings/${h.id}/react`, { emoji: '👍' })
@@ -235,12 +309,13 @@ export default function CommunityDetailScreen() {
       Alert.alert('Error', error)
     } else {
       setCommunity((prev) => prev
-        ? {
-          ...prev,
-          is_member: data?.is_member ?? !prev.is_member,
-          member_role: data?.member_role ?? (data?.is_member ? prev.member_role : null),
-          member_count: data?.member_count ?? (!prev.is_member ? prev.member_count + 1 : Math.max(prev.member_count - 1, 0)),
-        }
+          ? {
+              ...prev,
+              is_member: data?.is_member ?? !prev.is_member,
+              member_role: data?.member_role ?? (data?.is_member ? prev.member_role : null),
+              member_status: data?.member_status ?? (data?.is_member ? prev.member_status ?? 'active' : null),
+              member_count: data?.member_count ?? (!prev.is_member ? prev.member_count + 1 : Math.max(prev.member_count - 1, 0)),
+            }
         : prev
       )
       if (data?.message) Alert.alert('Notice', data.message)
@@ -264,34 +339,93 @@ export default function CommunityDetailScreen() {
     setMemberActionLoading(null)
   }
 
-  async function issueWarning(userId: string) {
-    setMemberActionLoading(`warn-${userId}`)
-    const { error } = await apiPost(`/api/communities/${slug}/members/${userId}/warnings`, {
-      severity: 'medium',
-      reason: 'Community guideline warning',
-    })
-    if (error) Alert.alert('Error', error)
-    else Alert.alert('Warning issued', 'The member has been warned.')
-    setMemberActionLoading(null)
+  function openModerationComposer(
+    member: CommunityDetail['recent_members'][number],
+    mode: 'warning' | 'timeout' | 'removed' | 'banned'
+  ) {
+    setModerationTarget(member)
+    setModerationMode(mode)
+    setModerationReason('')
+    setModerationSeverity('medium')
+    setModerationDurationHours(24)
+    setShowModerationModal(true)
   }
 
-  async function issueSanction(userId: string, sanctionType: 'timeout' | 'removed' | 'banned') {
-    setMemberActionLoading(`${sanctionType}-${userId}`)
-    const endsAt = sanctionType === 'timeout'
-      ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-      : null
-    const { error } = await apiPost(`/api/communities/${slug}/members/${userId}/sanctions`, {
-      sanction_type: sanctionType,
-      reason:
-        sanctionType === 'timeout'
-          ? 'Timed out by community admin'
-          : sanctionType === 'removed'
-            ? 'Removed from community by community admin'
-            : 'Banned from community by community admin',
-      ends_at: endsAt,
+  async function submitModerationAction() {
+    if (!moderationTarget) return
+    if (!moderationReason.trim()) {
+      Alert.alert('Reason required', 'Please enter a reason for this moderation action.')
+      return
+    }
+
+    const loadingKey = moderationMode === 'warning'
+      ? `warn-${moderationTarget.id}`
+      : `${moderationMode}-${moderationTarget.id}`
+    setMemberActionLoading(loadingKey)
+
+    try {
+      if (moderationMode === 'warning') {
+        const { error } = await apiPost(`/api/communities/${slug}/members/${moderationTarget.id}/warnings`, {
+          severity: moderationSeverity,
+          reason: moderationReason.trim(),
+        })
+        if (error) {
+          Alert.alert('Error', error)
+          return
+        }
+        Alert.alert('Warning issued', 'The member has been warned.')
+      } else {
+        const endsAt = moderationMode === 'timeout'
+          ? new Date(Date.now() + moderationDurationHours * 60 * 60 * 1000).toISOString()
+          : null
+
+        const { error } = await apiPost(`/api/communities/${slug}/members/${moderationTarget.id}/sanctions`, {
+          sanction_type: moderationMode,
+          reason: moderationReason.trim(),
+          ends_at: endsAt,
+        })
+        if (error) {
+          Alert.alert('Error', error)
+          return
+        }
+        Alert.alert('Action completed', `${moderationMode} applied successfully.`)
+      }
+
+      setShowModerationModal(false)
+      if (showHistoryModal && selectedMemberHistory?.member.id === moderationTarget.id) {
+        await loadMemberHistory(moderationTarget, true)
+      }
+    } finally {
+      setMemberActionLoading(null)
+    }
+  }
+
+  async function loadMemberHistory(member: CommunityDetail['recent_members'][number], keepModalOpen = false) {
+    setHistoryLoading(true)
+    const [warningsRes, sanctionsRes] = await Promise.all([
+      apiGet<{ warnings: CommunityWarningEntry[] }>(`/api/communities/${slug}/members/${member.id}/warnings`),
+      apiGet<{ sanctions: CommunitySanctionEntry[] }>(`/api/communities/${slug}/members/${member.id}/sanctions`),
+    ])
+
+    setSelectedMemberHistory({
+      member,
+      warnings: warningsRes.data?.warnings ?? [],
+      sanctions: sanctionsRes.data?.sanctions ?? [],
     })
-    if (error) Alert.alert('Error', error)
-    else Alert.alert('Action completed', `${sanctionType} applied successfully.`)
+    setHistoryLoading(false)
+    if (!keepModalOpen) setShowHistoryModal(true)
+  }
+
+  async function revokeSanction(memberId: string, sanctionId: string) {
+    setMemberActionLoading(`revoke-sanction-${sanctionId}`)
+    const { error } = await apiPatch(`/api/communities/${slug}/members/${memberId}/sanctions/${sanctionId}`, {
+      revoke_note: 'Revoked by community moderation',
+    })
+    if (error) {
+      Alert.alert('Error', error)
+    } else if (selectedMemberHistory) {
+      await loadMemberHistory(selectedMemberHistory.member, true)
+    }
     setMemberActionLoading(null)
   }
 
@@ -310,10 +444,11 @@ export default function CommunityDetailScreen() {
       member.display_name,
       'Choose a moderation action',
       [
-        { text: 'Warn', onPress: () => issueWarning(member.id) },
-        { text: 'Timeout 24h', onPress: () => issueSanction(member.id, 'timeout') },
-        { text: 'Remove', onPress: () => issueSanction(member.id, 'removed') },
-        { text: 'Ban', style: 'destructive', onPress: () => issueSanction(member.id, 'banned') },
+        { text: 'History', onPress: () => loadMemberHistory(member) },
+        { text: 'Warn', onPress: () => openModerationComposer(member, 'warning') },
+        { text: 'Timeout', onPress: () => openModerationComposer(member, 'timeout') },
+        { text: 'Remove', onPress: () => openModerationComposer(member, 'removed') },
+        { text: 'Ban', style: 'destructive', onPress: () => openModerationComposer(member, 'banned') },
         { text: 'Cancel', style: 'cancel' },
       ]
     )
@@ -405,6 +540,9 @@ export default function CommunityDetailScreen() {
                 </View>
                 {community.city && <Text style={styles.cityText}>📍 {community.city}</Text>}
                 {community.member_role && <Text style={styles.cityText}>Role: {community.member_role}</Text>}
+                {community.member_status && community.member_status !== 'active' && (
+                  <Text style={styles.cityText}>Status: {community.member_status}</Text>
+                )}
               </View>
             </View>
           </View>
@@ -639,7 +777,7 @@ export default function CommunityDetailScreen() {
               <Text style={[styles.sectionTitle, { marginBottom: 2 }]}>What&apos;s Happening Now</Text>
               <Text style={styles.sectionSub}>Spontaneous, time-limited posts</Text>
             </View>
-            {community.is_member && (
+            {canParticipateInHappenings && (
               <TouchableOpacity
                 onPress={() => setShowPostModal(true)}
                 style={styles.postHappeningBtn}
@@ -656,7 +794,7 @@ export default function CommunityDetailScreen() {
             <View style={styles.happeningsEmpty}>
               <Text style={styles.happeningsEmptyIcon}>📍</Text>
               <Text style={styles.happeningsEmptyText}>Nothing happening right now</Text>
-              {community.is_member && (
+              {canParticipateInHappenings && (
                 <Text style={styles.happeningsEmptyHint}>Be the first — post a happening!</Text>
               )}
             </View>
@@ -881,6 +1019,134 @@ export default function CommunityDetailScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+      <Modal visible={showModerationModal} animationType="slide" transparent onRequestClose={() => setShowModerationModal(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHandle} />
+            <Text style={styles.modalTitle}>
+              {moderationMode === 'warning'
+                ? 'Issue warning'
+                : moderationMode === 'timeout'
+                  ? 'Apply timeout'
+                  : moderationMode === 'removed'
+                    ? 'Remove member'
+                    : 'Ban member'}
+            </Text>
+            {moderationTarget && (
+              <Text style={styles.moderationTargetText}>Member: {moderationTarget.display_name}</Text>
+            )}
+
+            {moderationMode === 'warning' && (
+              <View style={styles.typeChips}>
+                {(['low', 'medium', 'high'] as const).map((level) => (
+                  <TouchableOpacity
+                    key={level}
+                    onPress={() => setModerationSeverity(level)}
+                    style={[styles.typeChip, moderationSeverity === level && styles.typeChipActive]}
+                  >
+                    <Text style={[styles.typeChipText, moderationSeverity === level && styles.typeChipTextActive]}>
+                      {level}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
+            {moderationMode === 'timeout' && (
+              <View style={styles.expiryRow}>
+                <Text style={styles.expiryLabel}>Duration:</Text>
+                {[1, 6, 24, 72].map((hours) => (
+                  <TouchableOpacity
+                    key={hours}
+                    onPress={() => setModerationDurationHours(hours)}
+                    style={[styles.expiryChip, moderationDurationHours === hours && styles.expiryChipActive]}
+                  >
+                    <Text style={[styles.expiryChipText, moderationDurationHours === hours && styles.expiryChipTextActive]}>
+                      {hours}h
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
+            <TextInput
+              value={moderationReason}
+              onChangeText={setModerationReason}
+              placeholder="Write the moderation reason"
+              placeholderTextColor={Colors.gray[400]}
+              multiline
+              style={[styles.postInput, { minHeight: 96 }]}
+            />
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity onPress={() => setShowModerationModal(false)} style={styles.modalCancelBtn}>
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={submitModerationAction}
+                disabled={!moderationReason.trim() || !!memberActionLoading}
+                style={[styles.modalPostBtn, (!moderationReason.trim() || !!memberActionLoading) && styles.modalPostBtnDisabled]}
+              >
+                <Text style={styles.modalPostText}>Confirm</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+      <Modal visible={showHistoryModal} animationType="slide" transparent onRequestClose={() => setShowHistoryModal(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHandle} />
+            <Text style={styles.modalTitle}>Moderation History</Text>
+            {selectedMemberHistory && (
+              <Text style={styles.moderationTargetText}>{selectedMemberHistory.member.display_name}</Text>
+            )}
+            <ScrollView style={styles.historyScroll} contentContainerStyle={styles.historyContent}>
+              {historyLoading ? (
+                <View style={styles.centerSmall}><Spinner /></View>
+              ) : selectedMemberHistory ? (
+                <>
+                  {selectedMemberHistory.warnings.map((warning) => (
+                    <View key={warning.id} style={[styles.historyCard, styles.historyCardWarning]}>
+                      <Text style={styles.historyTitle}>{warning.severity} warning</Text>
+                      <Text style={styles.historyBody}>{warning.reason}</Text>
+                      <Text style={styles.historyMeta}>{formatDate(warning.created_at)}</Text>
+                    </View>
+                  ))}
+                  {selectedMemberHistory.sanctions.map((sanction) => (
+                    <View key={sanction.id} style={[styles.historyCard, styles.historyCardDanger]}>
+                      <Text style={styles.historyTitle}>{sanction.sanction_type}</Text>
+                      <Text style={styles.historyBody}>{sanction.reason}</Text>
+                      <Text style={styles.historyMeta}>
+                        Started {formatDate(sanction.starts_at)}
+                        {sanction.ends_at ? ` · Ends ${formatDate(sanction.ends_at)}` : ''}
+                        {sanction.revoked_at ? ` · Revoked ${formatDate(sanction.revoked_at)}` : ''}
+                      </Text>
+                      {!sanction.revoked_at && (
+                        <TouchableOpacity
+                          onPress={() => revokeSanction(selectedMemberHistory.member.id, sanction.id)}
+                          disabled={memberActionLoading === `revoke-sanction-${sanction.id}`}
+                          style={[styles.memberActionChip, { alignSelf: 'flex-start', marginTop: Spacing.sm }]}
+                        >
+                          <Text style={styles.memberActionText}>Revoke</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  ))}
+                  {selectedMemberHistory.warnings.length === 0 && selectedMemberHistory.sanctions.length === 0 && (
+                    <Text style={styles.emptyPanelText}>No moderation history for this member yet.</Text>
+                  )}
+                </>
+              ) : null}
+            </ScrollView>
+            <View style={styles.modalActions}>
+              <TouchableOpacity onPress={() => setShowHistoryModal(false)} style={styles.modalCancelBtn}>
+                <Text style={styles.modalCancelText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
       <LocationPickerModal
         visible={showLocationPicker}
         initialLocation={postLocation}
@@ -1063,6 +1329,15 @@ const styles = StyleSheet.create({
   modalPostBtn: { flex: 2, alignItems: 'center', paddingVertical: Spacing.md, borderRadius: Radius.xl, backgroundColor: Colors.brand[600] },
   modalPostBtnDisabled: { opacity: 0.5 },
   modalPostText: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: '#fff' },
-})
+  moderationTargetText: { fontSize: FontSize.sm, color: Colors.gray[600], marginBottom: Spacing.md },
+  historyScroll: { maxHeight: 320 },
+  historyContent: { gap: Spacing.sm, paddingBottom: Spacing.sm },
+  historyCard: { borderRadius: Radius.xl, padding: Spacing.md, borderWidth: 1 },
+  historyCardWarning: { backgroundColor: '#fefce8', borderColor: '#fde68a' },
+  historyCardDanger: { backgroundColor: '#fef2f2', borderColor: '#fecaca' },
+  historyTitle: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.gray[900], textTransform: 'uppercase' },
+  historyBody: { fontSize: FontSize.sm, color: Colors.gray[800], marginTop: 4 },
+  historyMeta: { fontSize: FontSize.xs, color: Colors.gray[500], marginTop: 6 },
+}) 
 
 
