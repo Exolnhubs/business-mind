@@ -6,12 +6,12 @@ import {
 } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
-import * as Location from 'expo-location'
 import { apiGet, apiPost, apiDelete } from '@/lib/api'
 import { useAuth } from '@/contexts/auth-context'
 import { useLocale } from '@/contexts/locale-context'
 import { Spinner } from '@/components/ui/Spinner'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { LocationPickerModal, type PickedLocation } from '@/components/communities/LocationPickerModal'
 import { formatDate } from '@/lib/utils'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
 import type { Community, CommunityLevel, Event, HappeningType, HappeningWithAuthor } from '@/types/database'
@@ -57,8 +57,20 @@ export default function CommunityDetailScreen() {
   const [postBody, setPostBody]           = useState('')
   const [postExpiry, setPostExpiry]       = useState(6)
   const [posting, setPosting]             = useState(false)
-  const [postCoords, setPostCoords]       = useState<{ lat: number; lng: number } | null>(null)
-  const [locState, setLocState]           = useState<'idle' | 'loading' | 'attached' | 'denied'>('idle')
+  const [showLocationPicker, setShowLocationPicker] = useState(false)
+  const [postLocation, setPostLocation]   = useState<PickedLocation | null>(null)
+
+  function openLocationPicker() {
+    setShowPostModal(false)
+    setTimeout(() => setShowLocationPicker(true), 0)
+  }
+
+  function closeLocationPicker(reopenPostModal = true) {
+    setShowLocationPicker(false)
+    if (reopenPostModal) {
+      setTimeout(() => setShowPostModal(true), 0)
+    }
+  }
 
   useEffect(() => {
     apiGet<CommunityDetail>(`/api/communities/${slug}`)
@@ -90,21 +102,18 @@ export default function CommunityDetailScreen() {
 
   useEffect(() => { if (community) loadHappenings() }, [community?.id])
 
-  async function attachLocation() {
-    setLocState('loading')
-    const { status } = await Location.requestForegroundPermissionsAsync()
-    if (status !== 'granted') { setLocState('denied'); return }
-    const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
-    setPostCoords({ lat: loc.coords.latitude, lng: loc.coords.longitude })
-    setLocState('attached')
-  }
-
   async function submitHappening() {
     if (!postBody.trim()) return
     setPosting(true)
     const { data, error } = await apiPost<HappeningWithAuthor>(`/api/communities/${slug}/happenings`, {
       type: postType, body: postBody.trim(), expires_in_hours: postExpiry,
-      ...(postCoords ?? {}),
+      ...(postLocation
+        ? {
+            lat: postLocation.lat,
+            lng: postLocation.lng,
+            location_label: postLocation.label,
+          }
+        : {}),
     })
     if (error) {
       Alert.alert('Error', error)
@@ -114,8 +123,7 @@ export default function CommunityDetailScreen() {
       setPostBody('')
       setPostType('open_invite')
       setPostExpiry(6)
-      setPostCoords(null)
-      setLocState('idle')
+      setPostLocation(null)
     }
     setPosting(false)
   }
@@ -406,7 +414,7 @@ export default function CommunityDetailScreen() {
                       style={styles.happeningLocBtn}
                     >
                       <Ionicons name="location-outline" size={12} color={Colors.brand[600]} />
-                      <Text style={styles.happeningLocText}>View on map</Text>
+                      <Text style={styles.happeningLocText}>{h.location_label?.trim() || 'View on map'}</Text>
                     </TouchableOpacity>
                   )}
                   {user && ttlMs > 0 && (
@@ -543,28 +551,19 @@ export default function CommunityDetailScreen() {
 
             {/* Location */}
             <View style={styles.locRow}>
-              {locState === 'idle' && (
-                <TouchableOpacity onPress={attachLocation} style={styles.locBtn}>
-                  <Ionicons name="location-outline" size={13} color={Colors.gray[500]} />
-                  <Text style={styles.locBtnText}>Add location</Text>
-                </TouchableOpacity>
-              )}
-              {locState === 'loading' && (
-                <View style={styles.locBtn}>
-                  <ActivityIndicator size="small" color={Colors.gray[400]} />
-                  <Text style={styles.locBtnText}>Getting location…</Text>
-                </View>
-              )}
-              {locState === 'attached' && postCoords && (
-                <TouchableOpacity onPress={() => { setPostCoords(null); setLocState('idle') }} style={[styles.locBtn, styles.locBtnAttached]}>
+              <TouchableOpacity onPress={openLocationPicker} style={styles.locBtn}>
+                <Ionicons name="map-outline" size={13} color={Colors.gray[500]} />
+                <Text style={styles.locBtnText}>
+                  {postLocation ? 'Edit meetup spot' : 'Pick meetup spot'}
+                </Text>
+              </TouchableOpacity>
+              {postLocation && (
+                <TouchableOpacity onPress={() => setPostLocation(null)} style={[styles.locBtn, styles.locBtnAttached]}>
                   <Ionicons name="location" size={13} color="#15803d" />
-                  <Text style={[styles.locBtnText, { color: '#15803d' }]}>
-                    {postCoords.lat.toFixed(4)}, {postCoords.lng.toFixed(4)}  ✕
+                  <Text style={[styles.locBtnText, { color: '#15803d' }]} numberOfLines={1}>
+                    {postLocation.label}  x
                   </Text>
                 </TouchableOpacity>
-              )}
-              {locState === 'denied' && (
-                <Text style={styles.locDenied}>Location permission denied</Text>
               )}
             </View>
 
@@ -600,6 +599,15 @@ export default function CommunityDetailScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+      <LocationPickerModal
+        visible={showLocationPicker}
+        initialLocation={postLocation}
+        onClose={() => closeLocationPicker(true)}
+        onConfirm={(location) => {
+          setPostLocation(location)
+          closeLocationPicker(true)
+        }}
+      />
     </>
   )
 }
@@ -718,7 +726,7 @@ const styles = StyleSheet.create({
   happeningActionText:     { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.gray[700] },
   happeningActionTextActive:   { color: '#fff' },
   happeningReactTextActive:    { color: '#713f12' },
-  happeningLocBtn:   { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: Spacing[2] },
+  happeningLocBtn:   { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: Spacing.sm },
   happeningLocText:  { fontSize: 11, color: Colors.brand[600] },
   happeningReportBtn:{ marginLeft: 'auto', padding: 6 },
 
@@ -733,9 +741,9 @@ const styles = StyleSheet.create({
   typeChipText:   { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.gray[700] },
   typeChipTextActive: { color: '#fff' },
   postInput:      { borderWidth: 1, borderColor: Colors.gray[200], borderRadius: Radius.xl, padding: Spacing.md, fontSize: FontSize.sm, color: Colors.gray[900], minHeight: 100, textAlignVertical: 'top', marginBottom: Spacing.xs },
-  charCount:      { fontSize: 11, color: Colors.gray[400], textAlign: 'right', marginBottom: Spacing[2] },
-  locRow:         { marginBottom: Spacing[3] },
-  locBtn:         { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: Spacing[2] + 2, paddingVertical: 6, borderRadius: Radius.lg, backgroundColor: Colors.gray[100], borderWidth: 1, borderColor: Colors.gray[200], alignSelf: 'flex-start' },
+  charCount:      { fontSize: 11, color: Colors.gray[400], textAlign: 'right', marginBottom: Spacing.sm },
+  locRow:         { marginBottom: Spacing.md },
+  locBtn:         { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: Spacing.sm + 2, paddingVertical: 6, borderRadius: Radius.lg, backgroundColor: Colors.gray[100], borderWidth: 1, borderColor: Colors.gray[200], alignSelf: 'flex-start' },
   locBtnAttached: { backgroundColor: '#f0fdf4', borderColor: '#86efac' },
   locBtnText:     { fontSize: 11, color: Colors.gray[600] },
   locDenied:      { fontSize: 11, color: '#ef4444' },
@@ -752,3 +760,5 @@ const styles = StyleSheet.create({
   modalPostBtnDisabled: { opacity: 0.5 },
   modalPostText:  { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: '#fff' },
 })
+
+

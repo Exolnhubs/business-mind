@@ -501,6 +501,7 @@ export interface Happening {
   body:           string
   lat:            number | null
   lng:            number | null
+  location_label: string | null
   expires_at:     string
   rsvp_count:     number
   reaction_count: number

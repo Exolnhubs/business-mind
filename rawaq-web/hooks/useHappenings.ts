@@ -61,6 +61,7 @@ export function useHappenings(slug: string, isMember: boolean) {
     expires_in_hours?: number
     lat?: number
     lng?: number
+    location_label?: string
   }) {
     setPosting(true)
     try {

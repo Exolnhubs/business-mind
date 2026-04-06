@@ -11,6 +11,7 @@ const CreateSchema = z.object({
   body: z.string().min(1).max(280),
   lat:  z.number().optional(),
   lng:  z.number().optional(),
+  location_label: z.string().trim().min(1).max(200).optional(),
   expires_in_hours: z.number().int().min(1).max(24).default(6),
 })
 
@@ -53,7 +54,7 @@ export async function GET(
     let query = (admin as any)
       .from('happenings')
       .select(`
-        id, type, body, lat, lng, expires_at, rsvp_count, reaction_count, is_pinned, created_at,
+        id, type, body, lat, lng, location_label, expires_at, rsvp_count, reaction_count, is_pinned, created_at,
         author:profiles!author_id(id, display_name, avatar_url)
       `)
       .eq('community_id', community.id)
@@ -141,10 +142,11 @@ export async function POST(
         body:         parsed.body,
         lat:          parsed.lat ?? null,
         lng:          parsed.lng ?? null,
+        location_label: parsed.location_label ?? null,
         expires_at:   expiresAt,
       })
       .select(`
-        id, type, body, lat, lng, expires_at, rsvp_count, reaction_count, is_pinned, created_at,
+        id, type, body, lat, lng, location_label, expires_at, rsvp_count, reaction_count, is_pinned, created_at,
         author:profiles!author_id(id, display_name, avatar_url)
       `)
       .single()
