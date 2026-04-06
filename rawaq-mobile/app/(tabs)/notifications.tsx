@@ -44,6 +44,7 @@ function notifIcon(type: string): string {
     case 'new_event_published':  return '🎉'
     case 'event_sold_out':       return '🎊'
     case 'community_new_event':  return '🗓️'
+    case 'community_happening':  return '📍'
     default:                     return '🔔'
   }
 }
@@ -70,8 +71,9 @@ function notifText(type: string, payload: NotifPayload): string {
     case 'event_updated':       return `"${et}" has been updated — check the new details`
     case 'new_event_published': return `${payload.organizer_name ?? 'An organizer'} published "${et}"`
     case 'event_sold_out':      return `Your event "${et}" just sold out! 🎊`
-    case 'community_new_event': return `New event in ${payload.community_name ?? 'your community'}: "${et}"`
-    default:                    return 'New notification'
+    case 'community_new_event':  return `New event in ${payload.community_name ?? 'your community'}: "${et}"`
+    case 'community_happening':  return `${payload.community_name ?? 'Community'}: ${payload.body ?? 'Something\'s happening'}`
+    default:                     return 'New notification'
   }
 }
 
@@ -87,6 +89,10 @@ function notifRoute(type: string, payload: NotifPayload, profile: { role?: strin
     case 'new_event_published':
     case 'event_updated':
       return eventId ? `/events/${eventId}` : '/(tabs)/home'
+    case 'community_happening': {
+      const communitySlug = typeof payload.community_slug === 'string' ? payload.community_slug : null
+      return communitySlug ? `/communities/${communitySlug}` : '/communities'
+    }
     case 'new_follower':
     case 'new_review':
     case 'organizer_approved':
