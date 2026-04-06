@@ -59,6 +59,8 @@ export function useHappenings(slug: string, isMember: boolean) {
     type: 'open_invite' | 'info' | 'question' | 'alert'
     body: string
     expires_in_hours?: number
+    lat?: number
+    lng?: number
   }) {
     setPosting(true)
     try {

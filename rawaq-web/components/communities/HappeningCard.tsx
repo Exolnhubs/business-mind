@@ -73,7 +73,14 @@ export function HappeningCard({ happening: h, onRsvp, onReact, onDelete }: Props
 
       {/* Location hint */}
       {h.lat && h.lng && (
-        <p className="text-xs text-gray-400 mb-3">📍 Location attached</p>
+        <a
+          href={`https://maps.google.com/?q=${h.lat},${h.lng}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-xs text-brand-600 hover:underline mb-3"
+        >
+          📍 View on map
+        </a>
       )}
 
       {/* Actions */}
