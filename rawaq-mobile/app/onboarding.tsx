@@ -11,7 +11,7 @@
  *   welcome → gender → org-details → org-contact → done
  */
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, ActivityIndicator, Image, Alert,
@@ -21,9 +21,21 @@ import { useRouter } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
 import { supabase } from '@/lib/supabase'
 import { uploadViaApi } from '@/lib/upload'
+import { apiGet, apiPost } from '@/lib/api'
 import { useAuth } from '@/contexts/auth-context'
 import { useLocale } from '@/contexts/locale-context'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
+
+type CommunitySuggestion = {
+  id: string
+  name: string
+  name_ar: string | null
+  slug: string
+  level: string
+  member_count: number
+  description: string | null
+  is_member: boolean
+}
 
 // ── Event category interests ───────────────────────────────────────────────
 const CATEGORIES = [
@@ -39,12 +51,12 @@ const CATEGORIES = [
   { id: 'community',     en: 'Community',      ar: 'مجتمع',       icon: '🤝' },
 ]
 
-type StepId = 'welcome' | 'gender' | 'photo-bio' | 'interests' | 'org-details' | 'org-contact' | 'done'
+type StepId = 'welcome' | 'gender' | 'photo-bio' | 'interests' | 'communities' | 'org-details' | 'org-contact' | 'done'
 
-const USER_STEPS:      StepId[] = ['welcome', 'gender', 'photo-bio', 'interests', 'done']
+const USER_STEPS:      StepId[] = ['welcome', 'gender', 'photo-bio', 'interests', 'communities', 'done']
 const ORGANIZER_STEPS: StepId[] = ['welcome', 'gender', 'org-details', 'org-contact', 'done']
 
-const OPTIONAL_STEPS = new Set<StepId>(['photo-bio', 'interests', 'org-details', 'org-contact'])
+const OPTIONAL_STEPS = new Set<StepId>(['photo-bio', 'interests', 'communities', 'org-details', 'org-contact'])
 
 export default function OnboardingScreen() {
   const { user, profile, refreshProfile } = useAuth()
@@ -62,6 +74,8 @@ export default function OnboardingScreen() {
   const [bio, setBio]               = useState('')
   const [avatarUri, setAvatarUri]   = useState<string | null>(null)
   const [interests, setInterests]   = useState<string[]>([])
+  const [communitySuggestions, setCommunitySuggestions] = useState<CommunitySuggestion[]>([])
+  const [selectedCommunities, setSelectedCommunities]   = useState<string[]>([]) // slugs to join
 
   // Organizer profile fields
   const [orgDesc, setOrgDesc]       = useState('')
@@ -74,6 +88,17 @@ export default function OnboardingScreen() {
   const isLastStep  = stepIndex === steps.length - 1
   const isOptional  = OPTIONAL_STEPS.has(currentStep)
   const canProceed  = currentStep !== 'gender' || gender !== null
+
+  // Fetch community suggestions when that step activates
+  useEffect(() => {
+    if (currentStep !== 'communities' || communitySuggestions.length > 0) return
+    apiGet<{ data: { data: CommunitySuggestion[] } }>('/api/communities?per_page=18')
+      .then(({ data }) => {
+        const items = (data?.data?.data ?? []).filter((c) => c.level === 'micro' || c.level === 'interest' || c.level === 'district')
+        setCommunitySuggestions(items.slice(0, 15))
+      })
+      .catch(() => {})
+  }, [currentStep])
 
   // ── Image picker ───────────────────────────────────────────────────────────
 
@@ -134,6 +159,13 @@ export default function OnboardingScreen() {
             phone:          orgPhone.trim()   || null,
           } as any)
           .eq('user_id', user.id)
+      }
+
+      // Join selected communities silently (fire-and-forget)
+      if (selectedCommunities.length > 0) {
+        await Promise.allSettled(
+          selectedCommunities.map((slug) => apiPost(`/api/communities/${slug}/join`, {}))
+        )
       }
 
       await refreshProfile()
@@ -298,6 +330,51 @@ export default function OnboardingScreen() {
     )
   }
 
+  function StepCommunities() {
+    const levelIcon: Record<string, string> = { micro: '🏘️', interest: '🎯', district: '🏙️', city: '🌆', country: '🌍' }
+    return (
+      <ScrollView showsVerticalScrollIndicator={false}>
+        <View style={s.stepContent}>
+          <Text style={s.heroEmoji}>🤝</Text>
+          <Text style={s.stepTitle}>Join your communities</Text>
+          <Text style={s.stepSub}>
+            Your feed is personalised based on the communities you join. Pick micro-circles, interest groups, or district communities near you.
+          </Text>
+          {communitySuggestions.length === 0 ? (
+            <ActivityIndicator color={Colors.brand[500]} />
+          ) : (
+            <View style={s.commGrid}>
+              {communitySuggestions.map((c) => {
+                const on = selectedCommunities.includes(c.slug)
+                const name = isRTL && c.name_ar ? c.name_ar : c.name
+                return (
+                  <TouchableOpacity
+                    key={c.id}
+                    style={[s.commCard, on && s.commCardOn]}
+                    onPress={() =>
+                      setSelectedCommunities((prev) =>
+                        on ? prev.filter((slug) => slug !== c.slug) : [...prev, c.slug]
+                      )
+                    }
+                    activeOpacity={0.8}
+                  >
+                    <Text style={s.commIcon}>{levelIcon[c.level] ?? '🏘️'}</Text>
+                    <Text style={[s.commName, on && s.commNameOn]} numberOfLines={2}>{name}</Text>
+                    <Text style={s.commMeta}>{c.member_count.toLocaleString()} members</Text>
+                    {on && <View style={s.commTick}><Text style={{ color: Colors.white, fontSize: 10 }}>✓</Text></View>}
+                  </TouchableOpacity>
+                )
+              })}
+            </View>
+          )}
+          {selectedCommunities.length > 0 && (
+            <Text style={s.commSelectedLabel}>{selectedCommunities.length} selected</Text>
+          )}
+        </View>
+      </ScrollView>
+    )
+  }
+
   function StepOrgDetails() {
     return (
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -438,13 +515,14 @@ export default function OnboardingScreen() {
 
         {/* Step body */}
         <View style={{ flex: 1 }}>
-          {currentStep === 'welcome'     && <StepWelcome />}
-          {currentStep === 'gender'      && <StepGender />}
-          {currentStep === 'photo-bio'   && <StepPhotoBio />}
-          {currentStep === 'interests'   && <StepInterests />}
-          {currentStep === 'org-details' && <StepOrgDetails />}
-          {currentStep === 'org-contact' && <StepOrgContact />}
-          {currentStep === 'done'        && <StepDone />}
+          {currentStep === 'welcome'      && <StepWelcome />}
+          {currentStep === 'gender'       && <StepGender />}
+          {currentStep === 'photo-bio'    && <StepPhotoBio />}
+          {currentStep === 'interests'    && <StepInterests />}
+          {currentStep === 'communities'  && <StepCommunities />}
+          {currentStep === 'org-details'  && <StepOrgDetails />}
+          {currentStep === 'org-contact'  && <StepOrgContact />}
+          {currentStep === 'done'         && <StepDone />}
         </View>
 
         {/* Footer */}
@@ -632,6 +710,31 @@ const s = StyleSheet.create({
   chipIcon: { fontSize: 15 },
   chipLabel: { fontSize: FontSize.sm, color: Colors.gray[600], fontWeight: FontWeight.medium },
   chipLabelOn: { color: Colors.brand[700] },
+
+  // Communities step
+  commGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, paddingBottom: Spacing['3xl'] },
+  commCard: {
+    width: '47%',
+    borderWidth: 1.5,
+    borderColor: Colors.gray[200],
+    borderRadius: Radius.xl,
+    backgroundColor: Colors.white,
+    padding: Spacing.md,
+    gap: 4,
+    position: 'relative',
+  },
+  commCardOn: { borderColor: Colors.brand[400], backgroundColor: Colors.brand[50] },
+  commIcon: { fontSize: 22 },
+  commName: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[800] },
+  commNameOn: { color: Colors.brand[800] },
+  commMeta: { fontSize: 11, color: Colors.gray[400] },
+  commTick: {
+    position: 'absolute', top: 8, right: 8,
+    width: 18, height: 18, borderRadius: 9,
+    backgroundColor: Colors.brand[500],
+    alignItems: 'center', justifyContent: 'center',
+  },
+  commSelectedLabel: { fontSize: FontSize.sm, color: Colors.brand[600], fontWeight: FontWeight.semibold, textAlign: 'center', marginBottom: Spacing.lg },
 
   // Done screen
   doneContent: { alignItems: 'center', justifyContent: 'center', gap: Spacing.md },

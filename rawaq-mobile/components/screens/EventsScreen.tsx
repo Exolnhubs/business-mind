@@ -7,7 +7,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router'
 import * as Location from 'expo-location'
 import { supabase } from '@/lib/supabase'
-import { apiGet } from '@/lib/api'
+import { apiGet, apiPost } from '@/lib/api'
 import { useAuth } from '@/contexts/auth-context'
 import { EventCard, EventCardSkeleton } from '@/components/events/EventCard'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -16,7 +16,7 @@ import { Colors, Spacing, Radius, FontSize, FontWeight } from '@/theme'
 import type { Community, EventWithOrganizer } from '@/types/database'
 
 type JoinedCommunity = Pick<Community, 'id' | 'name' | 'name_ar' | 'slug' | 'level'>
-type CommunityListItem = JoinedCommunity & { is_member: boolean }
+type CommunityListItem = JoinedCommunity & { is_member: boolean; member_count: number }
 type ActiveCommunity = Pick<Community, 'id' | 'name' | 'name_ar' | 'slug' | 'level' | 'cover_url'> & { is_member: boolean; happening_count: number }
 type EventsApiListResponse = {
   data: EventWithOrganizer[]
@@ -103,7 +103,7 @@ function pickWeekendRailEvents(
 
 export default function EventsScreen() {
   const { t, locale } = useLocale()
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const router = useRouter()
   const params = useLocalSearchParams<{ community?: string }>()
   const routeCommunitySlug = typeof params.community === 'string' ? params.community : null
@@ -112,6 +112,9 @@ export default function EventsScreen() {
   const [savedInspiredEvents, setSavedInspiredEvents] = useState<EventWithOrganizer[]>([])
   const [almostSoldOutEvents, setAlmostSoldOutEvents] = useState<EventWithOrganizer[]>([])
   const [nearYouWeekendEvents, setNearYouWeekendEvents] = useState<EventWithOrganizer[]>([])
+  const [myCommunityEvents, setMyCommunityEvents] = useState<EventWithOrganizer[]>([])
+  const [suggestedCommunities, setSuggestedCommunities] = useState<CommunityListItem[]>([])
+  const [joiningSlug, setJoiningSlug] = useState<string | null>(null)
   const [weekendCoords, setWeekendCoords] = useState<{ lat: number; lng: number } | null>(null)
   const [weekendRadiusKm, setWeekendRadiusKm] = useState(25)
   const [loading, setLoading] = useState(true)
@@ -128,7 +131,13 @@ export default function EventsScreen() {
   const [communitySlug, setCommunitySlug] = useState<string | null>(null)
   const [joinedCommunities, setJoinedCommunities] = useState<JoinedCommunity[]>([])
   const [activeCommunities, setActiveCommunities] = useState<ActiveCommunity[]>([])
-  const showRecommendationRails = !search && !categoryId && city === 'All' && !freeOnly && !nearMe && !communitySlug
+  const isDefaultFeed = !search && !categoryId && !freeOnly && !nearMe && !communitySlug
+  const showRecommendationRails = isDefaultFeed
+
+  // Sync city from profile (runs once profile is loaded)
+  useEffect(() => {
+    if (profile?.city) setCity((cur) => cur === 'All' ? profile.city! : cur)
+  }, [profile?.city])
 
   // Fade the pin icon out while the user is typing, back in when cleared
   const pinOpacity = useRef(new Animated.Value(1)).current
@@ -188,7 +197,16 @@ export default function EventsScreen() {
       apiGet<{ communities: ActiveCommunity[] }>('/api/happenings/active?limit=10')
         .then(({ data }) => setActiveCommunities(data?.communities ?? []))
         .catch(() => {})
-    }, [loadJoinedCommunities]),
+      // Fetch suggested communities (micro/interest) for discovery nudge
+      if (user) {
+        apiGet<{ data: { data: CommunityListItem[] } }>('/api/communities?per_page=15')
+          .then(({ data }) => {
+            const unjoined = (data?.data?.data ?? []).filter((c) => !c.is_member && (c.level === 'micro' || c.level === 'interest' || c.level === 'district'))
+            setSuggestedCommunities(unjoined.slice(0, 6))
+          })
+          .catch(() => {})
+      }
+    }, [loadJoinedCommunities, user]),
   )
 
   // Silently grab coords for "Near You This Weekend" only if permission
@@ -310,6 +328,7 @@ export default function EventsScreen() {
       setAlmostSoldOutEvents([])
       setSavedInspiredEvents([])
       setNearYouWeekendEvents([])
+      setMyCommunityEvents([])
       setLoading(false)
       setRefreshing(false)
       return
@@ -427,6 +446,33 @@ export default function EventsScreen() {
     const weekendIds = new Set(weekendRailEvents.map((event) => event.id))
     setNearYouWeekendEvents(weekendRailEvents)
 
+    // ── My Community Events ───────────────────────────────────────────────────
+    if (joinedCommunities.length > 0) {
+      const communityIds = joinedCommunities.slice(0, 6).map((c) => c.id)
+      const { data: ecLinks } = await supabase
+        .from('event_communities')
+        .select('event_id')
+        .in('community_id', communityIds)
+        .limit(30)
+      const communityEventIds = [...new Set((ecLinks ?? []).map((r) => r.event_id))]
+      if (communityEventIds.length > 0) {
+        const { data: commEventsData } = await supabase
+          .from('events')
+          .select(eventSelect)
+          .in('id', communityEventIds)
+          .eq('is_published', true)
+          .eq('is_cancelled', false)
+          .gte('start_at', new Date().toISOString())
+          .order('start_at', { ascending: true })
+          .limit(8)
+        setMyCommunityEvents((commEventsData ?? []) as unknown as EventWithOrganizer[])
+      } else {
+        setMyCommunityEvents([])
+      }
+    } else {
+      setMyCommunityEvents([])
+    }
+
     const filteredUrgencyEvents = rawUrgencyList
       .filter((event) => !weekendIds.has(event.id))
       .slice(0, 6)
@@ -439,7 +485,7 @@ export default function EventsScreen() {
 
     setLoading(false)
     setRefreshing(false)
-  }, [search, categoryId, city, freeOnly, nearMe, geoCoords, radiusKm, communitySlug, showRecommendationRails, user, weekendCoords, weekendRadiusKm])
+  }, [search, categoryId, city, freeOnly, nearMe, geoCoords, radiusKm, communitySlug, showRecommendationRails, user, weekendCoords, weekendRadiusKm, joinedCommunities])
 
   useEffect(() => { fetchEvents() }, [fetchEvents])
 
@@ -456,6 +502,16 @@ export default function EventsScreen() {
       else next.delete(id)
       return next
     })
+  }
+
+  async function handleJoinSuggested(slug: string) {
+    setJoiningSlug(slug)
+    const { error } = await apiPost<unknown>(`/api/communities/${slug}/join`, {})
+    if (!error) {
+      setSuggestedCommunities((prev) => prev.filter((c) => c.slug !== slug))
+      loadJoinedCommunities()
+    }
+    setJoiningSlug(null)
   }
 
   return (
@@ -516,6 +572,17 @@ export default function EventsScreen() {
               </Text>
             </TouchableOpacity>
           ))}
+        </View>
+      )}
+
+      {/* City indicator — tappable to change */}
+      {isDefaultFeed && city !== 'All' && (
+        <View style={styles.cityBar}>
+          <Ionicons name="location" size={13} color={Colors.brand[500]} />
+          <Text style={styles.cityBarText}>Events in <Text style={styles.cityBarCity}>{city}</Text></Text>
+          <TouchableOpacity onPress={() => setCity('All')} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+            <Text style={styles.cityBarChange}>Change</Text>
+          </TouchableOpacity>
         </View>
       )}
 
@@ -623,6 +690,53 @@ export default function EventsScreen() {
             showRecommendationRails
               ? (
                 <View>
+                  {/* Discover communities nudge — shown when user has < 3 communities */}
+                  {user && joinedCommunities.length < 3 && suggestedCommunities.length > 0 && (
+                    <View style={styles.discoverSection}>
+                      <View style={styles.discoverHeader}>
+                        <Text style={styles.discoverTitle}>🏘 Discover Your Communities</Text>
+                        <Text style={styles.discoverSub}>Join micro & interest communities to personalise your feed</Text>
+                      </View>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: Spacing.lg, gap: Spacing.sm }}>
+                        {suggestedCommunities.map((c) => {
+                          const name = locale === 'ar' && c.name_ar ? c.name_ar : c.name
+                          const joining = joiningSlug === c.slug
+                          return (
+                            <View key={c.id} style={styles.discoverCard}>
+                              <TouchableOpacity onPress={() => router.push(`/communities/${c.slug}` as any)} activeOpacity={0.85}>
+                                <Text style={styles.discoverCardName} numberOfLines={1}>{name}</Text>
+                                <Text style={styles.discoverCardMeta}>{c.level} · {c.member_count.toLocaleString()} members</Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                style={[styles.discoverJoinBtn, joining && { opacity: 0.6 }]}
+                                onPress={() => handleJoinSuggested(c.slug)}
+                                disabled={joining}
+                              >
+                                <Text style={styles.discoverJoinText}>{joining ? '...' : 'Join'}</Text>
+                              </TouchableOpacity>
+                            </View>
+                          )
+                        })}
+                        <TouchableOpacity style={styles.discoverExploreCard} onPress={() => router.push('/communities' as any)}>
+                          <Text style={styles.discoverExploreIcon}>→</Text>
+                          <Text style={styles.discoverExploreTxt}>Explore all</Text>
+                        </TouchableOpacity>
+                      </ScrollView>
+                    </View>
+                  )}
+
+                  {/* My Community Events — events tagged to joined communities */}
+                  {myCommunityEvents.length > 0 && (
+                    <RecommendationRail
+                      title="In Your Communities"
+                      subtitle="Events from communities you've joined"
+                      events={myCommunityEvents}
+                      savedIds={savedIds}
+                      onSaveChange={handleSaveChange}
+                      accent="community"
+                    />
+                  )}
+
                   {/* Active Now — communities with live happenings */}
                   {activeCommunities.length > 0 && (
                     <View style={styles.activeNowSection}>
@@ -631,7 +745,7 @@ export default function EventsScreen() {
                         <Text style={styles.activeNowTitle}>Active Now</Text>
                         <Text style={styles.activeNowSub}>Communities with live happenings</Text>
                       </View>
-                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: Spacing[4], gap: Spacing[3] }}>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: Spacing.lg, gap: Spacing.md }}>
                         {activeCommunities.map((c) => {
                           const name = locale === 'ar' && c.name_ar ? c.name_ar : c.name
                           return (
@@ -758,7 +872,7 @@ function RecommendationRail({
   savedIds: Set<string>
   onSaveChange: (id: string, saved: boolean) => void
   urgency?: boolean
-  accent?: 'weekend'
+  accent?: 'weekend' | 'community'
   radiusKm?: number
   onRadiusChange?: (km: number) => void
   emptyTitle?: string
@@ -770,7 +884,7 @@ function RecommendationRail({
   if (!forceShow && events.length === 0) return null
 
   return (
-    <View style={[styles.railSection, urgency && styles.railSectionUrgent, accent === 'weekend' && styles.railSectionWeekend]}>
+    <View style={[styles.railSection, urgency && styles.railSectionUrgent, accent === 'weekend' && styles.railSectionWeekend, accent === 'community' && styles.railSectionCommunity]}>
       <View style={styles.railHeader}>
         <Text style={styles.railTitle}>{title}</Text>
         <View style={styles.railSubtitleRow}>
@@ -950,13 +1064,13 @@ const styles = StyleSheet.create({
   communityExploreBtnText: { fontSize: FontSize.xs, color: Colors.brand[600], fontWeight: FontWeight.medium },
 
   // Active Now rail
-  activeNowSection:       { paddingBottom: Spacing[4], borderBottomWidth: 1, borderBottomColor: Colors.gray[100], marginBottom: Spacing[2] },
-  activeNowHeader:        { flexDirection: 'row', alignItems: 'center', gap: Spacing[2], paddingHorizontal: Spacing[4], paddingVertical: Spacing[3] },
+  activeNowSection:       { paddingBottom: Spacing.lg, borderBottomWidth: 1, borderBottomColor: Colors.gray[100], marginBottom: Spacing.sm },
+  activeNowHeader:        { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md },
   activeNowDot:           { width: 8, height: 8, borderRadius: 4, backgroundColor: '#22c55e' },
   activeNowTitle:         { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.gray[900] },
   activeNowSub:           { fontSize: FontSize.xs, color: Colors.gray[400], flex: 1 },
   activeNowCard:          { alignItems: 'center', width: 72 },
-  activeNowPulse:         { marginBottom: Spacing[2] },
+  activeNowPulse:         { marginBottom: Spacing.sm },
   activeNowAvatar:        { width: 52, height: 52, borderRadius: 26, backgroundColor: Colors.brand[100], alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: Colors.gray[200] },
   activeNowAvatarMember:  { borderColor: '#22c55e', borderWidth: 2.5 },
   activeNowAvatarText:    { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.brand[700] },
@@ -980,4 +1094,35 @@ const styles = StyleSheet.create({
   activeCommunityName: { fontSize: FontSize.sm, color: Colors.gray[900], fontWeight: FontWeight.semibold, marginTop: 2 },
   activeCommunityClear: { paddingHorizontal: Spacing.sm, paddingVertical: Spacing.xs, borderRadius: Radius.full, backgroundColor: Colors.white },
   activeCommunityClearText: { fontSize: FontSize.xs, color: Colors.brand[700], fontWeight: FontWeight.semibold },
+
+  // City indicator bar
+  cityBar: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, paddingHorizontal: Spacing.lg, paddingVertical: 6, backgroundColor: Colors.brand[50], borderBottomWidth: 1, borderBottomColor: Colors.brand[100] },
+  cityBarText: { flex: 1, fontSize: FontSize.xs, color: Colors.gray[600] },
+  cityBarCity: { fontWeight: FontWeight.semibold, color: Colors.gray[900] },
+  cityBarChange: { fontSize: FontSize.xs, color: Colors.brand[600], fontWeight: FontWeight.semibold },
+
+  // Community events rail accent
+  railSectionCommunity: { backgroundColor: '#eff6ff' },
+
+  // Discover communities nudge
+  discoverSection: { paddingBottom: Spacing.lg, borderBottomWidth: 1, borderBottomColor: Colors.gray[100], marginBottom: Spacing.sm },
+  discoverHeader: { paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md },
+  discoverTitle: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.gray[900] },
+  discoverSub: { fontSize: FontSize.xs, color: Colors.gray[400], marginTop: 2 },
+  discoverCard: {
+    width: 150,
+    backgroundColor: Colors.white,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: Colors.gray[200],
+    padding: Spacing.md,
+    gap: Spacing.sm,
+  },
+  discoverCardName: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[900] },
+  discoverCardMeta: { fontSize: 11, color: Colors.gray[400] },
+  discoverJoinBtn: { alignSelf: 'flex-start', backgroundColor: Colors.brand[600], borderRadius: Radius.full, paddingHorizontal: Spacing.md, paddingVertical: 5 },
+  discoverJoinText: { fontSize: FontSize.xs, color: Colors.white, fontWeight: FontWeight.semibold },
+  discoverExploreCard: { width: 80, alignItems: 'center', justifyContent: 'center', gap: Spacing.xs },
+  discoverExploreIcon: { fontSize: 22, color: Colors.brand[400] },
+  discoverExploreTxt: { fontSize: FontSize.xs, color: Colors.brand[600], fontWeight: FontWeight.medium },
 })
