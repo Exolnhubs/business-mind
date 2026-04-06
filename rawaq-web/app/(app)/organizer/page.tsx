@@ -128,6 +128,12 @@ export default async function OrganizerDashboard() {
                           Attendees {event.bookings_count > 0 && `(${event.bookings_count})`}
                         </Link>
                         <Link
+                          href={`/organizer/events/${event.id}/analytics`}
+                          className="text-xs text-gray-500 font-medium hover:underline"
+                        >
+                          📊 Analytics
+                        </Link>
+                        <Link
                           href={`/organizer/events/${event.id}/edit`}
                           className="text-xs text-brand-600 font-medium hover:underline"
                         >
