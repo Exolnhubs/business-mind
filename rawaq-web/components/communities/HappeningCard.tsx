@@ -25,9 +25,10 @@ interface Props {
   onRsvp:       (h: HappeningWithAuthor) => void
   onReact:      (h: HappeningWithAuthor) => void
   onDelete?:    (id: string) => void
+  onReport?:    (id: string, reason: string) => void
 }
 
-export function HappeningCard({ happening: h, onRsvp, onReact, onDelete }: Props) {
+export function HappeningCard({ happening: h, onRsvp, onReact, onDelete, onReport }: Props) {
   const { user }   = useAuth()
   const meta       = TYPE_META[h.type]
   const [ttl]      = useState(() => timeLeft(h.expires_at))
@@ -73,7 +74,14 @@ export function HappeningCard({ happening: h, onRsvp, onReact, onDelete }: Props
 
       {/* Location hint */}
       {h.lat && h.lng && (
-        <p className="text-xs text-gray-400 mb-3">📍 Location attached</p>
+        <a
+          href={`https://maps.google.com/?q=${h.lat},${h.lng}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-xs text-brand-600 hover:underline mb-3"
+        >
+          📍 View on map
+        </a>
       )}
 
       {/* Actions */}
@@ -99,6 +107,15 @@ export function HappeningCard({ happening: h, onRsvp, onReact, onDelete }: Props
           >
             👍 {h.reaction_count}
           </button>
+          {!isAuthor && onReport && (
+            <button
+              onClick={() => onReport(h.id, 'spam')}
+              className="ml-auto text-xs text-gray-400 hover:text-red-500 transition-colors px-2 py-1.5"
+              title="Report"
+            >
+              🚩
+            </button>
+          )}
         </div>
       )}
     </div>

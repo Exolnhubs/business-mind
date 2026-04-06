@@ -2,10 +2,11 @@ import { useEffect, useState, useRef } from 'react'
 import {
   View, Text, ScrollView, StyleSheet, Modal,
   TouchableOpacity, ActivityIndicator, Image, Alert, TextInput,
-  KeyboardAvoidingView, Platform,
+  KeyboardAvoidingView, Platform, Linking,
 } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
+import * as Location from 'expo-location'
 import { apiGet, apiPost, apiDelete } from '@/lib/api'
 import { useAuth } from '@/contexts/auth-context'
 import { useLocale } from '@/contexts/locale-context'
@@ -56,6 +57,8 @@ export default function CommunityDetailScreen() {
   const [postBody, setPostBody]           = useState('')
   const [postExpiry, setPostExpiry]       = useState(6)
   const [posting, setPosting]             = useState(false)
+  const [postCoords, setPostCoords]       = useState<{ lat: number; lng: number } | null>(null)
+  const [locState, setLocState]           = useState<'idle' | 'loading' | 'attached' | 'denied'>('idle')
 
   useEffect(() => {
     apiGet<CommunityDetail>(`/api/communities/${slug}`)
@@ -87,11 +90,21 @@ export default function CommunityDetailScreen() {
 
   useEffect(() => { if (community) loadHappenings() }, [community?.id])
 
+  async function attachLocation() {
+    setLocState('loading')
+    const { status } = await Location.requestForegroundPermissionsAsync()
+    if (status !== 'granted') { setLocState('denied'); return }
+    const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
+    setPostCoords({ lat: loc.coords.latitude, lng: loc.coords.longitude })
+    setLocState('attached')
+  }
+
   async function submitHappening() {
     if (!postBody.trim()) return
     setPosting(true)
     const { data, error } = await apiPost<HappeningWithAuthor>(`/api/communities/${slug}/happenings`, {
       type: postType, body: postBody.trim(), expires_in_hours: postExpiry,
+      ...(postCoords ?? {}),
     })
     if (error) {
       Alert.alert('Error', error)
@@ -101,6 +114,8 @@ export default function CommunityDetailScreen() {
       setPostBody('')
       setPostType('open_invite')
       setPostExpiry(6)
+      setPostCoords(null)
+      setLocState('idle')
     }
     setPosting(false)
   }
@@ -115,6 +130,25 @@ export default function CommunityDetailScreen() {
         item.id === h.id ? { ...item, user_has_rsvp: data.rsvp, rsvp_count: data.rsvp_count } : item
       ))
     }
+  }
+
+  function reportHappening(id: string) {
+    Alert.alert(
+      'Report Happening',
+      'Why are you reporting this?',
+      [
+        { text: 'Spam',          onPress: () => submitReport(id, 'spam')          },
+        { text: 'Inappropriate', onPress: () => submitReport(id, 'inappropriate') },
+        { text: 'Harassment',    onPress: () => submitReport(id, 'harassment')    },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    )
+  }
+
+  async function submitReport(id: string, reason: string) {
+    const { error } = await apiPost(`/api/happenings/${id}/report`, { reason })
+    if (error) Alert.alert('Error', 'Could not submit report')
+    else Alert.alert('Reported', 'Thanks — our team will review this.')
   }
 
   async function toggleHappeningReact(h: HappeningWithAuthor) {
@@ -366,6 +400,15 @@ export default function CommunityDetailScreen() {
                     </View>
                   </View>
                   <Text style={styles.happeningBody}>{h.body}</Text>
+                  {h.lat && h.lng && (
+                    <TouchableOpacity
+                      onPress={() => Linking.openURL(`https://maps.google.com/?q=${h.lat},${h.lng}`)}
+                      style={styles.happeningLocBtn}
+                    >
+                      <Ionicons name="location-outline" size={12} color={Colors.brand[600]} />
+                      <Text style={styles.happeningLocText}>View on map</Text>
+                    </TouchableOpacity>
+                  )}
                   {user && ttlMs > 0 && (
                     <View style={styles.happeningActions}>
                       <TouchableOpacity
@@ -384,6 +427,14 @@ export default function CommunityDetailScreen() {
                           👍 {h.reaction_count}
                         </Text>
                       </TouchableOpacity>
+                      {h.author_id !== user?.id && (
+                        <TouchableOpacity
+                          onPress={() => reportHappening(h.id)}
+                          style={styles.happeningReportBtn}
+                        >
+                          <Ionicons name="flag-outline" size={14} color={Colors.gray[400]} />
+                        </TouchableOpacity>
+                      )}
                     </View>
                   )}
                 </View>
@@ -489,6 +540,33 @@ export default function CommunityDetailScreen() {
               style={styles.postInput}
             />
             <Text style={styles.charCount}>{postBody.length}/280</Text>
+
+            {/* Location */}
+            <View style={styles.locRow}>
+              {locState === 'idle' && (
+                <TouchableOpacity onPress={attachLocation} style={styles.locBtn}>
+                  <Ionicons name="location-outline" size={13} color={Colors.gray[500]} />
+                  <Text style={styles.locBtnText}>Add location</Text>
+                </TouchableOpacity>
+              )}
+              {locState === 'loading' && (
+                <View style={styles.locBtn}>
+                  <ActivityIndicator size="small" color={Colors.gray[400]} />
+                  <Text style={styles.locBtnText}>Getting location…</Text>
+                </View>
+              )}
+              {locState === 'attached' && postCoords && (
+                <TouchableOpacity onPress={() => { setPostCoords(null); setLocState('idle') }} style={[styles.locBtn, styles.locBtnAttached]}>
+                  <Ionicons name="location" size={13} color="#15803d" />
+                  <Text style={[styles.locBtnText, { color: '#15803d' }]}>
+                    {postCoords.lat.toFixed(4)}, {postCoords.lng.toFixed(4)}  ✕
+                  </Text>
+                </TouchableOpacity>
+              )}
+              {locState === 'denied' && (
+                <Text style={styles.locDenied}>Location permission denied</Text>
+              )}
+            </View>
 
             {/* Expiry */}
             <View style={styles.expiryRow}>
@@ -640,6 +718,9 @@ const styles = StyleSheet.create({
   happeningActionText:     { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.gray[700] },
   happeningActionTextActive:   { color: '#fff' },
   happeningReactTextActive:    { color: '#713f12' },
+  happeningLocBtn:   { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: Spacing[2] },
+  happeningLocText:  { fontSize: 11, color: Colors.brand[600] },
+  happeningReportBtn:{ marginLeft: 'auto', padding: 6 },
 
   // Post Happening Modal
   modalOverlay:   { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' },
@@ -652,7 +733,12 @@ const styles = StyleSheet.create({
   typeChipText:   { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.gray[700] },
   typeChipTextActive: { color: '#fff' },
   postInput:      { borderWidth: 1, borderColor: Colors.gray[200], borderRadius: Radius.xl, padding: Spacing.md, fontSize: FontSize.sm, color: Colors.gray[900], minHeight: 100, textAlignVertical: 'top', marginBottom: Spacing.xs },
-  charCount:      { fontSize: 11, color: Colors.gray[400], textAlign: 'right', marginBottom: Spacing.md },
+  charCount:      { fontSize: 11, color: Colors.gray[400], textAlign: 'right', marginBottom: Spacing[2] },
+  locRow:         { marginBottom: Spacing[3] },
+  locBtn:         { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: Spacing[2] + 2, paddingVertical: 6, borderRadius: Radius.lg, backgroundColor: Colors.gray[100], borderWidth: 1, borderColor: Colors.gray[200], alignSelf: 'flex-start' },
+  locBtnAttached: { backgroundColor: '#f0fdf4', borderColor: '#86efac' },
+  locBtnText:     { fontSize: 11, color: Colors.gray[600] },
+  locDenied:      { fontSize: 11, color: '#ef4444' },
   expiryRow:      { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.xl, flexWrap: 'wrap' },
   expiryLabel:    { fontSize: FontSize.xs, color: Colors.gray[500] },
   expiryChip:     { paddingHorizontal: Spacing.sm + 2, paddingVertical: 5, borderRadius: Radius.full, backgroundColor: Colors.gray[100], borderWidth: 1, borderColor: Colors.gray[200] },

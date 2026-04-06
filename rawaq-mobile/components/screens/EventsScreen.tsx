@@ -17,6 +17,7 @@ import type { Community, EventWithOrganizer } from '@/types/database'
 
 type JoinedCommunity = Pick<Community, 'id' | 'name' | 'name_ar' | 'slug' | 'level'>
 type CommunityListItem = JoinedCommunity & { is_member: boolean }
+type ActiveCommunity = Pick<Community, 'id' | 'name' | 'name_ar' | 'slug' | 'level' | 'cover_url'> & { is_member: boolean; happening_count: number }
 type EventsApiListResponse = {
   data: EventWithOrganizer[]
   total: number
@@ -126,6 +127,7 @@ export default function EventsScreen() {
   const [radiusKm, setRadiusKm] = useState(25)
   const [communitySlug, setCommunitySlug] = useState<string | null>(null)
   const [joinedCommunities, setJoinedCommunities] = useState<JoinedCommunity[]>([])
+  const [activeCommunities, setActiveCommunities] = useState<ActiveCommunity[]>([])
   const showRecommendationRails = !search && !categoryId && city === 'All' && !freeOnly && !nearMe && !communitySlug
 
   // Fade the pin icon out while the user is typing, back in when cleared
@@ -182,6 +184,10 @@ export default function EventsScreen() {
   useFocusEffect(
     useCallback(() => {
       loadJoinedCommunities()
+      // Refresh active communities rail on every focus
+      apiGet<{ communities: ActiveCommunity[] }>('/api/happenings/active?limit=10')
+        .then(({ data }) => setActiveCommunities(data?.communities ?? []))
+        .catch(() => {})
     }, [loadJoinedCommunities]),
   )
 
@@ -617,6 +623,38 @@ export default function EventsScreen() {
             showRecommendationRails
               ? (
                 <View>
+                  {/* Active Now — communities with live happenings */}
+                  {activeCommunities.length > 0 && (
+                    <View style={styles.activeNowSection}>
+                      <View style={styles.activeNowHeader}>
+                        <View style={styles.activeNowDot} />
+                        <Text style={styles.activeNowTitle}>Active Now</Text>
+                        <Text style={styles.activeNowSub}>Communities with live happenings</Text>
+                      </View>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: Spacing[4], gap: Spacing[3] }}>
+                        {activeCommunities.map((c) => {
+                          const name = locale === 'ar' && c.name_ar ? c.name_ar : c.name
+                          return (
+                            <TouchableOpacity
+                              key={c.id}
+                              onPress={() => router.push(`/communities/${c.slug}` as any)}
+                              style={styles.activeNowCard}
+                              activeOpacity={0.85}
+                            >
+                              <View style={styles.activeNowPulse}>
+                                <View style={[styles.activeNowAvatar, c.is_member && styles.activeNowAvatarMember]}>
+                                  <Text style={styles.activeNowAvatarText}>{name.slice(0, 1).toUpperCase()}</Text>
+                                </View>
+                              </View>
+                              <Text style={styles.activeNowName} numberOfLines={1}>{name}</Text>
+                              <Text style={styles.activeNowCount}>{c.happening_count} happening{c.happening_count !== 1 ? 's' : ''}</Text>
+                            </TouchableOpacity>
+                          )
+                        })}
+                      </ScrollView>
+                    </View>
+                  )}
+
                   <RecommendationRail
                     title="Near You This Weekend"
                     subtitle={
@@ -910,6 +948,20 @@ const styles = StyleSheet.create({
   communityChipTextActive: { color: Colors.white },
   communityExploreBtn: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs + 1, marginRight: Spacing.lg },
   communityExploreBtnText: { fontSize: FontSize.xs, color: Colors.brand[600], fontWeight: FontWeight.medium },
+
+  // Active Now rail
+  activeNowSection:       { paddingBottom: Spacing[4], borderBottomWidth: 1, borderBottomColor: Colors.gray[100], marginBottom: Spacing[2] },
+  activeNowHeader:        { flexDirection: 'row', alignItems: 'center', gap: Spacing[2], paddingHorizontal: Spacing[4], paddingVertical: Spacing[3] },
+  activeNowDot:           { width: 8, height: 8, borderRadius: 4, backgroundColor: '#22c55e' },
+  activeNowTitle:         { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.gray[900] },
+  activeNowSub:           { fontSize: FontSize.xs, color: Colors.gray[400], flex: 1 },
+  activeNowCard:          { alignItems: 'center', width: 72 },
+  activeNowPulse:         { marginBottom: Spacing[2] },
+  activeNowAvatar:        { width: 52, height: 52, borderRadius: 26, backgroundColor: Colors.brand[100], alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: Colors.gray[200] },
+  activeNowAvatarMember:  { borderColor: '#22c55e', borderWidth: 2.5 },
+  activeNowAvatarText:    { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.brand[700] },
+  activeNowName:          { fontSize: 11, fontWeight: FontWeight.semibold, color: Colors.gray[800], textAlign: 'center' },
+  activeNowCount:         { fontSize: 10, color: Colors.gray[400], textAlign: 'center', marginTop: 1 },
   activeCommunityBanner: {
     marginHorizontal: Spacing.lg,
     marginTop: Spacing.sm,

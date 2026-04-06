@@ -156,6 +156,7 @@ export async function POST(
       notifyCommunityMembers({
         communityId:   community.id,
         communityName: community.name,
+        communitySlug: slug,
         happeningId:   (happening as { id: string }).id,
         body:          parsed.body,
         authorId:      ctx.userId,
@@ -171,12 +172,14 @@ export async function POST(
 async function notifyCommunityMembers({
   communityId,
   communityName,
+  communitySlug,
   happeningId,
   body,
   authorId,
 }: {
   communityId:   string
   communityName: string
+  communitySlug: string
   happeningId:   string
   body:          string
   authorId:      string
@@ -197,6 +200,7 @@ async function notifyCommunityMembers({
       payload: {
         happening_id:   happeningId,
         community_name: communityName,
+        community_slug: communitySlug,
         body:           body.slice(0, 80),
       },
     }))

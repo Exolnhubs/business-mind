@@ -59,6 +59,8 @@ export function useHappenings(slug: string, isMember: boolean) {
     type: 'open_invite' | 'info' | 'question' | 'alert'
     body: string
     expires_in_hours?: number
+    lat?: number
+    lng?: number
   }) {
     setPosting(true)
     try {
@@ -114,5 +116,13 @@ export function useHappenings(slug: string, isMember: boolean) {
     if (res.ok) setHappenings((prev) => prev.filter((h) => h.id !== id))
   }
 
-  return { happenings, loading, posting, post, toggleRsvp, toggleReact, remove, reload: load }
+  async function report(id: string, reason: string) {
+    await fetch(`/api/happenings/${id}/report`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason }),
+    })
+  }
+
+  return { happenings, loading, posting, post, toggleRsvp, toggleReact, remove, report, reload: load }
 }
