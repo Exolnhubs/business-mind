@@ -63,6 +63,7 @@ export type CommunityType =
   | 'tech' | 'sports' | 'gaming' | 'book_club' | 'entrepreneur' | 'arts' | 'other'
   | 'district' | 'city' | 'country'
 export type CommunityRole = 'member' | 'community_admin' | 'owner'
+export type CommunityMembershipStatus = 'active' | 'timed_out' | 'removed' | 'banned'
 export type EventVisibility = 'micro' | 'interest' | 'city' | 'national'
 
 export interface Profile {
@@ -540,6 +541,9 @@ export interface CommunityMembership {
   community_id: string
   user_id: string
   role: CommunityRole
+  status: CommunityMembershipStatus
+  timeout_until: string | null
+  status_updated_at: string
   joined_at: string
 }
 
@@ -557,6 +561,7 @@ export interface EventCommunity {
 export interface CommunityWithMembership extends Community {
   is_member?: boolean
   member_role?: CommunityRole | null
+  member_status?: CommunityMembershipStatus | null
   ancestors?: Pick<Community, 'id' | 'name' | 'name_ar' | 'slug' | 'level'>[]
 }
 
@@ -668,6 +673,7 @@ export type Database = {
       notification_type: NotificationType
       report_reason: ReportReason
       organizer_status: OrganizerStatus
+      community_membership_status: CommunityMembershipStatus
     }
   }
 }

@@ -30,14 +30,18 @@ export async function GET(req: NextRequest) {
 
     let memberIds: string[] = []
     const memberRoleByCommunityId = new Map<string, string>()
+    const memberStatusByCommunityId = new Map<string, string>()
     if (ctx?.userId) {
       const { data: memberships } = await admin
         .from('community_memberships')
-        .select('community_id, role')
+        .select('community_id, role, status')
         .eq('user_id', ctx.userId)
-      memberIds = (memberships ?? []).map((membership) => membership.community_id)
+      memberIds = (memberships ?? [])
+        .filter((membership) => membership.status !== 'removed' && membership.status !== 'banned')
+        .map((membership) => membership.community_id)
       for (const membership of memberships ?? []) {
         memberRoleByCommunityId.set(membership.community_id, membership.role)
+        memberStatusByCommunityId.set(membership.community_id, membership.status)
       }
     }
 
@@ -84,8 +88,9 @@ export async function GET(req: NextRequest) {
 
     const enriched = (data ?? []).map((c) => ({
       ...c,
-      is_member: memberSet.has(c.id),
+      is_member: memberSet.has(c.id) && !['removed', 'banned'].includes(memberStatusByCommunityId.get(c.id) ?? ''),
       member_role: memberRoleByCommunityId.get(c.id) ?? null,
+      member_status: memberStatusByCommunityId.get(c.id) ?? null,
     }))
 
     return ok({

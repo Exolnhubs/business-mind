@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { requireAuth } from '@/lib/auth'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { handleApiError, ok, created, BadRequestException, NotFoundException } from '@/lib/errors'
-import { requireCommunityOwner, writeCommunityAuditLog } from '@/lib/community-governance'
+import { requireCommunityManager, requireCommunityOwner, writeCommunityAuditLog } from '@/lib/community-governance'
 
 const AssignCommunityAdminSchema = z.object({
   user_id: z.string().uuid(),
@@ -16,13 +16,14 @@ export async function GET(
   try {
     const { slug } = await params
     const ctx = await requireAuth()
-    const gov = await requireCommunityOwner(slug, ctx.userId, ctx.role)
+    const gov = await requireCommunityManager(slug, ctx.userId, ctx.role)
     const admin = createSupabaseAdminClient()
 
     const { data: memberships, error } = await (admin as any)
       .from('community_memberships')
       .select('user_id, role, joined_at')
       .eq('community_id', gov.community.id)
+      .eq('status', 'active')
       .in('role', ['owner', 'community_admin'])
       .order('joined_at', { ascending: true })
 
@@ -67,13 +68,16 @@ export async function POST(
 
     const { data: membership, error } = await (admin as any)
       .from('community_memberships')
-      .select('community_id, user_id, role')
+      .select('community_id, user_id, role, status')
       .eq('community_id', gov.community.id)
       .eq('user_id', input.user_id)
       .maybeSingle()
 
     if (error) throw error
     if (!membership) throw new NotFoundException('Community membership')
+    if (membership.status !== 'active') {
+      throw new BadRequestException('Only active members can be promoted to community admin')
+    }
 
     if (membership.role === 'community_admin') {
       return ok({ user_id: input.user_id, role: 'community_admin' })

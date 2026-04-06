@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireAuth } from '@/lib/auth'
-import { handleApiError, ok, NotFoundException } from '@/lib/errors'
+import { ForbiddenException, handleApiError, ok, NotFoundException } from '@/lib/errors'
 
 // POST /api/communities/:slug/join
 export async function POST(
@@ -25,24 +25,52 @@ export async function POST(
 
     const { data: existingMembership } = await admin
       .from('community_memberships')
-      .select('id, role')
+      .select('id, role, status')
       .eq('community_id', community.id)
       .eq('user_id', ctx.userId)
       .maybeSingle()
 
     if (existingMembership) {
+      if (existingMembership.status === 'banned') {
+        throw new ForbiddenException('You are banned from this community')
+      }
+
+      if (existingMembership.status === 'removed') {
+        const { error: reactivateErr } = await admin
+          .from('community_memberships')
+          .update({
+            role: community.owner_user_id === ctx.userId ? 'owner' : existingMembership.role,
+            status: 'active',
+            timeout_until: null,
+            status_updated_at: new Date().toISOString(),
+          } as any)
+          .eq('community_id', community.id)
+          .eq('user_id', ctx.userId)
+
+        if (reactivateErr) throw reactivateErr
+
+        return ok({
+          community_id: community.id,
+          member_count: community.member_count + 1,
+          is_member: true,
+          member_role: community.owner_user_id === ctx.userId ? 'owner' : existingMembership.role,
+          member_status: 'active',
+        })
+      }
+
       return ok({
         community_id: community.id,
         member_count: community.member_count,
-        is_member: true,
+        is_member: existingMembership.status === 'active' || existingMembership.status === 'timed_out',
         member_role: existingMembership.role,
+        member_status: existingMembership.status,
       })
     }
 
     const memberRole = community.owner_user_id === ctx.userId ? 'owner' : 'member'
     const { error: insertErr } = await admin
       .from('community_memberships')
-      .insert({ community_id: community.id, user_id: ctx.userId, role: memberRole } as any)
+      .insert({ community_id: community.id, user_id: ctx.userId, role: memberRole, status: 'active', timeout_until: null } as any)
 
     if (insertErr) {
       throw insertErr
@@ -53,6 +81,7 @@ export async function POST(
       member_count: community.member_count + 1,
       is_member: true,
       member_role: memberRole,
+      member_status: 'active',
     })
   } catch (err) {
     return handleApiError(err)

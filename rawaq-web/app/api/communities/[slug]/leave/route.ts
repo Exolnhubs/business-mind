@@ -25,7 +25,7 @@ export async function DELETE(
 
     const { data: existingMembership } = await admin
       .from('community_memberships')
-      .select('id, role')
+      .select('id, role, status')
       .eq('community_id', community.id)
       .eq('user_id', ctx.userId)
       .maybeSingle()
@@ -40,6 +40,7 @@ export async function DELETE(
         is_member: true,
         member_count: community.member_count,
         member_role: 'owner',
+        member_status: existingMembership.status,
         message: 'Community owners cannot leave until ownership is transferred.',
       })
     }
@@ -55,6 +56,7 @@ export async function DELETE(
       is_member: false,
       member_count: Math.max(community.member_count - 1, 0),
       member_role: null,
+      member_status: null,
     })
   } catch (err) {
     return handleApiError(err)

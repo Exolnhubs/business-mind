@@ -84,23 +84,21 @@ export function HappeningCard({ happening: h, onRsvp, onReact, onDelete, onRepor
         <div className="flex items-center gap-3 border-t border-gray-50 pt-3">
           <button
             onClick={() => onRsvp(h)}
-            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-              h.user_has_rsvp
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${h.user_has_rsvp
                 ? 'bg-brand-600 text-white'
                 : 'bg-gray-100 text-gray-700 hover:bg-brand-50 hover:text-brand-700'
-            }`}
+              }`}
           >
-            {h.user_has_rsvp ? "I'm in" : 'Join'} - {h.rsvp_count}
+            🙋 {h.user_has_rsvp ? "I'm in" : 'Join'} - {h.rsvp_count}
           </button>
           <button
             onClick={() => onReact(h)}
-            className={`flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-              h.user_has_reacted
+            className={`flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${h.user_has_reacted
                 ? 'bg-yellow-100 text-yellow-700'
                 : 'bg-gray-100 text-gray-700 hover:bg-yellow-50 hover:text-yellow-700'
-            }`}
+              }`}
           >
-            Like � {h.reaction_count}
+            Like 👍 {h.reaction_count}
           </button>
           {!isAuthor && onReport && (
             <button

@@ -6,7 +6,7 @@ import {
 } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
-import { apiGet, apiPost, apiDelete } from '@/lib/api'
+import { apiGet, apiPost, apiDelete, apiPatch } from '@/lib/api'
 import { useAuth } from '@/contexts/auth-context'
 import { useLocale } from '@/contexts/locale-context'
 import { Spinner } from '@/components/ui/Spinner'
@@ -14,51 +14,78 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { LocationPickerModal, type PickedLocation } from '@/components/communities/LocationPickerModal'
 import { formatDate } from '@/lib/utils'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
-import type { Community, CommunityLevel, Event, HappeningType, HappeningWithAuthor } from '@/types/database'
+import type { Community, CommunityLevel, CommunityRole, Event, HappeningType, HappeningWithAuthor } from '@/types/database'
 
 type CommunityDetail = Community & {
   is_member: boolean
+  member_role: CommunityRole | null
   event_count: number
   ancestors: Pick<Community, 'id' | 'name' | 'name_ar' | 'slug' | 'level'>[]
   recent_events: Pick<Event, 'id' | 'title' | 'title_ar' | 'cover_image_url' | 'start_at' | 'city' | 'is_free' | 'price' | 'currency'>[]
   recent_members: Array<{ id: string; display_name: string; avatar_url: string | null; joined_at: string }>
   activity: Array<{ id: string; type: 'member_joined' | 'event_published'; title: string; subtitle: string; created_at: string; href: string | null }>
 }
-type MembershipMutationResponse = { is_member?: boolean; member_count?: number }
+type MembershipMutationResponse = { is_member?: boolean; member_count?: number; member_role?: CommunityRole | null; message?: string }
 type EventItem = Pick<Event, 'id' | 'title' | 'title_ar' | 'cover_image_url' | 'start_at' | 'city' | 'is_free' | 'price' | 'currency'>
+type CommunityAdminEntry = {
+  user_id: string
+  role: CommunityRole
+  joined_at: string
+  profile: { id: string; display_name: string; avatar_url: string | null } | null
+}
+type HappeningReportEntry = {
+  happening_id: string
+  reporter_id: string
+  reason: string
+  details: string | null
+  status: 'pending' | 'resolved' | 'dismissed'
+  created_at: string
+  happening: { id: string; body: string; author_id: string; created_at: string; author: { id: string; display_name: string; avatar_url: string | null } | null } | null
+  reporter: { id: string; display_name: string; avatar_url: string | null } | null
+}
 
 const LEVEL_META: Record<CommunityLevel, { label: string; icon: keyof typeof Ionicons.glyphMap; tint: string; bg: string; accent: string }> = {
-  micro:    { label: 'Micro',    icon: 'home-outline',     tint: '#166534', bg: '#dcfce7', accent: '#16a34a' },
+  micro: { label: 'Micro', icon: 'home-outline', tint: '#166534', bg: '#dcfce7', accent: '#16a34a' },
   interest: { label: 'Interest', icon: 'sparkles-outline', tint: '#6d28d9', bg: '#ede9fe', accent: '#7c3aed' },
   district: { label: 'District', icon: 'business-outline', tint: '#92400e', bg: '#fef3c7', accent: '#d97706' },
-  city:     { label: 'City',     icon: 'location-outline', tint: '#1e40af', bg: '#dbeafe', accent: '#2563eb' },
-  country:  { label: 'Country',  icon: 'earth-outline',    tint: '#9f1239', bg: '#ffe4e6', accent: '#e11d48' },
+  city: { label: 'City', icon: 'location-outline', tint: '#1e40af', bg: '#dbeafe', accent: '#2563eb' },
+  country: { label: 'Country', icon: 'earth-outline', tint: '#9f1239', bg: '#ffe4e6', accent: '#e11d48' },
 }
 
 export default function CommunityDetailScreen() {
-  const { slug }   = useLocalSearchParams<{ slug: string }>()
-  const { user }   = useAuth()
+  const { slug } = useLocalSearchParams<{ slug: string }>()
+  const { user } = useAuth()
   const { locale } = useLocale()
-  const router     = useRouter()
-  const isRTL      = locale === 'ar'
+  const router = useRouter()
+  const isRTL = locale === 'ar'
 
   const [community, setCommunity] = useState<CommunityDetail | null>(null)
-  const [loading, setLoading]     = useState(true)
-  const [joining, setJoining]     = useState(false)
-  const [events, setEvents]       = useState<EventItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [joining, setJoining] = useState(false)
+  const [events, setEvents] = useState<EventItem[]>([])
   const [eventsLoading, setEventsLoading] = useState(false)
-  const [nextCursor, setNextCursor]       = useState<string | null>(null)
+  const [nextCursor, setNextCursor] = useState<string | null>(null)
 
   // Happenings state
-  const [happenings, setHappenings]       = useState<HappeningWithAuthor[]>([])
+  const [happenings, setHappenings] = useState<HappeningWithAuthor[]>([])
   const [happeningsLoading, setHappeningsLoading] = useState(false)
   const [showPostModal, setShowPostModal] = useState(false)
-  const [postType, setPostType]           = useState<HappeningType>('open_invite')
-  const [postBody, setPostBody]           = useState('')
-  const [postExpiry, setPostExpiry]       = useState(6)
-  const [posting, setPosting]             = useState(false)
+  const [postType, setPostType] = useState<HappeningType>('open_invite')
+  const [postBody, setPostBody] = useState('')
+  const [postExpiry, setPostExpiry] = useState(6)
+  const [posting, setPosting] = useState(false)
+  const [admins, setAdmins] = useState<CommunityAdminEntry[]>([])
+  const [adminsLoading, setAdminsLoading] = useState(false)
+  const [reports, setReports] = useState<HappeningReportEntry[]>([])
+  const [reportsLoading, setReportsLoading] = useState(false)
+  const [memberActionLoading, setMemberActionLoading] = useState<string | null>(null)
+  const [reportActionLoading, setReportActionLoading] = useState<string | null>(null)
   const [showLocationPicker, setShowLocationPicker] = useState(false)
-  const [postLocation, setPostLocation]   = useState<PickedLocation | null>(null)
+  const [postLocation, setPostLocation] = useState<PickedLocation | null>(null)
+
+  const memberRole = community?.member_role ?? null
+  const isCommunityOwner = memberRole === 'owner'
+  const canModerate = memberRole === 'owner' || memberRole === 'community_admin'
 
   function openLocationPicker() {
     setShowPostModal(false)
@@ -102,6 +129,32 @@ export default function CommunityDetailScreen() {
 
   useEffect(() => { if (community) loadHappenings() }, [community?.id])
 
+  async function loadAdmins() {
+    if (!canModerate) return
+    setAdminsLoading(true)
+    const { data } = await apiGet<CommunityAdminEntry[]>(`/api/communities/${slug}/admins`)
+    setAdmins(data ?? [])
+    setAdminsLoading(false)
+  }
+
+  async function loadReports() {
+    if (!canModerate) return
+    setReportsLoading(true)
+    const { data } = await apiGet<{ reports: HappeningReportEntry[] }>(`/api/communities/${slug}/reports/happenings?status=pending`)
+    setReports(data?.reports ?? [])
+    setReportsLoading(false)
+  }
+
+  useEffect(() => {
+    if (canModerate) loadAdmins()
+    else setAdmins([])
+  }, [slug, canModerate])
+
+  useEffect(() => {
+    if (canModerate) loadReports()
+    else setReports([])
+  }, [slug, canModerate])
+
   async function submitHappening() {
     if (!postBody.trim()) return
     setPosting(true)
@@ -109,10 +162,10 @@ export default function CommunityDetailScreen() {
       type: postType, body: postBody.trim(), expires_in_hours: postExpiry,
       ...(postLocation
         ? {
-            lat: postLocation.lat,
-            lng: postLocation.lng,
-            location_label: postLocation.label,
-          }
+          lat: postLocation.lat,
+          lng: postLocation.lng,
+          location_label: postLocation.label,
+        }
         : {}),
     })
     if (error) {
@@ -145,9 +198,9 @@ export default function CommunityDetailScreen() {
       'Report Happening',
       'Why are you reporting this?',
       [
-        { text: 'Spam',          onPress: () => submitReport(id, 'spam')          },
+        { text: 'Spam', onPress: () => submitReport(id, 'spam') },
         { text: 'Inappropriate', onPress: () => submitReport(id, 'inappropriate') },
-        { text: 'Harassment',    onPress: () => submitReport(id, 'harassment')    },
+        { text: 'Harassment', onPress: () => submitReport(id, 'harassment') },
         { text: 'Cancel', style: 'cancel' },
       ]
     )
@@ -182,336 +235,565 @@ export default function CommunityDetailScreen() {
       Alert.alert('Error', error)
     } else {
       setCommunity((prev) => prev
-        ? { ...prev, is_member: data?.is_member ?? !prev.is_member, member_count: data?.member_count ?? (!prev.is_member ? prev.member_count + 1 : Math.max(prev.member_count - 1, 0)) }
+        ? {
+          ...prev,
+          is_member: data?.is_member ?? !prev.is_member,
+          member_role: data?.member_role ?? (data?.is_member ? prev.member_role : null),
+          member_count: data?.member_count ?? (!prev.is_member ? prev.member_count + 1 : Math.max(prev.member_count - 1, 0)),
+        }
         : prev
       )
+      if (data?.message) Alert.alert('Notice', data.message)
     }
     setJoining(false)
+  }
+
+  async function assignCommunityAdmin(userId: string) {
+    setMemberActionLoading(`assign-${userId}`)
+    const { error } = await apiPost(`/api/communities/${slug}/admins`, { user_id: userId })
+    if (error) Alert.alert('Error', error)
+    else await loadAdmins()
+    setMemberActionLoading(null)
+  }
+
+  async function revokeCommunityAdmin(userId: string) {
+    setMemberActionLoading(`revoke-${userId}`)
+    const { error } = await apiDelete(`/api/communities/${slug}/admins/${userId}`)
+    if (error) Alert.alert('Error', error)
+    else await loadAdmins()
+    setMemberActionLoading(null)
+  }
+
+  async function issueWarning(userId: string) {
+    setMemberActionLoading(`warn-${userId}`)
+    const { error } = await apiPost(`/api/communities/${slug}/members/${userId}/warnings`, {
+      severity: 'medium',
+      reason: 'Community guideline warning',
+    })
+    if (error) Alert.alert('Error', error)
+    else Alert.alert('Warning issued', 'The member has been warned.')
+    setMemberActionLoading(null)
+  }
+
+  async function issueSanction(userId: string, sanctionType: 'timeout' | 'removed' | 'banned') {
+    setMemberActionLoading(`${sanctionType}-${userId}`)
+    const endsAt = sanctionType === 'timeout'
+      ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+      : null
+    const { error } = await apiPost(`/api/communities/${slug}/members/${userId}/sanctions`, {
+      sanction_type: sanctionType,
+      reason:
+        sanctionType === 'timeout'
+          ? 'Timed out by community admin'
+          : sanctionType === 'removed'
+            ? 'Removed from community by community admin'
+            : 'Banned from community by community admin',
+      ends_at: endsAt,
+    })
+    if (error) Alert.alert('Error', error)
+    else Alert.alert('Action completed', `${sanctionType} applied successfully.`)
+    setMemberActionLoading(null)
+  }
+
+  function openMemberModerationMenu(member: CommunityDetail['recent_members'][number]) {
+    const targetIsCommunityAdmin = admins.some((entry) => entry.user_id === member.id && entry.role === 'community_admin')
+    const targetIsOwner = community?.owner_user_id === member.id || admins.some((entry) => entry.user_id === member.id && entry.role === 'owner')
+    if (targetIsOwner) {
+      Alert.alert('Not allowed', 'Community owners cannot be moderated by community admins.')
+      return
+    }
+    if (!isCommunityOwner && targetIsCommunityAdmin) {
+      Alert.alert('Not allowed', 'Community admins cannot moderate other community admins.')
+      return
+    }
+    Alert.alert(
+      member.display_name,
+      'Choose a moderation action',
+      [
+        { text: 'Warn', onPress: () => issueWarning(member.id) },
+        { text: 'Timeout 24h', onPress: () => issueSanction(member.id, 'timeout') },
+        { text: 'Remove', onPress: () => issueSanction(member.id, 'removed') },
+        { text: 'Ban', style: 'destructive', onPress: () => issueSanction(member.id, 'banned') },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    )
+  }
+
+  function openAdminRoleMenu(member: CommunityDetail['recent_members'][number]) {
+    const isAdminMember = admins.some((entry) => entry.user_id === member.id && entry.role === 'community_admin')
+    Alert.alert(
+      member.display_name,
+      isAdminMember ? 'Remove community admin access?' : 'Grant community admin access?',
+      [
+        {
+          text: isAdminMember ? 'Revoke admin' : 'Make admin',
+          onPress: () => isAdminMember ? revokeCommunityAdmin(member.id) : assignCommunityAdmin(member.id),
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    )
+  }
+
+  async function updateReport(reportItem: HappeningReportEntry, status: 'resolved' | 'dismissed') {
+    setReportActionLoading(`${reportItem.happening_id}:${reportItem.reporter_id}:${status}`)
+    const { error } = await apiPatch(`/api/communities/${slug}/reports/happenings`, {
+      happening_id: reportItem.happening_id,
+      reporter_id: reportItem.reporter_id,
+      status,
+    })
+    if (error) {
+      Alert.alert('Error', error)
+    } else {
+      setReports((prev) => prev.filter((entry) => !(entry.happening_id === reportItem.happening_id && entry.reporter_id === reportItem.reporter_id)))
+    }
+    setReportActionLoading(null)
   }
 
   if (loading) return <View style={styles.center}><Spinner /></View>
   if (!community) return null
 
-  const name        = isRTL && community.name_ar ? community.name_ar : community.name
+  const name = isRTL && community.name_ar ? community.name_ar : community.name
   const description = isRTL && community.description_ar ? community.description_ar : community.description
-  const meta        = LEVEL_META[community.level]
+  const meta = LEVEL_META[community.level]
 
   return (
     <>
       <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
-      {/* ── Hero ─────────────────────────────────────────────── */}
-      <View style={styles.hero}>
-        {community.cover_url
-          ? <Image source={{ uri: community.cover_url }} style={styles.heroImg} />
-          : (
-            <View style={[styles.heroPlaceholder, { backgroundColor: meta.bg }]}>
-              <Ionicons name={meta.icon} size={56} color={meta.tint} />
-            </View>
-          )
-        }
-        {/* Gradient-ish bottom overlay for breadcrumb */}
-        {community.ancestors.length > 0 && (
-          <View style={styles.breadcrumbBar}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {community.ancestors.map((a, i) => (
-                <View key={a.id} style={styles.bcItem}>
-                  {i > 0 && <Text style={styles.bcSep}>›</Text>}
-                  <TouchableOpacity onPress={() => router.push(`/communities/${a.slug}` as any)}>
-                    <Text style={styles.bcText}>{LEVEL_META[a.level].label} · {a.name}</Text>
-                  </TouchableOpacity>
-                </View>
-              ))}
-            </ScrollView>
-          </View>
-        )}
-      </View>
-
-      {/* ── Identity card ────────────────────────────────────── */}
-      <View style={styles.identityCard}>
-        {/* Top: icon + name + verified */}
-        <View style={styles.identityTop}>
-          <View style={[styles.identityIcon, { backgroundColor: meta.bg }]}>
-            <Ionicons name={meta.icon} size={24} color={meta.tint} />
-          </View>
-          <View style={styles.identityText}>
-            <View style={styles.nameRow}>
-              <Text style={styles.name}>{name}</Text>
-              {community.is_verified && <Ionicons name="checkmark-circle" size={18} color={Colors.brand[500]} />}
-            </View>
-            <View style={styles.tagRow}>
-              <View style={[styles.levelTag, { backgroundColor: meta.bg }]}>
-                <Text style={[styles.levelTagText, { color: meta.tint }]}>{meta.label}</Text>
-              </View>
-              {community.city && <Text style={styles.cityText}>📍 {community.city}</Text>}
-            </View>
-          </View>
-        </View>
-
-        {/* Stats row */}
-        <View style={styles.statsRow}>
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{community.member_count.toLocaleString()}</Text>
-            <Text style={styles.statLabel}>Members</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{community.event_count}</Text>
-            <Text style={styles.statLabel}>Events</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{community.recent_members.length}</Text>
-            <Text style={styles.statLabel}>Recent joins</Text>
-          </View>
-        </View>
-
-        {/* Description */}
-        {description ? <Text style={styles.description}>{description}</Text> : null}
-
-        {/* Join / Leave */}
-        <TouchableOpacity
-          onPress={toggleMembership}
-          disabled={joining}
-          style={[styles.joinBtn, community.is_member ? styles.joinBtnJoined : styles.joinBtnDefault]}
-          activeOpacity={0.85}
-        >
-          {joining
-            ? <ActivityIndicator size="small" color={community.is_member ? '#15803d' : '#fff'} />
+        {/* ── Hero ─────────────────────────────────────────────── */}
+        <View style={styles.hero}>
+          {community.cover_url
+            ? <Image source={{ uri: community.cover_url }} style={styles.heroImg} />
             : (
-              <View style={styles.joinBtnInner}>
-                <Ionicons
-                  name={community.is_member ? 'checkmark-circle' : 'add-circle-outline'}
-                  size={18}
-                  color={community.is_member ? '#15803d' : '#fff'}
-                />
-                <Text style={[styles.joinBtnText, community.is_member && styles.joinBtnTextJoined]}>
-                  {community.is_member ? 'Joined · Tap to leave' : 'Join community'}
-                </Text>
+              <View style={[styles.heroPlaceholder, { backgroundColor: meta.bg }]}>
+                <Ionicons name={meta.icon} size={56} color={meta.tint} />
               </View>
             )
           }
-        </TouchableOpacity>
-      </View>
-
-      {/* ── Members ──────────────────────────────────────────── */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Members</Text>
-        {community.recent_members.length === 0
-          ? <EmptyState icon="👥" title="No members yet" description="Be the first to join" />
-          : (
-            <View style={styles.membersList}>
-              {community.recent_members.map((m, i) => (
-                <View key={m.id} style={[styles.memberRow, i < community.recent_members.length - 1 && styles.memberRowBorder]}>
-                  <View style={styles.avatar}>
-                    {m.avatar_url
-                      ? <Image source={{ uri: m.avatar_url }} style={styles.avatarImg} />
-                      : <Text style={styles.avatarInitial}>{m.display_name.slice(0, 1).toUpperCase()}</Text>
-                    }
+          {/* Gradient-ish bottom overlay for breadcrumb */}
+          {community.ancestors.length > 0 && (
+            <View style={styles.breadcrumbBar}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                {community.ancestors.map((a, i) => (
+                  <View key={a.id} style={styles.bcItem}>
+                    {i > 0 && <Text style={styles.bcSep}>›</Text>}
+                    <TouchableOpacity onPress={() => router.push(`/communities/${a.slug}` as any)}>
+                      <Text style={styles.bcText}>{LEVEL_META[a.level].label} · {a.name}</Text>
+                    </TouchableOpacity>
                   </View>
-                  <View style={styles.memberInfo}>
-                    <Text style={styles.memberName}>{m.display_name}</Text>
-                    <Text style={styles.memberMeta}>Joined {formatDate(m.joined_at)}</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={14} color={Colors.gray[300]} />
-                </View>
-              ))}
+                ))}
+              </ScrollView>
             </View>
-          )
-        }
-      </View>
-
-      {/* ── Activity feed ────────────────────────────────────── */}
-      {community.activity.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recent Activity</Text>
-          <View style={styles.activityList}>
-            {community.activity.map((item, i) => {
-              const isEvent = item.type === 'event_published'
-              return (
-                <TouchableOpacity
-                  key={item.id}
-                  style={[styles.activityItem, i < community.activity.length - 1 && styles.activityItemBorder]}
-                  activeOpacity={item.href ? 0.8 : 1}
-                  onPress={item.href ? () => router.push(item.href as any) : undefined}
-                >
-                  <View style={[styles.activityDot, { backgroundColor: isEvent ? Colors.brand[100] : '#dcfce7' }]}>
-                    <Ionicons name={isEvent ? 'calendar-outline' : 'person-add-outline'} size={14} color={isEvent ? Colors.brand[600] : '#15803d'} />
-                  </View>
-                  <View style={styles.activityBody}>
-                    <Text style={styles.activityTitle}>{item.title}</Text>
-                    <Text style={styles.activitySub}>{item.subtitle}</Text>
-                  </View>
-                  <Text style={styles.activityDate}>{formatDate(item.created_at)}</Text>
-                </TouchableOpacity>
-              )
-            })}
-          </View>
-        </View>
-      )}
-
-      {/* ── Happenings ───────────────────────────────────────── */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <View>
-            <Text style={[styles.sectionTitle, { marginBottom: 2 }]}>What&apos;s Happening Now</Text>
-            <Text style={styles.sectionSub}>Spontaneous, time-limited posts</Text>
-          </View>
-          {community.is_member && (
-            <TouchableOpacity
-              onPress={() => setShowPostModal(true)}
-              style={styles.postHappeningBtn}
-            >
-              <Ionicons name="add" size={14} color="#fff" />
-              <Text style={styles.postHappeningBtnText}>Post</Text>
-            </TouchableOpacity>
           )}
         </View>
 
-        {happeningsLoading ? (
-          <View style={styles.centerSmall}><Spinner /></View>
-        ) : happenings.length === 0 ? (
-          <View style={styles.happeningsEmpty}>
-            <Text style={styles.happeningsEmptyIcon}>📍</Text>
-            <Text style={styles.happeningsEmptyText}>Nothing happening right now</Text>
-            {community.is_member && (
-              <Text style={styles.happeningsEmptyHint}>Be the first — post a happening!</Text>
-            )}
+        {/* ── Identity card ────────────────────────────────────── */}
+        <View style={styles.identityCard}>
+          {/* Top: icon + name + verified */}
+          <View style={styles.identityTop}>
+            <View style={[styles.identityIcon, { backgroundColor: meta.bg }]}>
+              <Ionicons name={meta.icon} size={24} color={meta.tint} />
+            </View>
+            <View style={styles.identityText}>
+              <View style={styles.nameRow}>
+                <Text style={styles.name}>{name}</Text>
+                {community.is_verified && <Ionicons name="checkmark-circle" size={18} color={Colors.brand[500]} />}
+              </View>
+              <View style={styles.tagRow}>
+                <View style={[styles.levelTag, { backgroundColor: meta.bg }]}>
+                  <Text style={[styles.levelTagText, { color: meta.tint }]}>{meta.label}</Text>
+                </View>
+                {community.city && <Text style={styles.cityText}>📍 {community.city}</Text>}
+                {community.member_role && <Text style={styles.cityText}>Role: {community.member_role}</Text>}
+              </View>
+            </View>
           </View>
-        ) : (
-          <View style={styles.happeningsList}>
-            {happenings.map((h, i) => {
-              const ttlMs  = new Date(h.expires_at).getTime() - Date.now()
-              const ttlH   = Math.floor(ttlMs / 3_600_000)
-              const ttlM   = Math.floor((ttlMs % 3_600_000) / 60_000)
-              const ttl    = ttlMs <= 0 ? 'Expired' : ttlH > 0 ? `${ttlH}h ${ttlM}m left` : `${ttlM}m left`
-              const TYPE_EMOJI: Record<HappeningType, string> = { open_invite: '🙋', info: 'ℹ️', question: '❓', alert: '🚨' }
-              const isLast = i === happenings.length - 1
 
-              return (
-                <View key={h.id} style={[styles.happeningCard, !isLast && styles.happeningCardBorder]}>
-                  <View style={styles.happeningHeader}>
-                    <View style={styles.happeningAuthorRow}>
-                      <View style={styles.avatar}>
-                        {h.author.avatar_url
-                          ? <Image source={{ uri: h.author.avatar_url }} style={styles.avatarImg} />
-                          : <Text style={styles.avatarInitial}>{h.author.display_name.slice(0, 1).toUpperCase()}</Text>
-                        }
-                      </View>
-                      <View>
-                        <Text style={styles.happeningAuthor}>{h.author.display_name}</Text>
-                        <Text style={styles.happeningTtl}>{ttl}</Text>
-                      </View>
-                    </View>
-                    <View style={styles.happeningTypeBadge}>
-                      <Text style={styles.happeningTypeText}>{TYPE_EMOJI[h.type]}</Text>
-                    </View>
-                  </View>
-                  <Text style={styles.happeningBody}>{h.body}</Text>
-                  {h.lat && h.lng && (
-                    <TouchableOpacity
-                      onPress={() => Linking.openURL(`https://maps.google.com/?q=${h.lat},${h.lng}`)}
-                      style={styles.happeningLocBtn}
-                    >
-                      <Ionicons name="location-outline" size={12} color={Colors.brand[600]} />
-                      <Text style={styles.happeningLocText}>{h.location_label?.trim() || 'View on map'}</Text>
-                    </TouchableOpacity>
-                  )}
-                  {user && ttlMs > 0 && (
-                    <View style={styles.happeningActions}>
-                      <TouchableOpacity
-                        onPress={() => toggleHappeningRsvp(h)}
-                        style={[styles.happeningActionBtn, h.user_has_rsvp && styles.happeningActionBtnActive]}
-                      >
-                        <Text style={[styles.happeningActionText, h.user_has_rsvp && styles.happeningActionTextActive]}>
-                          🙋 {h.user_has_rsvp ? "I'm in" : 'Join'} · {h.rsvp_count}
-                        </Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        onPress={() => toggleHappeningReact(h)}
-                        style={[styles.happeningActionBtn, h.user_has_reacted && styles.happeningReactActive]}
-                      >
-                        <Text style={[styles.happeningActionText, h.user_has_reacted && styles.happeningReactTextActive]}>
-                          👍 {h.reaction_count}
-                        </Text>
-                      </TouchableOpacity>
-                      {h.author_id !== user?.id && (
-                        <TouchableOpacity
-                          onPress={() => reportHappening(h.id)}
-                          style={styles.happeningReportBtn}
-                        >
-                          <Ionicons name="flag-outline" size={14} color={Colors.gray[400]} />
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                  )}
+          {/* Stats row */}
+          <View style={styles.statsRow}>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{community.member_count.toLocaleString()}</Text>
+              <Text style={styles.statLabel}>Members</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{community.event_count}</Text>
+              <Text style={styles.statLabel}>Events</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{community.recent_members.length}</Text>
+              <Text style={styles.statLabel}>Recent joins</Text>
+            </View>
+          </View>
+
+          {/* Description */}
+          {description ? <Text style={styles.description}>{description}</Text> : null}
+
+          {/* Join / Leave */}
+          <TouchableOpacity
+            onPress={toggleMembership}
+            disabled={joining}
+            style={[styles.joinBtn, community.is_member ? styles.joinBtnJoined : styles.joinBtnDefault]}
+            activeOpacity={0.85}
+          >
+            {joining
+              ? <ActivityIndicator size="small" color={community.is_member ? '#15803d' : '#fff'} />
+              : (
+                <View style={styles.joinBtnInner}>
+                  <Ionicons
+                    name={community.is_member ? 'checkmark-circle' : 'add-circle-outline'}
+                    size={18}
+                    color={community.is_member ? '#15803d' : '#fff'}
+                  />
+                  <Text style={[styles.joinBtnText, community.is_member && styles.joinBtnTextJoined]}>
+                    {community.is_member ? 'Joined · Tap to leave' : 'Join community'}
+                  </Text>
                 </View>
               )
-            })}
-          </View>
-        )}
-      </View>
-
-      {/* ── Events ───────────────────────────────────────────── */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Upcoming Events</Text>
-          <TouchableOpacity onPress={() => router.push({ pathname: '/(tabs)/home', params: { community: slug } } as any)}>
-            <Text style={styles.sectionLink}>View all →</Text>
+            }
           </TouchableOpacity>
         </View>
 
-        {eventsLoading && events.length === 0
-          ? <View style={styles.centerSmall}><Spinner /></View>
-          : events.length === 0
-            ? <EmptyState icon="📅" title="No upcoming events" description="Check back soon" />
+        {/* ── Members ──────────────────────────────────────────── */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Members</Text>
+          {community.recent_members.length === 0
+            ? <EmptyState icon="👥" title="No members yet" description="Be the first to join" />
             : (
-              <>
-                {events.map((ev) => {
-                  const title = isRTL && ev.title_ar ? ev.title_ar : ev.title
-                  return (
-                    <TouchableOpacity
-                      key={ev.id}
-                      style={styles.eventCard}
-                      onPress={() => router.push(`/events/${ev.id}` as any)}
-                      activeOpacity={0.85}
-                    >
-                      {ev.cover_image_url
-                        ? <Image source={{ uri: ev.cover_image_url }} style={styles.eventThumb} />
-                        : (
-                          <View style={[styles.eventThumb, styles.eventThumbEmpty]}>
-                            <Ionicons name="calendar-outline" size={22} color={Colors.brand[300]} />
-                          </View>
-                        )
+              <View style={styles.membersList}>
+                {community.recent_members.map((m, i) => (
+                  <View key={m.id} style={[styles.memberRow, i < community.recent_members.length - 1 && styles.memberRowBorder]}>
+                    <View style={styles.avatar}>
+                      {m.avatar_url
+                        ? <Image source={{ uri: m.avatar_url }} style={styles.avatarImg} />
+                        : <Text style={styles.avatarInitial}>{m.display_name.slice(0, 1).toUpperCase()}</Text>
                       }
-                      <View style={styles.eventDetails}>
-                        <Text style={styles.eventTitle} numberOfLines={1}>{title}</Text>
-                        <Text style={styles.eventMeta}>
-                          <Ionicons name="time-outline" size={11} color={Colors.gray[400]} /> {formatDate(ev.start_at)}
-                        </Text>
-                        <Text style={styles.eventMeta}>📍 {ev.city}</Text>
+                    </View>
+                    <View style={styles.memberInfo}>
+                      <Text style={styles.memberName}>{m.display_name}</Text>
+                      <Text style={styles.memberMeta}>Joined {formatDate(m.joined_at)}</Text>
+                      {admins.some((entry) => entry.user_id === m.id && entry.role === 'community_admin') && (
+                        <Text style={styles.memberAdminMeta}>Community admin</Text>
+                      )}
+                      {community.owner_user_id === m.id && (
+                        <Text style={styles.memberOwnerMeta}>Owner</Text>
+                      )}
+                    </View>
+                    {canModerate ? (
+                      <View style={styles.memberActions}>
+                        {isCommunityOwner &&
+                          community.owner_user_id !== m.id &&
+                          !admins.some((entry) => entry.user_id === m.id && entry.role === 'owner') && (
+                            <TouchableOpacity
+                              onPress={() => openAdminRoleMenu(m)}
+                              disabled={memberActionLoading === `assign-${m.id}` || memberActionLoading === `revoke-${m.id}`}
+                              style={styles.memberActionChip}
+                            >
+                              <Text style={styles.memberActionText}>
+                                {admins.some((entry) => entry.user_id === m.id && entry.role === 'community_admin') ? 'Admin role' : 'Make admin'}
+                              </Text>
+                            </TouchableOpacity>
+                          )}
+                        {community.owner_user_id !== m.id &&
+                          !admins.some((entry) => entry.user_id === m.id && entry.role === 'owner') &&
+                          m.id !== user?.id &&
+                          (isCommunityOwner || !admins.some((entry) => entry.user_id === m.id && entry.role === 'community_admin')) && (
+                            <TouchableOpacity
+                              onPress={() => openMemberModerationMenu(m)}
+                              disabled={
+                                memberActionLoading === `warn-${m.id}` ||
+                                memberActionLoading === `timeout-${m.id}` ||
+                                memberActionLoading === `removed-${m.id}` ||
+                                memberActionLoading === `banned-${m.id}`
+                              }
+                              style={[styles.memberActionChip, styles.memberActionChipDanger]}
+                            >
+                              <Text style={[styles.memberActionText, styles.memberActionTextDanger]}>Moderate</Text>
+                            </TouchableOpacity>
+                          )}
                       </View>
-                      <View style={[styles.priceBadge, ev.is_free && styles.priceBadgeFree]}>
-                        <Text style={[styles.priceText, ev.is_free && styles.priceTextFree]}>
-                          {ev.is_free ? 'Free' : `${ev.price} ${ev.currency}`}
-                        </Text>
-                      </View>
-                    </TouchableOpacity>
-                  )
-                })}
-                {nextCursor && (
-                  <TouchableOpacity style={styles.loadMoreBtn} onPress={() => loadEvents(nextCursor)} disabled={eventsLoading}>
-                    {eventsLoading
-                      ? <ActivityIndicator size="small" color={Colors.brand[500]} />
-                      : <Text style={styles.loadMoreText}>Load more events</Text>
-                    }
-                  </TouchableOpacity>
-                )}
-              </>
+                    ) : (
+                      <Ionicons name="chevron-forward" size={14} color={Colors.gray[300]} />
+                    )}
+                  </View>
+                ))}
+              </View>
             )
-        }
-      </View>
-    </ScrollView>
+          }
+        </View>
+
+        {/* ── Activity feed ────────────────────────────────────── */}
+        {(isCommunityOwner || canModerate) && (
+          <View style={styles.section}>
+            {isCommunityOwner && (
+              <View style={styles.adminPanel}>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>Community Admins</Text>
+                  <Text style={styles.sectionSubInline}>{admins.length} roles</Text>
+                </View>
+                {adminsLoading ? (
+                  <View style={styles.centerSmall}><Spinner /></View>
+                ) : admins.length === 0 ? (
+                  <Text style={styles.emptyPanelText}>No community admins assigned yet.</Text>
+                ) : (
+                  admins.map((entry, index) => (
+                    <View key={entry.user_id} style={[styles.simplePanelRow, index < admins.length - 1 && styles.simplePanelRowBorder]}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.simplePanelTitle}>{entry.profile?.display_name ?? entry.user_id}</Text>
+                        <Text style={styles.simplePanelMeta}>{entry.role} - joined {formatDate(entry.joined_at)}</Text>
+                      </View>
+                      {entry.role === 'community_admin' && (
+                        <TouchableOpacity
+                          onPress={() => revokeCommunityAdmin(entry.user_id)}
+                          disabled={memberActionLoading === `revoke-${entry.user_id}`}
+                          style={styles.memberActionChip}
+                        >
+                          <Text style={styles.memberActionText}>Revoke</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  ))
+                )}
+              </View>
+            )}
+
+            {canModerate && (
+              <View style={styles.reportsPanel}>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>Happening Reports</Text>
+                  <TouchableOpacity onPress={loadReports} disabled={reportsLoading}>
+                    <Text style={styles.sectionLink}>Refresh</Text>
+                  </TouchableOpacity>
+                </View>
+                {reportsLoading ? (
+                  <View style={styles.centerSmall}><Spinner /></View>
+                ) : reports.length === 0 ? (
+                  <Text style={styles.emptyPanelText}>No pending happening reports.</Text>
+                ) : (
+                  reports.map((reportItem, index) => (
+                    <View key={`${reportItem.happening_id}:${reportItem.reporter_id}`} style={[styles.simplePanelRow, index < reports.length - 1 && styles.simplePanelRowBorder]}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.simplePanelTitle}>{reportItem.reason}</Text>
+                        <Text style={styles.simplePanelMeta}>Reporter: {reportItem.reporter?.display_name ?? reportItem.reporter_id}</Text>
+                        {reportItem.happening && (
+                          <Text style={styles.simplePanelMeta} numberOfLines={2}>{reportItem.happening.body}</Text>
+                        )}
+                      </View>
+                      <View style={styles.memberActions}>
+                        <TouchableOpacity
+                          onPress={() => updateReport(reportItem, 'resolved')}
+                          disabled={reportActionLoading === `${reportItem.happening_id}:${reportItem.reporter_id}:resolved`}
+                          style={styles.memberActionChip}
+                        >
+                          <Text style={styles.memberActionText}>Resolve</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => updateReport(reportItem, 'dismissed')}
+                          disabled={reportActionLoading === `${reportItem.happening_id}:${reportItem.reporter_id}:dismissed`}
+                          style={[styles.memberActionChip, styles.memberActionChipDanger]}
+                        >
+                          <Text style={[styles.memberActionText, styles.memberActionTextDanger]}>Dismiss</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ))
+                )}
+              </View>
+            )}
+          </View>
+        )}
+
+        {community.activity.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Recent Activity</Text>
+            <View style={styles.activityList}>
+              {community.activity.map((item, i) => {
+                const isEvent = item.type === 'event_published'
+                return (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={[styles.activityItem, i < community.activity.length - 1 && styles.activityItemBorder]}
+                    activeOpacity={item.href ? 0.8 : 1}
+                    onPress={item.href ? () => router.push(item.href as any) : undefined}
+                  >
+                    <View style={[styles.activityDot, { backgroundColor: isEvent ? Colors.brand[100] : '#dcfce7' }]}>
+                      <Ionicons name={isEvent ? 'calendar-outline' : 'person-add-outline'} size={14} color={isEvent ? Colors.brand[600] : '#15803d'} />
+                    </View>
+                    <View style={styles.activityBody}>
+                      <Text style={styles.activityTitle}>{item.title}</Text>
+                      <Text style={styles.activitySub}>{item.subtitle}</Text>
+                    </View>
+                    <Text style={styles.activityDate}>{formatDate(item.created_at)}</Text>
+                  </TouchableOpacity>
+                )
+              })}
+            </View>
+          </View>
+        )}
+
+        {/* ── Happenings ───────────────────────────────────────── */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <View>
+              <Text style={[styles.sectionTitle, { marginBottom: 2 }]}>What&apos;s Happening Now</Text>
+              <Text style={styles.sectionSub}>Spontaneous, time-limited posts</Text>
+            </View>
+            {community.is_member && (
+              <TouchableOpacity
+                onPress={() => setShowPostModal(true)}
+                style={styles.postHappeningBtn}
+              >
+                <Ionicons name="add" size={14} color="#fff" />
+                <Text style={styles.postHappeningBtnText}>Post</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {happeningsLoading ? (
+            <View style={styles.centerSmall}><Spinner /></View>
+          ) : happenings.length === 0 ? (
+            <View style={styles.happeningsEmpty}>
+              <Text style={styles.happeningsEmptyIcon}>📍</Text>
+              <Text style={styles.happeningsEmptyText}>Nothing happening right now</Text>
+              {community.is_member && (
+                <Text style={styles.happeningsEmptyHint}>Be the first — post a happening!</Text>
+              )}
+            </View>
+          ) : (
+            <View style={styles.happeningsList}>
+              {happenings.map((h, i) => {
+                const ttlMs = new Date(h.expires_at).getTime() - Date.now()
+                const ttlH = Math.floor(ttlMs / 3_600_000)
+                const ttlM = Math.floor((ttlMs % 3_600_000) / 60_000)
+                const ttl = ttlMs <= 0 ? 'Expired' : ttlH > 0 ? `${ttlH}h ${ttlM}m left` : `${ttlM}m left`
+                const TYPE_EMOJI: Record<HappeningType, string> = { open_invite: '🙋', info: 'ℹ️', question: '❓', alert: '🚨' }
+                const isLast = i === happenings.length - 1
+
+                return (
+                  <View key={h.id} style={[styles.happeningCard, !isLast && styles.happeningCardBorder]}>
+                    <View style={styles.happeningHeader}>
+                      <View style={styles.happeningAuthorRow}>
+                        <View style={styles.avatar}>
+                          {h.author.avatar_url
+                            ? <Image source={{ uri: h.author.avatar_url }} style={styles.avatarImg} />
+                            : <Text style={styles.avatarInitial}>{h.author.display_name.slice(0, 1).toUpperCase()}</Text>
+                          }
+                        </View>
+                        <View>
+                          <Text style={styles.happeningAuthor}>{h.author.display_name}</Text>
+                          <Text style={styles.happeningTtl}>{ttl}</Text>
+                        </View>
+                      </View>
+                      <View style={styles.happeningTypeBadge}>
+                        <Text style={styles.happeningTypeText}>{TYPE_EMOJI[h.type]}</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.happeningBody}>{h.body}</Text>
+                    {h.lat && h.lng && (
+                      <TouchableOpacity
+                        onPress={() => Linking.openURL(`https://maps.google.com/?q=${h.lat},${h.lng}`)}
+                        style={styles.happeningLocBtn}
+                      >
+                        <Ionicons name="location-outline" size={12} color={Colors.brand[600]} />
+                        <Text style={styles.happeningLocText}>{h.location_label?.trim() || 'View on map'}</Text>
+                      </TouchableOpacity>
+                    )}
+                    {user && ttlMs > 0 && (
+                      <View style={styles.happeningActions}>
+                        <TouchableOpacity
+                          onPress={() => toggleHappeningRsvp(h)}
+                          style={[styles.happeningActionBtn, h.user_has_rsvp && styles.happeningActionBtnActive]}
+                        >
+                          <Text style={[styles.happeningActionText, h.user_has_rsvp && styles.happeningActionTextActive]}>
+                            🙋 {h.user_has_rsvp ? "I'm in" : 'Join'} · {h.rsvp_count}
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => toggleHappeningReact(h)}
+                          style={[styles.happeningActionBtn, h.user_has_reacted && styles.happeningReactActive]}
+                        >
+                          <Text style={[styles.happeningActionText, h.user_has_reacted && styles.happeningReactTextActive]}>
+                            👍 {h.reaction_count}
+                          </Text>
+                        </TouchableOpacity>
+                        {h.author_id !== user?.id && (
+                          <TouchableOpacity
+                            onPress={() => reportHappening(h.id)}
+                            style={styles.happeningReportBtn}
+                          >
+                            <Ionicons name="flag-outline" size={14} color={Colors.gray[400]} />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    )}
+                  </View>
+                )
+              })}
+            </View>
+          )}
+        </View>
+
+        {/* ── Events ───────────────────────────────────────────── */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Upcoming Events</Text>
+            <TouchableOpacity onPress={() => router.push({ pathname: '/(tabs)/home', params: { community: slug } } as any)}>
+              <Text style={styles.sectionLink}>View all →</Text>
+            </TouchableOpacity>
+          </View>
+
+          {eventsLoading && events.length === 0
+            ? <View style={styles.centerSmall}><Spinner /></View>
+            : events.length === 0
+              ? <EmptyState icon="📅" title="No upcoming events" description="Check back soon" />
+              : (
+                <>
+                  {events.map((ev) => {
+                    const title = isRTL && ev.title_ar ? ev.title_ar : ev.title
+                    return (
+                      <TouchableOpacity
+                        key={ev.id}
+                        style={styles.eventCard}
+                        onPress={() => router.push(`/events/${ev.id}` as any)}
+                        activeOpacity={0.85}
+                      >
+                        {ev.cover_image_url
+                          ? <Image source={{ uri: ev.cover_image_url }} style={styles.eventThumb} />
+                          : (
+                            <View style={[styles.eventThumb, styles.eventThumbEmpty]}>
+                              <Ionicons name="calendar-outline" size={22} color={Colors.brand[300]} />
+                            </View>
+                          )
+                        }
+                        <View style={styles.eventDetails}>
+                          <Text style={styles.eventTitle} numberOfLines={1}>{title}</Text>
+                          <Text style={styles.eventMeta}>
+                            <Ionicons name="time-outline" size={11} color={Colors.gray[400]} /> {formatDate(ev.start_at)}
+                          </Text>
+                          <Text style={styles.eventMeta}>📍 {ev.city}</Text>
+                        </View>
+                        <View style={[styles.priceBadge, ev.is_free && styles.priceBadgeFree]}>
+                          <Text style={[styles.priceText, ev.is_free && styles.priceTextFree]}>
+                            {ev.is_free ? 'Free' : `${ev.price} ${ev.currency}`}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    )
+                  })}
+                  {nextCursor && (
+                    <TouchableOpacity style={styles.loadMoreBtn} onPress={() => loadEvents(nextCursor)} disabled={eventsLoading}>
+                      {eventsLoading
+                        ? <ActivityIndicator size="small" color={Colors.brand[500]} />
+                        : <Text style={styles.loadMoreText}>Load more events</Text>
+                      }
+                    </TouchableOpacity>
+                  )}
+                </>
+              )
+          }
+        </View>
+      </ScrollView>
 
       {/* ── Post Happening Modal ──────────────────────────────── */}
       <Modal visible={showPostModal} animationType="slide" transparent onRequestClose={() => setShowPostModal(false)}>
@@ -613,152 +895,174 @@ export default function CommunityDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  container:  { flex: 1, backgroundColor: '#f4f5f9' },
-  content:    { paddingBottom: Spacing['5xl'] },
-  center:     { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  centerSmall:{ alignItems: 'center', paddingVertical: Spacing['2xl'] },
+  container: { flex: 1, backgroundColor: '#f4f5f9' },
+  content: { paddingBottom: Spacing['5xl'] },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  centerSmall: { alignItems: 'center', paddingVertical: Spacing['2xl'] },
 
   // Hero
-  hero:              { position: 'relative' },
-  heroImg:           { width: '100%', height: 200, resizeMode: 'cover' },
-  heroPlaceholder:   { width: '100%', height: 200, alignItems: 'center', justifyContent: 'center' },
-  breadcrumbBar:     { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.48)', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm + 2 },
-  bcItem:            { flexDirection: 'row', alignItems: 'center' },
-  bcSep:             { color: 'rgba(255,255,255,0.5)', marginHorizontal: 5, fontSize: 12 },
-  bcText:            { color: 'rgba(255,255,255,0.9)', fontSize: FontSize.xs, fontWeight: FontWeight.medium },
+  hero: { position: 'relative' },
+  heroImg: { width: '100%', height: 200, resizeMode: 'cover' },
+  heroPlaceholder: { width: '100%', height: 200, alignItems: 'center', justifyContent: 'center' },
+  breadcrumbBar: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.48)', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm + 2 },
+  bcItem: { flexDirection: 'row', alignItems: 'center' },
+  bcSep: { color: 'rgba(255,255,255,0.5)', marginHorizontal: 5, fontSize: 12 },
+  bcText: { color: 'rgba(255,255,255,0.9)', fontSize: FontSize.xs, fontWeight: FontWeight.medium },
 
   // Identity card
-  identityCard:  { backgroundColor: '#fff', marginHorizontal: Spacing.lg, marginTop: -Spacing.md, borderRadius: Radius['xl'], padding: Spacing.lg, ...Shadow.card, zIndex: 10, marginBottom: Spacing.lg },
-  identityTop:   { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.md, marginBottom: Spacing.lg },
-  identityIcon:  { width: 52, height: 52, borderRadius: Radius.xl, alignItems: 'center', justifyContent: 'center' },
-  identityText:  { flex: 1 },
-  nameRow:       { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  name:          { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.gray[900], flex: 1 },
-  tagRow:        { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 6 },
-  levelTag:      { paddingHorizontal: Spacing.sm, paddingVertical: 3, borderRadius: Radius.full },
-  levelTagText:  { fontSize: 11, fontWeight: FontWeight.semibold },
-  cityText:      { fontSize: FontSize.xs, color: Colors.gray[500] },
+  identityCard: { backgroundColor: '#fff', marginHorizontal: Spacing.lg, marginTop: -Spacing.md, borderRadius: Radius['xl'], padding: Spacing.lg, ...Shadow.card, zIndex: 10, marginBottom: Spacing.lg },
+  identityTop: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.md, marginBottom: Spacing.lg },
+  identityIcon: { width: 52, height: 52, borderRadius: Radius.xl, alignItems: 'center', justifyContent: 'center' },
+  identityText: { flex: 1 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  name: { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.gray[900], flex: 1 },
+  tagRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 6 },
+  levelTag: { paddingHorizontal: Spacing.sm, paddingVertical: 3, borderRadius: Radius.full },
+  levelTagText: { fontSize: 11, fontWeight: FontWeight.semibold },
+  cityText: { fontSize: FontSize.xs, color: Colors.gray[500] },
 
-  statsRow:     { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.gray[50], borderRadius: Radius.xl, padding: Spacing.lg, marginBottom: Spacing.lg },
-  statItem:     { flex: 1, alignItems: 'center' },
-  statValue:    { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.gray[900] },
-  statLabel:    { fontSize: 11, color: Colors.gray[500], marginTop: 2 },
-  statDivider:  { width: 1, height: 32, backgroundColor: Colors.gray[200] },
+  statsRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.gray[50], borderRadius: Radius.xl, padding: Spacing.lg, marginBottom: Spacing.lg },
+  statItem: { flex: 1, alignItems: 'center' },
+  statValue: { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.gray[900] },
+  statLabel: { fontSize: 11, color: Colors.gray[500], marginTop: 2 },
+  statDivider: { width: 1, height: 32, backgroundColor: Colors.gray[200] },
 
-  description:  { fontSize: FontSize.sm, color: Colors.gray[600], lineHeight: 22, marginBottom: Spacing.lg },
+  description: { fontSize: FontSize.sm, color: Colors.gray[600], lineHeight: 22, marginBottom: Spacing.lg },
 
-  joinBtn:          { borderRadius: Radius.xl, paddingVertical: Spacing.md + 2, alignItems: 'center' },
-  joinBtnDefault:   { backgroundColor: Colors.brand[600] },
-  joinBtnJoined:    { backgroundColor: '#f0fdf4', borderWidth: 1.5, borderColor: '#86efac' },
-  joinBtnInner:     { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  joinBtnText:      { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: '#fff' },
-  joinBtnTextJoined:{ color: '#15803d' },
+  joinBtn: { borderRadius: Radius.xl, paddingVertical: Spacing.md + 2, alignItems: 'center' },
+  joinBtnDefault: { backgroundColor: Colors.brand[600] },
+  joinBtnJoined: { backgroundColor: '#f0fdf4', borderWidth: 1.5, borderColor: '#86efac' },
+  joinBtnInner: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  joinBtnText: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: '#fff' },
+  joinBtnTextJoined: { color: '#15803d' },
 
   // Sections
-  section:       { paddingHorizontal: Spacing.lg, marginBottom: Spacing.xl },
+  section: { paddingHorizontal: Spacing.lg, marginBottom: Spacing.xl },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.md },
-  sectionTitle:  { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.gray[900], marginBottom: Spacing.md },
-  sectionLink:   { fontSize: FontSize.sm, color: Colors.brand[600], fontWeight: FontWeight.medium },
+  sectionTitle: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.gray[900], marginBottom: Spacing.md },
+  sectionLink: { fontSize: FontSize.sm, color: Colors.brand[600], fontWeight: FontWeight.medium },
 
   // Members
-  membersList:   { backgroundColor: '#fff', borderRadius: Radius.xl, overflow: 'hidden', borderWidth: 1, borderColor: Colors.gray[200], ...Shadow.card },
-  memberRow:     { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md },
+  membersList: { backgroundColor: '#fff', borderRadius: Radius.xl, overflow: 'hidden', borderWidth: 1, borderColor: Colors.gray[200], ...Shadow.card },
+  memberRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md },
   memberRowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.gray[100] },
-  avatar:        { width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.brand[100], alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  avatarImg:     { width: '100%', height: '100%' },
+  avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.brand[100], alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  avatarImg: { width: '100%', height: '100%' },
   avatarInitial: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.brand[700] },
-  memberInfo:    { flex: 1 },
-  memberName:    { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[900] },
-  memberMeta:    { fontSize: FontSize.xs, color: Colors.gray[400], marginTop: 2 },
+  memberInfo: { flex: 1 },
+  memberName: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[900] },
+  memberMeta: { fontSize: FontSize.xs, color: Colors.gray[400], marginTop: 2 },
+  memberAdminMeta: { fontSize: 11, color: Colors.brand[600], marginTop: 3, fontWeight: FontWeight.semibold },
+  memberOwnerMeta: { fontSize: 11, color: '#b45309', marginTop: 3, fontWeight: FontWeight.semibold },
+  memberActions: { marginLeft: 'auto', gap: Spacing.xs, alignItems: 'flex-end' },
+  memberActionChip: {
+    borderWidth: 1,
+    borderColor: Colors.gray[200],
+    backgroundColor: Colors.gray[50],
+    borderRadius: Radius.lg,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 5,
+  },
+  memberActionChipDanger: { borderColor: '#fecaca', backgroundColor: '#fef2f2' },
+  memberActionText: { fontSize: 11, color: Colors.gray[700], fontWeight: FontWeight.semibold },
+  memberActionTextDanger: { color: '#b91c1c' },
+  adminPanel: { backgroundColor: '#fff7ed', borderRadius: Radius.xl, borderWidth: 1, borderColor: '#fed7aa', padding: Spacing.md, marginBottom: Spacing.md },
+  reportsPanel: { backgroundColor: '#fef2f2', borderRadius: Radius.xl, borderWidth: 1, borderColor: '#fecaca', padding: Spacing.md },
+  sectionSubInline: { fontSize: FontSize.xs, color: Colors.gray[500] },
+  emptyPanelText: { fontSize: FontSize.sm, color: Colors.gray[500] },
+  simplePanelRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, paddingVertical: Spacing.sm },
+  simplePanelRowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.gray[200] },
+  simplePanelTitle: { fontSize: FontSize.sm, color: Colors.gray[900], fontWeight: FontWeight.semibold },
+  simplePanelMeta: { fontSize: FontSize.xs, color: Colors.gray[500], marginTop: 2 },
 
   // Activity
-  activityList:      { backgroundColor: '#fff', borderRadius: Radius.xl, overflow: 'hidden', borderWidth: 1, borderColor: Colors.gray[200], ...Shadow.card },
-  activityItem:      { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md },
-  activityItemBorder:{ borderBottomWidth: 1, borderBottomColor: Colors.gray[100] },
-  activityDot:       { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-  activityBody:      { flex: 1 },
-  activityTitle:     { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[900] },
-  activitySub:       { fontSize: FontSize.xs, color: Colors.gray[500], marginTop: 1 },
-  activityDate:      { fontSize: 11, color: Colors.gray[400] },
+  activityList: { backgroundColor: '#fff', borderRadius: Radius.xl, overflow: 'hidden', borderWidth: 1, borderColor: Colors.gray[200], ...Shadow.card },
+  activityItem: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md },
+  activityItemBorder: { borderBottomWidth: 1, borderBottomColor: Colors.gray[100] },
+  activityDot: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  activityBody: { flex: 1 },
+  activityTitle: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[900] },
+  activitySub: { fontSize: FontSize.xs, color: Colors.gray[500], marginTop: 1 },
+  activityDate: { fontSize: 11, color: Colors.gray[400] },
 
   // Events
-  eventCard:         { backgroundColor: '#fff', borderRadius: Radius.xl, padding: Spacing.md, marginBottom: Spacing.sm, flexDirection: 'row', alignItems: 'center', gap: Spacing.md, borderWidth: 1, borderColor: Colors.gray[200], ...Shadow.card },
-  eventThumb:        { width: 68, height: 56, borderRadius: Radius.lg, resizeMode: 'cover' },
-  eventThumbEmpty:   { backgroundColor: Colors.brand[50], alignItems: 'center', justifyContent: 'center' },
-  eventDetails:      { flex: 1 },
-  eventTitle:        { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[900] },
-  eventMeta:         { fontSize: FontSize.xs, color: Colors.gray[500], marginTop: 3 },
-  priceBadge:        { backgroundColor: Colors.brand[50], borderRadius: Radius.full, paddingHorizontal: Spacing.sm, paddingVertical: 5 },
-  priceBadgeFree:    { backgroundColor: '#f0fdf4' },
-  priceText:         { fontSize: 11, fontWeight: FontWeight.bold, color: Colors.brand[700] },
-  priceTextFree:     { color: '#15803d' },
-  loadMoreBtn:       { alignItems: 'center', paddingVertical: Spacing.lg },
-  loadMoreText:      { fontSize: FontSize.sm, color: Colors.brand[600], fontWeight: FontWeight.medium },
+  eventCard: { backgroundColor: '#fff', borderRadius: Radius.xl, padding: Spacing.md, marginBottom: Spacing.sm, flexDirection: 'row', alignItems: 'center', gap: Spacing.md, borderWidth: 1, borderColor: Colors.gray[200], ...Shadow.card },
+  eventThumb: { width: 68, height: 56, borderRadius: Radius.lg, resizeMode: 'cover' },
+  eventThumbEmpty: { backgroundColor: Colors.brand[50], alignItems: 'center', justifyContent: 'center' },
+  eventDetails: { flex: 1 },
+  eventTitle: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[900] },
+  eventMeta: { fontSize: FontSize.xs, color: Colors.gray[500], marginTop: 3 },
+  priceBadge: { backgroundColor: Colors.brand[50], borderRadius: Radius.full, paddingHorizontal: Spacing.sm, paddingVertical: 5 },
+  priceBadgeFree: { backgroundColor: '#f0fdf4' },
+  priceText: { fontSize: 11, fontWeight: FontWeight.bold, color: Colors.brand[700] },
+  priceTextFree: { color: '#15803d' },
+  loadMoreBtn: { alignItems: 'center', paddingVertical: Spacing.lg },
+  loadMoreText: { fontSize: FontSize.sm, color: Colors.brand[600], fontWeight: FontWeight.medium },
 
   // Section subtitle
-  sectionSub:        { fontSize: FontSize.xs, color: Colors.gray[400], marginBottom: Spacing.md },
+  sectionSub: { fontSize: FontSize.xs, color: Colors.gray[400], marginBottom: Spacing.md },
 
   // Post happening button
-  postHappeningBtn:      { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.brand[600], borderRadius: Radius.lg, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm },
-  postHappeningBtnText:  { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: '#fff' },
+  postHappeningBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.brand[600], borderRadius: Radius.lg, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm },
+  postHappeningBtnText: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: '#fff' },
 
   // Happenings empty
-  happeningsEmpty:     { alignItems: 'center', paddingVertical: Spacing['3xl'], backgroundColor: '#fff', borderRadius: Radius.xl, borderWidth: 1, borderColor: Colors.gray[200], borderStyle: 'dashed' },
+  happeningsEmpty: { alignItems: 'center', paddingVertical: Spacing['3xl'], backgroundColor: '#fff', borderRadius: Radius.xl, borderWidth: 1, borderColor: Colors.gray[200], borderStyle: 'dashed' },
   happeningsEmptyIcon: { fontSize: 28, marginBottom: Spacing.sm },
   happeningsEmptyText: { fontSize: FontSize.sm, fontWeight: FontWeight.medium, color: Colors.gray[600] },
   happeningsEmptyHint: { fontSize: FontSize.xs, color: Colors.gray[400], marginTop: 4 },
 
   // Happening cards
-  happeningsList:    { backgroundColor: '#fff', borderRadius: Radius.xl, overflow: 'hidden', borderWidth: 1, borderColor: Colors.gray[200], ...Shadow.sm },
-  happeningCard:     { padding: Spacing.md },
+  happeningsList: { backgroundColor: '#fff', borderRadius: Radius.xl, overflow: 'hidden', borderWidth: 1, borderColor: Colors.gray[200], ...Shadow.card },
+  happeningCard: { padding: Spacing.md },
   happeningCardBorder: { borderBottomWidth: 1, borderBottomColor: Colors.gray[100] },
-  happeningHeader:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.sm },
-  happeningAuthorRow:{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  happeningAuthor:   { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[900] },
-  happeningTtl:      { fontSize: 11, color: Colors.gray[400], marginTop: 1 },
-  happeningTypeBadge:{ width: 30, height: 30, borderRadius: 15, backgroundColor: Colors.gray[100], alignItems: 'center', justifyContent: 'center' },
+  happeningHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.sm },
+  happeningAuthorRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  happeningAuthor: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[900] },
+  happeningTtl: { fontSize: 11, color: Colors.gray[400], marginTop: 1 },
+  happeningTypeBadge: { width: 30, height: 30, borderRadius: 15, backgroundColor: Colors.gray[100], alignItems: 'center', justifyContent: 'center' },
   happeningTypeText: { fontSize: 14 },
-  happeningBody:     { fontSize: FontSize.sm, color: Colors.gray[800], lineHeight: 20, marginBottom: Spacing.md },
-  happeningActions:  { flexDirection: 'row', gap: Spacing.sm },
-  happeningActionBtn:      { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.md, paddingVertical: 6, borderRadius: Radius.lg, backgroundColor: Colors.gray[100] },
-  happeningActionBtnActive:{ backgroundColor: Colors.brand[600] },
-  happeningReactActive:    { backgroundColor: '#fef9c3' },
-  happeningActionText:     { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.gray[700] },
-  happeningActionTextActive:   { color: '#fff' },
-  happeningReactTextActive:    { color: '#713f12' },
-  happeningLocBtn:   { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: Spacing.sm },
-  happeningLocText:  { fontSize: 11, color: Colors.brand[600] },
-  happeningReportBtn:{ marginLeft: 'auto', padding: 6 },
+  happeningBody: { fontSize: FontSize.sm, color: Colors.gray[800], lineHeight: 20, marginBottom: Spacing.md },
+  happeningActions: { flexDirection: 'row', gap: Spacing.sm },
+  happeningActionBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.md, paddingVertical: 6, borderRadius: Radius.lg, backgroundColor: Colors.gray[100] },
+  happeningActionBtnActive: { backgroundColor: Colors.brand[600] },
+  happeningReactActive: { backgroundColor: '#fef9c3' },
+  happeningActionText: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.gray[700] },
+  happeningActionTextActive: { color: '#fff' },
+  happeningReactTextActive: { color: '#713f12' },
+  happeningLocBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: Spacing.sm },
+  happeningLocText: { fontSize: 11, color: Colors.brand[600] },
+  happeningReportBtn: { marginLeft: 'auto', padding: 6 },
 
   // Post Happening Modal
-  modalOverlay:   { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' },
-  modalSheet:     { backgroundColor: '#fff', borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, padding: Spacing.xl, paddingBottom: Spacing['3xl'] },
-  modalHandle:    { width: 36, height: 4, borderRadius: 2, backgroundColor: Colors.gray[300], alignSelf: 'center', marginBottom: Spacing.lg },
-  modalTitle:     { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.gray[900], marginBottom: Spacing.lg },
-  typeChips:      { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginBottom: Spacing.lg },
-  typeChip:       { paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: Radius.full, backgroundColor: Colors.gray[100], borderWidth: 1, borderColor: Colors.gray[200] },
+  modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' },
+  modalSheet: { backgroundColor: '#fff', borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, padding: Spacing.xl, paddingBottom: Spacing['3xl'] },
+  modalHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: Colors.gray[300], alignSelf: 'center', marginBottom: Spacing.lg },
+  modalTitle: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.gray[900], marginBottom: Spacing.lg },
+  typeChips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginBottom: Spacing.lg },
+  typeChip: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: Radius.full, backgroundColor: Colors.gray[100], borderWidth: 1, borderColor: Colors.gray[200] },
   typeChipActive: { backgroundColor: Colors.brand[600], borderColor: Colors.brand[600] },
-  typeChipText:   { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.gray[700] },
+  typeChipText: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.gray[700] },
   typeChipTextActive: { color: '#fff' },
-  postInput:      { borderWidth: 1, borderColor: Colors.gray[200], borderRadius: Radius.xl, padding: Spacing.md, fontSize: FontSize.sm, color: Colors.gray[900], minHeight: 100, textAlignVertical: 'top', marginBottom: Spacing.xs },
-  charCount:      { fontSize: 11, color: Colors.gray[400], textAlign: 'right', marginBottom: Spacing.sm },
-  locRow:         { marginBottom: Spacing.md },
-  locBtn:         { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: Spacing.sm + 2, paddingVertical: 6, borderRadius: Radius.lg, backgroundColor: Colors.gray[100], borderWidth: 1, borderColor: Colors.gray[200], alignSelf: 'flex-start' },
+  postInput: { borderWidth: 1, borderColor: Colors.gray[200], borderRadius: Radius.xl, padding: Spacing.md, fontSize: FontSize.sm, color: Colors.gray[900], minHeight: 100, textAlignVertical: 'top', marginBottom: Spacing.xs },
+  charCount: { fontSize: 11, color: Colors.gray[400], textAlign: 'right', marginBottom: Spacing.sm },
+  locRow: { marginBottom: Spacing.md },
+  locBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: Spacing.sm + 2, paddingVertical: 6, borderRadius: Radius.lg, backgroundColor: Colors.gray[100], borderWidth: 1, borderColor: Colors.gray[200], alignSelf: 'flex-start' },
   locBtnAttached: { backgroundColor: '#f0fdf4', borderColor: '#86efac' },
-  locBtnText:     { fontSize: 11, color: Colors.gray[600] },
-  locDenied:      { fontSize: 11, color: '#ef4444' },
-  expiryRow:      { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.xl, flexWrap: 'wrap' },
-  expiryLabel:    { fontSize: FontSize.xs, color: Colors.gray[500] },
-  expiryChip:     { paddingHorizontal: Spacing.sm + 2, paddingVertical: 5, borderRadius: Radius.full, backgroundColor: Colors.gray[100], borderWidth: 1, borderColor: Colors.gray[200] },
-  expiryChipActive:     { backgroundColor: Colors.brand[100], borderColor: Colors.brand[300] },
-  expiryChipText:       { fontSize: 11, fontWeight: FontWeight.semibold, color: Colors.gray[600] },
+  locBtnText: { fontSize: 11, color: Colors.gray[600] },
+  locDenied: { fontSize: 11, color: '#ef4444' },
+  expiryRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.xl, flexWrap: 'wrap' },
+  expiryLabel: { fontSize: FontSize.xs, color: Colors.gray[500] },
+  expiryChip: { paddingHorizontal: Spacing.sm + 2, paddingVertical: 5, borderRadius: Radius.full, backgroundColor: Colors.gray[100], borderWidth: 1, borderColor: Colors.gray[200] },
+  expiryChipActive: { backgroundColor: Colors.brand[100], borderColor: Colors.brand[300] },
+  expiryChipText: { fontSize: 11, fontWeight: FontWeight.semibold, color: Colors.gray[600] },
   expiryChipTextActive: { color: Colors.brand[700] },
-  modalActions:   { flexDirection: 'row', gap: Spacing.md },
+  modalActions: { flexDirection: 'row', gap: Spacing.md },
   modalCancelBtn: { flex: 1, alignItems: 'center', paddingVertical: Spacing.md, borderRadius: Radius.xl, backgroundColor: Colors.gray[100] },
-  modalCancelText:{ fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[700] },
-  modalPostBtn:   { flex: 2, alignItems: 'center', paddingVertical: Spacing.md, borderRadius: Radius.xl, backgroundColor: Colors.brand[600] },
+  modalCancelText: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[700] },
+  modalPostBtn: { flex: 2, alignItems: 'center', paddingVertical: Spacing.md, borderRadius: Radius.xl, backgroundColor: Colors.brand[600] },
   modalPostBtnDisabled: { opacity: 0.5 },
-  modalPostText:  { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: '#fff' },
+  modalPostText: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: '#fff' },
 })
 
 

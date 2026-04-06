@@ -2,6 +2,14 @@ import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { ForbiddenException, NotFoundException } from '@/lib/errors'
 import type { CommunityRole } from '@/types/database'
 
+export type CommunityMembershipStatus = 'active' | 'timed_out' | 'removed' | 'banned'
+
+type ActiveSanction = {
+  sanction_type: 'timeout' | 'removed' | 'banned'
+  ends_at: string | null
+  revoked_at: string | null
+}
+
 type CommunityGovernanceContext = {
   community: {
     id: string
@@ -13,6 +21,7 @@ type CommunityGovernanceContext = {
     userId: string
     platformRole: 'user' | 'organizer' | 'admin'
     communityRole: CommunityRole | null
+    membershipStatus: CommunityMembershipStatus | null
     isOwner: boolean
     isCommunityManager: boolean
     isPlatformAdmin: boolean
@@ -36,15 +45,17 @@ export async function getCommunityGovernanceContext(
 
   const { data: membership } = await admin
     .from('community_memberships')
-    .select('role')
+    .select('role, status')
     .eq('community_id', community.id)
     .eq('user_id', actorUserId)
     .maybeSingle()
 
   const communityRole = (membership?.role as CommunityRole | undefined) ?? null
+  const membershipStatus = (membership?.status as CommunityMembershipStatus | undefined) ?? null
   const isOwner = community.owner_user_id === actorUserId || communityRole === 'owner'
   const isPlatformAdmin = platformRole === 'admin'
-  const isCommunityManager = isPlatformAdmin || isOwner || communityRole === 'community_admin'
+  const isCommunityManager =
+    isPlatformAdmin || isOwner || (communityRole === 'community_admin' && membershipStatus === 'active')
 
   return {
     community,
@@ -52,6 +63,7 @@ export async function getCommunityGovernanceContext(
       userId: actorUserId,
       platformRole,
       communityRole,
+      membershipStatus,
       isOwner,
       isCommunityManager,
       isPlatformAdmin,
@@ -114,4 +126,34 @@ export async function writeCommunityAuditLog(input: {
       meta: input.meta ?? {},
     })
   if (error) throw error
+}
+
+export function deriveCommunityMembershipState(
+  sanctions: ActiveSanction[]
+): { status: CommunityMembershipStatus; timeout_until: string | null } {
+  const now = Date.now()
+  const active = sanctions.filter((sanction) => {
+    if (sanction.revoked_at) return false
+    if (!sanction.ends_at) return true
+    return new Date(sanction.ends_at).getTime() > now
+  })
+
+  if (active.some((sanction) => sanction.sanction_type === 'banned')) {
+    return { status: 'banned', timeout_until: null }
+  }
+
+  if (active.some((sanction) => sanction.sanction_type === 'removed')) {
+    return { status: 'removed', timeout_until: null }
+  }
+
+  const timeoutSanctions = active.filter((sanction) => sanction.sanction_type === 'timeout' && sanction.ends_at)
+  if (timeoutSanctions.length > 0) {
+    const timeout_until = timeoutSanctions
+      .map((sanction) => sanction.ends_at as string)
+      .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0]
+
+    return { status: 'timed_out', timeout_until }
+  }
+
+  return { status: 'active', timeout_until: null }
 }

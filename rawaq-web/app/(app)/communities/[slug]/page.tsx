@@ -10,17 +10,67 @@ import { HappeningCard } from '@/components/communities/HappeningCard'
 import { PostHappeningForm } from '@/components/communities/PostHappeningForm'
 import { useHappenings } from '@/hooks/useHappenings'
 import { formatDate } from '@/lib/utils'
-import type { Community, CommunityLevel, Event } from '@/types/database'
+import type { Community, CommunityLevel, CommunityRole, Event } from '@/types/database'
 
 type CommunityDetail = Community & {
   is_member: boolean
+  member_role: CommunityRole | null
   event_count: number
   ancestors: Pick<Community, 'id' | 'name' | 'name_ar' | 'slug' | 'level'>[]
   recent_events: Pick<Event, 'id' | 'title' | 'title_ar' | 'cover_image_url' | 'start_at' | 'city' | 'is_free' | 'price' | 'currency' | 'bookings_count'>[]
   recent_members: Array<{ id: string; display_name: string; avatar_url: string | null; joined_at: string }>
   activity: Array<{ id: string; type: 'member_joined' | 'event_published'; title: string; subtitle: string; created_at: string; href: string | null }>
 }
-type MembershipMutationResponse = { is_member?: boolean; member_count?: number }
+type MembershipMutationResponse = { is_member?: boolean; member_count?: number; member_role?: CommunityRole | null; message?: string }
+type CommunityAdminEntry = {
+  user_id: string
+  role: CommunityRole
+  joined_at: string
+  profile: { id: string; display_name: string; avatar_url: string | null } | null
+}
+type HappeningReportEntry = {
+  happening_id: string
+  reporter_id: string
+  reason: string
+  details: string | null
+  status: 'pending' | 'resolved' | 'dismissed'
+  assigned_to: string | null
+  resolved_by: string | null
+  resolved_at: string | null
+  resolution_note: string | null
+  created_at: string
+  happening: { id: string; body: string; author_id: string; created_at: string; author: { id: string; display_name: string; avatar_url: string | null } | null } | null
+  reporter: { id: string; display_name: string; avatar_url: string | null } | null
+  assignee: { id: string; display_name: string; avatar_url: string | null } | null
+  resolver: { id: string; display_name: string; avatar_url: string | null } | null
+}
+type CommunityAuditLogEntry = {
+  id: string
+  action: string
+  target_type: string
+  target_id: string
+  meta: Record<string, unknown>
+  created_at: string
+  actor_user_id: string
+  actor: { id: string; display_name: string; avatar_url: string | null } | null
+}
+type CommunityWarningEntry = {
+  id: string
+  severity: 'low' | 'medium' | 'high'
+  reason: string
+  internal_note: string | null
+  created_at: string
+}
+type CommunitySanctionEntry = {
+  id: string
+  sanction_type: 'timeout' | 'removed' | 'banned'
+  reason: string
+  starts_at: string
+  ends_at: string | null
+  revoked_at: string | null
+  revoke_note: string | null
+  created_at: string
+}
 
 const LEVEL_ICONS: Record<CommunityLevel, string> = {
   micro:    '🏘️',
@@ -42,8 +92,25 @@ export default function CommunityDetailPage() {
   const [eventsLoading, setEventsLoading] = useState(false)
   const [nextCursor, setNextCursor]       = useState<string | null>(null)
   const [showPostForm, setShowPostForm]   = useState(false)
+  const [admins, setAdmins] = useState<CommunityAdminEntry[]>([])
+  const [adminsLoading, setAdminsLoading] = useState(false)
+  const [reports, setReports] = useState<HappeningReportEntry[]>([])
+  const [reportsLoading, setReportsLoading] = useState(false)
+  const [auditLogs, setAuditLogs] = useState<CommunityAuditLogEntry[]>([])
+  const [auditLogsLoading, setAuditLogsLoading] = useState(false)
+  const [selectedMemberHistory, setSelectedMemberHistory] = useState<{
+    member: CommunityDetail['recent_members'][number]
+    warnings: CommunityWarningEntry[]
+    sanctions: CommunitySanctionEntry[]
+  } | null>(null)
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [memberActionLoading, setMemberActionLoading] = useState<string | null>(null)
+  const [reportActionLoading, setReportActionLoading] = useState<string | null>(null)
 
   const isMember = community?.is_member ?? false
+  const memberRole = community?.member_role ?? null
+  const isCommunityOwner = memberRole === 'owner'
+  const canModerate = memberRole === 'owner' || memberRole === 'community_admin'
   const { happenings, loading: happeningsLoading, posting, post, toggleRsvp, toggleReact, remove, report } =
     useHappenings(slug, isMember)
 
@@ -73,6 +140,66 @@ export default function CommunityDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [community?.id])
 
+  async function loadAdmins() {
+    if (!canModerate) return
+    setAdminsLoading(true)
+    try {
+      const res = await fetch(`/api/communities/${slug}/admins`)
+      if (res.ok) {
+        const json = await res.json() as { data: CommunityAdminEntry[] }
+        setAdmins(json.data ?? [])
+      }
+    } finally {
+      setAdminsLoading(false)
+    }
+  }
+
+  async function loadReports() {
+    if (!canModerate) return
+    setReportsLoading(true)
+    try {
+      const res = await fetch(`/api/communities/${slug}/reports/happenings?status=pending`)
+      if (res.ok) {
+        const json = await res.json() as { data: { reports: HappeningReportEntry[] } }
+        setReports(json.data.reports ?? [])
+      }
+    } finally {
+      setReportsLoading(false)
+    }
+  }
+
+  async function loadAuditLogs() {
+    if (!canModerate) return
+    setAuditLogsLoading(true)
+    try {
+      const res = await fetch(`/api/communities/${slug}/audit-logs?limit=20`)
+      if (res.ok) {
+        const json = await res.json() as { data: { logs: CommunityAuditLogEntry[] } }
+        setAuditLogs(json.data.logs ?? [])
+      }
+    } finally {
+      setAuditLogsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (canModerate) loadAdmins()
+    else setAdmins([])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug, canModerate])
+
+  useEffect(() => {
+    if (canModerate) loadReports()
+    else setReports([])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug, canModerate])
+
+  useEffect(() => {
+    if (canModerate) loadAuditLogs()
+    else setAuditLogs([])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug, canModerate])
+
   async function toggleMembership() {
     if (!user) { router.push('/login'); return }
     if (!community) return
@@ -89,12 +216,155 @@ export default function CommunityDetailPage() {
           ? {
               ...prev,
               is_member: json.data?.is_member ?? !prev.is_member,
+              member_role: json.data?.member_role ?? (json.data?.is_member ? prev.member_role : null),
               member_count: json.data?.member_count ?? (!prev.is_member ? prev.member_count + 1 : Math.max(prev.member_count - 1, 0)),
             }
           : prev
       )
+      if (json.data?.message) {
+        window.alert(json.data.message)
+      }
     }
     setJoining(false)
+  }
+
+  async function assignCommunityAdmin(userId: string) {
+    setMemberActionLoading(`assign-${userId}`)
+    try {
+      const res = await fetch(`/api/communities/${slug}/admins`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId }),
+      })
+      if (res.ok) {
+        await loadAdmins()
+      }
+    } finally {
+      setMemberActionLoading(null)
+    }
+  }
+
+  async function revokeCommunityAdmin(userId: string) {
+    setMemberActionLoading(`revoke-${userId}`)
+    try {
+      const res = await fetch(`/api/communities/${slug}/admins/${userId}`, { method: 'DELETE' })
+      if (res.ok) {
+        await loadAdmins()
+      }
+    } finally {
+      setMemberActionLoading(null)
+    }
+  }
+
+  async function issueWarning(userId: string) {
+    const reason = window.prompt('Warning reason')
+    if (!reason?.trim()) return
+    setMemberActionLoading(`warn-${userId}`)
+    try {
+      await fetch(`/api/communities/${slug}/members/${userId}/warnings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ severity: 'medium', reason: reason.trim() }),
+      })
+      await loadAuditLogs()
+      if (selectedMemberHistory?.member.id === userId) {
+        await loadMemberHistory(selectedMemberHistory.member)
+      }
+    } finally {
+      setMemberActionLoading(null)
+    }
+  }
+
+  async function issueSanction(userId: string, sanctionType: 'timeout' | 'removed' | 'banned') {
+    const reason = window.prompt(`Reason for ${sanctionType}`)
+    if (!reason?.trim()) return
+    let endsAt: string | null = null
+    if (sanctionType === 'timeout') {
+      const hoursRaw = window.prompt('Timeout duration in hours', '24')
+      if (!hoursRaw) return
+      const hours = Number(hoursRaw)
+      if (!Number.isFinite(hours) || hours <= 0) return
+      endsAt = new Date(Date.now() + hours * 60 * 60 * 1000).toISOString()
+    }
+    setMemberActionLoading(`${sanctionType}-${userId}`)
+    try {
+      await fetch(`/api/communities/${slug}/members/${userId}/sanctions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sanction_type: sanctionType,
+          reason: reason.trim(),
+          ends_at: endsAt,
+        }),
+      })
+      await loadAuditLogs()
+      if (selectedMemberHistory?.member.id === userId) {
+        await loadMemberHistory(selectedMemberHistory.member)
+      }
+    } finally {
+      setMemberActionLoading(null)
+    }
+  }
+
+  async function updateReport(reportItem: HappeningReportEntry, status: 'resolved' | 'dismissed') {
+    setReportActionLoading(`${reportItem.happening_id}:${reportItem.reporter_id}:${status}`)
+    try {
+      const res = await fetch(`/api/communities/${slug}/reports/happenings`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          happening_id: reportItem.happening_id,
+          reporter_id: reportItem.reporter_id,
+          status,
+        }),
+      })
+      if (res.ok) {
+        setReports((prev) => prev.filter((entry) => !(entry.happening_id === reportItem.happening_id && entry.reporter_id === reportItem.reporter_id)))
+        await loadAuditLogs()
+      }
+    } finally {
+      setReportActionLoading(null)
+    }
+  }
+
+  async function loadMemberHistory(member: CommunityDetail['recent_members'][number]) {
+    setHistoryLoading(true)
+    try {
+      const [warningsRes, sanctionsRes] = await Promise.all([
+        fetch(`/api/communities/${slug}/members/${member.id}/warnings`),
+        fetch(`/api/communities/${slug}/members/${member.id}/sanctions`),
+      ])
+
+      const warningsJson = warningsRes.ok
+        ? await warningsRes.json() as { data: { warnings: CommunityWarningEntry[] } }
+        : { data: { warnings: [] } }
+      const sanctionsJson = sanctionsRes.ok
+        ? await sanctionsRes.json() as { data: { sanctions: CommunitySanctionEntry[] } }
+        : { data: { sanctions: [] } }
+
+      setSelectedMemberHistory({
+        member,
+        warnings: warningsJson.data.warnings ?? [],
+        sanctions: sanctionsJson.data.sanctions ?? [],
+      })
+    } finally {
+      setHistoryLoading(false)
+    }
+  }
+
+  function auditActionLabel(action: string) {
+    switch (action) {
+      case 'assign_community_admin': return 'Assigned community admin'
+      case 'revoke_community_admin': return 'Revoked community admin'
+      case 'resolve_happening_report': return 'Resolved happening report'
+      case 'dismiss_happening_report': return 'Dismissed happening report'
+      case 'warn_member': return 'Warned member'
+      case 'timeout_member': return 'Timed out member'
+      case 'remove_member': return 'Removed member'
+      case 'ban_member': return 'Banned member'
+      case 'revoke_sanction': return 'Revoked sanction'
+      default: return action
+    }
   }
 
   if (loading) {
@@ -120,13 +390,13 @@ export default function CommunityDetailPage() {
             <div className="flex items-center gap-1 text-xs text-gray-400 mb-2 flex-wrap">
               {community.ancestors.map((a, i) => (
                 <span key={a.id} className="flex items-center gap-1">
-                  {i > 0 && <span>›</span>}
+                  {i > 0 && <span></span>}
                   <Link href={`/communities/${a.slug}`} className="hover:text-brand-600 transition-colors">
                     {LEVEL_ICONS[a.level]} {a.name}
                   </Link>
                 </span>
               ))}
-              <span>›</span>
+              <span></span>
               <span className="text-gray-600">{community.name}</span>
             </div>
           )}
@@ -158,6 +428,11 @@ export default function CommunityDetailPage() {
                 >
                   {community.is_member ? 'You joined this community' : 'Not joined yet'}
                 </span>
+                {community.member_role && (
+                  <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                    Role: {community.member_role}
+                  </span>
+                )}
               </div>
             </div>
 
@@ -203,12 +478,139 @@ export default function CommunityDetailPage() {
                   <div>
                     <p className="text-sm font-medium text-gray-900">{member.display_name}</p>
                     <p className="text-xs text-gray-500">Joined {formatDate(member.joined_at)}</p>
+                    {admins.some((entry) => entry.user_id === member.id && entry.role === 'community_admin') && (
+                      <p className="text-[11px] font-semibold text-brand-600 mt-1">Community admin</p>
+                    )}
+                    {community.owner_user_id === member.id && (
+                      <p className="text-[11px] font-semibold text-amber-600 mt-1">Owner</p>
+                    )}
                   </div>
+                  {canModerate && (
+                    <div className="ml-auto flex flex-wrap gap-2">
+                      {isCommunityOwner &&
+                        community.owner_user_id !== member.id &&
+                        !admins.some((entry) => entry.user_id === member.id && entry.role === 'owner') && (
+                        admins.some((entry) => entry.user_id === member.id && entry.role === 'community_admin') ? (
+                          <button
+                            onClick={() => revokeCommunityAdmin(member.id)}
+                            disabled={memberActionLoading === `revoke-${member.id}`}
+                            className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700"
+                          >
+                            Revoke admin
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => assignCommunityAdmin(member.id)}
+                            disabled={memberActionLoading === `assign-${member.id}`}
+                            className="rounded-lg border border-brand-200 bg-brand-50 px-2.5 py-1 text-[11px] font-semibold text-brand-700"
+                          >
+                            Make admin
+                          </button>
+                        )
+                      )}
+                      {community.owner_user_id !== member.id &&
+                        !admins.some((entry) => entry.user_id === member.id && entry.role === 'owner') &&
+                        member.id !== user?.id &&
+                        (isCommunityOwner || !admins.some((entry) => entry.user_id === member.id && entry.role === 'community_admin')) && (
+                        <>
+                          <button
+                            onClick={() => issueWarning(member.id)}
+                            disabled={memberActionLoading === `warn-${member.id}`}
+                            className="rounded-lg border border-yellow-200 bg-yellow-50 px-2.5 py-1 text-[11px] font-semibold text-yellow-700"
+                          >
+                            Warn
+                          </button>
+                          <button
+                            onClick={() => loadMemberHistory(member)}
+                            disabled={historyLoading && selectedMemberHistory?.member.id === member.id}
+                            className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-700"
+                          >
+                            History
+                          </button>
+                          <button
+                            onClick={() => issueSanction(member.id, 'timeout')}
+                            disabled={memberActionLoading === `timeout-${member.id}`}
+                            className="rounded-lg border border-orange-200 bg-orange-50 px-2.5 py-1 text-[11px] font-semibold text-orange-700"
+                          >
+                            Timeout
+                          </button>
+                          <button
+                            onClick={() => issueSanction(member.id, 'removed')}
+                            disabled={memberActionLoading === `removed-${member.id}`}
+                            className="rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1 text-[11px] font-semibold text-gray-700"
+                          >
+                            Remove
+                          </button>
+                          <button
+                            onClick={() => issueSanction(member.id, 'banned')}
+                            disabled={memberActionLoading === `banned-${member.id}`}
+                            className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] font-semibold text-red-700"
+                          >
+                            Ban
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
           )}
         </div>
+
+        {canModerate && (
+          <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-5 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Moderation History</h2>
+                <p className="text-xs text-gray-500 mt-1">Warnings and sanctions for the selected member.</p>
+              </div>
+              {selectedMemberHistory && (
+                <button
+                  onClick={() => setSelectedMemberHistory(null)}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+            {historyLoading ? (
+              <div className="flex justify-center py-8"><Spinner size="lg" /></div>
+            ) : !selectedMemberHistory ? (
+              <p className="text-sm text-gray-500">Choose a member and tap History to inspect moderation records.</p>
+            ) : (
+              <div className="space-y-4">
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">{selectedMemberHistory.member.display_name}</p>
+                  <p className="text-xs text-gray-500">Warnings: {selectedMemberHistory.warnings.length} · Sanctions: {selectedMemberHistory.sanctions.length}</p>
+                </div>
+                <div className="space-y-2">
+                  {selectedMemberHistory.warnings.map((warning) => (
+                    <div key={warning.id} className="rounded-xl border border-yellow-100 bg-yellow-50 px-4 py-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-yellow-700">{warning.severity} warning</p>
+                      <p className="text-sm text-gray-800 mt-1">{warning.reason}</p>
+                      <p className="text-xs text-gray-500 mt-1">{formatDate(warning.created_at)}</p>
+                    </div>
+                  ))}
+                  {selectedMemberHistory.sanctions.map((sanction) => (
+                    <div key={sanction.id} className="rounded-xl border border-red-100 bg-red-50 px-4 py-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-red-700">{sanction.sanction_type}</p>
+                      <p className="text-sm text-gray-800 mt-1">{sanction.reason}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Started {formatDate(sanction.starts_at)}
+                        {sanction.ends_at ? ` · Ends ${formatDate(sanction.ends_at)}` : ''}
+                        {sanction.revoked_at ? ` · Revoked ${formatDate(sanction.revoked_at)}` : ''}
+                      </p>
+                    </div>
+                  ))}
+                  {selectedMemberHistory.warnings.length === 0 && selectedMemberHistory.sanctions.length === 0 && (
+                    <p className="text-sm text-gray-500">No moderation history for this member yet.</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
           <h2 className="text-lg font-bold text-gray-900 mb-4">Recent Activity</h2>
@@ -233,6 +635,139 @@ export default function CommunityDetailPage() {
           )}
         </div>
       </div>
+
+      {(isCommunityOwner || canModerate) && (
+        <div className="grid gap-6 md:grid-cols-2 mb-8">
+          {isCommunityOwner && (
+            <div className="rounded-2xl border border-brand-100 bg-brand-50/60 p-5 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-bold text-gray-900">Community Admins</h2>
+                <span className="text-xs font-semibold text-brand-700">{admins.length} roles</span>
+              </div>
+              {adminsLoading ? (
+                <div className="flex justify-center py-8"><Spinner size="lg" /></div>
+              ) : admins.length === 0 ? (
+                <p className="text-sm text-gray-500">No community admins assigned yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {admins.map((entry) => (
+                    <div key={entry.user_id} className="rounded-xl border border-white/70 bg-white px-4 py-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-gray-900">{entry.profile?.display_name ?? entry.user_id}</p>
+                          <p className="text-xs text-gray-500">{entry.role} · joined {formatDate(entry.joined_at)}</p>
+                        </div>
+                        {entry.role === 'community_admin' && (
+                          <button
+                            onClick={() => revokeCommunityAdmin(entry.user_id)}
+                            disabled={memberActionLoading === `revoke-${entry.user_id}`}
+                            className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700"
+                          >
+                            Revoke
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {canModerate && (
+            <div className="rounded-2xl border border-red-100 bg-red-50/50 p-5 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900">Happening Reports</h2>
+                  <p className="text-xs text-gray-500 mt-1">Community admins review these directly.</p>
+                </div>
+                <button
+                  onClick={loadReports}
+                  disabled={reportsLoading}
+                  className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700"
+                >
+                  Refresh
+                </button>
+              </div>
+              {reportsLoading ? (
+                <div className="flex justify-center py-8"><Spinner size="lg" /></div>
+              ) : reports.length === 0 ? (
+                <p className="text-sm text-gray-500">No pending happening reports.</p>
+              ) : (
+                <div className="space-y-3">
+                  {reports.map((reportItem) => (
+                    <div key={`${reportItem.happening_id}:${reportItem.reporter_id}`} className="rounded-xl border border-white/70 bg-white px-4 py-3">
+                      <p className="text-sm font-semibold text-gray-900">{reportItem.reason}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Reporter: {reportItem.reporter?.display_name ?? reportItem.reporter_id}
+                      </p>
+                      {reportItem.happening && (
+                        <p className="text-xs text-gray-600 mt-2 line-clamp-2">
+                          {reportItem.happening.body}
+                        </p>
+                      )}
+                      {reportItem.details && (
+                        <p className="text-xs text-gray-500 mt-2">{reportItem.details}</p>
+                      )}
+                      <div className="mt-3 flex gap-2">
+                        <button
+                          onClick={() => updateReport(reportItem, 'resolved')}
+                          disabled={reportActionLoading === `${reportItem.happening_id}:${reportItem.reporter_id}:resolved`}
+                          className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700"
+                        >
+                          Resolve
+                        </button>
+                        <button
+                          onClick={() => updateReport(reportItem, 'dismissed')}
+                          disabled={reportActionLoading === `${reportItem.happening_id}:${reportItem.reporter_id}:dismissed`}
+                          className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-700"
+                        >
+                          Dismiss
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {canModerate && (
+        <div className="mb-8 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">Community Audit Trail</h2>
+              <p className="text-xs text-gray-500 mt-1">Recent governance actions by owners and community admins.</p>
+            </div>
+            <button
+              onClick={loadAuditLogs}
+              disabled={auditLogsLoading}
+              className="rounded-lg border border-indigo-200 bg-white px-3 py-1.5 text-xs font-semibold text-indigo-700"
+            >
+              Refresh
+            </button>
+          </div>
+          {auditLogsLoading ? (
+            <div className="flex justify-center py-8"><Spinner size="lg" /></div>
+          ) : auditLogs.length === 0 ? (
+            <p className="text-sm text-gray-500">No governance actions recorded yet.</p>
+          ) : (
+            <div className="space-y-3">
+              {auditLogs.map((log) => (
+                <div key={log.id} className="rounded-xl border border-white/70 bg-white px-4 py-3">
+                  <p className="text-sm font-semibold text-gray-900">{auditActionLabel(log.action)}</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {log.actor?.display_name ?? log.actor_user_id} · {formatDate(log.created_at)}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">Target: {log.target_type}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Happenings section */}
       <div className="mb-8">

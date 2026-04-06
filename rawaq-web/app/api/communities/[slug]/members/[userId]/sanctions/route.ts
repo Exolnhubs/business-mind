@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { requireAuth } from '@/lib/auth'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { created, handleApiError, ok, BadRequestException, NotFoundException } from '@/lib/errors'
-import { requireCommunityManager, writeCommunityAuditLog } from '@/lib/community-governance'
+import { deriveCommunityMembershipState, requireCommunityManager, writeCommunityAuditLog } from '@/lib/community-governance'
 
 const CreateCommunitySanctionSchema = z.object({
   sanction_type: z.enum(['timeout', 'removed', 'banned']),
@@ -55,14 +55,21 @@ export async function POST(
       throw new BadRequestException('Timeout sanctions require an end time')
     }
 
-    const { data: membership } = await (admin as any)
+    const { data: membership, error: membershipErr } = await (admin as any)
       .from('community_memberships')
-      .select('user_id')
+      .select('user_id, role, status')
       .eq('community_id', gov.community.id)
       .eq('user_id', userId)
       .maybeSingle()
 
+    if (membershipErr) throw membershipErr
     if (!membership) throw new NotFoundException('Community membership')
+    if (membership.role === 'owner') {
+      throw new BadRequestException('Community owners cannot be sanctioned through community moderation')
+    }
+    if (gov.actor.communityRole === 'community_admin' && membership.role === 'community_admin') {
+      throw new BadRequestException('Community admins cannot sanction other community admins')
+    }
 
     const insertPayload = {
       community_id: gov.community.id,
@@ -82,15 +89,27 @@ export async function POST(
 
     if (error) throw error
 
-    if (input.sanction_type === 'removed' || input.sanction_type === 'banned') {
-      const { error: removeErr } = await (admin as any)
-        .from('community_memberships')
-        .delete()
-        .eq('community_id', gov.community.id)
-        .eq('user_id', userId)
+    const { data: activeSanctions, error: sanctionsErr } = await (admin as any)
+      .from('community_member_sanctions')
+      .select('sanction_type, ends_at, revoked_at')
+      .eq('community_id', gov.community.id)
+      .eq('user_id', userId)
+      .is('revoked_at', null)
 
-      if (removeErr) throw removeErr
-    }
+    if (sanctionsErr) throw sanctionsErr
+
+    const nextMembershipState = deriveCommunityMembershipState(activeSanctions ?? [])
+    const { error: membershipUpdateErr } = await (admin as any)
+      .from('community_memberships')
+      .update({
+        status: nextMembershipState.status,
+        timeout_until: nextMembershipState.timeout_until,
+        status_updated_at: new Date().toISOString(),
+      })
+      .eq('community_id', gov.community.id)
+      .eq('user_id', userId)
+
+    if (membershipUpdateErr) throw membershipUpdateErr
 
     await writeCommunityAuditLog({
       community_id: gov.community.id,
@@ -107,10 +126,15 @@ export async function POST(
         sanctioned_user_id: userId,
         sanction_type: input.sanction_type,
         ends_at: input.ends_at ?? null,
+        membership_status: nextMembershipState.status,
       },
     })
 
-    return created(data)
+    return created({
+      ...data,
+      membership_status: nextMembershipState.status,
+      timeout_until: nextMembershipState.timeout_until,
+    })
   } catch (err) {
     return handleApiError(err)
   }

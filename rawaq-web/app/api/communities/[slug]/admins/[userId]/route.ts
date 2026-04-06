@@ -20,16 +20,19 @@ export async function DELETE(
 
     const { data: membership, error } = await (admin as any)
       .from('community_memberships')
-      .select('community_id, user_id, role')
+      .select('community_id, user_id, role, status')
       .eq('community_id', gov.community.id)
       .eq('user_id', userId)
       .maybeSingle()
 
     if (error) throw error
     if (!membership) throw new NotFoundException('Community membership')
+    if (membership.status !== 'active') {
+      return ok({ user_id: userId, role: membership.role, member_status: membership.status })
+    }
 
     if (membership.role !== 'community_admin') {
-      return ok({ user_id: userId, role: membership.role })
+      return ok({ user_id: userId, role: membership.role, member_status: membership.status })
     }
 
     const { error: updateErr } = await (admin as any)
@@ -49,7 +52,7 @@ export async function DELETE(
       meta: { slug: gov.community.slug },
     })
 
-    return ok({ user_id: userId, role: 'member' })
+    return ok({ user_id: userId, role: 'member', member_status: 'active' })
   } catch (err) {
     return handleApiError(err)
   }

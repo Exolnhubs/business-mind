@@ -50,15 +50,17 @@ export async function GET(
     // Membership status
     let is_member = false
     let member_role: 'member' | 'community_admin' | 'owner' | null = null
+    let member_status: 'active' | 'timed_out' | 'removed' | 'banned' | null = null
     if (ctx?.userId) {
       const { data: mem } = await admin
         .from('community_memberships')
-        .select('id, role')
+        .select('id, role, status')
         .eq('community_id', community.id)
         .eq('user_id', ctx.userId)
         .maybeSingle()
-      is_member = !!mem
+      is_member = !!mem && mem.status !== 'removed' && mem.status !== 'banned'
       member_role = (mem?.role as 'member' | 'community_admin' | 'owner' | undefined) ?? null
+      member_status = (mem?.status as 'active' | 'timed_out' | 'removed' | 'banned' | undefined) ?? null
     }
 
     // 5 recent upcoming events
@@ -87,6 +89,7 @@ export async function GET(
       .from('community_memberships')
       .select('user_id, joined_at')
       .eq('community_id', community.id)
+      .eq('status', 'active')
       .order('joined_at', { ascending: false })
       .limit(8)
 
@@ -143,6 +146,7 @@ export async function GET(
       ...community,
       is_member,
       member_role,
+      member_status,
       event_count: eventCount ?? 0,
       ancestors,
       recent_events,
