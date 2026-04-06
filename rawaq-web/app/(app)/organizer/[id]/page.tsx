@@ -58,7 +58,7 @@ export default async function OrganizerProfilePage({ params }: { params: Promise
       .order('start_at', { ascending: true })
       .limit(12),
     supabase.auth.getUser(),
-    supabase
+    (supabase as any)
       .from('community_memberships')
       .select('community:communities(id, name, slug, level, member_count)')
       .eq('user_id', id)

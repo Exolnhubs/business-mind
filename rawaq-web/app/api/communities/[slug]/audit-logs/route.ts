@@ -24,7 +24,7 @@ export async function GET(
 
     if (error) throw error
 
-    const actorIds = [...new Set((logs ?? []).map((log: { actor_user_id: string }) => log.actor_user_id))]
+    const actorIds = [...new Set(((logs ?? []) as { actor_user_id: string }[]).map((log) => log.actor_user_id))]
     const { data: profiles } = actorIds.length === 0
       ? { data: [] as Array<{ id: string; display_name: string; avatar_url: string | null }> }
       : await admin
