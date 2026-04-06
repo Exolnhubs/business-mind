@@ -29,6 +29,7 @@ export default async function OrganizerProfilePage({ params }: { params: Promise
     { data: orgProfile },
     { data: events },
     { data: { user } },
+    { data: communityMemberships },
   ] = await Promise.all([
     supabase
       .from('profiles')
@@ -57,6 +58,12 @@ export default async function OrganizerProfilePage({ params }: { params: Promise
       .order('start_at', { ascending: true })
       .limit(12),
     supabase.auth.getUser(),
+    (supabase as any)
+      .from('community_memberships')
+      .select('community:communities(id, name, slug, level, member_count)')
+      .eq('user_id', id)
+      .eq('status', 'active')
+      .limit(12),
   ])
 
   if (!profile || !orgProfile || orgProfile.status !== 'approved') notFound()
@@ -169,6 +176,27 @@ export default async function OrganizerProfilePage({ params }: { params: Promise
               {orgProfile.description_ar}
             </p>
           )}
+        </div>
+      )}
+
+      {/* Communities */}
+      {communityMemberships && communityMemberships.length > 0 && (
+        <div>
+          <h2 className="font-semibold text-gray-900 mb-3">Communities</h2>
+          <div className="flex flex-wrap gap-2">
+            {(communityMemberships as { community: { id: string; name: string; slug: string; level: string; member_count: number } | null }[])
+              .filter((m) => m.community)
+              .map(({ community: c }) => (
+                <a
+                  key={c!.id}
+                  href={`/communities/${c!.slug}`}
+                  className="flex items-center gap-1.5 rounded-full border border-brand-100 bg-brand-50 px-3 py-1.5 text-xs font-medium text-brand-700 hover:bg-brand-100 transition-colors"
+                >
+                  <span>{c!.name}</span>
+                  <span className="text-brand-400">· {c!.member_count.toLocaleString()}</span>
+                </a>
+              ))}
+          </div>
         </div>
       )}
 

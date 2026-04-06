@@ -271,11 +271,21 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
                     <button
                       key={c.id}
                       type="button"
-                      onClick={() =>
-                        setSelectedCommunities((prev) =>
-                          selected ? prev.filter((id) => id !== c.id) : [...prev, c.id]
-                        )
-                      }
+                      onClick={() => {
+                        setSelectedCommunities((prev) => {
+                          const next = selected ? prev.filter((id) => id !== c.id) : [...prev, c.id]
+                          // Auto-set visibility to match the most-specific selected community level
+                          if (!selected) {
+                            const levelMap: Record<string, EventVisibility> = {
+                              micro: 'micro', interest: 'interest', district: 'city', city: 'city', country: 'national',
+                            }
+                            setVisibilityType(levelMap[c.level] ?? 'city')
+                          } else if (next.length === 0) {
+                            setVisibilityType('city')
+                          }
+                          return next
+                        })
+                      }}
                       className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${
                         selected
                           ? 'bg-brand-600 text-white border-brand-600'
@@ -546,11 +556,20 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
                       <button
                         key={c.id}
                         type="button"
-                        onClick={() =>
-                          setSelectedCommunities((prev) =>
-                            selected ? prev.filter((id) => id !== c.id) : [...prev, c.id]
-                          )
-                        }
+                        onClick={() => {
+                          setSelectedCommunities((prev) => {
+                            const next = selected ? prev.filter((id) => id !== c.id) : [...prev, c.id]
+                            if (!selected) {
+                              const levelMap: Record<string, EventVisibility> = {
+                                micro: 'micro', interest: 'interest', district: 'city', city: 'city', country: 'national',
+                              }
+                              setVisibilityType(levelMap[c.level] ?? 'city')
+                            } else if (next.length === 0) {
+                              setVisibilityType('city')
+                            }
+                            return next
+                          })
+                        }}
                         className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${
                           selected
                             ? 'bg-brand-600 text-white border-brand-600'

@@ -59,7 +59,8 @@ export async function GET(
           .select('id, display_name, avatar_url')
           .in('id', allProfileIds)
 
-    const happeningById = new Map((happenings ?? []).map((h: { id: string }) => [h.id, h]))
+    type HappeningRow = { id: string; body: string; author_id: string; created_at: string }
+    const happeningById = new Map<string, HappeningRow>(((happenings ?? []) as HappeningRow[]).map((h) => [h.id, h]))
     const profileById = new Map((profiles ?? []).map((p) => [p.id, p]))
 
     const data = (reports ?? []).map((report: {

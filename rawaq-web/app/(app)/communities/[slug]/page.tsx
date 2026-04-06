@@ -959,12 +959,22 @@ export default function CommunityDetailPage() {
       <div>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold text-gray-900">Upcoming Events</h2>
-          <Link
-            href={`/events?community=${slug}`}
-            className="text-sm text-brand-600 hover:underline"
-          >
-            View all
-          </Link>
+          <div className="flex items-center gap-3">
+            {user?.role === 'organizer' && (
+              <Link
+                href={`/organizer/events/new?community=${slug}`}
+                className="text-xs font-semibold bg-brand-600 text-white px-3 py-1.5 rounded-full hover:bg-brand-700 transition-colors"
+              >
+                + Create event here
+              </Link>
+            )}
+            <Link
+              href={`/events?community=${slug}`}
+              className="text-sm text-brand-600 hover:underline"
+            >
+              View all
+            </Link>
+          </div>
         </div>
 
         {eventsLoading && events.length === 0 ? (
