@@ -25,9 +25,10 @@ interface Props {
   onRsvp:       (h: HappeningWithAuthor) => void
   onReact:      (h: HappeningWithAuthor) => void
   onDelete?:    (id: string) => void
+  onReport?:    (id: string, reason: string) => void
 }
 
-export function HappeningCard({ happening: h, onRsvp, onReact, onDelete }: Props) {
+export function HappeningCard({ happening: h, onRsvp, onReact, onDelete, onReport }: Props) {
   const { user }   = useAuth()
   const meta       = TYPE_META[h.type]
   const [ttl]      = useState(() => timeLeft(h.expires_at))
@@ -106,6 +107,15 @@ export function HappeningCard({ happening: h, onRsvp, onReact, onDelete }: Props
           >
             👍 {h.reaction_count}
           </button>
+          {!isAuthor && onReport && (
+            <button
+              onClick={() => onReport(h.id, 'spam')}
+              className="ml-auto text-xs text-gray-400 hover:text-red-500 transition-colors px-2 py-1.5"
+              title="Report"
+            >
+              🚩
+            </button>
+          )}
         </div>
       )}
     </div>

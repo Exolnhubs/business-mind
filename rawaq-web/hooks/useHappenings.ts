@@ -116,5 +116,13 @@ export function useHappenings(slug: string, isMember: boolean) {
     if (res.ok) setHappenings((prev) => prev.filter((h) => h.id !== id))
   }
 
-  return { happenings, loading, posting, post, toggleRsvp, toggleReact, remove, reload: load }
+  async function report(id: string, reason: string) {
+    await fetch(`/api/happenings/${id}/report`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason }),
+    })
+  }
+
+  return { happenings, loading, posting, post, toggleRsvp, toggleReact, remove, report, reload: load }
 }

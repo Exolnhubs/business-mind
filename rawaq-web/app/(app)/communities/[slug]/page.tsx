@@ -44,7 +44,7 @@ export default function CommunityDetailPage() {
   const [showPostForm, setShowPostForm]   = useState(false)
 
   const isMember = community?.is_member ?? false
-  const { happenings, loading: happeningsLoading, posting, post, toggleRsvp, toggleReact, remove } =
+  const { happenings, loading: happeningsLoading, posting, post, toggleRsvp, toggleReact, remove, report } =
     useHappenings(slug, isMember)
 
   useEffect(() => {
@@ -271,6 +271,7 @@ export default function CommunityDetailPage() {
                 onRsvp={toggleRsvp}
                 onReact={toggleReact}
                 onDelete={remove}
+                onReport={report}
               />
             ))}
           </div>

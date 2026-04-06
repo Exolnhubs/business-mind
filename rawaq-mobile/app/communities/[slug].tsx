@@ -132,6 +132,25 @@ export default function CommunityDetailScreen() {
     }
   }
 
+  function reportHappening(id: string) {
+    Alert.alert(
+      'Report Happening',
+      'Why are you reporting this?',
+      [
+        { text: 'Spam',          onPress: () => submitReport(id, 'spam')          },
+        { text: 'Inappropriate', onPress: () => submitReport(id, 'inappropriate') },
+        { text: 'Harassment',    onPress: () => submitReport(id, 'harassment')    },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    )
+  }
+
+  async function submitReport(id: string, reason: string) {
+    const { error } = await apiPost(`/api/happenings/${id}/report`, { reason })
+    if (error) Alert.alert('Error', 'Could not submit report')
+    else Alert.alert('Reported', 'Thanks — our team will review this.')
+  }
+
   async function toggleHappeningReact(h: HappeningWithAuthor) {
     if (!user) { router.push('/auth/login' as any); return }
     const { data } = h.user_has_reacted
@@ -407,6 +426,14 @@ export default function CommunityDetailScreen() {
                           👍 {h.reaction_count}
                         </Text>
                       </TouchableOpacity>
+                      {h.author_id !== user?.id && (
+                        <TouchableOpacity
+                          onPress={() => reportHappening(h.id)}
+                          style={styles.happeningReportBtn}
+                        >
+                          <Ionicons name="flag-outline" size={14} color={Colors.gray[400]} />
+                        </TouchableOpacity>
+                      )}
                     </View>
                   )}
                 </View>
@@ -689,8 +716,9 @@ const styles = StyleSheet.create({
   happeningActionText:     { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.gray[700] },
   happeningActionTextActive:   { color: '#fff' },
   happeningReactTextActive:    { color: '#713f12' },
-  happeningLocBtn:  { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: Spacing[2] },
-  happeningLocText: { fontSize: 11, color: Colors.brand[600] },
+  happeningLocBtn:   { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: Spacing[2] },
+  happeningLocText:  { fontSize: 11, color: Colors.brand[600] },
+  happeningReportBtn:{ marginLeft: 'auto', padding: 6 },
 
   // Post Happening Modal
   modalOverlay:   { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' },
