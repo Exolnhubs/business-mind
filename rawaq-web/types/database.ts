@@ -38,6 +38,19 @@ export type AuditAction =
   | 'publish_event' | 'unpublish_event' | 'cancel_event'
   | 'resolve_report' | 'dismiss_report' | 'assign_plan'
 export type WarningSeverity = 'low' | 'medium' | 'high'
+export type CommunitySanctionType = 'timeout' | 'removed' | 'banned'
+export type CommunityAuditAction =
+  | 'assign_community_admin'
+  | 'revoke_community_admin'
+  | 'resolve_happening_report'
+  | 'dismiss_happening_report'
+  | 'delete_happening'
+  | 'warn_member'
+  | 'timeout_member'
+  | 'remove_member'
+  | 'ban_member'
+  | 'unban_member'
+  | 'revoke_sanction'
 export type OrganizerStatus = 'pending' | 'approved' | 'rejected' | 'suspended'
 export type PaymentType = 'ticket' | 'tip' | 'refund' | 'payout'
 export type PaymentStatus = 'pending' | 'succeeded' | 'failed' | 'refunded'
@@ -403,6 +416,60 @@ export interface UserWarning {
   created_at: string
 }
 
+export interface HappeningReport {
+  happening_id: string
+  reporter_id: string
+  community_id: string | null
+  reason: ReportReason
+  details: string | null
+  status: ReportStatus
+  assigned_to: string | null
+  resolved_by: string | null
+  resolved_at: string | null
+  resolution_note: string | null
+  created_at: string
+}
+
+export interface CommunityMemberWarning {
+  id: string
+  community_id: string
+  user_id: string
+  issued_by: string
+  severity: WarningSeverity
+  reason: string
+  internal_note: string | null
+  acknowledged: boolean
+  acknowledged_at: string | null
+  created_at: string
+}
+
+export interface CommunityMemberSanction {
+  id: string
+  community_id: string
+  user_id: string
+  issued_by: string
+  sanction_type: CommunitySanctionType
+  reason: string
+  internal_note: string | null
+  starts_at: string
+  ends_at: string | null
+  revoked_by: string | null
+  revoked_at: string | null
+  revoke_note: string | null
+  created_at: string
+}
+
+export interface CommunityAuditLog {
+  id: string
+  community_id: string
+  actor_user_id: string
+  action: CommunityAuditAction
+  target_type: string
+  target_id: string
+  meta: Record<string, unknown>
+  created_at: string
+}
+
 export interface GlobalChat {
   id: string
   user_id: string
@@ -617,8 +684,12 @@ export type Database = {
       ticket_types: { Row: R<TicketType>; Insert: R<Omit<TicketType, 'id' | 'sold_count' | 'created_at' | 'updated_at'>>; Update: R<Partial<TicketType>>; Relationships: [] }
       user_reviews: { Row: R<UserReview>; Insert: R<Omit<UserReview, 'id' | 'created_at' | 'updated_at'>>; Update: R<Partial<UserReview>>; Relationships: [] }
       waitlist: { Row: R<Waitlist>; Insert: R<Omit<Waitlist, 'id' | 'created_at'>>; Update: R<Partial<Waitlist>>; Relationships: [] }
+      happening_reports: { Row: R<HappeningReport>; Insert: R<Omit<HappeningReport, 'community_id' | 'status' | 'assigned_to' | 'resolved_by' | 'resolved_at' | 'resolution_note' | 'created_at'>> & Partial<Pick<R<HappeningReport>, 'community_id' | 'status' | 'assigned_to' | 'resolved_by' | 'resolved_at' | 'resolution_note'>>; Update: R<Partial<HappeningReport>>; Relationships: [] }
       promo_codes: { Row: R<PromoCode>; Insert: R<Omit<PromoCode, 'id' | 'used_count' | 'created_at' | 'updated_at'>>; Update: R<Partial<PromoCode>>; Relationships: [] }
       event_reports: { Row: R<EventReport>; Insert: R<Omit<EventReport, 'id' | 'created_at'>>; Update: R<Partial<EventReport>>; Relationships: [] }
+      community_member_warnings: { Row: R<CommunityMemberWarning>; Insert: R<Omit<CommunityMemberWarning, 'id' | 'acknowledged' | 'acknowledged_at' | 'created_at'>> & Partial<Pick<R<CommunityMemberWarning>, 'acknowledged' | 'acknowledged_at'>>; Update: R<Partial<CommunityMemberWarning>>; Relationships: [] }
+      community_member_sanctions: { Row: R<CommunityMemberSanction>; Insert: R<Omit<CommunityMemberSanction, 'id' | 'starts_at' | 'revoked_by' | 'revoked_at' | 'revoke_note' | 'created_at'>> & Partial<Pick<R<CommunityMemberSanction>, 'starts_at' | 'revoked_by' | 'revoked_at' | 'revoke_note'>>; Update: R<Partial<CommunityMemberSanction>>; Relationships: [] }
+      community_audit_logs: { Row: R<CommunityAuditLog>; Insert: R<Omit<CommunityAuditLog, 'id' | 'created_at'>>; Update: R<Partial<CommunityAuditLog>>; Relationships: [] }
       plan_definitions: { Row: R<PlanDefinition>; Insert: R<Omit<PlanDefinition, 'created_at' | 'updated_at'>>; Update: R<Partial<PlanDefinition>>; Relationships: [] }
       organizer_monthly_usage: { Row: R<OrganizerMonthlyUsage>; Insert: R<OrganizerMonthlyUsage>; Update: R<Partial<OrganizerMonthlyUsage>>; Relationships: [] }
       organizer_wallet: { Row: R<OrganizerWalletRow>; Insert: R<OrganizerWalletRow>; Update: R<Partial<OrganizerWalletRow>>; Relationships: [] }
