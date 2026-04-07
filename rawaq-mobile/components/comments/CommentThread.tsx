@@ -87,7 +87,7 @@ export function CommentThread({ eventId, initialComments, currentUserId }: Props
     // Register this ID so the realtime handler won't double-add it
     optimisticIds.current.add(data.id)
     const newComment: CommentWithAuthor = {
-      ...data,
+      ...(data as unknown as Omit<CommentWithAuthor, 'author' | 'replies'>),
       author: { id: user.id, display_name: profile?.display_name ?? 'You', avatar_url: profile?.avatar_url ?? null },
       replies: [],
     }

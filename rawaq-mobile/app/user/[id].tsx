@@ -128,7 +128,7 @@ export default function PublicUserProfileScreen() {
       reactionsCount: reactions ?? 0,
     })
 
-    const newReviews = (reviewData ?? []) as Review[]
+    const newReviews = (reviewData ?? []) as unknown as Review[]
     if (append) {
       setReviews((prev) => [...prev, ...newReviews])
     } else {

@@ -76,7 +76,7 @@ export default function OrganizerDashboard() {
     setIsBanned(profileRes.data?.is_banned ?? false)
     setTotalTips((tipRes.data ?? []).reduce((s, t) => s + t.amount, 0))
     setPlanId(orgRes.data?.plan_id ?? 'org_basic')
-    const planData = orgRes.data?.plan as { events_per_month: number | null; platform_fee_pct: number } | null
+    const planData = orgRes.data?.plan as unknown as { events_per_month: number | null; platform_fee_pct: number } | null
     setEventsLimit(planData?.events_per_month ?? 3)
     setEventsUsed(usageRes.data?.events_created ?? 0)
     setLoading(false)
