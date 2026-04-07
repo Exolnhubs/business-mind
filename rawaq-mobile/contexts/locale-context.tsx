@@ -120,8 +120,6 @@ const translations: Record<Locale, Record<string, string>> = {
     'common.error':    'Something went wrong',
     'common.retry':    'Try again',
     'common.save':     'Save',
-    'common.cancel':   'Cancel',
-    'common.back':     'Back',
   },
   ar: {
     'tab.events':    'الفعاليات',
@@ -231,8 +229,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'common.error':    'حدث خطأ',
     'common.retry':    'حاول مجدداً',
     'common.save':     'حفظ',
-    'common.cancel':   'إلغاء',
-    'common.back':     'رجوع',
+
   },
 }
 
