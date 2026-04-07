@@ -203,6 +203,7 @@ export async function POST(req: NextRequest) {
         role: 'owner',
         status: 'active',
         timeout_until: null,
+        status_updated_at: new Date().toISOString(),
       })
 
     if (membershipError) throw membershipError

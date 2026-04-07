@@ -36,7 +36,7 @@ export default function OrganizerProfileScreen() {
     if (!id) return
 
     async function load() {
-      const queries: Promise<unknown>[] = [
+      const queries = [
         supabase.from('profiles').select('id, display_name, avatar_url, city, bio, created_at').eq('id', id).single(),
         supabase.from('organizer_profiles')
           .select('business_name, business_name_ar, description, description_ar, logo_url, website, phone, verified, status, followers_count')
@@ -53,7 +53,7 @@ export default function OrganizerProfileScreen() {
       ]
 
       const [{ data: profile }, { data: orgProfile }, { data: events }] =
-        await Promise.all(queries) as [{ data: OrganizerData['profile'] | null }, { data: (OrganizerData['orgProfile'] & { status: string }) | null }, { data: EventWithOrganizer[] | null }]
+        await Promise.all(queries) as unknown as [{ data: OrganizerData['profile'] | null }, { data: (OrganizerData['orgProfile'] & { status: string }) | null }, { data: EventWithOrganizer[] | null }]
 
       if (!profile || !orgProfile || orgProfile.status !== 'approved') {
         setLoading(false); return
@@ -116,7 +116,12 @@ export default function OrganizerProfileScreen() {
     const next = !data.isBlocking
     setData((d) => d ? { ...d, isBlocking: next } : d)
     if (next) {
-      await supabase.from('user_blocks').upsert({ blocker_id: user.id, blocked_id: id as string }, { onConflict: 'blocker_id,blocked_id' })
+      await supabase.from('user_blocks').upsert({
+        id: `${user.id}:${id as string}`,
+        blocker_id: user.id,
+        blocked_id: id as string,
+        created_at: new Date().toISOString(),
+      }, { onConflict: 'blocker_id,blocked_id' })
     } else {
       await supabase.from('user_blocks').delete().eq('blocker_id', user.id).eq('blocked_id', id as string)
     }

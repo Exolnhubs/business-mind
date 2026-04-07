@@ -700,7 +700,7 @@ export default function CommunityDetailScreen() {
               <View style={styles.reportsPanel}>
                 <View style={styles.sectionHeader}>
                   <Text style={styles.sectionTitle}>Happening Reports</Text>
-                  <TouchableOpacity onPress={loadReports} disabled={reportsLoading}>
+                  <TouchableOpacity onPress={() => { void loadReports() }} disabled={reportsLoading}>
                     <Text style={styles.sectionLink}>Refresh</Text>
                   </TouchableOpacity>
                 </View>
