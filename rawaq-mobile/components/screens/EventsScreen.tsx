@@ -7,9 +7,10 @@ import { Ionicons } from '@expo/vector-icons'
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router'
 import * as Location from 'expo-location'
 import { supabase } from '@/lib/supabase'
-import { apiGet, apiPost } from '@/lib/api'
+import { apiDelete, apiGet, apiPost } from '@/lib/api'
 import { useAuth } from '@/contexts/auth-context'
 import { EventCard, EventCardSkeleton } from '@/components/events/EventCard'
+import { HappeningDiscoveryCard, type HappeningDiscoveryItem } from '@/components/happenings/HappeningDiscoveryCard'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { useLocale } from '@/contexts/locale-context'
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '@/theme'
@@ -25,6 +26,12 @@ type EventsApiListResponse = {
   per_page: number
   has_more: boolean
 }
+type HappeningsDiscoverResponse = {
+  happenings: HappeningDiscoveryItem[]
+}
+type DiscoveryRailItem =
+  | { kind: 'event'; id: string; event: EventWithOrganizer }
+  | { kind: 'happening'; id: string; happening: HappeningDiscoveryItem }
 
 interface Category { id: string; name_en: string; name_ar: string; icon: string | null }
 interface SavedSignalEvent {
@@ -93,12 +100,42 @@ function isAlmostSoldOut(event: Pick<EventWithOrganizer, 'capacity' | 'bookings_
   return spotsLeft <= 10 || spotsLeft / event.capacity <= 0.15
 }
 
-function pickWeekendRailEvents(
-  candidates: EventWithOrganizer[],
-  shownIds: Set<string>,
-) {
-  const preferred = candidates.filter((event) => !shownIds.has(event.id))
-  return (preferred.length > 0 ? preferred : candidates).slice(0, 6)
+function interleaveDiscoveryItems(
+  events: EventWithOrganizer[],
+  happenings: HappeningDiscoveryItem[],
+  maxItems = 8,
+): DiscoveryRailItem[] {
+  const result: DiscoveryRailItem[] = []
+  let eventIndex = 0
+  let happeningIndex = 0
+  let nextKind: 'event' | 'happening' =
+    happenings.length > events.length ? 'happening' : 'event'
+
+  while (result.length < maxItems && (eventIndex < events.length || happeningIndex < happenings.length)) {
+    if (nextKind === 'event' && eventIndex < events.length) {
+      const event = events[eventIndex++]
+      result.push({ kind: 'event', id: `event:${event.id}`, event })
+      nextKind = 'happening'
+      continue
+    }
+
+    if (nextKind === 'happening' && happeningIndex < happenings.length) {
+      const happening = happenings[happeningIndex++]
+      result.push({ kind: 'happening', id: `happening:${happening.id}`, happening })
+      nextKind = 'event'
+      continue
+    }
+
+    if (eventIndex < events.length) {
+      const event = events[eventIndex++]
+      result.push({ kind: 'event', id: `event:${event.id}`, event })
+    } else if (happeningIndex < happenings.length) {
+      const happening = happenings[happeningIndex++]
+      result.push({ kind: 'happening', id: `happening:${happening.id}`, happening })
+    }
+  }
+
+  return result
 }
 
 export default function EventsScreen() {
@@ -113,6 +150,11 @@ export default function EventsScreen() {
   const [almostSoldOutEvents, setAlmostSoldOutEvents] = useState<EventWithOrganizer[]>([])
   const [nearYouWeekendEvents, setNearYouWeekendEvents] = useState<EventWithOrganizer[]>([])
   const [myCommunityEvents, setMyCommunityEvents] = useState<EventWithOrganizer[]>([])
+  const [nearYouWeekendHappenings, setNearYouWeekendHappenings] = useState<HappeningDiscoveryItem[]>([])
+  const [myCommunityHappenings, setMyCommunityHappenings] = useState<HappeningDiscoveryItem[]>([])
+  const [activeHappenings, setActiveHappenings] = useState<HappeningDiscoveryItem[]>([])
+  const [nearbyHappenings, setNearbyHappenings] = useState<HappeningDiscoveryItem[]>([])
+  const [filteredCommunityHappenings, setFilteredCommunityHappenings] = useState<HappeningDiscoveryItem[]>([])
   const [suggestedCommunities, setSuggestedCommunities] = useState<CommunityListItem[]>([])
   const [joiningSlug, setJoiningSlug] = useState<string | null>(null)
   const [weekendCoords, setWeekendCoords] = useState<{ lat: number; lng: number } | null>(null)
@@ -261,6 +303,75 @@ export default function EventsScreen() {
     }
   }
 
+  const fetchDiscoverHappenings = useCallback(async (query: Record<string, string | number | boolean | undefined>) => {
+    const params = new URLSearchParams()
+    Object.entries(query).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== false) {
+        params.set(key, String(value))
+      }
+    })
+    const { data, error } = await apiGet<HappeningsDiscoverResponse>(`/api/happenings/discover?${params.toString()}`)
+    return error ? [] : (data?.happenings ?? [])
+  }, [])
+
+  const patchHappeningAcrossRails = useCallback((
+    happeningId: string,
+    updater: (happening: HappeningDiscoveryItem) => HappeningDiscoveryItem,
+  ) => {
+    const applyPatch = (items: HappeningDiscoveryItem[]) =>
+      items.map((item) => (item.id === happeningId ? updater(item) : item))
+
+    setNearYouWeekendHappenings(applyPatch)
+    setMyCommunityHappenings(applyPatch)
+    setActiveHappenings(applyPatch)
+    setNearbyHappenings(applyPatch)
+    setFilteredCommunityHappenings(applyPatch)
+  }, [])
+
+  async function toggleDiscoveryHappeningRsvp(happening: HappeningDiscoveryItem) {
+    if (!user) {
+      router.push('/auth/login' as any)
+      return
+    }
+
+    const { data, error } = happening.user_has_rsvp
+      ? await apiDelete<{ rsvp: boolean; rsvp_count: number }>(`/api/happenings/${happening.id}/rsvp`)
+      : await apiPost<{ rsvp: boolean; rsvp_count: number }>(`/api/happenings/${happening.id}/rsvp`, {})
+
+    if (error || !data) {
+      Alert.alert('Happenings unavailable', error ?? 'Could not update RSVP.')
+      return
+    }
+
+    patchHappeningAcrossRails(happening.id, (item) => ({
+      ...item,
+      user_has_rsvp: data.rsvp,
+      rsvp_count: data.rsvp_count,
+    }))
+  }
+
+  async function toggleDiscoveryHappeningReact(happening: HappeningDiscoveryItem) {
+    if (!user) {
+      router.push('/auth/login' as any)
+      return
+    }
+
+    const { data, error } = happening.user_has_reacted
+      ? await apiDelete<{ reacted: boolean; reaction_count: number }>(`/api/happenings/${happening.id}/react`)
+      : await apiPost<{ reacted: boolean; reaction_count: number }>(`/api/happenings/${happening.id}/react`, {})
+
+    if (error || !data) {
+      Alert.alert('Happenings unavailable', error ?? 'Could not update reaction.')
+      return
+    }
+
+    patchHappeningAcrossRails(happening.id, (item) => ({
+      ...item,
+      user_has_reacted: data.reacted,
+      reaction_count: data.reaction_count,
+    }))
+  }
+
   const fetchEvents = useCallback(async () => {
     const geoActive = nearMe ? geoCoords : null
     setLoading(true)
@@ -301,6 +412,12 @@ export default function EventsScreen() {
       setAlmostSoldOutEvents([])
       setSavedInspiredEvents([])
       setNearYouWeekendEvents([])
+      setNearYouWeekendHappenings([])
+      setMyCommunityEvents([])
+      setMyCommunityHappenings([])
+      setActiveHappenings([])
+      setNearbyHappenings([])
+      setFilteredCommunityHappenings([])
       setLoading(false)
       setRefreshing(false)
       Alert.alert('Events unavailable', eventsError)
@@ -324,17 +441,46 @@ export default function EventsScreen() {
       setSavedIds(new Set())
     }
 
+    const [nearbyHappeningResults, communityHappeningResults] = await Promise.all([
+      geoActive
+        ? fetchDiscoverHappenings({
+            lat: geoActive.lat,
+            lng: geoActive.lng,
+            radius_km: radiusKm,
+            limit: 8,
+          })
+        : Promise.resolve([]),
+      communitySlug
+        ? fetchDiscoverHappenings({
+            community: communitySlug,
+            limit: 8,
+          })
+        : Promise.resolve([]),
+    ])
+
+    setNearbyHappenings(nearbyHappeningResults)
+    setFilteredCommunityHappenings(communityHappeningResults)
+
     if (!showRecommendationRails) {
       setAlmostSoldOutEvents([])
       setSavedInspiredEvents([])
       setNearYouWeekendEvents([])
+      setNearYouWeekendHappenings([])
       setMyCommunityEvents([])
+      setMyCommunityHappenings([])
+      setActiveHappenings([])
       setLoading(false)
       setRefreshing(false)
       return
     }
 
-    const [urgencyRes, savedSignalsRes] = await Promise.all([
+    const [
+      urgencyRes,
+      savedSignalsRes,
+      weekendHappeningResults,
+      myCommunityHappeningResults,
+      activeHappeningResults,
+    ] = await Promise.all([
       supabase
         .from('events')
         .select(eventSelect)
@@ -355,6 +501,21 @@ export default function EventsScreen() {
           .order('created_at', { ascending: false })
           .limit(12)
         : Promise.resolve({ data: null, error: null }),
+      weekendCoords
+        ? fetchDiscoverHappenings({
+            lat: weekendCoords.lat,
+            lng: weekendCoords.lng,
+            radius_km: weekendRadiusKm,
+            limit: 6,
+          })
+        : Promise.resolve([]),
+      joinedCommunities.length > 0
+        ? fetchDiscoverHappenings({
+            joined_only: true,
+            limit: 8,
+          })
+        : Promise.resolve([]),
+      fetchDiscoverHappenings({ limit: 8 }),
     ])
 
     const rawUrgencyList = ((urgencyRes.data ?? []) as unknown as EventWithOrganizer[])
@@ -445,6 +606,7 @@ export default function EventsScreen() {
     const weekendRailEvents = weekendCandidates.slice(0, 6)
     const weekendIds = new Set(weekendRailEvents.map((event) => event.id))
     setNearYouWeekendEvents(weekendRailEvents)
+    setNearYouWeekendHappenings(weekendHappeningResults)
 
     // ── My Community Events ───────────────────────────────────────────────────
     if (joinedCommunities.length > 0) {
@@ -472,6 +634,8 @@ export default function EventsScreen() {
     } else {
       setMyCommunityEvents([])
     }
+    setMyCommunityHappenings(myCommunityHappeningResults)
+    setActiveHappenings(activeHappeningResults)
 
     const filteredUrgencyEvents = rawUrgencyList
       .filter((event) => !weekendIds.has(event.id))
@@ -513,6 +677,13 @@ export default function EventsScreen() {
     }
     setJoiningSlug(null)
   }
+
+  const communityDiscoveryItems = interleaveDiscoveryItems(myCommunityEvents, myCommunityHappenings, 8)
+  const weekendDiscoveryItems = interleaveDiscoveryItems(nearYouWeekendEvents, nearYouWeekendHappenings, 8)
+  const filteredCommunityItems = interleaveDiscoveryItems([], filteredCommunityHappenings, 8)
+  const activeNowItems = interleaveDiscoveryItems([], activeHappenings, 8)
+  const nearbyHappeningItems = interleaveDiscoveryItems([], nearbyHappenings, 8)
+  const showDiscoveryHeader = showRecommendationRails || nearMe || !!communitySlug
 
   return (
     <View style={styles.container}>
@@ -687,11 +858,43 @@ export default function EventsScreen() {
           data={events}
           keyExtractor={(e) => e.id}
           ListHeaderComponent={
-            showRecommendationRails
+            showDiscoveryHeader
               ? (
                 <View>
+                  {communitySlug && (
+                    <MixedDiscoveryRail
+                      title="Happenings In This Community"
+                      subtitle="Live and upcoming community activity that complements the events list below."
+                      items={filteredCommunityItems}
+                      savedIds={savedIds}
+                      onSaveChange={handleSaveChange}
+                      onToggleHappeningRsvp={toggleDiscoveryHappeningRsvp}
+                      onToggleHappeningReact={toggleDiscoveryHappeningReact}
+                      accent="community"
+                      forceShow
+                      emptyTitle="No happenings in this community yet"
+                      emptyDescription="The event list is still filtered to this community. Check back soon for more spontaneous activity."
+                    />
+                  )}
+
+                  {nearMe && (
+                    <MixedDiscoveryRail
+                      title="Happenings Near You"
+                      subtitle={`Within ${radiusKm} km of your location`}
+                      items={nearbyHappeningItems}
+                      savedIds={savedIds}
+                      onSaveChange={handleSaveChange}
+                      onToggleHappeningRsvp={toggleDiscoveryHappeningRsvp}
+                      onToggleHappeningReact={toggleDiscoveryHappeningReact}
+                      accent="active"
+                      forceShow
+                      emptyTitle="No nearby happenings right now"
+                      emptyDescription="We still filtered the events feed around you. Try widening the radius to discover more live community activity."
+                    />
+                  )}
+
                   {/* Discover communities nudge — shown when user has < 3 communities */}
-                  {user && joinedCommunities.length < 3 && suggestedCommunities.length > 0 && (
+                  {showRecommendationRails && user && joinedCommunities.length < 3 && suggestedCommunities.length > 0 && (
                     <View style={styles.discoverSection}>
                       <View style={styles.discoverHeader}>
                         <Text style={styles.discoverTitle}>🏘 Discover Your Communities</Text>
@@ -725,73 +928,95 @@ export default function EventsScreen() {
                     </View>
                   )}
 
-                  {/* My Community Events — events tagged to joined communities */}
-                  {myCommunityEvents.length > 0 && (
-                    <RecommendationRail
+                  {showRecommendationRails && (
+                    <MixedDiscoveryRail
                       title="In Your Communities"
-                      subtitle="Events from communities you've joined"
-                      events={myCommunityEvents}
+                      subtitle="Events and happenings from the communities you've joined."
+                      items={communityDiscoveryItems}
                       savedIds={savedIds}
                       onSaveChange={handleSaveChange}
+                      onToggleHappeningRsvp={toggleDiscoveryHappeningRsvp}
+                      onToggleHappeningReact={toggleDiscoveryHappeningReact}
                       accent="community"
                     />
                   )}
 
                   {/* Active Now — communities with live happenings */}
-                  {activeCommunities.length > 0 && (
-                    <View style={styles.activeNowSection}>
-                      <View style={styles.activeNowHeader}>
-                        <View style={styles.activeNowDot} />
-                        <Text style={styles.activeNowTitle}>Active Now</Text>
-                        <Text style={styles.activeNowSub}>Communities with live happenings</Text>
-                      </View>
-                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: Spacing.lg, gap: Spacing.md }}>
-                        {activeCommunities.map((c) => {
-                          const name = locale === 'ar' && c.name_ar ? c.name_ar : c.name
-                          return (
-                            <TouchableOpacity
-                              key={c.id}
-                              onPress={() => router.push(`/communities/${c.slug}` as any)}
-                              style={styles.activeNowCard}
-                              activeOpacity={0.85}
-                            >
-                              <View style={styles.activeNowPulse}>
-                                <View style={[styles.activeNowAvatar, c.is_member && styles.activeNowAvatarMember]}>
-                                  <Text style={styles.activeNowAvatarText}>{name.slice(0, 1).toUpperCase()}</Text>
-                                </View>
-                              </View>
-                              <Text style={styles.activeNowName} numberOfLines={1}>{name}</Text>
-                              <Text style={styles.activeNowCount}>{c.happening_count} happening{c.happening_count !== 1 ? 's' : ''}</Text>
-                            </TouchableOpacity>
-                          )
-                        })}
-                      </ScrollView>
-                    </View>
+                  {showRecommendationRails && (activeCommunities.length > 0 || activeNowItems.length > 0) && (
+                    <>
+                      {activeCommunities.length > 0 && (
+                        <View style={styles.activeNowSection}>
+                          <View style={styles.activeNowHeader}>
+                            <View style={styles.activeNowDot} />
+                            <Text style={styles.activeNowTitle}>Active Now</Text>
+                            <Text style={styles.activeNowSub}>Communities with live happenings</Text>
+                          </View>
+                          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: Spacing.lg, gap: Spacing.md }}>
+                            {activeCommunities.map((c) => {
+                              const name = locale === 'ar' && c.name_ar ? c.name_ar : c.name
+                              return (
+                                <TouchableOpacity
+                                  key={c.id}
+                                  onPress={() => router.push(`/communities/${c.slug}` as any)}
+                                  style={styles.activeNowCard}
+                                  activeOpacity={0.85}
+                                >
+                                  <View style={styles.activeNowPulse}>
+                                    <View style={[styles.activeNowAvatar, c.is_member && styles.activeNowAvatarMember]}>
+                                      <Text style={styles.activeNowAvatarText}>{name.slice(0, 1).toUpperCase()}</Text>
+                                    </View>
+                                  </View>
+                                  <Text style={styles.activeNowName} numberOfLines={1}>{name}</Text>
+                                  <Text style={styles.activeNowCount}>{c.happening_count} happening{c.happening_count !== 1 ? 's' : ''}</Text>
+                                </TouchableOpacity>
+                              )
+                            })}
+                          </ScrollView>
+                        </View>
+                      )}
+
+                      {activeNowItems.length > 0 && (
+                        <MixedDiscoveryRail
+                          title="Happening Now"
+                          subtitle="Live community activity you can jump into right away."
+                          items={activeNowItems}
+                          savedIds={savedIds}
+                          onSaveChange={handleSaveChange}
+                          onToggleHappeningRsvp={toggleDiscoveryHappeningRsvp}
+                          onToggleHappeningReact={toggleDiscoveryHappeningReact}
+                          accent="active"
+                        />
+                      )}
+                    </>
                   )}
 
-                  <RecommendationRail
-                    title="Near You This Weekend"
-                    subtitle={
-                      weekendCoords
-                        ? `Within ${weekendRadiusKm} km · ${getWeekendLabel()}`
-                        : `Use your location · ${getWeekendLabel()}`
-                    }
-                    events={nearYouWeekendEvents}
-                    savedIds={savedIds}
-                    onSaveChange={handleSaveChange}
-                    accent="weekend"
-                    radiusKm={weekendCoords ? weekendRadiusKm : undefined}
-                    onRadiusChange={weekendCoords ? setWeekendRadiusKm : undefined}
-                    emptyTitle={weekendCoords ? 'No weekend events nearby yet' : 'Turn on location'}
-                    emptyDescription={
-                      weekendCoords
-                        ? 'Try widening the radius to discover more events around you this weekend.'
-                        : 'Allow location access to see events happening near you this weekend.'
-                    }
-                    emptyActionLabel={weekendCoords ? undefined : 'Enable location'}
-                    onEmptyAction={weekendCoords ? undefined : requestWeekendLocation}
-                    forceShow
-                  />
+                  {showRecommendationRails && (
+                    <MixedDiscoveryRail
+                      title="Near You This Weekend"
+                      subtitle={
+                        weekendCoords
+                          ? `Within ${weekendRadiusKm} km · ${getWeekendLabel()}`
+                          : `Use your location · ${getWeekendLabel()}`
+                      }
+                      items={weekendDiscoveryItems}
+                      savedIds={savedIds}
+                      onSaveChange={handleSaveChange}
+                      onToggleHappeningRsvp={toggleDiscoveryHappeningRsvp}
+                      onToggleHappeningReact={toggleDiscoveryHappeningReact}
+                      accent="weekend"
+                      radiusKm={weekendCoords ? weekendRadiusKm : undefined}
+                      onRadiusChange={weekendCoords ? setWeekendRadiusKm : undefined}
+                      emptyTitle={weekendCoords ? 'No weekend activity nearby yet' : 'Turn on location'}
+                      emptyDescription={
+                        weekendCoords
+                          ? 'Try widening the radius to discover more events and happenings around you this weekend.'
+                          : 'Allow location access to see events and happenings near you this weekend.'
+                      }
+                      emptyActionLabel={weekendCoords ? undefined : 'Enable location'}
+                      onEmptyAction={weekendCoords ? undefined : requestWeekendLocation}
+                      forceShow
+                    />
+                  )}
                   {savedInspiredEvents.length > 0 && (
                     <RecommendationRail
                       title="Because You Saved..."
@@ -937,6 +1162,105 @@ function RecommendationRail({
   )
 }
 
+function MixedDiscoveryRail({
+  title,
+  subtitle,
+  items,
+  savedIds,
+  onSaveChange,
+  onToggleHappeningRsvp,
+  onToggleHappeningReact,
+  accent,
+  radiusKm,
+  onRadiusChange,
+  emptyTitle,
+  emptyDescription,
+  emptyActionLabel,
+  onEmptyAction,
+  forceShow = false,
+}: {
+  title: string
+  subtitle: string
+  items: DiscoveryRailItem[]
+  savedIds: Set<string>
+  onSaveChange: (id: string, saved: boolean) => void
+  onToggleHappeningRsvp: (happening: HappeningDiscoveryItem) => void
+  onToggleHappeningReact: (happening: HappeningDiscoveryItem) => void
+  accent?: 'weekend' | 'community' | 'active'
+  radiusKm?: number
+  onRadiusChange?: (km: number) => void
+  emptyTitle?: string
+  emptyDescription?: string
+  emptyActionLabel?: string
+  onEmptyAction?: () => void
+  forceShow?: boolean
+}) {
+  if (!forceShow && items.length === 0) return null
+
+  return (
+    <View style={[styles.railSection, accent === 'weekend' && styles.railSectionWeekend, accent === 'community' && styles.railSectionCommunity, accent === 'active' && styles.railSectionActive]}>
+      <View style={styles.railHeader}>
+        <Text style={styles.railTitle}>{title}</Text>
+        <View style={styles.railSubtitleRow}>
+          <Text style={styles.railSubtitle}>{subtitle}</Text>
+          {radiusKm !== undefined && onRadiusChange && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.radiusInlineScroll}>
+              {WEEKEND_RADIUS_OPTIONS.map((km) => (
+                <TouchableOpacity
+                  key={km}
+                  style={[styles.radiusInlineChip, radiusKm === km && styles.radiusInlineChipActive]}
+                  onPress={() => onRadiusChange(km)}
+                >
+                  <Text style={[styles.radiusInlineChipText, radiusKm === km && styles.radiusInlineChipTextActive]}>
+                    {km} km
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
+        </View>
+      </View>
+      <ScrollView
+        horizontal={items.length > 0}
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={[styles.railScroller, items.length === 0 && styles.railScrollerEmpty]}
+      >
+        {items.length > 0 ? (
+          items.map((item) => (
+            item.kind === 'event' ? (
+              <EventCard
+                key={item.id}
+                event={item.event}
+                isSaved={savedIds.has(item.event.id)}
+                onSaveChange={onSaveChange}
+                variant="rail"
+              />
+            ) : (
+              <HappeningDiscoveryCard
+                key={item.id}
+                happening={item.happening}
+                variant="rail"
+                onToggleRsvp={onToggleHappeningRsvp}
+                onToggleReact={onToggleHappeningReact}
+              />
+            )
+          ))
+        ) : (
+          <View style={styles.railEmptyCard}>
+            <Text style={styles.railEmptyTitle}>{emptyTitle ?? 'Nothing here yet'}</Text>
+            {emptyDescription ? <Text style={styles.railEmptyDescription}>{emptyDescription}</Text> : null}
+            {emptyActionLabel && onEmptyAction ? (
+              <TouchableOpacity style={styles.railEmptyButton} onPress={onEmptyAction}>
+                <Text style={styles.railEmptyButtonText}>{emptyActionLabel}</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        )}
+      </ScrollView>
+    </View>
+  )
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.gray[50] },
   searchRow: { backgroundColor: Colors.white, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.gray[100] },
@@ -967,6 +1291,9 @@ const styles = StyleSheet.create({
   },
   railSectionWeekend: {
     backgroundColor: '#f0fdf4',
+  },
+  railSectionActive: {
+    backgroundColor: '#f0fdfa',
   },
   railHeader: {
     paddingHorizontal: Spacing.lg,
