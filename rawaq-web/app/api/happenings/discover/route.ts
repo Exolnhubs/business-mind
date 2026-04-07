@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { optionalAuth } from '@/lib/auth'
 import { handleApiError, ok } from '@/lib/errors'
+import type { Community, HappeningWithAuthor, Profile } from '@/types/database'
 
 const DiscoverHappeningsSchema = z.object({
   limit: z.coerce.number().int().min(1).max(30).default(12),
@@ -26,6 +27,16 @@ function haversineKm(aLat: number, aLng: number, bLat: number, bLng: number) {
     Math.sin(dLng / 2) ** 2 * Math.cos(lat1) * Math.cos(lat2)
 
   return earthKm * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x))
+}
+
+type DiscoverCommunity = Pick<Community, 'id' | 'name' | 'name_ar' | 'slug' | 'level' | 'type' | 'cover_url' | 'is_private'> & {
+  is_member: boolean
+}
+
+type DiscoverHappening = HappeningWithAuthor & {
+  community: DiscoverCommunity
+  distance_km: number | null
+  author: Pick<Profile, 'id' | 'display_name' | 'avatar_url'>
 }
 
 export async function GET(req: NextRequest) {
@@ -105,7 +116,7 @@ export async function GET(req: NextRequest) {
     const { data: rawHappenings, error } = await query
     if (error) throw error
 
-    const visibleHappenings = ((rawHappenings ?? []) as Array<Record<string, any>>)
+    const visibleHappenings: DiscoverHappening[] = ((rawHappenings ?? []) as Array<Record<string, any>>)
       .filter((happening) => {
         const community = happening.community as { id: string; type: string } | null
         if (!community) return false
@@ -122,13 +133,14 @@ export async function GET(req: NextRequest) {
             : null
 
         return {
-          ...happening,
+          ...(happening as HappeningWithAuthor),
+          author: happening.author as Pick<Profile, 'id' | 'display_name' | 'avatar_url'>,
           community: {
-            ...(happening.community as Record<string, unknown>),
+            ...(happening.community as Pick<Community, 'id' | 'name' | 'name_ar' | 'slug' | 'level' | 'type' | 'cover_url' | 'is_private'>),
             is_member: readableCommunityIds.has((happening.community as { id: string }).id),
           },
           distance_km: distanceKm !== null ? Math.round(distanceKm * 10) / 10 : null,
-        }
+        } satisfies DiscoverHappening
       })
       .filter((happening) =>
         !hasGeoFilter ||
