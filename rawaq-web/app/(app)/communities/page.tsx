@@ -132,6 +132,7 @@ function CommunityCard({ community, onToggleMembership }: {
 
 export default function CommunitiesPage() {
   const { user } = useAuth()
+  const router = useRouter()
   const [communities, setCommunities] = useState<CommunityWithMembership[]>([])
   const [loading, setLoading]         = useState(true)
   const [level, setLevel]             = useState<CommunityLevel | 'all'>('all')
@@ -259,6 +260,18 @@ export default function CommunitiesPage() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {user && (
+        <div className="mb-6 flex justify-end">
+          <button
+            onClick={() => router.push('/communities/new')}
+            className="inline-flex items-center gap-2 rounded-full bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-700"
+          >
+            <span>+</span>
+            Create Community
+          </button>
         </div>
       )}
 

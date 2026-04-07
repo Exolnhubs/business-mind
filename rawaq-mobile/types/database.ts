@@ -37,6 +37,7 @@ export type AuditAction =
 export type WarningSeverity = 'low' | 'medium' | 'high'
 export type CommunitySanctionType = 'timeout' | 'removed' | 'banned'
 export type CommunityAuditAction =
+  | 'community_created'
   | 'assign_community_admin'
   | 'revoke_community_admin'
   | 'resolve_happening_report'

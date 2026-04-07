@@ -99,6 +99,7 @@ export async function writeCommunityAuditLog(input: {
   community_id: string
   actor_user_id: string
   action:
+    | 'community_created'
     | 'assign_community_admin'
     | 'revoke_community_admin'
     | 'resolve_happening_report'

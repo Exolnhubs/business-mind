@@ -2,6 +2,16 @@ import { supabase } from './supabase'
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000'
 
+async function parseJsonSafe(res: Response) {
+  const text = await res.text().catch(() => '')
+  if (!text) return {}
+  try {
+    return JSON.parse(text) as Record<string, unknown>
+  } catch {
+    return {}
+  }
+}
+
 /**
  * Authenticated GET from the web API.
  */
@@ -36,9 +46,9 @@ export async function apiPost<T = unknown>(
     },
     body: JSON.stringify(body),
   })
-  const json = await res.json()
-  if (!res.ok) return { data: null, error: json.error ?? `Request failed (${res.status})` }
-  return { data: json.data as T, error: null }
+  const json = await parseJsonSafe(res)
+  if (!res.ok) return { data: null, error: (json.error as string | undefined) ?? `Request failed (${res.status})` }
+  return { data: (json.data as T | undefined) ?? null, error: null }
 }
 
 /**
@@ -57,9 +67,9 @@ export async function apiPatch<T = unknown>(
     },
     body: JSON.stringify(body),
   })
-  const json = await res.json()
-  if (!res.ok) return { data: null, error: json.error ?? `Request failed (${res.status})` }
-  return { data: json.data as T, error: null }
+  const json = await parseJsonSafe(res)
+  if (!res.ok) return { data: null, error: (json.error as string | undefined) ?? `Request failed (${res.status})` }
+  return { data: (json.data as T | undefined) ?? null, error: null }
 }
 
 /**

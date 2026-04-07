@@ -180,13 +180,21 @@ export default function CommunitiesScreen() {
           <Text style={styles.headerTitle}>Find your people</Text>
         </View>
         {user && (
-          <TouchableOpacity
-            onPress={() => setJoinedOnly((v) => !v)}
-            style={[styles.myBtn, joinedOnly && styles.myBtnActive]}
-          >
-            <Ionicons name={joinedOnly ? 'people' : 'people-outline'} size={16} color={joinedOnly ? '#fff' : Colors.brand[600]} />
-            <Text style={[styles.myBtnText, joinedOnly && styles.myBtnTextActive]}>Mine</Text>
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              onPress={() => router.push('/communities/create' as any)}
+              style={styles.addBtn}
+            >
+              <Ionicons name="add" size={18} color="#fff" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setJoinedOnly((v) => !v)}
+              style={[styles.myBtn, joinedOnly && styles.myBtnActive]}
+            >
+              <Ionicons name={joinedOnly ? 'people' : 'people-outline'} size={16} color={joinedOnly ? '#fff' : Colors.brand[600]} />
+              <Text style={[styles.myBtnText, joinedOnly && styles.myBtnTextActive]}>Mine</Text>
+            </TouchableOpacity>
+          </View>
         )}
       </View>
 
@@ -279,6 +287,16 @@ const styles = StyleSheet.create({
   myBtnActive:   { backgroundColor: Colors.brand[600], borderColor: Colors.brand[600] },
   myBtnText:     { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.brand[600] },
   myBtnTextActive: { color: '#fff' },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  addBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.brand[600],
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadow.card,
+  },
 
   searchWrap:  { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: '#fff', marginHorizontal: Spacing.lg, marginTop: Spacing.md, marginBottom: Spacing.xs, borderRadius: Radius.xl, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2, borderWidth: 1, borderColor: Colors.gray[200], ...Shadow.card },
   searchInput: { flex: 1, fontSize: FontSize.sm, color: Colors.gray[900] },
