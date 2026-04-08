@@ -9,11 +9,66 @@ import { useAuth } from '@/contexts/auth-context'
 import { EventCard } from '@/components/events/EventCard'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Colors, Spacing, FontSize, FontWeight } from '@/theme'
-import type { EventWithOrganizer } from '@/types/database'
+import type { Event, EventCategory, EventWithOrganizer, OrganizerProfile, Profile } from '@/types/database'
 
 const PAGE_SIZE = 10
 
 interface Props { onExplore?: () => void }
+
+type FeedOrganizer = Pick<Profile, 'id' | 'display_name' | 'avatar_url'> & {
+  organizer_profile: Pick<OrganizerProfile, 'business_name' | 'business_name_ar' | 'logo_url' | 'verified'> | null
+}
+
+async function hydrateEvents(rows: Event[]): Promise<EventWithOrganizer[]> {
+  const organizerIds = [...new Set(rows.map((row) => row.organizer_id))]
+  const categoryIds = [...new Set(rows.map((row) => row.category_id).filter((id): id is string => Boolean(id)))]
+
+  const [{ data: organizers }, { data: organizerProfiles }, { data: categories }] = await Promise.all([
+    organizerIds.length
+      ? supabase.from('profiles').select('id, display_name, avatar_url').in('id', organizerIds)
+      : Promise.resolve({ data: [] as Pick<Profile, 'id' | 'display_name' | 'avatar_url'>[] }),
+    organizerIds.length
+      ? supabase.from('organizer_profiles').select('user_id, business_name, business_name_ar, logo_url, verified').in('user_id', organizerIds)
+      : Promise.resolve({ data: [] as Array<Pick<OrganizerProfile, 'user_id' | 'business_name' | 'business_name_ar' | 'logo_url' | 'verified'>> }),
+    categoryIds.length
+      ? supabase.from('event_categories').select('id, name_en, name_ar, icon').in('id', categoryIds)
+      : Promise.resolve({ data: [] as Pick<EventCategory, 'id' | 'name_en' | 'name_ar' | 'icon'>[] }),
+  ])
+
+  const organizerProfileByUserId = new Map(
+    (organizerProfiles ?? []).map((entry) => [entry.user_id, entry]),
+  )
+  const organizerById = new Map<string, FeedOrganizer>(
+    (organizers ?? []).map((organizer) => [
+      organizer.id,
+      {
+        ...organizer,
+        organizer_profile: organizerProfileByUserId.get(organizer.id)
+          ? {
+            business_name: organizerProfileByUserId.get(organizer.id)!.business_name,
+            business_name_ar: organizerProfileByUserId.get(organizer.id)!.business_name_ar,
+            logo_url: organizerProfileByUserId.get(organizer.id)!.logo_url,
+            verified: organizerProfileByUserId.get(organizer.id)!.verified,
+          }
+          : null,
+      },
+    ]),
+  )
+  const categoryById = new Map(
+    (categories ?? []).map((category) => [category.id, category]),
+  )
+
+  return rows.map((row) => ({
+    ...row,
+    organizer: organizerById.get(row.organizer_id) ?? {
+      id: row.organizer_id,
+      display_name: '',
+      avatar_url: null,
+      organizer_profile: null,
+    },
+    category: row.category_id ? categoryById.get(row.category_id) ?? null : null,
+  }))
+}
 
 export default function FeedScreen({ onExplore }: Props = {}) {
   const { user } = useAuth()
@@ -29,7 +84,12 @@ export default function FeedScreen({ onExplore }: Props = {}) {
   const [hasMore,     setHasMore]     = useState(true)
 
   const load = useCallback(async (reset = false) => {
-    if (!user) return
+    if (!user) {
+      setLoading(false)
+      setRefreshing(false)
+      setLoadingMore(false)
+      return
+    }
     const currentPage = reset ? 1 : page
 
     const { data: follows } = await supabase
@@ -52,14 +112,7 @@ export default function FeedScreen({ onExplore }: Props = {}) {
 
     const { data, count } = await supabase
       .from('events')
-      .select(`
-        *,
-        organizer:profiles!organizer_id(
-          id, display_name, avatar_url,
-          organizer_profile:organizer_profiles!user_id(business_name, business_name_ar, logo_url, verified)
-        ),
-        category:event_categories(id, name_en, name_ar, icon)
-      `, { count: 'exact' })
+      .select('*', { count: 'exact' })
       .in('organizer_id', orgIds)
       .eq('is_published', true)
       .eq('is_cancelled', false)
@@ -67,7 +120,7 @@ export default function FeedScreen({ onExplore }: Props = {}) {
       .order('start_at', { ascending: true })
       .range(from, to)
 
-    const newEvents = (data ?? []) as EventWithOrganizer[]
+    const newEvents = await hydrateEvents((data ?? []) as Event[])
 
     if (newEvents.length > 0) {
       const { data: saves } = await supabase

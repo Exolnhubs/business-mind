@@ -26,11 +26,14 @@ import { useLocale } from '@/contexts/locale-context'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
 import { apiGet, apiPost } from '@/lib/api'
 import * as Location from 'expo-location'
+import type { DeviceToken, Profile } from '@/types/database'
 
 if (Notifications) {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
       shouldShowAlert: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
       shouldPlaySound: true,
       shouldSetBadge: true,
     }),
@@ -82,9 +85,9 @@ export default function ProfileScreen() {
   useEffect(() => {
     if (!profile) return
     setDisplayName(profile.display_name ?? '')
-    setBio((profile as Record<string, unknown>).bio as string ?? '')
-    setGender((profile.gender as 'male' | 'female' | '') ?? '')
-    setPhone((profile as Record<string, unknown>).phone as string ?? '')
+    setBio(profile.bio ?? '')
+    setGender(profile.gender === 'male' || profile.gender === 'female' ? profile.gender : '')
+    setPhone(profile.phone ?? '')
   }, [profile])
 
   useEffect(() => {
@@ -136,8 +139,8 @@ export default function ProfileScreen() {
     setSaving(true)
     setSaveMsg(null)
 
-    const body: Record<string, unknown> = {
-      display_name: displayName || null,
+    const body: Partial<Pick<Profile, 'display_name' | 'bio' | 'phone' | 'gender'>> = {
+      display_name: displayName.trim(),
       bio: bio || null,
       phone: phone || null,
     }
@@ -181,8 +184,14 @@ export default function ProfileScreen() {
     setPushLoading(true)
 
     if (enabled) {
+      const notifications = Notifications
       if (IS_ANDROID_EXPO_GO) {
         Alert.alert('Not supported', 'Push notifications on Android require a development build, not Expo Go.')
+        setPushLoading(false)
+        return
+      }
+      if (!notifications) {
+        Alert.alert('Push notifications unavailable', 'Notifications are not available in this environment.')
         setPushLoading(false)
         return
       }
@@ -193,10 +202,10 @@ export default function ProfileScreen() {
         return
       }
 
-      const { status: existingStatus } = await Notifications.getPermissionsAsync()
+      const { status: existingStatus } = await notifications.getPermissionsAsync()
       let finalStatus = existingStatus
       if (existingStatus !== 'granted') {
-        const { status } = await Notifications.requestPermissionsAsync()
+        const { status } = await notifications.requestPermissionsAsync()
         finalStatus = status
       }
       if (finalStatus !== 'granted') {
@@ -209,21 +218,23 @@ export default function ProfileScreen() {
         Constants.expoConfig?.extra?.eas?.projectId ??
         (Constants as Record<string, Record<string, Record<string, string>>>).easConfig?.projectId
 
-      let token: Awaited<ReturnType<typeof Notifications.getExpoPushTokenAsync>>
+      let token: Awaited<ReturnType<typeof notifications.getExpoPushTokenAsync>>
       try {
-        token = await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : {})
+        token = await notifications.getExpoPushTokenAsync(projectId ? { projectId } : {})
       } catch {
         Alert.alert('Push notifications unavailable', 'Could not register this device.')
         setPushLoading(false)
         return
       }
 
-      await supabase.from('device_tokens').upsert({
+      const deviceTokenPayload: Pick<DeviceToken, 'user_id' | 'token' | 'platform' | 'is_active'> = {
         user_id: user.id,
         token: token.data,
         platform: Platform.OS as 'ios' | 'android',
         is_active: true,
-      }, { onConflict: 'user_id,token' })
+      }
+
+      await supabase.from('device_tokens').upsert(deviceTokenPayload, { onConflict: 'user_id,token' })
 
       setPushEnabled(true)
     } else {
@@ -251,15 +262,17 @@ export default function ProfileScreen() {
       const [geo] = await Location.reverseGeocodeAsync({ latitude: pos.coords.latitude, longitude: pos.coords.longitude })
       const city = geo?.city ?? geo?.subregion ?? geo?.region ?? null
 
+      const locationUpdate: Partial<Pick<Profile, 'city' | 'lat' | 'lng' | 'signup_lat' | 'signup_lng'>> = {
+        city,
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+        signup_lat: pos.coords.latitude,
+        signup_lng: pos.coords.longitude,
+      }
+
       const { error } = await supabase
         .from('profiles')
-        .update({
-          city,
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-          signup_lat: pos.coords.latitude,
-          signup_lng: pos.coords.longitude,
-        })
+        .update(locationUpdate)
         .eq('id', user.id)
 
       if (error) {
@@ -567,7 +580,7 @@ export default function ProfileScreen() {
                     org_basic: 'Basic',
                     org_pro: 'Pro',
                     org_elite: 'Elite',
-                  }[(profile as Record<string, unknown>)?.plan_id as string] ?? 'Free'}
+                  }[profile?.plan_id ?? ''] ?? 'Free'}
                 </Text>
               </View>
             </View>

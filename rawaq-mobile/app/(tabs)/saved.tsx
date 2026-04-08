@@ -5,7 +5,65 @@ import { useAuth } from '@/contexts/auth-context'
 import { EventCard, EventCardSkeleton } from '@/components/events/EventCard'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Colors, Spacing } from '@/theme'
-import type { EventWithOrganizer } from '@/types/database'
+import type { Event, EventCategory, EventWithOrganizer, OrganizerProfile, Profile } from '@/types/database'
+
+type SavedOrganizer = Pick<Profile, 'id' | 'display_name' | 'avatar_url'> & {
+  organizer_profile: Pick<OrganizerProfile, 'business_name' | 'business_name_ar' | 'logo_url' | 'verified'> | null
+}
+
+async function hydrateEvents(rows: Event[]): Promise<EventWithOrganizer[]> {
+  const organizerIds = [...new Set(rows.map((row) => row.organizer_id))]
+  const categoryIds = [...new Set(rows.map((row) => row.category_id).filter((id): id is string => Boolean(id)))]
+
+  const [{ data: organizers }, { data: organizerProfiles }, { data: categories }] = await Promise.all([
+    organizerIds.length
+      ? supabase.from('profiles').select('id, display_name, avatar_url').in('id', organizerIds)
+      : Promise.resolve({ data: [] as Pick<Profile, 'id' | 'display_name' | 'avatar_url'>[] }),
+    organizerIds.length
+      ? supabase.from('organizer_profiles').select('user_id, business_name, business_name_ar, logo_url, verified').in('user_id', organizerIds)
+      : Promise.resolve({ data: [] as Array<Pick<OrganizerProfile, 'user_id' | 'business_name' | 'business_name_ar' | 'logo_url' | 'verified'>> }),
+    categoryIds.length
+      ? supabase.from('event_categories').select('id, name_en, name_ar, icon').in('id', categoryIds)
+      : Promise.resolve({ data: [] as Pick<EventCategory, 'id' | 'name_en' | 'name_ar' | 'icon'>[] }),
+  ])
+
+  const organizerProfileByUserId = new Map(
+    (organizerProfiles ?? []).map((entry) => [entry.user_id, entry]),
+  )
+  const organizerById = new Map<string, SavedOrganizer>(
+    (organizers ?? []).map((organizer) => {
+      const organizerProfile = organizerProfileByUserId.get(organizer.id)
+      return [
+        organizer.id,
+        {
+          ...organizer,
+          organizer_profile: organizerProfile
+            ? {
+              business_name: organizerProfile.business_name,
+              business_name_ar: organizerProfile.business_name_ar,
+              logo_url: organizerProfile.logo_url,
+              verified: organizerProfile.verified,
+            }
+            : null,
+        },
+      ]
+    }),
+  )
+  const categoryById = new Map(
+    (categories ?? []).map((category) => [category.id, category]),
+  )
+
+  return rows.map((row) => ({
+    ...row,
+    organizer: organizerById.get(row.organizer_id) ?? {
+      id: row.organizer_id,
+      display_name: '',
+      avatar_url: null,
+      organizer_profile: null,
+    },
+    category: row.category_id ? categoryById.get(row.category_id) ?? null : null,
+  }))
+}
 
 export default function SavedScreen() {
   const { user } = useAuth()
@@ -14,27 +72,37 @@ export default function SavedScreen() {
   const [refreshing, setRefreshing] = useState(false)
 
   const fetchSaved = useCallback(async () => {
-    if (!user) { setLoading(false); return }
+    if (!user) {
+      setEvents([])
+      setLoading(false)
+      setRefreshing(false)
+      return
+    }
 
     const { data } = await supabase
       .from('saved_events')
-      .select(`
-        event_id,
-        event:events!event_id(
-          *,
-          organizer:profiles!organizer_id(
-            id, display_name, avatar_url,
-            organizer_profile:organizer_profiles!user_id(business_name, business_name_ar, logo_url, verified)
-          ),
-          category:event_categories(id, name_en, name_ar, icon)
-        )
-      `)
+      .select('event_id')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
 
-    const list = (data ?? [])
-      .map((s) => s.event)
-      .filter(Boolean) as EventWithOrganizer[]
+    const eventIds = (data ?? []).map((saved) => saved.event_id)
+    if (eventIds.length === 0) {
+      setEvents([])
+      setLoading(false)
+      setRefreshing(false)
+      return
+    }
+
+    const { data: eventRows } = await supabase
+      .from('events')
+      .select('*')
+      .in('id', eventIds)
+
+    const hydratedEvents = await hydrateEvents((eventRows ?? []) as Event[])
+    const eventById = new Map(hydratedEvents.map((event) => [event.id, event]))
+    const list = eventIds
+      .map((eventId) => eventById.get(eventId))
+      .filter((event): event is EventWithOrganizer => Boolean(event))
 
     setEvents(list)
     setLoading(false)
