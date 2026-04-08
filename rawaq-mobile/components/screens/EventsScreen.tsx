@@ -138,6 +138,26 @@ function interleaveDiscoveryItems(
   return result
 }
 
+function dedupeHappeningItems(items: HappeningDiscoveryItem[]) {
+  const seen = new Set<string>()
+  return items.filter((item) => {
+    if (seen.has(item.id)) return false
+    seen.add(item.id)
+    return true
+  })
+}
+
+function claimUniqueHappenings(
+  items: HappeningDiscoveryItem[],
+  claimedIds: Set<string>,
+) {
+  return dedupeHappeningItems(items).filter((item) => {
+    if (claimedIds.has(item.id)) return false
+    claimedIds.add(item.id)
+    return true
+  })
+}
+
 export default function EventsScreen() {
   const { t, locale } = useLocale()
   const { user, profile } = useAuth()
@@ -678,11 +698,18 @@ export default function EventsScreen() {
     setJoiningSlug(null)
   }
 
-  const communityDiscoveryItems = interleaveDiscoveryItems(myCommunityEvents, myCommunityHappenings, 8)
-  const weekendDiscoveryItems = interleaveDiscoveryItems(nearYouWeekendEvents, nearYouWeekendHappenings, 8)
-  const filteredCommunityItems = interleaveDiscoveryItems([], filteredCommunityHappenings, 8)
-  const activeNowItems = interleaveDiscoveryItems([], activeHappenings, 8)
-  const nearbyHappeningItems = interleaveDiscoveryItems([], nearbyHappenings, 8)
+  const claimedHappeningIds = new Set<string>()
+  const filteredCommunityRailHappenings = claimUniqueHappenings(filteredCommunityHappenings, claimedHappeningIds)
+  const nearbyRailHappenings = claimUniqueHappenings(nearbyHappenings, claimedHappeningIds)
+  const weekendRailHappenings = claimUniqueHappenings(nearYouWeekendHappenings, claimedHappeningIds)
+  const communityRailHappenings = claimUniqueHappenings(myCommunityHappenings, claimedHappeningIds)
+  const activeRailHappenings = claimUniqueHappenings(activeHappenings, claimedHappeningIds)
+
+  const communityDiscoveryItems = interleaveDiscoveryItems(myCommunityEvents, communityRailHappenings, 8)
+  const weekendDiscoveryItems = interleaveDiscoveryItems(nearYouWeekendEvents, weekendRailHappenings, 8)
+  const filteredCommunityItems = interleaveDiscoveryItems([], filteredCommunityRailHappenings, 8)
+  const activeNowItems = interleaveDiscoveryItems([], activeRailHappenings, 8)
+  const nearbyHappeningItems = interleaveDiscoveryItems([], nearbyRailHappenings, 8)
   const showDiscoveryHeader = showRecommendationRails || nearMe || !!communitySlug
 
   return (
@@ -724,6 +751,17 @@ export default function EventsScreen() {
               }
             </TouchableOpacity>
           </Animated.View>
+          <TouchableOpacity
+            onPress={() => setFreeOnly((v) => !v)}
+            style={[styles.searchActionBtn, freeOnly && styles.searchActionBtnActive]}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons
+              name={freeOnly ? 'cash' : 'cash-outline'}
+              size={18}
+              color={freeOnly ? Colors.green.text : Colors.gray[500]}
+            />
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -780,13 +818,11 @@ export default function EventsScreen() {
         </ScrollView>
       </View>
 
-      {/*  Community filter chips  + Free toggle */}
+      {/*  Community filter chips */}
       <View style={styles.filterRow}>
-        {/*  Community filter chips (only when user has joined communities) */}
-
         {joinedCommunities.length > 0 && (
-          // <View style={styles.communityRow}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.communityScroll} contentContainerStyle={styles.communityScrollContent}>
               <TouchableOpacity
                 onPress={() => setCommunitySlug(null)}
                 style={[styles.communityChip, !communitySlug && styles.communityChipActive]}
@@ -812,25 +848,23 @@ export default function EventsScreen() {
               })}
 
 
+              {false && (
               <TouchableOpacity
                 onPress={() => router.push('/communities' as any)}
                 style={styles.communityExploreBtn}
               >
                 <Text style={styles.communityExploreBtnText}>Explore →</Text>
               </TouchableOpacity>
+              )}
             </ScrollView>
-          // </View>
+            <TouchableOpacity
+              onPress={() => router.push('/communities' as any)}
+              style={styles.communityExploreBtn}
+            >
+              <Text style={styles.communityExploreBtnText}>communities</Text>
+            </TouchableOpacity>
+          </>
         )}
-        {/* Free toggle */}
-
-        <TouchableOpacity
-          onPress={() => setFreeOnly((v) => !v)}
-          style={[styles.miniChip, freeOnly && styles.miniChipActiveGreen]}
-        >
-          <Text style={[styles.miniChipText, freeOnly && { color: Colors.green.text }]}>
-            {t('events.free_filter')}
-          </Text>
-        </TouchableOpacity>
       </View>
 
 
@@ -1266,6 +1300,20 @@ const styles = StyleSheet.create({
   searchRow: { backgroundColor: Colors.white, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.gray[100] },
   searchBox: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: Colors.gray[100], borderRadius: Radius.lg, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2 },
   searchInput: { flex: 1, fontSize: FontSize.base, color: Colors.gray[900] },
+  searchActionBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.gray[200],
+  },
+  searchActionBtnActive: {
+    backgroundColor: Colors.green.light,
+    borderColor: Colors.green.DEFAULT,
+  },
   categoryRow: { backgroundColor: Colors.white, paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.gray[100], paddingLeft: Spacing.lg },
   chip: { flexShrink: 0, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: Radius.full, backgroundColor: Colors.gray[100], marginRight: Spacing.sm },
   chipActive: { backgroundColor: Colors.brand[500] },
@@ -1383,11 +1431,21 @@ const styles = StyleSheet.create({
   radiusChipText: { fontSize: FontSize.xs, color: Colors.brand[600] },
   radiusChipTextActive: { color: Colors.white, fontWeight: FontWeight.semibold },
   communityRow: { backgroundColor: Colors.white, paddingVertical: Spacing.sm, paddingLeft: Spacing.lg, borderBottomWidth: 1, borderBottomColor: Colors.gray[100] },
+  communityScroll: { flex: 1 },
+  communityScrollContent: { paddingRight: Spacing.sm },
   communityChip: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs + 1, borderRadius: Radius.full, borderWidth: 1, borderColor: Colors.gray[200], backgroundColor: Colors.gray[50], marginRight: Spacing.sm },
   communityChipActive: { backgroundColor: Colors.brand[600], borderColor: Colors.brand[600] },
   communityChipText: { fontSize: FontSize.xs, color: Colors.gray[700], fontWeight: FontWeight.medium },
   communityChipTextActive: { color: Colors.white },
-  communityExploreBtn: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs + 1, marginRight: Spacing.lg },
+  communityExploreBtn: {
+    marginLeft: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs + 1,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: Colors.brand[200],
+    backgroundColor: Colors.brand[50],
+  },
   communityExploreBtnText: { fontSize: FontSize.xs, color: Colors.brand[600], fontWeight: FontWeight.medium },
 
   // Active Now rail
