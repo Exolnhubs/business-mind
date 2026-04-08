@@ -47,11 +47,16 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    let { data: communitiesData, error: communitiesError } = await admin
+    let communitiesData: unknown = null
+    let communitiesError: { message?: string } | null = null
+
+    const primaryResult = await admin
       .from('communities')
       .select(COMMUNITY_SELECT)
       .order('member_count', { ascending: false })
       .limit(100)
+    communitiesData = primaryResult.data
+    communitiesError = primaryResult.error
 
     if (communitiesError && `${communitiesError.message ?? ''}`.includes('parent_community_id')) {
       const legacyResult = await admin
