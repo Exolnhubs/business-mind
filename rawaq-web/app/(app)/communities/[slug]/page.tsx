@@ -157,8 +157,9 @@ export default function CommunityDetailPage() {
   const directParent = community && community.ancestors.length > 0
     ? community.ancestors[community.ancestors.length - 1]
     : null
-  const canCreateSibling = Boolean(directParent) && (isPlatformAdmin || community?.level !== 'city')
-  const canCreateChildHere = Boolean(community) && (isPlatformAdmin || community.level !== 'country')
+  const communityLevel = community?.level ?? null
+  const canCreateSibling = Boolean(directParent) && (isPlatformAdmin || communityLevel !== 'city')
+  const canCreateChildHere = communityLevel !== null && (isPlatformAdmin || communityLevel !== 'country')
   const { happenings, loading: happeningsLoading, posting, post, toggleRsvp, toggleReact, remove, report } =
     useHappenings(slug, isMember)
 
