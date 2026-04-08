@@ -82,7 +82,7 @@ export default function AttendeesScreen() {
       .eq('event_id', eventId)
       .order('created_at', { ascending: true })
 
-    setAttendees((data ?? []) as Attendee[])
+    setAttendees((data ?? []) as unknown as Attendee[])
     setLoading(false)
     setRefreshing(false)
   }, [eventId, user, router])
