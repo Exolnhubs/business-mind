@@ -13,7 +13,7 @@ import {
 } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
-import { apiPost } from '@/lib/api'
+import { apiGet, apiPost } from '@/lib/api'
 import { useAuth } from '@/contexts/auth-context'
 import { Colors, FontSize, FontWeight, Radius, Shadow, Spacing } from '@/theme'
 import type { Community, CommunityLevel, CommunityType } from '@/types/database'

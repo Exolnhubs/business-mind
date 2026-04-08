@@ -21,6 +21,8 @@ type CommunityDetail = Community & {
   member_role: CommunityRole | null
   member_status: 'active' | 'timed_out' | 'removed' | 'banned' | null
   event_count: number
+  viewer_city: string | null
+  city_members_preview: Array<{ id: string; display_name: string; avatar_url: string | null }>
   ancestors: Pick<Community, 'id' | 'name' | 'name_ar' | 'slug' | 'level'>[]
   recent_events: Pick<Event, 'id' | 'title' | 'title_ar' | 'cover_image_url' | 'start_at' | 'city' | 'is_free' | 'price' | 'currency'>[]
   recent_members: Array<{ id: string; display_name: string; avatar_url: string | null; joined_at: string }>
@@ -609,6 +611,19 @@ export default function CommunityDetailScreen() {
 
           {/* Description */}
           {description ? <Text style={styles.description}>{description}</Text> : null}
+
+          {!community.is_member && community.viewer_city && community.city_members_preview.length > 0 && (
+            <View style={styles.socialProofCard}>
+              <Text style={styles.socialProofTitle}>People from {community.viewer_city} are already here</Text>
+              <View style={styles.socialProofChips}>
+                {community.city_members_preview.map((member) => (
+                  <View key={member.id} style={styles.socialProofChip}>
+                    <Text style={styles.socialProofChipText}>{member.display_name}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
 
           {/* Join / Leave */}
           <TouchableOpacity
@@ -1272,6 +1287,25 @@ const styles = StyleSheet.create({
   statDivider: { width: 1, height: 32, backgroundColor: Colors.gray[200] },
 
   description: { fontSize: FontSize.sm, color: Colors.gray[600], lineHeight: 22, marginBottom: Spacing.lg },
+  socialProofCard: {
+    marginBottom: Spacing.lg,
+    borderWidth: 1,
+    borderColor: '#bae6fd',
+    backgroundColor: '#f0f9ff',
+    borderRadius: Radius.xl,
+    padding: Spacing.md,
+  },
+  socialProofTitle: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[900] },
+  socialProofChips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs, marginTop: Spacing.sm },
+  socialProofChip: {
+    borderWidth: 1,
+    borderColor: '#bae6fd',
+    backgroundColor: '#fff',
+    borderRadius: Radius.full,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 5,
+  },
+  socialProofChipText: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: '#0369a1' },
 
   joinBtn: { borderRadius: Radius.xl, paddingVertical: Spacing.md + 2, alignItems: 'center' },
   joinBtnDefault: { backgroundColor: Colors.brand[600] },

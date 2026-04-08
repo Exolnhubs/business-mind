@@ -28,6 +28,16 @@ export async function GET(
     const supabase = await createSupabaseServerClient()
     const admin    = createSupabaseAdminClient()
     const ctx      = await optionalAuth()
+    let viewerCity: string | null = null
+
+    if (ctx?.userId) {
+      const { data: viewerProfile } = await admin
+        .from('profiles')
+        .select('city')
+        .eq('id', ctx.userId)
+        .maybeSingle()
+      viewerCity = viewerProfile?.city ?? null
+    }
 
     const { data: community, error } = await supabase
       .from('communities')
@@ -129,6 +139,36 @@ export async function GET(
         .filter(Boolean) as Array<{ id: string; display_name: string; avatar_url: string | null; joined_at: string }>
     }
 
+    let city_members_preview: Array<{ id: string; display_name: string; avatar_url: string | null }> = []
+    if (viewerCity) {
+      const { data: cityProfiles } = await admin
+        .from('profiles')
+        .select('id, display_name, avatar_url')
+        .ilike('city', viewerCity)
+        .limit(25)
+
+      const cityProfileIds = (cityProfiles ?? []).map((profile) => profile.id)
+      if (cityProfileIds.length > 0) {
+        const { data: cityMemberships } = await admin
+          .from('community_memberships')
+          .select('user_id')
+          .eq('community_id', community.id)
+          .eq('status', 'active')
+          .in('user_id', cityProfileIds)
+
+        const cityMemberIdSet = new Set((cityMemberships ?? []).map((row) => row.user_id))
+        city_members_preview = (cityProfiles ?? [])
+          .filter((profile) => cityMemberIdSet.has(profile.id))
+          .filter((profile) => profile.id !== ctx?.userId)
+          .slice(0, 3)
+          .map((profile) => ({
+            id: profile.id,
+            display_name: profile.display_name,
+            avatar_url: profile.avatar_url,
+          }))
+      }
+    }
+
     const { data: timedOutMembershipRows } = await admin
       .from('community_memberships')
       .select('user_id, joined_at, timeout_until')
@@ -196,6 +236,8 @@ export async function GET(
       ancestors,
       recent_events,
       recent_members,
+      city_members_preview,
+      viewer_city: viewerCity,
       timed_out_members,
       activity: activity.slice(0, 6),
     })

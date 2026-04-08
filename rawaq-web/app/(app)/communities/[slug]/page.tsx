@@ -17,6 +17,8 @@ type CommunityDetail = Community & {
   member_role: CommunityRole | null
   member_status: 'active' | 'timed_out' | 'removed' | 'banned' | null
   event_count: number
+  viewer_city: string | null
+  city_members_preview: Array<{ id: string; display_name: string; avatar_url: string | null }>
   ancestors: Pick<Community, 'id' | 'name' | 'name_ar' | 'slug' | 'level'>[]
   recent_events: Pick<Event, 'id' | 'title' | 'title_ar' | 'cover_image_url' | 'start_at' | 'city' | 'is_free' | 'price' | 'currency' | 'bookings_count'>[]
   recent_members: Array<{ id: string; display_name: string; avatar_url: string | null; joined_at: string }>
@@ -668,6 +670,24 @@ export default function CommunityDetailPage() {
 
           {community.description && (
             <p className="mt-4 text-gray-600 text-sm leading-relaxed">{community.description}</p>
+          )}
+
+          {!community.is_member && community.viewer_city && community.city_members_preview.length > 0 && (
+            <div className="mt-4 rounded-2xl border border-sky-100 bg-sky-50/70 px-4 py-3">
+              <p className="text-sm font-semibold text-gray-900">
+                People from {community.viewer_city} are already here
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {community.city_members_preview.map((member) => (
+                  <span
+                    key={member.id}
+                    className="rounded-full border border-sky-200 bg-white px-3 py-1 text-xs font-medium text-sky-700"
+                  >
+                    {member.display_name}
+                  </span>
+                ))}
+              </div>
+            </div>
           )}
         </div>
       </div>
