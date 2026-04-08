@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Alert,
   KeyboardAvoidingView,
@@ -11,12 +11,12 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native'
-import { useRouter } from 'expo-router'
+import { useLocalSearchParams, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { apiPost } from '@/lib/api'
 import { useAuth } from '@/contexts/auth-context'
 import { Colors, FontSize, FontWeight, Radius, Shadow, Spacing } from '@/theme'
-import type { CommunityLevel, CommunityType } from '@/types/database'
+import type { Community, CommunityLevel, CommunityType } from '@/types/database'
 
 const LEVEL_OPTIONS: Array<{ value: CommunityLevel; label: string; adminOnly?: boolean }> = [
   { value: 'micro', label: 'Micro' },
@@ -49,11 +49,17 @@ type CreateCommunityResponse = {
   slug: string
 }
 
+type CommunityPickerItem = Pick<Community, 'id' | 'slug' | 'name' | 'name_ar' | 'level'>
+
 export default function CreateCommunityScreen() {
+  const params = useLocalSearchParams<{ parent?: string }>()
   const router = useRouter()
   const { user, profile } = useAuth()
   const isAdmin = profile?.role === 'admin'
   const [submitting, setSubmitting] = useState(false)
+  const [parentQuery, setParentQuery] = useState('')
+  const [parentSuggestions, setParentSuggestions] = useState<CommunityPickerItem[]>([])
+  const [parentCommunity, setParentCommunity] = useState<CommunityPickerItem | null>(null)
   const [form, setForm] = useState({
     name: '',
     name_ar: '',
@@ -66,6 +72,33 @@ export default function CreateCommunityScreen() {
   })
 
   const levelOptions = LEVEL_OPTIONS.filter((option) => !option.adminOnly || isAdmin)
+
+  useEffect(() => {
+    if (!params.parent) return
+    apiGet<CommunityPickerItem>(`/api/communities/${params.parent}`)
+      .then(({ data }) => {
+        if (!data) return
+        setParentCommunity(data)
+        setParentQuery(data.name)
+      })
+      .catch(() => {})
+  }, [params.parent])
+
+  useEffect(() => {
+    const query = parentQuery.trim()
+    if (!query || parentCommunity?.name === query || parentCommunity?.name_ar === query) {
+      setParentSuggestions([])
+      return
+    }
+
+    const timeout = setTimeout(() => {
+      apiGet<{ data: CommunityPickerItem[] }>(`/api/communities?q=${encodeURIComponent(query)}&per_page=6`)
+        .then(({ data }) => setParentSuggestions(data?.data ?? []))
+        .catch(() => {})
+    }, 180)
+
+    return () => clearTimeout(timeout)
+  }, [parentQuery, parentCommunity])
 
   async function handleCreate() {
     if (!user) {
@@ -89,12 +122,18 @@ export default function CreateCommunityScreen() {
       city: form.city.trim() || null,
       is_private: form.is_private,
       country: 'SA',
+      parent_slug: parentCommunity?.slug ?? null,
     })
 
     setSubmitting(false)
 
     if (error || !data?.slug) {
-      Alert.alert('Could not create community', error ?? 'Please try again.')
+      Alert.alert(
+        'Could not create community',
+        error?.includes('creation limit')
+          ? "You've created 3 communities this month. You can create more after 30 days from your oldest recent community."
+          : (error ?? 'Please try again.')
+      )
       return
     }
 
@@ -152,6 +191,47 @@ export default function CreateCommunityScreen() {
               </TouchableOpacity>
             ))}
           </View>
+
+          <Text style={[styles.label, styles.labelSpaced]}>Parent community</Text>
+          <TextInput
+            value={parentQuery}
+            onChangeText={(value) => {
+              setParentQuery(value)
+              if (!value.trim()) setParentCommunity(null)
+            }}
+            placeholder="Search for an optional parent community"
+            placeholderTextColor={Colors.gray[400]}
+            style={styles.input}
+          />
+          {parentCommunity && (
+            <View style={styles.parentSelected}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.parentSelectedName}>{parentCommunity.name}</Text>
+                <Text style={styles.parentSelectedMeta}>{parentCommunity.level}</Text>
+              </View>
+              <TouchableOpacity onPress={() => { setParentCommunity(null); setParentQuery('') }}>
+                <Text style={styles.sectionLink}>Clear</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          {!parentCommunity && parentSuggestions.length > 0 && (
+            <View style={styles.parentSuggestions}>
+              {parentSuggestions.map((option, index) => (
+                <TouchableOpacity
+                  key={option.id}
+                  onPress={() => {
+                    setParentCommunity(option)
+                    setParentQuery(option.name)
+                    setParentSuggestions([])
+                  }}
+                  style={[styles.parentSuggestionRow, index < parentSuggestions.length - 1 && styles.parentSuggestionBorder]}
+                >
+                  <Text style={styles.parentSuggestionName}>{option.name}</Text>
+                  <Text style={styles.parentSuggestionMeta}>{option.level}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
 
           <Text style={[styles.label, styles.labelSpaced]}>Type</Text>
           <View style={styles.chipWrap}>
@@ -325,6 +405,53 @@ const styles = StyleSheet.create({
   },
   chipTextActive: {
     color: '#fff',
+  },
+  parentSelected: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.brand[100],
+    borderRadius: Radius.lg,
+    backgroundColor: Colors.brand[50],
+    padding: Spacing.md,
+  },
+  parentSelectedName: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.semibold,
+    color: Colors.gray[900],
+  },
+  parentSelectedMeta: {
+    marginTop: 2,
+    fontSize: FontSize.xs,
+    color: Colors.gray[500],
+  },
+  parentSuggestions: {
+    borderWidth: 1,
+    borderColor: Colors.gray[200],
+    borderRadius: Radius.lg,
+    overflow: 'hidden',
+    backgroundColor: '#fff',
+  },
+  parentSuggestionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+  },
+  parentSuggestionBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.gray[100],
+  },
+  parentSuggestionName: {
+    fontSize: FontSize.sm,
+    color: Colors.gray[900],
+    fontWeight: FontWeight.medium,
+  },
+  parentSuggestionMeta: {
+    fontSize: FontSize.xs,
+    color: Colors.gray[500],
   },
   privateRow: {
     marginTop: Spacing.sm,

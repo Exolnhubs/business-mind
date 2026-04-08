@@ -25,6 +25,13 @@ const COMMUNITY_TYPES = [
   'city',
   'country',
 ] as const
+const COMMUNITY_LEVEL_RANK: Record<(typeof COMMUNITY_LEVELS)[number], number> = {
+  micro: 1,
+  interest: 1,
+  district: 2,
+  city: 3,
+  country: 4,
+}
 
 const ListCommunitiesSchema = z.object({
   level:    z.enum(COMMUNITY_LEVELS).optional(),
@@ -47,7 +54,13 @@ const CreateCommunitySchema = z.object({
   country: z.string().length(2).default('SA'),
   cover_url: z.string().url().optional().nullable(),
   is_private: z.boolean().default(false),
+  parent_slug: z.string().trim().min(1).max(120).optional().nullable(),
 })
+
+const COMMUNITY_LIST_SELECT =
+  'id, name, name_ar, slug, description, description_ar, level, type, city, country, cover_url, member_count, is_verified, is_private, created_by, owner_user_id, parent_community_id, created_at, updated_at'
+const COMMUNITY_LIST_SELECT_LEGACY =
+  'id, name, name_ar, slug, description, description_ar, level, type, city, country, cover_url, member_count, is_verified, is_private, created_by, owner_user_id, created_at, updated_at'
 
 // GET /api/communities — list communities (public)
 export async function GET(req: NextRequest) {
@@ -101,20 +114,30 @@ export async function GET(req: NextRequest) {
 
     const communitiesClient = params.member_only ? admin : supabase
 
-    let query = communitiesClient
-      .from('communities')
-      .select('id, name, name_ar, slug, description, description_ar, level, type, city, country, cover_url, member_count, is_verified, is_private, created_by, owner_user_id, created_at, updated_at', { count: 'exact' })
-      .order('member_count', { ascending: false })
-      .order('name')
-      .range(from, to)
+    const buildQuery = (selectColumns: string) => {
+      let query = communitiesClient
+        .from('communities')
+        .select(selectColumns, { count: 'exact' })
+        .order('member_count', { ascending: false })
+        .order('name')
+        .range(from, to)
 
-    if (params.level) query = query.eq('level', params.level)
-    if (params.city)  query = query.ilike('city', `%${params.city}%`)
-    if (params.type)  query = query.eq('type', params.type as any)
-    if (params.q)     query = query.ilike('name', `%${params.q}%`)
-    if (params.member_only) query = query.in('id', memberIds)
+      if (params.level) query = query.eq('level', params.level)
+      if (params.city) query = query.ilike('city', `%${params.city}%`)
+      if (params.type) query = query.eq('type', params.type as any)
+      if (params.q) query = query.or(`name.ilike.%${params.q.trim()}%,name_ar.ilike.%${params.q.trim()}%`)
+      if (params.member_only) query = query.in('id', memberIds)
 
-    const { data, count, error } = await query
+      return query
+    }
+
+    let { data, count, error } = await buildQuery(COMMUNITY_LIST_SELECT)
+    if (error && `${error.message ?? ''}`.includes('parent_community_id')) {
+      const legacyResult = await buildQuery(COMMUNITY_LIST_SELECT_LEGACY)
+      data = legacyResult.data
+      count = legacyResult.count
+      error = legacyResult.error
+    }
     if (error) throw error
 
     // If authenticated, annotate is_member for each community
@@ -122,6 +145,7 @@ export async function GET(req: NextRequest) {
 
     const enriched = (data ?? []).map((c) => ({
       ...c,
+      parent_community_id: 'parent_community_id' in c ? c.parent_community_id : null,
       is_member: memberSet.has(c.id) && !['removed', 'banned'].includes(memberStatusByCommunityId.get(c.id) ?? ''),
       member_role: memberRoleByCommunityId.get(c.id) ?? null,
       member_status: memberStatusByCommunityId.get(c.id) ?? null,
@@ -168,6 +192,29 @@ export async function POST(req: NextRequest) {
 
     const communityId = crypto.randomUUID()
     const slug = generateCommunitySlug(input.name, communityId)
+    let parentCommunityId: string | null = null
+
+    if (input.parent_slug) {
+      const { data: parentCommunity, error: parentCommunityError } = await admin
+        .from('communities')
+        .select('id, level')
+        .eq('slug', input.parent_slug)
+        .maybeSingle()
+
+      if (parentCommunityError) throw parentCommunityError
+      if (!parentCommunity) {
+        return Response.json({ error: 'Selected parent community was not found' }, { status: 404 })
+      }
+
+      if (COMMUNITY_LEVEL_RANK[input.level] > COMMUNITY_LEVEL_RANK[parentCommunity.level]) {
+        return Response.json(
+          { error: 'Child community level cannot be broader than its parent community' },
+          { status: 422 },
+        )
+      }
+
+      parentCommunityId = parentCommunity.id
+    }
 
     const communityInsert = {
       id: communityId,
@@ -183,6 +230,7 @@ export async function POST(req: NextRequest) {
       cover_url: input.cover_url ?? null,
       is_verified: false,
       is_private: input.is_private,
+      parent_community_id: parentCommunityId,
       owner_user_id: ctx.userId,
       created_by: ctx.userId,
     }
@@ -190,7 +238,7 @@ export async function POST(req: NextRequest) {
     const { data: community, error: communityError } = await admin
       .from('communities')
       .insert(communityInsert)
-      .select('id, name, name_ar, slug, description, description_ar, level, type, city, country, cover_url, member_count, is_verified, is_private, created_by, owner_user_id, created_at, updated_at')
+      .select('id, name, name_ar, slug, description, description_ar, level, type, city, country, cover_url, member_count, is_verified, is_private, created_by, owner_user_id, parent_community_id, created_at, updated_at')
       .single()
 
     if (communityError) throw communityError
@@ -218,6 +266,7 @@ export async function POST(req: NextRequest) {
         level: input.level,
         type: input.type,
         is_private: input.is_private,
+        parent_community_id: parentCommunityId,
       },
     })
 

@@ -533,6 +533,7 @@ export interface Community {
   is_private: boolean
   created_by: string | null
   owner_user_id: string | null
+  parent_community_id: string | null
   created_at: string
   updated_at: string
 }

@@ -1,9 +1,9 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useMemo, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/auth-context'
-import type { CommunityLevel, CommunityType } from '@/types/database'
+import type { Community, CommunityLevel, CommunityType } from '@/types/database'
 
 const LEVEL_OPTIONS: Array<{
   value: CommunityLevel
@@ -36,12 +36,18 @@ const TYPE_OPTIONS: Array<{ value: CommunityType; label: string }> = [
   { value: 'country', label: 'Country' },
 ]
 
+type CommunityPickerItem = Pick<Community, 'id' | 'slug' | 'name' | 'name_ar' | 'level'>
+
 export default function NewCommunityPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { user, profile, loading } = useAuth()
   const isAdmin = profile?.role === 'admin'
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [parentQuery, setParentQuery] = useState('')
+  const [parentSuggestions, setParentSuggestions] = useState<CommunityPickerItem[]>([])
+  const [parentCommunity, setParentCommunity] = useState<CommunityPickerItem | null>(null)
   const [form, setForm] = useState({
     name: '',
     name_ar: '',
@@ -54,11 +60,46 @@ export default function NewCommunityPage() {
     is_private: false,
     country: 'SA',
   })
+  const presetParentSlug = searchParams.get('parent')
 
   const visibleLevels = useMemo(
     () => LEVEL_OPTIONS.filter((option) => !option.adminOnly || isAdmin),
     [isAdmin],
   )
+
+  useEffect(() => {
+    if (!presetParentSlug) return
+    fetch(`/api/communities/${presetParentSlug}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        const community = json?.data as CommunityPickerItem | undefined
+        if (!community) return
+        setParentCommunity(community)
+        setParentQuery(community.name)
+      })
+      .catch(() => {})
+  }, [presetParentSlug])
+
+  useEffect(() => {
+    const query = parentQuery.trim()
+    if (!query || parentCommunity?.name === query || parentCommunity?.name_ar === query) {
+      setParentSuggestions([])
+      return
+    }
+
+    const controller = new AbortController()
+    const timeout = setTimeout(() => {
+      fetch(`/api/communities?q=${encodeURIComponent(query)}&per_page=6`, { signal: controller.signal })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((json) => setParentSuggestions((json?.data ?? []) as CommunityPickerItem[]))
+        .catch(() => {})
+    }, 180)
+
+    return () => {
+      controller.abort()
+      clearTimeout(timeout)
+    }
+  }, [parentQuery, parentCommunity])
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -84,12 +125,17 @@ export default function NewCommunityPage() {
         country: form.country,
         cover_url: form.cover_url || null,
         is_private: form.is_private,
+        parent_slug: parentCommunity?.slug ?? null,
       }),
     })
 
     const json = await res.json().catch(() => ({}))
     if (!res.ok) {
-      setError(json.error ?? 'Unable to create community')
+      setError(
+        res.status === 429
+          ? "You've created 3 communities this month. You can create more after 30 days from your oldest recent community."
+          : (json.error ?? 'Unable to create community')
+      )
       setSubmitting(false)
       return
     }
@@ -169,6 +215,53 @@ export default function NewCommunityPage() {
                 </button>
               ))}
             </div>
+          </div>
+
+          <div className="mt-5">
+            <span className="mb-2 block text-sm font-medium text-gray-700">Parent community</span>
+            <input
+              value={parentQuery}
+              onChange={(e) => {
+                setParentQuery(e.target.value)
+                if (!e.target.value.trim()) setParentCommunity(null)
+              }}
+              placeholder="Search for an optional parent community"
+              className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm outline-none transition focus:border-brand-400"
+            />
+            {parentCommunity && (
+              <div className="mt-2 flex items-center justify-between rounded-2xl border border-brand-100 bg-brand-50 px-4 py-3 text-sm text-brand-700">
+                <span>{parentCommunity.name} · {parentCommunity.level}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setParentCommunity(null)
+                    setParentQuery('')
+                  }}
+                  className="font-semibold"
+                >
+                  Clear
+                </button>
+              </div>
+            )}
+            {!parentCommunity && parentSuggestions.length > 0 && (
+              <div className="mt-2 overflow-hidden rounded-2xl border border-gray-200 bg-white">
+                {parentSuggestions.map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => {
+                      setParentCommunity(option)
+                      setParentQuery(option.name)
+                      setParentSuggestions([])
+                    }}
+                    className="flex w-full items-center justify-between border-b border-gray-100 px-4 py-3 text-left last:border-b-0 hover:bg-gray-50"
+                  >
+                    <span className="text-sm font-medium text-gray-900">{option.name}</span>
+                    <span className="text-xs text-gray-500">{option.level}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </section>
 

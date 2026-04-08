@@ -35,6 +35,11 @@ type CommunityAdminEntry = {
   joined_at: string
   profile: { id: string; display_name: string; avatar_url: string | null } | null
 }
+type ChildCommunityItem = Community & {
+  is_member: boolean
+  member_role: CommunityRole | null
+  member_status: 'active' | 'timed_out' | 'removed' | 'banned' | null
+}
 type HappeningReportEntry = {
   happening_id: string
   reporter_id: string
@@ -98,6 +103,9 @@ export default function CommunityDetailPage() {
   const [events, setEvents]       = useState<Event[]>([])
   const [eventsLoading, setEventsLoading] = useState(false)
   const [nextCursor, setNextCursor]       = useState<string | null>(null)
+  const [children, setChildren] = useState<ChildCommunityItem[]>([])
+  const [childrenLoading, setChildrenLoading] = useState(false)
+  const [childJoiningSlug, setChildJoiningSlug] = useState<string | null>(null)
   const [showPostForm, setShowPostForm]   = useState(false)
   const [admins, setAdmins] = useState<CommunityAdminEntry[]>([])
   const [adminsLoading, setAdminsLoading] = useState(false)
@@ -162,6 +170,24 @@ export default function CommunityDetailPage() {
 
   useEffect(() => {
     if (community) loadEvents()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [community?.id])
+
+  async function loadChildren() {
+    setChildrenLoading(true)
+    try {
+      const res = await fetch(`/api/communities/${slug}/children`)
+      if (res.ok) {
+        const json = await res.json() as { data: { children: ChildCommunityItem[] } }
+        setChildren(json.data.children ?? [])
+      }
+    } finally {
+      setChildrenLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (community) void loadChildren()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [community?.id])
 
@@ -265,6 +291,33 @@ export default function CommunityDetailPage() {
       }
     }
     setJoining(false)
+  }
+
+  async function toggleChildMembership(child: ChildCommunityItem) {
+    if (!user) { router.push('/login'); return }
+    setChildJoiningSlug(child.slug)
+    try {
+      const endpoint = child.is_member
+        ? `/api/communities/${child.slug}/leave`
+        : `/api/communities/${child.slug}/join`
+      const res = await fetch(endpoint, { method: child.is_member ? 'DELETE' : 'POST' })
+      if (res.ok) {
+        const json = await res.json() as { data?: MembershipMutationResponse }
+        setChildren((prev) => prev.map((entry) =>
+          entry.id === child.id
+            ? {
+                ...entry,
+                is_member: json.data?.is_member ?? !entry.is_member,
+                member_role: json.data?.member_role ?? (json.data?.is_member ? entry.member_role : null),
+                member_status: json.data?.is_member ? (json.data?.member_status ?? entry.member_status ?? 'active') : null,
+                member_count: json.data?.member_count ?? (!entry.is_member ? entry.member_count + 1 : Math.max(entry.member_count - 1, 0)),
+              }
+            : entry
+        ))
+      }
+    } finally {
+      setChildJoiningSlug(null)
+    }
   }
 
   async function assignCommunityAdmin(userId: string) {
@@ -742,6 +795,55 @@ export default function CommunityDetailPage() {
             )}
           </div>
         )}
+
+        <div className="rounded-2xl border border-violet-100 bg-violet-50/50 p-5 shadow-sm">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">Sub-communities</h2>
+              <p className="text-xs text-gray-500 mt-1">Smaller circles nested under this community.</p>
+            </div>
+            <Link
+              href={`/communities/new?parent=${slug}`}
+              className="rounded-full bg-violet-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-violet-700"
+            >
+              + Create sub-community here
+            </Link>
+          </div>
+          {childrenLoading ? (
+            <div className="flex justify-center py-8"><Spinner size="lg" /></div>
+          ) : children.length === 0 ? (
+            <p className="text-sm text-gray-500">No sub-communities yet.</p>
+          ) : (
+            <div className="space-y-3">
+              {children.map((child) => (
+                <div key={child.id} className="rounded-xl border border-white/70 bg-white px-4 py-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <Link href={`/communities/${child.slug}`} className="text-sm font-semibold text-gray-900 hover:text-brand-600">
+                        {child.name}
+                      </Link>
+                      <p className="mt-1 text-xs text-gray-500">
+                        {child.level} · {child.member_count.toLocaleString()} members
+                        {child.city ? ` · ${child.city}` : ''}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => toggleChildMembership(child)}
+                      disabled={childJoiningSlug === child.slug}
+                      className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
+                        child.is_member
+                          ? 'border border-emerald-200 bg-emerald-50 text-emerald-700'
+                          : 'bg-brand-600 text-white'
+                      }`}
+                    >
+                      {childJoiningSlug === child.slug ? '...' : child.is_member ? 'Joined' : 'Join'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
         <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
           <h2 className="text-lg font-bold text-gray-900 mb-4">Recent Activity</h2>

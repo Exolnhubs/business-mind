@@ -67,6 +67,11 @@ type CommunitySanctionEntry = {
   revoke_note: string | null
   created_at: string
 }
+type ChildCommunityItem = Community & {
+  is_member: boolean
+  member_role: CommunityRole | null
+  member_status: 'active' | 'timed_out' | 'removed' | 'banned' | null
+}
 
 const LEVEL_META: Record<CommunityLevel, { label: string; icon: keyof typeof Ionicons.glyphMap; tint: string; bg: string; accent: string }> = {
   micro: { label: 'Micro', icon: 'home-outline', tint: '#166534', bg: '#dcfce7', accent: '#16a34a' },
@@ -89,6 +94,9 @@ export default function CommunityDetailScreen() {
   const [events, setEvents] = useState<EventItem[]>([])
   const [eventsLoading, setEventsLoading] = useState(false)
   const [nextCursor, setNextCursor] = useState<string | null>(null)
+  const [children, setChildren] = useState<ChildCommunityItem[]>([])
+  const [childrenLoading, setChildrenLoading] = useState(false)
+  const [childJoiningSlug, setChildJoiningSlug] = useState<string | null>(null)
 
   // Happenings state
   const [happenings, setHappenings] = useState<HappeningWithAuthor[]>([])
@@ -165,6 +173,15 @@ export default function CommunityDetailScreen() {
   }
 
   useEffect(() => { if (community) loadEvents() }, [community?.id])
+
+  async function loadChildren() {
+    setChildrenLoading(true)
+    const { data } = await apiGet<{ children: ChildCommunityItem[] }>(`/api/communities/${slug}/children`)
+    if (data) setChildren(data.children ?? [])
+    setChildrenLoading(false)
+  }
+
+  useEffect(() => { if (community) loadChildren() }, [community?.id])
 
   async function loadHappenings() {
     setHappeningsLoading(true)
@@ -321,6 +338,31 @@ export default function CommunityDetailScreen() {
       if (data?.message) Alert.alert('Notice', data.message)
     }
     setJoining(false)
+  }
+
+  async function toggleChildMembership(child: ChildCommunityItem) {
+    if (!user) { router.push('/auth/login' as any); return }
+    setChildJoiningSlug(child.slug)
+    const { data, error } = child.is_member
+      ? await apiDelete<MembershipMutationResponse>(`/api/communities/${child.slug}/leave`)
+      : await apiPost<MembershipMutationResponse>(`/api/communities/${child.slug}/join`, {})
+
+    if (error) {
+      Alert.alert('Error', error)
+    } else {
+      setChildren((prev) => prev.map((entry) =>
+        entry.id === child.id
+          ? {
+              ...entry,
+              is_member: data?.is_member ?? !entry.is_member,
+              member_role: data?.member_role ?? (data?.is_member ? entry.member_role : null),
+              member_status: data?.member_status ?? (data?.is_member ? entry.member_status ?? 'active' : null),
+              member_count: data?.member_count ?? (!entry.is_member ? entry.member_count + 1 : Math.max(entry.member_count - 1, 0)),
+            }
+          : entry
+      ))
+    }
+    setChildJoiningSlug(null)
   }
 
   async function assignCommunityAdmin(userId: string) {
@@ -741,6 +783,42 @@ export default function CommunityDetailScreen() {
             )}
           </View>
         )}
+
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Sub-communities</Text>
+            <TouchableOpacity onPress={() => router.push(`/communities/create?parent=${slug}` as any)}>
+              <Text style={styles.sectionLink}>Create here →</Text>
+            </TouchableOpacity>
+          </View>
+          {childrenLoading ? (
+            <View style={styles.centerSmall}><Spinner /></View>
+          ) : children.length === 0 ? (
+            <EmptyState icon="🪴" title="No sub-communities yet" description="Create the first nested circle here." />
+          ) : (
+            <View style={styles.childrenList}>
+              {children.map((child, index) => (
+                <View key={child.id} style={[styles.childCard, index < children.length - 1 && styles.childCardBorder]}>
+                  <TouchableOpacity style={styles.childBody} onPress={() => router.push(`/communities/${child.slug}` as any)}>
+                    <Text style={styles.childName}>{isRTL && child.name_ar ? child.name_ar : child.name}</Text>
+                    <Text style={styles.childMeta}>
+                      {child.level} · {child.member_count.toLocaleString()} members{child.city ? ` · ${child.city}` : ''}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => toggleChildMembership(child)}
+                    disabled={childJoiningSlug === child.slug}
+                    style={[styles.childJoinBtn, child.is_member && styles.childJoinBtnActive]}
+                  >
+                    <Text style={[styles.childJoinText, child.is_member && styles.childJoinTextActive]}>
+                      {childJoiningSlug === child.slug ? '...' : child.is_member ? 'Joined' : 'Join'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
 
         {community.activity.length > 0 && (
           <View style={styles.section}>
@@ -1207,6 +1285,16 @@ const styles = StyleSheet.create({
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.md },
   sectionTitle: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.gray[900], marginBottom: Spacing.md },
   sectionLink: { fontSize: FontSize.sm, color: Colors.brand[600], fontWeight: FontWeight.medium },
+  childrenList: { backgroundColor: '#fff', borderRadius: Radius.xl, overflow: 'hidden', borderWidth: 1, borderColor: Colors.gray[200], ...Shadow.card },
+  childCard: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md },
+  childCardBorder: { borderBottomWidth: 1, borderBottomColor: Colors.gray[100] },
+  childBody: { flex: 1 },
+  childName: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[900] },
+  childMeta: { fontSize: FontSize.xs, color: Colors.gray[500], marginTop: 3 },
+  childJoinBtn: { borderRadius: Radius.full, backgroundColor: Colors.brand[600], paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm },
+  childJoinBtnActive: { backgroundColor: '#f0fdf4', borderWidth: 1, borderColor: '#86efac' },
+  childJoinText: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: '#fff' },
+  childJoinTextActive: { color: '#15803d' },
 
   // Members
   membersList: { backgroundColor: '#fff', borderRadius: Radius.xl, overflow: 'hidden', borderWidth: 1, borderColor: Colors.gray[200], ...Shadow.card },
