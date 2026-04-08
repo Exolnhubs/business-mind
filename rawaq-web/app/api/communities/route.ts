@@ -63,6 +63,15 @@ const COMMUNITY_LIST_SELECT =
 const COMMUNITY_LIST_SELECT_LEGACY =
   'id, name, name_ar, slug, description, description_ar, level, type, city, country, cover_url, member_count, is_verified, is_private, created_by, owner_user_id, created_at, updated_at'
 
+type CommunityListRow = {
+  id: string
+  name: string
+  type: (typeof COMMUNITY_TYPES)[number]
+  city: string | null
+  member_count: number
+  parent_community_id?: string | null
+} & Record<string, unknown>
+
 const INTEREST_TO_COMMUNITY_TYPES: Record<string, (typeof COMMUNITY_TYPES)[number][]> = {
   tech: ['tech'],
   coding: ['tech'],
@@ -211,7 +220,9 @@ export async function GET(req: NextRequest) {
     // If authenticated, annotate is_member for each community
     const memberSet = new Set(memberIds)
 
-    let enriched = (data ?? []).map((c) => ({
+    const rows = (data ?? []) as CommunityListRow[]
+
+    let enriched = rows.map((c) => ({
       ...c,
       parent_community_id: 'parent_community_id' in c ? c.parent_community_id : null,
       is_member: memberSet.has(c.id) && !['removed', 'banned'].includes(memberStatusByCommunityId.get(c.id) ?? ''),
@@ -222,8 +233,8 @@ export async function GET(req: NextRequest) {
     if (params.recommended && recommendedTypes.size > 0) {
       enriched = [...enriched]
         .sort((a, b) => {
-          const aMatchesInterest = recommendedTypes.has(a.type as (typeof COMMUNITY_TYPES)[number]) ? 1 : 0
-          const bMatchesInterest = recommendedTypes.has(b.type as (typeof COMMUNITY_TYPES)[number]) ? 1 : 0
+          const aMatchesInterest = recommendedTypes.has(a.type) ? 1 : 0
+          const bMatchesInterest = recommendedTypes.has(b.type) ? 1 : 0
           if (aMatchesInterest !== bMatchesInterest) return bMatchesInterest - aMatchesInterest
 
           const aMatchesCity = userCity && a.city && a.city.toLowerCase() === userCity.toLowerCase() ? 1 : 0
