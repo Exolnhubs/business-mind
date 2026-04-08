@@ -4,11 +4,11 @@ import { useState } from 'react'
 import type { HappeningWithAuthor, HappeningType } from '@/types/database'
 import { useAuth } from '@/contexts/auth-context'
 
-const TYPE_META: Record<HappeningType, { label: string; bg: string; text: string }> = {
-  open_invite: { label: 'Open Invite', bg: 'bg-brand-50', text: 'text-brand-700' },
-  info: { label: 'Info', bg: 'bg-blue-50', text: 'text-blue-700' },
-  question: { label: 'Question', bg: 'bg-yellow-50', text: 'text-yellow-700' },
-  alert: { label: 'Alert', bg: 'bg-red-50', text: 'text-red-700' },
+const TYPE_META: Record<HappeningType, { label: string; icon: string; bg: string; text: string }> = {
+  open_invite: { label: 'Open invite', icon: '🎉', bg: 'bg-brand-50', text: 'text-brand-700' },
+  info: { label: 'Update', icon: '📣', bg: 'bg-blue-50', text: 'text-blue-700' },
+  question: { label: 'Ping', icon: '👋', bg: 'bg-yellow-50', text: 'text-yellow-700' },
+  alert: { label: 'Meetup alert', icon: '📍', bg: 'bg-red-50', text: 'text-red-700' },
 }
 
 function timeLeft(expiresAt: string): string {
@@ -53,7 +53,7 @@ export function HappeningCard({ happening: h, onRsvp, onReact, onDelete, onRepor
 
         <div className="flex items-center gap-2">
           <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${meta.bg} ${meta.text}`}>
-            {meta.label}
+            {meta.icon} {meta.label}
           </span>
           {isAuthor && onDelete && (
             <button

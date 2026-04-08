@@ -4,11 +4,11 @@ import { useState } from 'react'
 import type { HappeningType } from '@/types/database'
 import { LocationPickerModal } from '@/components/communities/LocationPickerModal'
 
-const TYPES: { key: HappeningType; label: string }[] = [
-  { key: 'open_invite', label: 'Open Invite' },
-  { key: 'info', label: 'Info' },
-  { key: 'question', label: 'Question' },
-  { key: 'alert', label: 'Alert' },
+const TYPES: { key: HappeningType; label: string; icon: string; placeholder: string }[] = [
+  { key: 'open_invite', label: 'Open invite', icon: '🎉', placeholder: "Who's free to join right now?" },
+  { key: 'info', label: 'Update', icon: '📣', placeholder: 'Share a quick update with the community.' },
+  { key: 'question', label: 'Ping', icon: '👋', placeholder: 'Ask who is around or interested.' },
+  { key: 'alert', label: 'Meetup alert', icon: '📍', placeholder: 'Call out an urgent meetup spot or heads-up.' },
 ]
 
 const EXPIRY_OPTIONS = [
@@ -37,6 +37,7 @@ export function PostHappeningForm({ posting, onPost, onCancel }: Props) {
   const [expiry, setExpiry] = useState(6)
   const [selectedLocation, setSelectedLocation] = useState<PickedLocation | null>(null)
   const [showLocationPicker, setShowLocationPicker] = useState(false)
+  const activeType = TYPES.find((item) => item.key === type) ?? TYPES[0]
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -76,7 +77,7 @@ export function PostHappeningForm({ posting, onPost, onCancel }: Props) {
                 type === t.key ? 'bg-brand-600 text-white' : 'border border-gray-200 bg-white text-gray-600 hover:border-brand-300'
               }`}
             >
-              {t.label}
+              {t.icon} {t.label}
             </button>
           ))}
         </div>
@@ -84,7 +85,7 @@ export function PostHappeningForm({ posting, onPost, onCancel }: Props) {
         <textarea
           value={body}
           onChange={(e) => setBody(e.target.value.slice(0, 280))}
-          placeholder="What's happening? (e.g. Anyone for padel in 30 min?)"
+          placeholder={activeType.placeholder}
           rows={3}
           className="w-full resize-none rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-brand-400 focus:outline-none"
         />

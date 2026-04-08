@@ -16,11 +16,11 @@ type Props = {
   onToggleReact?: (happening: HappeningDiscoveryItem) => void
 }
 
-const TYPE_META: Record<HappeningType, { label: string; color: string; bg: string }> = {
-  open_invite: { label: 'Happening', color: '#0f766e', bg: '#ccfbf1' },
-  info: { label: 'Info', color: '#1d4ed8', bg: '#dbeafe' },
-  question: { label: 'Question', color: '#7c2d12', bg: '#ffedd5' },
-  alert: { label: 'Alert', color: '#b91c1c', bg: '#fee2e2' },
+const TYPE_META: Record<HappeningType, { label: string; icon: keyof typeof Ionicons.glyphMap; color: string; bg: string }> = {
+  open_invite: { label: 'Open invite', icon: 'sparkles-outline', color: '#0f766e', bg: '#ccfbf1' },
+  info: { label: 'Update', icon: 'megaphone-outline', color: '#1d4ed8', bg: '#dbeafe' },
+  question: { label: 'Ping', icon: 'hand-left-outline', color: '#7c2d12', bg: '#ffedd5' },
+  alert: { label: 'Meetup alert', icon: 'location-outline', color: '#b91c1c', bg: '#fee2e2' },
 }
 
 function getTimeLeft(expiresAt: string) {
@@ -56,6 +56,7 @@ export function HappeningDiscoveryCard({
     >
       <View style={styles.topRow}>
         <View style={[styles.typeBadge, { backgroundColor: meta.bg }]}>
+          <Ionicons name={meta.icon} size={12} color={meta.color} />
           <Text style={[styles.typeBadgeText, { color: meta.color }]}>{meta.label}</Text>
         </View>
         {happening.distance_km !== null && happening.distance_km !== undefined ? (
@@ -127,6 +128,9 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   typeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     borderRadius: Radius.full,
     paddingHorizontal: Spacing.sm,
     paddingVertical: 4,
