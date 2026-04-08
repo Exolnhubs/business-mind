@@ -234,21 +234,29 @@ async function notifyCommunityMembersOnPublish({
   eventId: string
   eventTitle: string
 }) {
-  const [{ data: communities }, { data: memberships }] = await Promise.all([
+  const [{ data: communities }, { data: memberships }, { data: follows }] = await Promise.all([
     adminClient.from('communities').select('id, name').in('id', communityIds) as any,
-    adminClient.from('community_memberships').select('user_id, community_id').in('community_id', communityIds) as any,
+    adminClient.from('community_memberships').select('user_id, community_id, status').in('community_id', communityIds) as any,
+    adminClient.from('community_follows').select('user_id, community_id').in('community_id', communityIds) as any,
   ])
-
-  if (!memberships?.length) return
 
   const communityNameById = new Map<string, string>(
     (communities ?? []).map((c: { id: string; name: string }) => [c.id, c.name])
   )
 
+  const audience = [
+    ...((memberships ?? []) as Array<{ user_id: string; community_id: string; status?: string | null }>)
+      .filter((membership) => membership.status === 'active')
+      .map((membership) => ({ user_id: membership.user_id, community_id: membership.community_id })),
+    ...((follows ?? []) as Array<{ user_id: string; community_id: string }>),
+  ]
+
+  if (!audience.length) return
+
   const userMap = new Map<string, string>()
-  for (const m of memberships as { user_id: string; community_id: string }[]) {
-    if (!userMap.has(m.user_id)) {
-      userMap.set(m.user_id, communityNameById.get(m.community_id) ?? 'your community')
+  for (const entry of audience) {
+    if (!userMap.has(entry.user_id)) {
+      userMap.set(entry.user_id, communityNameById.get(entry.community_id) ?? 'your community')
     }
   }
 

@@ -72,16 +72,26 @@ export async function GET(
 
     // Membership status
     let is_member = false
+    let is_following = false
     let member_role: 'member' | 'community_admin' | 'owner' | null = null
     let member_status: 'active' | 'timed_out' | 'removed' | 'banned' | null = null
     if (ctx?.userId) {
-      const { data: mem } = await admin
-        .from('community_memberships')
-        .select('id, role, status')
-        .eq('community_id', community.id)
-        .eq('user_id', ctx.userId)
-        .maybeSingle()
+      const [{ data: mem }, { data: follow }] = await Promise.all([
+        admin
+          .from('community_memberships')
+          .select('id, role, status')
+          .eq('community_id', community.id)
+          .eq('user_id', ctx.userId)
+          .maybeSingle(),
+        admin
+          .from('community_follows')
+          .select('community_id')
+          .eq('community_id', community.id)
+          .eq('user_id', ctx.userId)
+          .maybeSingle(),
+      ])
       is_member = !!mem && mem.status !== 'removed' && mem.status !== 'banned'
+      is_following = !!follow
       member_role = (mem?.role as 'member' | 'community_admin' | 'owner' | undefined) ?? null
       member_status = (mem?.status as 'active' | 'timed_out' | 'removed' | 'banned' | undefined) ?? null
     }
@@ -230,6 +240,7 @@ export async function GET(
     return ok({
       ...community,
       is_member,
+      is_following,
       member_role,
       member_status,
       event_count: eventCount ?? 0,

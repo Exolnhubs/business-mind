@@ -7,7 +7,7 @@ import { Spinner } from '@/components/ui/Spinner'
 import { EmptyState } from '@/components/ui/EmptyState'
 import type { Community, CommunityLevel } from '@/types/database'
 
-type CommunityWithMembership = Community & { is_member: boolean }
+type CommunityWithMembership = Community & { is_member: boolean; event_count?: number }
 type TrendingCommunity = CommunityWithMembership & { trending_score?: number }
 type MembershipMutationResponse = { is_member?: boolean; member_count?: number }
 
@@ -111,9 +111,14 @@ function CommunityCard({ community, onToggleMembership }: {
         )}
 
         <div className="flex items-center justify-between">
-          <span className="text-xs text-gray-400">
-            {community.member_count.toLocaleString()} member{community.member_count !== 1 ? 's' : ''}
-          </span>
+          <div className="flex items-center gap-3 text-xs text-gray-400">
+            <span>
+              {community.member_count.toLocaleString()} member{community.member_count !== 1 ? 's' : ''}
+            </span>
+            <span>
+              {community.event_count ?? 0} event{(community.event_count ?? 0) !== 1 ? 's' : ''}
+            </span>
+          </div>
           <button
             onClick={handleJoinLeave}
             disabled={loading}

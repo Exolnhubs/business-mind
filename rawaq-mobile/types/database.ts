@@ -596,8 +596,15 @@ export interface EventCommunity {
   community_id: string
 }
 
+export interface CommunityFollow {
+  community_id: string
+  user_id: string
+  created_at: string
+}
+
 export interface CommunityWithMembership extends Community {
   is_member?: boolean
+  is_following?: boolean
   member_role?: CommunityRole | null
   member_status?: CommunityMembershipStatus | null
   ancestors?: Pick<Community, 'id' | 'name' | 'name_ar' | 'slug' | 'level'>[]
@@ -695,6 +702,7 @@ export type Database = {
       subscriptions: { Row: R<Subscription>; Insert: R<Omit<Subscription, 'id' | 'created_at' | 'updated_at'>>; Update: R<Partial<Subscription>>; Relationships: [] }
       communities: { Row: R<Community>; Insert: R<Omit<Community, 'id' | 'member_count' | 'created_at' | 'updated_at'>>; Update: R<Partial<Community>>; Relationships: [] }
       community_memberships: { Row: R<CommunityMembership>; Insert: R<Omit<CommunityMembership, 'id' | 'joined_at'>>; Update: R<Partial<CommunityMembership>>; Relationships: [] }
+      community_follows: { Row: R<CommunityFollow>; Insert: R<CommunityFollow>; Update: R<Partial<CommunityFollow>>; Relationships: [] }
       community_hierarchy: { Row: R<CommunityHierarchy>; Insert: R<CommunityHierarchy>; Update: R<Partial<CommunityHierarchy>>; Relationships: [] }
       event_communities: { Row: R<EventCommunity>; Insert: R<EventCommunity>; Update: R<Partial<EventCommunity>>; Relationships: [] }
     }

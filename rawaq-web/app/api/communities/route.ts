@@ -69,6 +69,7 @@ type CommunityListRow = {
   type: (typeof COMMUNITY_TYPES)[number]
   city: string | null
   member_count: number
+  event_count?: number
   parent_community_id?: string | null
 } & Record<string, unknown>
 
@@ -221,9 +222,27 @@ export async function GET(req: NextRequest) {
     const memberSet = new Set(memberIds)
 
     const rows = (data ?? []) as unknown as CommunityListRow[]
+    const communityIds = rows.map((row) => row.id)
+    const publishedEventCounts = new Map<string, number>()
+
+    if (communityIds.length > 0) {
+      const { data: eventLinks, error: eventLinksError } = await admin
+        .from('event_communities')
+        .select('community_id, event:events!inner(id, is_published, is_cancelled)')
+        .in('community_id', communityIds)
+        .eq('event.is_published', true)
+        .eq('event.is_cancelled', false)
+
+      if (eventLinksError) throw eventLinksError
+
+      for (const link of (eventLinks ?? []) as Array<{ community_id: string }>) {
+        publishedEventCounts.set(link.community_id, (publishedEventCounts.get(link.community_id) ?? 0) + 1)
+      }
+    }
 
     let enriched = rows.map((c) => ({
       ...c,
+      event_count: publishedEventCounts.get(c.id) ?? 0,
       parent_community_id: 'parent_community_id' in c ? c.parent_community_id : null,
       is_member: memberSet.has(c.id) && !['removed', 'banned'].includes(memberStatusByCommunityId.get(c.id) ?? ''),
       member_role: memberRoleByCommunityId.get(c.id) ?? null,

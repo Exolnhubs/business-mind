@@ -18,6 +18,7 @@ import type { Community, CommunityLevel, CommunityRole, Event, HappeningType, Ha
 
 type CommunityDetail = Community & {
   is_member: boolean
+  is_following: boolean
   member_role: CommunityRole | null
   member_status: 'active' | 'timed_out' | 'removed' | 'banned' | null
   event_count: number
@@ -34,6 +35,9 @@ type MembershipMutationResponse = {
   member_role?: CommunityRole | null
   member_status?: 'active' | 'timed_out' | 'removed' | 'banned' | null
   message?: string
+}
+type FollowMutationResponse = {
+  is_following?: boolean
 }
 type EventItem = Pick<Event, 'id' | 'title' | 'title_ar' | 'cover_image_url' | 'start_at' | 'city' | 'is_free' | 'price' | 'currency'>
 type CommunityAdminEntry = {
@@ -93,6 +97,7 @@ export default function CommunityDetailScreen() {
   const [community, setCommunity] = useState<CommunityDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [joining, setJoining] = useState(false)
+  const [following, setFollowing] = useState(false)
   const [events, setEvents] = useState<EventItem[]>([])
   const [eventsLoading, setEventsLoading] = useState(false)
   const [nextCursor, setNextCursor] = useState<string | null>(null)
@@ -340,6 +345,25 @@ export default function CommunityDetailScreen() {
       if (data?.message) Alert.alert('Notice', data.message)
     }
     setJoining(false)
+  }
+
+  async function toggleFollow() {
+    if (!user) { router.push('/auth/login' as any); return }
+    if (!community) return
+    setFollowing(true)
+    const { data, error } = community.is_following
+      ? await apiDelete<FollowMutationResponse>(`/api/communities/${slug}/unfollow`)
+      : await apiPost<FollowMutationResponse>(`/api/communities/${slug}/follow`, {})
+    if (error) {
+      Alert.alert('Error', error)
+    } else {
+      setCommunity((prev) =>
+        prev
+          ? { ...prev, is_following: data?.is_following ?? !prev.is_following }
+          : prev
+      )
+    }
+    setFollowing(false)
   }
 
   async function toggleChildMembership(child: ChildCommunityItem) {
@@ -643,6 +667,28 @@ export default function CommunityDetailScreen() {
                   />
                   <Text style={[styles.joinBtnText, community.is_member && styles.joinBtnTextJoined]}>
                     {community.is_member ? 'Joined · Tap to leave' : 'Join community'}
+                  </Text>
+                </View>
+              )
+            }
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={toggleFollow}
+            disabled={following}
+            style={[styles.followBtn, community.is_following ? styles.followBtnActive : styles.followBtnIdle]}
+            activeOpacity={0.85}
+          >
+            {following
+              ? <ActivityIndicator size="small" color={community.is_following ? '#0369a1' : Colors.gray[700]} />
+              : (
+                <View style={styles.joinBtnInner}>
+                  <Ionicons
+                    name={community.is_following ? 'notifications' : 'notifications-outline'}
+                    size={18}
+                    color={community.is_following ? '#0369a1' : Colors.gray[700]}
+                  />
+                  <Text style={[styles.followBtnText, community.is_following && styles.followBtnTextActive]}>
+                    {community.is_following ? 'Following updates' : 'Follow updates'}
                   </Text>
                 </View>
               )
@@ -1313,6 +1359,17 @@ const styles = StyleSheet.create({
   joinBtnInner: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   joinBtnText: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: '#fff' },
   joinBtnTextJoined: { color: '#15803d' },
+  followBtn: {
+    marginTop: Spacing.sm,
+    borderRadius: Radius.xl,
+    paddingVertical: Spacing.md + 2,
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+  followBtnIdle: { backgroundColor: '#fff', borderColor: Colors.gray[200] },
+  followBtnActive: { backgroundColor: '#f0f9ff', borderColor: '#bae6fd' },
+  followBtnText: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.gray[700] },
+  followBtnTextActive: { color: '#0369a1' },
 
   // Sections
   section: { paddingHorizontal: Spacing.lg, marginBottom: Spacing.xl },

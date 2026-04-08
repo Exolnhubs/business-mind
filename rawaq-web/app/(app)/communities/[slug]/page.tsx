@@ -14,6 +14,7 @@ import type { Community, CommunityLevel, CommunityRole, Event } from '@/types/da
 
 type CommunityDetail = Community & {
   is_member: boolean
+  is_following: boolean
   member_role: CommunityRole | null
   member_status: 'active' | 'timed_out' | 'removed' | 'banned' | null
   event_count: number
@@ -37,6 +38,9 @@ type CommunityAdminEntry = {
   role: CommunityRole
   joined_at: string
   profile: { id: string; display_name: string; avatar_url: string | null } | null
+}
+type FollowMutationResponse = {
+  is_following?: boolean
 }
 type ChildCommunityItem = Community & {
   is_member: boolean
@@ -103,6 +107,7 @@ export default function CommunityDetailPage() {
   const [community, setCommunity] = useState<CommunityDetail | null>(null)
   const [loading, setLoading]     = useState(true)
   const [joining, setJoining]     = useState(false)
+  const [following, setFollowing] = useState(false)
   const [events, setEvents]       = useState<Event[]>([])
   const [eventsLoading, setEventsLoading] = useState(false)
   const [nextCursor, setNextCursor]       = useState<string | null>(null)
@@ -296,6 +301,26 @@ export default function CommunityDetailPage() {
       }
     }
     setJoining(false)
+  }
+
+  async function toggleFollow() {
+    if (!user) { router.push('/login'); return }
+    if (!community) return
+    setFollowing(true)
+    const method = community.is_following ? 'DELETE' : 'POST'
+    const endpoint = community.is_following
+      ? `/api/communities/${slug}/unfollow`
+      : `/api/communities/${slug}/follow`
+    const res = await fetch(endpoint, { method })
+    if (res.ok) {
+      const json = await res.json() as { data?: FollowMutationResponse }
+      setCommunity((prev) =>
+        prev
+          ? { ...prev, is_following: json.data?.is_following ?? !prev.is_following }
+          : prev
+      )
+    }
+    setFollowing(false)
   }
 
   async function toggleChildMembership(child: ChildCommunityItem) {
@@ -655,17 +680,30 @@ export default function CommunityDetailPage() {
               </div>
             </div>
 
-            <button
-              onClick={toggleMembership}
-              disabled={joining}
-              className={`shrink-0 px-5 py-2.5 rounded-xl font-semibold transition-colors ${
-                community.is_member
-                  ? 'border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                  : 'bg-brand-600 text-white hover:bg-brand-700'
-              }`}
-            >
-              {joining ? <Spinner size="sm" /> : community.is_member ? 'Joined · Leave community' : 'Join community'}
-            </button>
+            <div className="flex shrink-0 flex-col gap-2 sm:min-w-[220px]">
+              <button
+                onClick={toggleMembership}
+                disabled={joining}
+                className={`px-5 py-2.5 rounded-xl font-semibold transition-colors ${
+                  community.is_member
+                    ? 'border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                    : 'bg-brand-600 text-white hover:bg-brand-700'
+                }`}
+              >
+                {joining ? <Spinner size="sm" /> : community.is_member ? 'Joined · Leave community' : 'Join community'}
+              </button>
+              <button
+                onClick={toggleFollow}
+                disabled={following}
+                className={`px-5 py-2.5 rounded-xl border font-semibold transition-colors ${
+                  community.is_following
+                    ? 'border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100'
+                    : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
+                }`}
+              >
+                {following ? <Spinner size="sm" /> : community.is_following ? 'Following' : 'Follow updates'}
+              </button>
+            </div>
           </div>
 
           {community.description && (
