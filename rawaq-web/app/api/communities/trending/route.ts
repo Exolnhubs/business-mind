@@ -21,6 +21,10 @@ type TrendingCommunityRow = {
   parent_community_id?: string | null
 } & Record<string, unknown>
 
+type RecentMembershipRow = { community_id: string; joined_at: string }
+type RecentHappeningRow = { community_id: string; created_at: string }
+type RecentEventLinkRow = { community_id: string }
+
 export async function GET(req: NextRequest) {
   try {
     const params = TrendingCommunitiesSchema.parse(Object.fromEntries(req.nextUrl.searchParams))
@@ -92,13 +96,17 @@ export async function GET(req: NextRequest) {
     const newHappenings7d = new Map<string, number>()
     const newEvents7d = new Map<string, number>()
 
-    for (const membership of recentMemberships ?? []) {
+    const membershipRows = (recentMemberships ?? []) as unknown as RecentMembershipRow[]
+    const happeningRows = (recentHappenings ?? []) as unknown as RecentHappeningRow[]
+    const eventLinkRows = (recentEventLinks ?? []) as unknown as RecentEventLinkRow[]
+
+    for (const membership of membershipRows) {
       newMembers7d.set(membership.community_id, (newMembers7d.get(membership.community_id) ?? 0) + 1)
     }
-    for (const happening of recentHappenings ?? []) {
+    for (const happening of happeningRows) {
       newHappenings7d.set(happening.community_id, (newHappenings7d.get(happening.community_id) ?? 0) + 1)
     }
-    for (const link of recentEventLinks ?? []) {
+    for (const link of eventLinkRows) {
       newEvents7d.set(link.community_id, (newEvents7d.get(link.community_id) ?? 0) + 1)
     }
 
