@@ -320,7 +320,7 @@ export default function EventFormScreen() {
 
     const { data: newEvent, error: dbError } = await supabase
       .from('events')
-      .insert(payload)
+      .insert(payload as any)
       .select('id')
       .single()
 
@@ -358,7 +358,7 @@ export default function EventFormScreen() {
           capacity:   t.capacity ? Number(t.capacity) : null,
           is_free:    t.is_free,
           sort_order: i,
-        })
+        } as any)
       if (dbErr) {
         setError(dbErr.message)
         setSaving(false)

@@ -72,7 +72,7 @@ export function CommentThread({ eventId, initialComments, currentUserId }: Props
   async function postComment(content: string, parentId: string | null = null, mediaUrl?: string) {
     if (!user) return
 
-    const { data, error } = await apiPost('/api/comments', {
+    const { data, error } = await apiPost<{ id: string }>('/api/comments', {
       event_id: eventId,
       content,
       parent_id: parentId ?? undefined,

@@ -56,21 +56,7 @@ export default function CreateCommunityScreen() {
   const router = useRouter()
   const { user, profile } = useAuth()
   const isAdmin = profile?.role === 'admin'
-  const isSubcommunityFlow = Boolean(parentCommunity)
-  const requiredParentHint = form.level === 'city'
-    ? 'Choose a country parent.'
-    : form.level === 'district'
-      ? 'Choose a city parent.'
-      : rootCommunity?.level === 'country' && !parentCommunity
-        ? `Choose the local parent inside ${rootCommunity.name}.`
-        : null
-  const parentPlaceholder = form.level === 'district'
-    ? 'Search for a city parent'
-    : form.level === 'city'
-      ? 'Search for a country parent'
-      : rootCommunity?.level === 'country'
-        ? `Search inside ${rootCommunity.name}`
-        : 'Search for an optional parent community'
+
   const [submitting, setSubmitting] = useState(false)
   const [parentQuery, setParentQuery] = useState('')
   const [parentSuggestions, setParentSuggestions] = useState<CommunityPickerItem[]>([])
@@ -86,6 +72,22 @@ export default function CreateCommunityScreen() {
     city: '',
     is_private: false,
   })
+
+  const isSubcommunityFlow = Boolean(parentCommunity)
+  const requiredParentHint = form.level === 'city'
+    ? 'Choose a country parent.'
+    : form.level === 'district'
+      ? 'Choose a city parent.'
+      : rootCommunity?.level === 'country' && !parentCommunity
+        ? `Choose the local parent inside ${rootCommunity.name}.`
+        : null
+  const parentPlaceholder = form.level === 'district'
+    ? 'Search for a city parent'
+    : form.level === 'city'
+      ? 'Search for a country parent'
+      : rootCommunity?.level === 'country'
+        ? `Search inside ${rootCommunity.name}`
+        : 'Search for an optional parent community'
 
   const levelOptions = LEVEL_OPTIONS.filter((option) => !option.adminOnly || isAdmin)
 
@@ -494,6 +496,11 @@ const styles = StyleSheet.create({
     marginTop: 2,
     fontSize: FontSize.xs,
     color: Colors.gray[500],
+  },
+  sectionLink: {
+    fontSize: FontSize.xs,
+    color: Colors.brand[600],
+    fontWeight: FontWeight.semibold,
   },
   parentSuggestions: {
     borderWidth: 1,
