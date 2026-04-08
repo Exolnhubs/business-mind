@@ -154,6 +154,11 @@ export default function CommunityDetailPage() {
   const canModerate = effectiveRole === 'owner' || effectiveRole === 'community_admin'
   const canParticipateInHappenings = memberStatus ? memberStatus === 'active' : isMember
   const isPlatformAdmin = profile?.role === 'admin'
+  const directParent = community && community.ancestors.length > 0
+    ? community.ancestors[community.ancestors.length - 1]
+    : null
+  const canCreateSibling = Boolean(directParent) && (isPlatformAdmin || community?.level !== 'city')
+  const canCreateChildHere = Boolean(community) && (isPlatformAdmin || community.level !== 'country')
   const { happenings, loading: happeningsLoading, posting, post, toggleRsvp, toggleReact, remove, report } =
     useHappenings(slug, isMember)
 
@@ -631,6 +636,29 @@ export default function CommunityDetailPage() {
               <span className="text-gray-600">{community.name}</span>
             </div>
           )}
+          {directParent && (
+            <div className="mb-4 rounded-2xl border border-violet-100 bg-violet-50 px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-violet-700">Nested under</p>
+              <div className="mt-2 flex items-center justify-between gap-3">
+                <div>
+                  <Link href={`/communities/${directParent.slug}`} className="text-sm font-semibold text-violet-900 hover:text-violet-700">
+                    {LEVEL_ICONS[directParent.level]} {directParent.name}
+                  </Link>
+                  <p className="mt-1 text-xs text-violet-700">
+                    This community is part of a larger circle. Members often branch here for a more focused experience.
+                  </p>
+                </div>
+                {canCreateSibling && (
+                  <Link
+                    href={`/communities/new?parent=${directParent.slug}`}
+                    className="rounded-full border border-violet-200 bg-white px-3 py-1.5 text-xs font-semibold text-violet-700 hover:bg-violet-100"
+                  >
+                    Create sibling
+                  </Link>
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -662,6 +690,11 @@ export default function CommunityDetailPage() {
                 {community.member_role && (
                   <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
                     Role: {community.member_role}
+                  </span>
+                )}
+                {community.approval_status !== 'approved' && (
+                  <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">
+                    {community.approval_status === 'pending' ? 'Pending admin approval' : 'Dismissed by admin'}
                   </span>
                 )}
                 {isPlatformAdmin && (
@@ -958,14 +991,16 @@ export default function CommunityDetailPage() {
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-bold text-gray-900">Sub-communities</h2>
-              <p className="text-xs text-gray-500 mt-1">Smaller circles nested under this community.</p>
+              <p className="text-xs text-gray-500 mt-1">Smaller circles nested under this community, ranked by relevance first.</p>
             </div>
-            <Link
-              href={`/communities/new?parent=${slug}`}
-              className="rounded-full bg-violet-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-violet-700"
-            >
-              + Create sub-community here
-            </Link>
+            {canCreateChildHere && (
+              <Link
+                href={community.level === 'country' ? `/communities/new?root=${slug}` : `/communities/new?parent=${slug}`}
+                className="rounded-full bg-violet-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-violet-700"
+              >
+                + Create sub-community here
+              </Link>
+            )}
           </div>
           {childrenLoading ? (
             <div className="flex justify-center py-8"><Spinner size="lg" /></div>
@@ -980,6 +1015,21 @@ export default function CommunityDetailPage() {
                       <Link href={`/communities/${child.slug}`} className="text-sm font-semibold text-gray-900 hover:text-brand-600">
                         {child.name}
                       </Link>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        {child.is_member && (
+                          <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
+                            Joined
+                          </span>
+                        )}
+                        {child.is_verified && (
+                          <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-700">
+                            Verified
+                          </span>
+                        )}
+                        <span className="rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-700">
+                          {child.level}
+                        </span>
+                      </div>
                       <p className="mt-1 text-xs text-gray-500">
                         {child.level} · {child.member_count.toLocaleString()} members
                         {child.city ? ` · ${child.city}` : ''}

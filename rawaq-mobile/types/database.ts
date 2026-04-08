@@ -65,6 +65,7 @@ export type CommunityType =
   | 'district' | 'city' | 'country'
 export type CommunityRole = 'member' | 'community_admin' | 'owner'
 export type CommunityMembershipStatus = 'active' | 'timed_out' | 'removed' | 'banned'
+export type CommunityApprovalStatus = 'approved' | 'pending' | 'dismissed'
 export type EventVisibility = 'micro' | 'interest' | 'city' | 'national'
 
 export interface Profile {
@@ -530,6 +531,7 @@ export interface Community {
   cover_url: string | null
   member_count: number
   is_verified: boolean
+  approval_status: CommunityApprovalStatus
   is_private: boolean
   created_by: string | null
   owner_user_id: string | null

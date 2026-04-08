@@ -52,14 +52,23 @@ export async function GET(
 
     const memberSet = new Set(memberIds)
 
-    return ok({
-      children: (data ?? []).map((child) => ({
+    const children = (data ?? [])
+      .map((child) => ({
         ...child,
         is_member: memberSet.has(child.id) && !['removed', 'banned'].includes(memberStatusByCommunityId.get(child.id) ?? ''),
         member_role: memberRoleByCommunityId.get(child.id) ?? null,
         member_status: memberStatusByCommunityId.get(child.id) ?? null,
-      })),
-    })
+      }))
+      .sort((a, b) => {
+        const aMembershipRank = a.member_status === 'active' ? 2 : a.is_member ? 1 : 0
+        const bMembershipRank = b.member_status === 'active' ? 2 : b.is_member ? 1 : 0
+        if (aMembershipRank !== bMembershipRank) return bMembershipRank - aMembershipRank
+        if (a.is_verified !== b.is_verified) return a.is_verified ? -1 : 1
+        if (a.member_count !== b.member_count) return b.member_count - a.member_count
+        return a.name.localeCompare(b.name)
+      })
+
+    return ok({ children })
   } catch (err) {
     return handleApiError(err)
   }

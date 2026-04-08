@@ -48,6 +48,7 @@ function NewCommunityPageContent() {
   const [parentQuery, setParentQuery] = useState('')
   const [parentSuggestions, setParentSuggestions] = useState<CommunityPickerItem[]>([])
   const [parentCommunity, setParentCommunity] = useState<CommunityPickerItem | null>(null)
+  const [rootCommunity, setRootCommunity] = useState<CommunityPickerItem | null>(null)
   const [form, setForm] = useState({
     name: '',
     name_ar: '',
@@ -61,11 +62,27 @@ function NewCommunityPageContent() {
     country: 'SA',
   })
   const presetParentSlug = searchParams.get('parent')
+  const scopeRootSlug = searchParams.get('root')
 
   const visibleLevels = useMemo(
     () => LEVEL_OPTIONS.filter((option) => !option.adminOnly || isAdmin),
     [isAdmin],
   )
+  const isSubcommunityFlow = Boolean(parentCommunity)
+  const requiredParentHint = form.level === 'city'
+    ? 'Choose a country parent.'
+    : form.level === 'district'
+      ? 'Choose a city parent.'
+      : rootCommunity?.level === 'country' && !parentCommunity
+        ? `Choose the local parent inside ${rootCommunity.name}.`
+        : null
+  const parentPlaceholder = form.level === 'district'
+    ? 'Search for a city parent'
+    : form.level === 'city'
+      ? 'Search for a country parent'
+      : rootCommunity?.level === 'country'
+        ? `Search inside ${rootCommunity.name}`
+        : 'Search for an optional parent community'
 
   useEffect(() => {
     if (!presetParentSlug) return
@@ -81,6 +98,18 @@ function NewCommunityPageContent() {
   }, [presetParentSlug])
 
   useEffect(() => {
+    if (!scopeRootSlug) return
+    fetch(`/api/communities/${scopeRootSlug}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        const community = json?.data as CommunityPickerItem | undefined
+        if (!community) return
+        setRootCommunity(community)
+      })
+      .catch(() => {})
+  }, [scopeRootSlug])
+
+  useEffect(() => {
     const query = parentQuery.trim()
     if (!query || parentCommunity?.name === query || parentCommunity?.name_ar === query) {
       setParentSuggestions([])
@@ -89,9 +118,18 @@ function NewCommunityPageContent() {
 
     const controller = new AbortController()
     const timeout = setTimeout(() => {
-      fetch(`/api/communities?q=${encodeURIComponent(query)}&per_page=6`, { signal: controller.signal })
+      const params = new URLSearchParams({ q: query, per_page: '6' })
+      if (rootCommunity?.slug) params.set('ancestor_slug', rootCommunity.slug)
+      fetch(`/api/communities?${params.toString()}`, { signal: controller.signal })
         .then((res) => (res.ok ? res.json() : null))
-        .then((json) => setParentSuggestions((json?.data ?? []) as CommunityPickerItem[]))
+        .then((json) => {
+          const suggestions = ((json?.data ?? []) as CommunityPickerItem[]).filter((option) => {
+            if (form.level === 'city') return option.level === 'country'
+            if (form.level === 'district') return option.level === 'city'
+            return true
+          })
+          setParentSuggestions(suggestions)
+        })
         .catch(() => {})
     }, 180)
 
@@ -99,12 +137,27 @@ function NewCommunityPageContent() {
       controller.abort()
       clearTimeout(timeout)
     }
-  }, [parentQuery, parentCommunity])
+  }, [form.level, parentQuery, parentCommunity, rootCommunity?.slug])
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     if (!user) {
       router.push('/login')
+      return
+    }
+
+    if (form.level === 'city' && parentCommunity?.level !== 'country') {
+      setError('City communities must be created under a country community.')
+      return
+    }
+
+    if (form.level === 'district' && parentCommunity?.level !== 'city') {
+      setError('District communities must be created under a city community.')
+      return
+    }
+
+    if (rootCommunity?.level === 'country' && form.level !== 'city' && !parentCommunity) {
+      setError(`Choose a city or local parent inside ${rootCommunity.name} before creating this community.`)
       return
     }
 
@@ -166,9 +219,15 @@ function NewCommunityPageContent() {
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
       <div className="mb-8">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-600">Communities</p>
-        <h1 className="mt-2 text-3xl font-bold text-gray-900">Create a Community</h1>
+        <h1 className="mt-2 text-3xl font-bold text-gray-900">
+          {isSubcommunityFlow ? 'Create a Sub-community' : rootCommunity ? `Create in ${rootCommunity.name}` : 'Create a Community'}
+        </h1>
         <p className="mt-2 max-w-2xl text-sm text-gray-600">
-          Start a local circle or interest group and become its first owner.
+          {isSubcommunityFlow
+            ? 'Start a smaller circle inside an existing community and become its first owner.'
+            : rootCommunity
+              ? 'Start a new community inside this country or regional tree with the right local parent.'
+            : 'Start a local circle or interest group and become its first owner.'}
         </p>
       </div>
 
@@ -219,13 +278,24 @@ function NewCommunityPageContent() {
 
           <div className="mt-5">
             <span className="mb-2 block text-sm font-medium text-gray-700">Parent community</span>
+            {rootCommunity && !parentCommunity && (
+              <div className="mb-3 rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3 text-sm text-sky-800">
+                <p className="font-semibold">Creating inside {rootCommunity.name}</p>
+                <p className="mt-1 text-xs leading-5 text-sky-700">
+                  Search for the immediate parent inside this tree so the final hierarchy stays correct.
+                </p>
+              </div>
+            )}
+            {requiredParentHint && (
+              <p className="mb-2 text-xs font-medium text-violet-700">{requiredParentHint}</p>
+            )}
             <input
               value={parentQuery}
               onChange={(e) => {
                 setParentQuery(e.target.value)
                 if (!e.target.value.trim()) setParentCommunity(null)
               }}
-              placeholder="Search for an optional parent community"
+              placeholder={parentPlaceholder}
               className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm outline-none transition focus:border-brand-400"
             />
             {parentCommunity && (
@@ -241,6 +311,14 @@ function NewCommunityPageContent() {
                 >
                   Clear
                 </button>
+              </div>
+            )}
+            {parentCommunity && (
+              <div className="mt-3 rounded-2xl border border-violet-100 bg-violet-50 px-4 py-3 text-sm text-violet-800">
+                <p className="font-semibold">You&apos;re creating inside {parentCommunity.name}.</p>
+                <p className="mt-1 text-xs leading-5 text-violet-700">
+                  Keep the new community narrower than its parent so the nested structure stays clear.
+                </p>
               </div>
             )}
             {!parentCommunity && parentSuggestions.length > 0 && (

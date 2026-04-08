@@ -52,14 +52,30 @@ type CreateCommunityResponse = {
 type CommunityPickerItem = Pick<Community, 'id' | 'slug' | 'name' | 'name_ar' | 'level'>
 
 export default function CreateCommunityScreen() {
-  const params = useLocalSearchParams<{ parent?: string }>()
+  const params = useLocalSearchParams<{ parent?: string; root?: string }>()
   const router = useRouter()
   const { user, profile } = useAuth()
   const isAdmin = profile?.role === 'admin'
+  const isSubcommunityFlow = Boolean(parentCommunity)
+  const requiredParentHint = form.level === 'city'
+    ? 'Choose a country parent.'
+    : form.level === 'district'
+      ? 'Choose a city parent.'
+      : rootCommunity?.level === 'country' && !parentCommunity
+        ? `Choose the local parent inside ${rootCommunity.name}.`
+        : null
+  const parentPlaceholder = form.level === 'district'
+    ? 'Search for a city parent'
+    : form.level === 'city'
+      ? 'Search for a country parent'
+      : rootCommunity?.level === 'country'
+        ? `Search inside ${rootCommunity.name}`
+        : 'Search for an optional parent community'
   const [submitting, setSubmitting] = useState(false)
   const [parentQuery, setParentQuery] = useState('')
   const [parentSuggestions, setParentSuggestions] = useState<CommunityPickerItem[]>([])
   const [parentCommunity, setParentCommunity] = useState<CommunityPickerItem | null>(null)
+  const [rootCommunity, setRootCommunity] = useState<CommunityPickerItem | null>(null)
   const [form, setForm] = useState({
     name: '',
     name_ar: '',
@@ -85,6 +101,16 @@ export default function CreateCommunityScreen() {
   }, [params.parent])
 
   useEffect(() => {
+    if (!params.root) return
+    apiGet<CommunityPickerItem>(`/api/communities/${params.root}`)
+      .then(({ data }) => {
+        if (!data) return
+        setRootCommunity(data)
+      })
+      .catch(() => {})
+  }, [params.root])
+
+  useEffect(() => {
     const query = parentQuery.trim()
     if (!query || parentCommunity?.name === query || parentCommunity?.name_ar === query) {
       setParentSuggestions([])
@@ -92,13 +118,22 @@ export default function CreateCommunityScreen() {
     }
 
     const timeout = setTimeout(() => {
-      apiGet<{ data: CommunityPickerItem[] }>(`/api/communities?q=${encodeURIComponent(query)}&per_page=6`)
-        .then(({ data }) => setParentSuggestions(data?.data ?? []))
+      const searchParams = new URLSearchParams({ q: query, per_page: '6' })
+      if (rootCommunity?.slug) searchParams.set('ancestor_slug', rootCommunity.slug)
+      apiGet<{ data: CommunityPickerItem[] }>(`/api/communities?${searchParams.toString()}`)
+        .then(({ data }) => {
+          const suggestions = (data?.data ?? []).filter((option) => {
+            if (form.level === 'city') return option.level === 'country'
+            if (form.level === 'district') return option.level === 'city'
+            return true
+          })
+          setParentSuggestions(suggestions)
+        })
         .catch(() => {})
     }, 180)
 
     return () => clearTimeout(timeout)
-  }, [parentQuery, parentCommunity])
+  }, [form.level, parentQuery, parentCommunity, rootCommunity?.slug])
 
   async function handleCreate() {
     if (!user) {
@@ -108,6 +143,21 @@ export default function CreateCommunityScreen() {
 
     if (!form.name.trim()) {
       Alert.alert('Missing name', 'Please enter a community name.')
+      return
+    }
+
+    if (form.level === 'city' && parentCommunity?.level !== 'country') {
+      Alert.alert('Choose a parent', 'City communities must be created under a country community.')
+      return
+    }
+
+    if (form.level === 'district' && parentCommunity?.level !== 'city') {
+      Alert.alert('Choose a parent', 'District communities must be created under a city community.')
+      return
+    }
+
+    if (rootCommunity?.level === 'country' && form.level !== 'city' && !parentCommunity) {
+      Alert.alert('Choose a parent', `Pick a city or local parent inside ${rootCommunity.name} before creating this community.`)
       return
     }
 
@@ -150,7 +200,9 @@ export default function CreateCommunityScreen() {
           <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
             <Ionicons name="arrow-back" size={20} color={Colors.gray[800]} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Create Community</Text>
+          <Text style={styles.headerTitle}>
+            {isSubcommunityFlow ? 'Create Sub-community' : rootCommunity ? `Create in ${rootCommunity.name}` : 'Create Community'}
+          </Text>
           <TouchableOpacity onPress={handleCreate} disabled={submitting} style={[styles.createBtn, submitting && styles.createBtnDisabled]}>
             <Text style={styles.createBtnText}>{submitting ? '...' : 'Create'}</Text>
           </TouchableOpacity>
@@ -193,13 +245,22 @@ export default function CreateCommunityScreen() {
           </View>
 
           <Text style={[styles.label, styles.labelSpaced]}>Parent community</Text>
+          {rootCommunity && !parentCommunity && (
+            <View style={styles.parentHelperCard}>
+              <Text style={styles.parentHelperTitle}>Creating inside {rootCommunity.name}</Text>
+              <Text style={styles.parentHelperText}>
+                Search for the immediate parent inside this tree so the hierarchy stays correct.
+              </Text>
+            </View>
+          )}
+          {requiredParentHint && <Text style={styles.parentHint}>{requiredParentHint}</Text>}
           <TextInput
             value={parentQuery}
             onChangeText={(value) => {
               setParentQuery(value)
               if (!value.trim()) setParentCommunity(null)
             }}
-            placeholder="Search for an optional parent community"
+            placeholder={parentPlaceholder}
             placeholderTextColor={Colors.gray[400]}
             style={styles.input}
           />
@@ -212,6 +273,14 @@ export default function CreateCommunityScreen() {
               <TouchableOpacity onPress={() => { setParentCommunity(null); setParentQuery('') }}>
                 <Text style={styles.sectionLink}>Clear</Text>
               </TouchableOpacity>
+            </View>
+          )}
+          {parentCommunity && (
+            <View style={styles.parentHelperCard}>
+              <Text style={styles.parentHelperTitle}>Creating inside {parentCommunity.name}</Text>
+              <Text style={styles.parentHelperText}>
+                Keep this community narrower than its parent so members understand the nesting.
+              </Text>
             </View>
           )}
           {!parentCommunity && parentSuggestions.length > 0 && (
@@ -452,6 +521,29 @@ const styles = StyleSheet.create({
   parentSuggestionMeta: {
     fontSize: FontSize.xs,
     color: Colors.gray[500],
+  },
+  parentHelperCard: {
+    borderWidth: 1,
+    borderColor: '#ddd6fe',
+    backgroundColor: '#f5f3ff',
+    borderRadius: Radius.lg,
+    padding: Spacing.md,
+    gap: 4,
+  },
+  parentHelperTitle: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.bold,
+    color: '#5b21b6',
+  },
+  parentHelperText: {
+    fontSize: FontSize.xs,
+    color: '#6d28d9',
+    lineHeight: 18,
+  },
+  parentHint: {
+    fontSize: FontSize.xs,
+    color: '#6d28d9',
+    fontWeight: FontWeight.semibold,
   },
   privateRow: {
     marginTop: Spacing.sm,

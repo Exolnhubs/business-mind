@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import {
   View, Text, FlatList, TextInput, StyleSheet,
   TouchableOpacity, RefreshControl, ActivityIndicator,
+  Animated,
 } from 'react-native'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
@@ -48,8 +49,19 @@ export default function CommunitiesScreen() {
   const [page, setPage]               = useState(1)
   const [hasMore, setHasMore]         = useState(false)
   const [trending, setTrending]       = useState<TrendingCommunity[]>([])
+  const [recommended, setRecommended] = useState<CommunityWithMembership[]>([])
+  const [popular, setPopular]         = useState<CommunityWithMembership[]>([])
   const [joining, setJoining]         = useState<string | null>(null)
   const isLoadingPageRef              = useRef(false)
+  const discoveryVisibility           = useRef(new Animated.Value(1)).current
+  const [discoveryVisible, setDiscoveryVisible] = useState(true)
+  const lastScrollYRef                = useRef(0)
+  const scrollDirectionLockRef        = useRef<'up' | 'down' | null>(null)
+  const popularCommunities = popular.filter(
+    (community) =>
+      !recommended.some((item) => item.id === community.id) &&
+      !trending.some((item) => item.id === community.id),
+  )
 
   const loadTrending = useCallback(async () => {
     try {
@@ -59,6 +71,26 @@ export default function CommunitiesScreen() {
       setTrending([])
     }
   }, [])
+
+  const loadRecommended = useCallback(async () => {
+    if (!user) {
+      setRecommended([])
+      return
+    }
+
+    const { data } = await apiGet<{ data: CommunityWithMembership[] }>('/api/communities?recommended=true&per_page=6&page=1')
+    setRecommended((data?.data ?? []).filter((community) => !community.is_member))
+  }, [user])
+
+  const loadPopular = useCallback(async () => {
+    if (!user) {
+      setPopular([])
+      return
+    }
+
+    const { data } = await apiGet<{ data: CommunityWithMembership[] }>('/api/communities?per_page=6&page=1')
+    setPopular((data?.data ?? []).filter((community) => !community.is_member))
+  }, [user])
 
   const load = useCallback(async (p: number, q: string, lvl: CommunityLevel | 'all', memberOnly = false, append = false) => {
     if (isLoadingPageRef.current) return
@@ -94,9 +126,38 @@ export default function CommunitiesScreen() {
   useEffect(() => {
     void loadTrending()
   }, [loadTrending])
+  useEffect(() => {
+    void loadRecommended()
+    void loadPopular()
+  }, [loadRecommended, loadPopular])
 
   useFocusEffect(useCallback(() => { load(1, search, levelFilter, joinedOnly, false) }, [load, search, levelFilter, joinedOnly]))
   useFocusEffect(useCallback(() => { void loadTrending() }, [loadTrending]))
+  useFocusEffect(useCallback(() => { void loadRecommended(); void loadPopular() }, [loadRecommended, loadPopular]))
+
+  function applyMembershipUpdate(
+    communityId: string,
+    nextMemberState: boolean,
+    nextMemberCount?: number,
+  ) {
+    const patchList = (items: CommunityWithMembership[]) =>
+      items
+        .map((community) =>
+          community.id === communityId
+            ? {
+                ...community,
+                is_member: nextMemberState,
+                member_count: nextMemberCount ?? (nextMemberState ? community.member_count + 1 : Math.max(community.member_count - 1, 0)),
+              }
+            : community,
+        )
+        .filter((community) => !joinedOnly || community.is_member)
+
+    setCommunities((prev) => patchList(prev))
+    setTrending((prev) => patchList(prev))
+    setRecommended((prev) => patchList(prev).filter((community) => !community.is_member))
+    setPopular((prev) => patchList(prev).filter((community) => !community.is_member))
+  }
 
   async function handleJoinLeave(community: CommunityWithMembership) {
     if (!user) { router.push('/auth/login' as any); return }
@@ -105,14 +166,51 @@ export default function CommunitiesScreen() {
       ? await apiDelete<MembershipMutationResponse>(`/api/communities/${community.slug}/leave`)
       : await apiPost<MembershipMutationResponse>(`/api/communities/${community.slug}/join`, {})
     if (!error) {
-      setCommunities((prev) =>
-        prev.map((c) => c.id === community.id
-          ? { ...c, is_member: data?.is_member ?? !c.is_member, member_count: data?.member_count ?? (!c.is_member ? c.member_count + 1 : Math.max(c.member_count - 1, 0)) }
-          : c
-        ).filter((c) => !joinedOnly || c.is_member)
+      applyMembershipUpdate(
+        community.id,
+        data?.is_member ?? !community.is_member,
+        data?.member_count,
       )
     }
     setJoining(null)
+  }
+
+  function renderDiscoveryCard(item: CommunityWithMembership, tone: 'recommended' | 'popular' | 'trending') {
+    const meta = LEVEL_META[item.level]
+    const name = isRTL && item.name_ar ? item.name_ar : item.name
+    const isJoining = joining === item.id
+    const toneStyle = tone === 'recommended'
+      ? styles.recommendedCard
+      : tone === 'trending'
+        ? styles.trendingCard
+        : styles.popularCard
+
+    return (
+      <TouchableOpacity
+        key={item.id}
+        onPress={() => router.push(`/communities/${item.slug}` as any)}
+        activeOpacity={0.88}
+        style={toneStyle}
+      >
+        <View style={[styles.discoveryMiniIcon, { backgroundColor: meta.bg }]}>
+          <Ionicons name={meta.icon} size={18} color={meta.tint} />
+        </View>
+        <Text style={styles.discoveryMiniName} numberOfLines={1}>{name}</Text>
+        <Text style={styles.discoveryMiniMeta} numberOfLines={1}>
+          {tone !== 'popular' ? `${meta.label}${item.city ? ` · ${item.city}` : ''} · ` : ''}
+          {item.member_count.toLocaleString()} members
+        </Text>
+        <TouchableOpacity
+          onPress={() => handleJoinLeave(item)}
+          disabled={isJoining}
+          style={styles.discoveryJoinBtn}
+        >
+          {isJoining
+            ? <ActivityIndicator size="small" color="#fff" />
+            : <Text style={styles.discoveryJoinText}>Join</Text>}
+        </TouchableOpacity>
+      </TouchableOpacity>
+    )
   }
 
   function renderItem({ item }: { item: CommunityWithMembership }) {
@@ -187,6 +285,58 @@ export default function CommunitiesScreen() {
     )
   }
 
+  function setDiscoveryExpanded(visible: boolean) {
+    if (visible === discoveryVisible) return
+    setDiscoveryVisible(visible)
+    Animated.timing(discoveryVisibility, {
+      toValue: visible ? 1 : 0,
+      duration: 180,
+      useNativeDriver: false,
+    }).start()
+  }
+
+  function handleListScroll(event: { nativeEvent: { contentOffset: { y: number } } }) {
+    const nextY = Math.max(0, event.nativeEvent.contentOffset.y)
+    const delta = nextY - lastScrollYRef.current
+    lastScrollYRef.current = nextY
+
+    if (nextY < 24) {
+      scrollDirectionLockRef.current = null
+      setDiscoveryExpanded(true)
+      return
+    }
+
+    if (Math.abs(delta) < 6) return
+
+    if (delta > 0 && scrollDirectionLockRef.current !== 'down') {
+      scrollDirectionLockRef.current = 'down'
+      setDiscoveryExpanded(false)
+      return
+    }
+
+    if (delta < 0 && scrollDirectionLockRef.current !== 'up') {
+      scrollDirectionLockRef.current = 'up'
+      setDiscoveryExpanded(true)
+    }
+  }
+
+  const discoveryContainerStyle = {
+    opacity: discoveryVisibility,
+    maxHeight: discoveryVisibility.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0, 520],
+    }),
+    transform: [
+      {
+        translateY: discoveryVisibility.interpolate({
+          inputRange: [0, 1],
+          outputRange: [-12, 0],
+        }),
+      },
+    ],
+    overflow: 'hidden' as const,
+  }
+
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -258,6 +408,24 @@ export default function CommunitiesScreen() {
         )}
       />
 
+      <Animated.View style={discoveryContainerStyle} pointerEvents={discoveryVisible ? 'auto' : 'none'}>
+      {user && !joinedOnly && search.trim().length === 0 && recommended.length > 0 && (
+        <View style={styles.discoverySection}>
+          <View style={styles.discoveryHeader}>
+            <Text style={styles.discoveryTitle}>Recommended for you</Text>
+            <Text style={styles.discoveryHint}>Personalized by your interests and city</Text>
+          </View>
+          <FlatList
+            horizontal
+            data={recommended}
+            keyExtractor={(item) => item.id}
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.discoveryRow}
+            renderItem={({ item }) => renderDiscoveryCard(item, 'recommended')}
+          />
+        </View>
+      )}
+
       {!joinedOnly && search.trim().length === 0 && trending.length > 0 && (
         <View style={styles.trendingSection}>
           <View style={styles.trendingHeader}>
@@ -293,6 +461,24 @@ export default function CommunitiesScreen() {
         </View>
       )}
 
+      {user && !joinedOnly && search.trim().length === 0 && popularCommunities.length > 0 && (
+        <View style={styles.discoverySection}>
+          <View style={styles.discoveryHeader}>
+            <Text style={styles.discoveryTitle}>Popular communities</Text>
+            <Text style={styles.discoveryHint}>Established groups people are already joining</Text>
+          </View>
+          <FlatList
+            horizontal
+            data={popularCommunities}
+            keyExtractor={(item) => item.id}
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.discoveryRow}
+            renderItem={({ item }) => renderDiscoveryCard(item, 'popular')}
+          />
+        </View>
+      )}
+      </Animated.View>
+
       {/* List */}
       {loading
         ? <View style={styles.center}><Spinner /></View>
@@ -304,6 +490,8 @@ export default function CommunitiesScreen() {
               keyExtractor={(c) => c.id}
               renderItem={renderItem}
               contentContainerStyle={styles.list}
+              onScroll={handleListScroll}
+              scrollEventThrottle={16}
               refreshControl={
                 <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(1, search, levelFilter, joinedOnly, false) }} />
               }
@@ -358,6 +546,51 @@ const styles = StyleSheet.create({
   filterChipActive: { backgroundColor: Colors.brand[600], borderColor: Colors.brand[600] },
   filterChipText:   { fontSize: FontSize.xs, fontWeight: FontWeight.medium, color: Colors.gray[700] },
   filterChipTextActive: { color: '#fff' },
+
+  discoverySection: { marginBottom: Spacing.md },
+  discoveryHeader: { paddingHorizontal: Spacing.lg, marginBottom: Spacing.sm },
+  discoveryTitle: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.gray[900] },
+  discoveryHint: { marginTop: 2, fontSize: FontSize.xs, color: Colors.gray[500] },
+  discoveryRow: { paddingHorizontal: Spacing.lg, gap: Spacing.sm },
+  recommendedCard: {
+    width: 220,
+    padding: Spacing.md,
+    borderRadius: Radius.xl,
+    backgroundColor: '#eef6ff',
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+    ...Shadow.card,
+  },
+  popularCard: {
+    width: 220,
+    padding: Spacing.md,
+    borderRadius: Radius.xl,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: Colors.gray[200],
+    ...Shadow.card,
+  },
+  discoveryMiniIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: Radius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.sm,
+  },
+  discoveryMiniName: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[900] },
+  discoveryMiniMeta: { marginTop: 4, fontSize: FontSize.xs, color: Colors.gray[500] },
+  discoveryJoinBtn: {
+    alignSelf: 'flex-start',
+    marginTop: Spacing.md,
+    backgroundColor: Colors.brand[600],
+    borderRadius: Radius.full,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
+    minWidth: 68,
+    alignItems: 'center',
+  },
+  discoveryJoinText: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: '#fff' },
 
   trendingSection: { marginBottom: Spacing.md },
   trendingHeader: { paddingHorizontal: Spacing.lg, marginBottom: Spacing.sm },

@@ -40,6 +40,8 @@ const ListCommunitiesSchema = z.object({
   q:        z.string().max(100).optional(),
   member_only: z.coerce.boolean().optional(),
   recommended: z.coerce.boolean().optional(),
+  approval_status: z.enum(['approved', 'pending', 'dismissed']).optional(),
+  ancestor_slug: z.string().trim().min(1).max(120).optional(),
   page:     z.coerce.number().int().positive().default(1),
   per_page: z.coerce.number().int().min(1).max(50).default(20),
 })
@@ -59,7 +61,7 @@ const CreateCommunitySchema = z.object({
 })
 
 const COMMUNITY_LIST_SELECT =
-  'id, name, name_ar, slug, description, description_ar, level, type, city, country, cover_url, member_count, is_verified, is_private, created_by, owner_user_id, parent_community_id, created_at, updated_at'
+  'id, name, name_ar, slug, description, description_ar, level, type, city, country, cover_url, member_count, is_verified, approval_status, is_private, created_by, owner_user_id, parent_community_id, created_at, updated_at'
 const COMMUNITY_LIST_SELECT_LEGACY =
   'id, name, name_ar, slug, description, description_ar, level, type, city, country, cover_url, member_count, is_verified, is_private, created_by, owner_user_id, created_at, updated_at'
 
@@ -139,6 +141,7 @@ export async function GET(req: NextRequest) {
     const to        = from + params.per_page - 1
     const queryFrom = params.recommended ? 0 : from
     const queryTo   = params.recommended ? Math.max(params.per_page * 4, 24) - 1 : to
+    const isPlatformAdmin = ctx?.role === 'admin'
 
     let memberIds: string[] = []
     const memberRoleByCommunityId = new Map<string, string>()
@@ -190,9 +193,48 @@ export async function GET(req: NextRequest) {
       })
     }
 
+    let descendantIds: string[] | null = null
+    if (params.ancestor_slug) {
+      const { data: ancestorCommunity, error: ancestorCommunityError } = await admin
+        .from('communities')
+        .select('id')
+        .eq('slug', params.ancestor_slug)
+        .maybeSingle()
+
+      if (ancestorCommunityError) throw ancestorCommunityError
+
+      if (!ancestorCommunity) {
+        return ok({
+          data: [],
+          total: 0,
+          page: params.page,
+          per_page: params.per_page,
+          has_more: false,
+        })
+      }
+
+      const { data: descendantRows, error: descendantRowsError } = await admin
+        .from('community_hierarchy')
+        .select('child_id')
+        .eq('parent_id', ancestorCommunity.id)
+
+      if (descendantRowsError) throw descendantRowsError
+      descendantIds = (descendantRows ?? []).map((row) => row.child_id)
+
+      if (descendantIds.length === 0) {
+        return ok({
+          data: [],
+          total: 0,
+          page: params.page,
+          per_page: params.per_page,
+          has_more: false,
+        })
+      }
+    }
+
     const communitiesClient = params.member_only ? admin : supabase
 
-    const buildQuery = (selectColumns: string) => {
+    const buildQuery = (selectColumns: string, includeApprovalFilter = true) => {
       let query = communitiesClient
         .from('communities')
         .select(selectColumns, { count: 'exact' })
@@ -205,6 +247,12 @@ export async function GET(req: NextRequest) {
       if (params.type) query = query.eq('type', params.type as any)
       if (params.q) query = query.or(`name.ilike.%${params.q.trim()}%,name_ar.ilike.%${params.q.trim()}%`)
       if (params.member_only) query = query.in('id', memberIds)
+      if (descendantIds) query = query.in('id', descendantIds)
+      if (includeApprovalFilter && isPlatformAdmin && params.approval_status) {
+        query = query.eq('approval_status', params.approval_status)
+      } else if (includeApprovalFilter && !params.member_only) {
+        query = query.eq('approval_status', 'approved')
+      }
 
       return query
     }
@@ -215,6 +263,12 @@ export async function GET(req: NextRequest) {
       data = legacyResult.data
       count = legacyResult.count
       error = legacyResult.error
+    }
+    if (error && `${error.message ?? ''}`.includes('approval_status')) {
+      const noApprovalResult = await buildQuery(COMMUNITY_LIST_SELECT_LEGACY, false)
+      data = noApprovalResult.data
+      count = noApprovalResult.count
+      error = noApprovalResult.error
     }
     if (error) throw error
 
@@ -244,6 +298,7 @@ export async function GET(req: NextRequest) {
       ...c,
       event_count: publishedEventCounts.get(c.id) ?? 0,
       parent_community_id: 'parent_community_id' in c ? c.parent_community_id : null,
+      approval_status: 'approval_status' in c ? c.approval_status : 'approved',
       is_member: memberSet.has(c.id) && !['removed', 'banned'].includes(memberStatusByCommunityId.get(c.id) ?? ''),
       member_role: memberRoleByCommunityId.get(c.id) ?? null,
       member_status: memberStatusByCommunityId.get(c.id) ?? null,
@@ -309,6 +364,7 @@ export async function POST(req: NextRequest) {
     const communityId = crypto.randomUUID()
     const slug = generateCommunitySlug(input.name, communityId)
     let parentCommunityId: string | null = null
+    let parentCommunityLevel: (typeof COMMUNITY_LEVELS)[number] | null = null
 
     if (input.parent_slug) {
       const { data: parentCommunity, error: parentCommunityError } = await admin
@@ -330,7 +386,31 @@ export async function POST(req: NextRequest) {
       }
 
       parentCommunityId = parentCommunity.id
+      parentCommunityLevel = parentCommunity.level
     }
+
+    if (parentCommunityLevel === 'country' && input.level !== 'city') {
+      return Response.json(
+        { error: 'Choose a city or local parent inside this country instead of attaching this community directly to the country root' },
+        { status: 422 },
+      )
+    }
+    if (input.level === 'district' && parentCommunityLevel !== 'city') {
+      return Response.json(
+        { error: 'District communities must live under a city community' },
+        { status: 422 },
+      )
+    }
+    if (input.level === 'city' && parentCommunityLevel !== 'country') {
+      return Response.json(
+        { error: 'City communities must live under a country community' },
+        { status: 422 },
+      )
+    }
+
+    const approvalStatus = input.level === 'district' && ctx.role !== 'admin'
+      ? 'pending'
+      : 'approved'
 
     const communityInsert = {
       id: communityId,
@@ -345,6 +425,7 @@ export async function POST(req: NextRequest) {
       country: input.country.toUpperCase(),
       cover_url: input.cover_url ?? null,
       is_verified: false,
+      approval_status: approvalStatus,
       is_private: input.is_private,
       parent_community_id: parentCommunityId,
       owner_user_id: ctx.userId,
@@ -354,7 +435,7 @@ export async function POST(req: NextRequest) {
     const { data: community, error: communityError } = await admin
       .from('communities')
       .insert(communityInsert)
-      .select('id, name, name_ar, slug, description, description_ar, level, type, city, country, cover_url, member_count, is_verified, is_private, created_by, owner_user_id, parent_community_id, created_at, updated_at')
+      .select('id, name, name_ar, slug, description, description_ar, level, type, city, country, cover_url, member_count, is_verified, approval_status, is_private, created_by, owner_user_id, parent_community_id, created_at, updated_at')
       .single()
 
     if (communityError) throw communityError

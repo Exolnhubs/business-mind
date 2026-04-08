@@ -16,6 +16,7 @@ const UpdateCommunitySchema = z.object({
   cover_url: z.string().trim().url().nullable().optional(),
   is_private: z.boolean().optional(),
   is_verified: z.boolean().optional(),
+  approval_status: z.enum(['approved', 'pending', 'dismissed']).optional(),
 })
 
 // GET /api/communities/:slug — community detail
@@ -94,6 +95,15 @@ export async function GET(
       is_following = !!follow
       member_role = (mem?.role as 'member' | 'community_admin' | 'owner' | undefined) ?? null
       member_status = (mem?.status as 'active' | 'timed_out' | 'removed' | 'banned' | undefined) ?? null
+    }
+
+    const canViewPendingCommunity = ctx?.role === 'admin'
+      || community.owner_user_id === ctx?.userId
+      || !!member_role
+      || is_member
+
+    if (community.approval_status && community.approval_status !== 'approved' && !canViewPendingCommunity) {
+      throw new NotFoundException('Community not found')
     }
 
     // 5 recent upcoming events
@@ -282,6 +292,9 @@ export async function PATCH(
       if (input.is_verified !== undefined) {
         throw new ForbiddenException('Only platform admins can change verification status')
       }
+      if (input.approval_status !== undefined) {
+        throw new ForbiddenException('Only platform admins can change approval status')
+      }
     }
 
     const updatePayload: Record<string, unknown> = {
@@ -296,6 +309,7 @@ export async function PATCH(
     if (input.cover_url !== undefined) updatePayload.cover_url = input.cover_url?.trim() ? input.cover_url.trim() : null
     if (input.is_private !== undefined) updatePayload.is_private = input.is_private
     if (isPlatformAdmin && input.is_verified !== undefined) updatePayload.is_verified = input.is_verified
+    if (isPlatformAdmin && input.approval_status !== undefined) updatePayload.approval_status = input.approval_status
 
     if (Object.keys(updatePayload).length === 1) return ok(targetCommunity)
 

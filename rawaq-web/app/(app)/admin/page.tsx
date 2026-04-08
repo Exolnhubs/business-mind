@@ -10,6 +10,7 @@ async function getStats(supabase: Awaited<ReturnType<typeof createSupabaseServer
     { count: totalOrganizers },
     { count: activeEvents },
     { count: pendingOrganizers },
+    { count: pendingCommunities },
     { count: flaggedComments },
     { data: tipsData },
   ] = await Promise.all([
@@ -17,6 +18,7 @@ async function getStats(supabase: Awaited<ReturnType<typeof createSupabaseServer
     supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'organizer'),
     supabase.from('events').select('*', { count: 'exact', head: true }).eq('is_published', true).eq('is_cancelled', false),
     supabase.from('organizer_profiles').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+    supabase.from('communities').select('*', { count: 'exact', head: true }).eq('approval_status', 'pending').eq('level', 'district'),
     supabase.from('comments').select('*', { count: 'exact', head: true }).eq('is_flagged', true).eq('is_deleted', false),
     supabase.from('tips').select('amount'),
   ])
@@ -28,6 +30,7 @@ async function getStats(supabase: Awaited<ReturnType<typeof createSupabaseServer
     totalOrganizers: totalOrganizers ?? 0,
     activeEvents: activeEvents ?? 0,
     pendingOrganizers: pendingOrganizers ?? 0,
+    pendingCommunities: pendingCommunities ?? 0,
     flaggedComments: flaggedComments ?? 0,
     totalTips,
   }
@@ -70,6 +73,20 @@ export default async function AdminDashboard() {
             </p>
             <a href="/admin/organizers" className="text-sm text-amber-700 underline mt-0.5 inline-block">
               Review now →
+            </a>
+          </div>
+        </div>
+      )}
+
+      {stats.pendingCommunities > 0 && (
+        <div className="bg-sky-50 border border-sky-200 rounded-xl p-4 flex items-start gap-3">
+          <span className="text-2xl">Pending</span>
+          <div>
+            <p className="font-semibold text-sky-800">
+              {stats.pendingCommunities} district communit{stats.pendingCommunities > 1 ? 'ies are' : 'y is'} awaiting approval
+            </p>
+            <a href="/admin/communities" className="text-sm text-sky-700 underline mt-0.5 inline-block">
+              Review communities
             </a>
           </div>
         </div>

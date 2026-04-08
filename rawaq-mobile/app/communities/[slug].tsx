@@ -89,7 +89,7 @@ const LEVEL_META: Record<CommunityLevel, { label: string; icon: keyof typeof Ion
 
 export default function CommunityDetailScreen() {
   const { slug } = useLocalSearchParams<{ slug: string }>()
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const { locale } = useLocale()
   const router = useRouter()
   const isRTL = locale === 'ar'
@@ -147,6 +147,12 @@ export default function CommunityDetailScreen() {
   const isCommunityOwner = effectiveRole === 'owner'
   const canModerate = effectiveRole === 'owner' || effectiveRole === 'community_admin'
   const canParticipateInHappenings = memberStatus ? memberStatus === 'active' : !!community?.is_member
+  const isPlatformAdmin = profile?.role === 'admin'
+  const directParent = community && community.ancestors.length > 0
+    ? community.ancestors[community.ancestors.length - 1]
+    : null
+  const canCreateSibling = !!directParent && (isPlatformAdmin || community?.level !== 'city')
+  const canCreateChildHere = !!community && (isPlatformAdmin || community.level !== 'country')
 
   function openLocationPicker() {
     setShowPostModal(false)
@@ -606,6 +612,13 @@ export default function CommunityDetailScreen() {
                 <View style={[styles.levelTag, { backgroundColor: meta.bg }]}>
                   <Text style={[styles.levelTagText, { color: meta.tint }]}>{meta.label}</Text>
                 </View>
+                {community.approval_status !== 'approved' && (
+                  <View style={styles.pendingApprovalTag}>
+                    <Text style={styles.pendingApprovalTagText}>
+                      {community.approval_status === 'pending' ? 'Pending admin approval' : 'Dismissed by admin'}
+                    </Text>
+                  </View>
+                )}
                 {community.city && <Text style={styles.cityText}>📍 {community.city}</Text>}
                 {community.member_role && <Text style={styles.cityText}>Role: {community.member_role}</Text>}
                 {community.member_status && community.member_status !== 'active' && (
@@ -645,6 +658,35 @@ export default function CommunityDetailScreen() {
                     <Text style={styles.socialProofChipText}>{member.display_name}</Text>
                   </View>
                 ))}
+              </View>
+            </View>
+          )}
+          {directParent && (
+            <View style={styles.parentContextCard}>
+              <Text style={styles.parentContextLabel}>Nested under</Text>
+              <View style={styles.parentContextRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.parentContextName}>
+                    {LEVEL_META[directParent.level].label} · {directParent.name}
+                  </Text>
+                  <Text style={styles.parentContextHint}>
+                    This community branches off a larger circle for a more focused experience.
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => router.push(`/communities/${directParent.slug}` as any)}
+                  style={styles.parentContextBtn}
+                >
+                  <Text style={styles.parentContextBtnText}>View parent</Text>
+                </TouchableOpacity>
+                {canCreateSibling && (
+                  <TouchableOpacity
+                    onPress={() => router.push(`/communities/create?parent=${directParent.slug}` as any)}
+                    style={styles.parentContextBtn}
+                  >
+                    <Text style={styles.parentContextBtnText}>Create sibling</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
           )}
@@ -848,10 +890,13 @@ export default function CommunityDetailScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Sub-communities</Text>
-            <TouchableOpacity onPress={() => router.push(`/communities/create?parent=${slug}` as any)}>
-              <Text style={styles.sectionLink}>Create here →</Text>
-            </TouchableOpacity>
+            {canCreateChildHere && (
+              <TouchableOpacity onPress={() => router.push((community.level === 'country' ? `/communities/create?root=${slug}` : `/communities/create?parent=${slug}`) as any)}>
+                <Text style={styles.sectionLink}>Create here →</Text>
+              </TouchableOpacity>
+            )}
           </View>
+          <Text style={styles.sectionSubInline}>Joined and verified circles appear first.</Text>
           {childrenLoading ? (
             <View style={styles.centerSmall}><Spinner /></View>
           ) : children.length === 0 ? (
@@ -862,6 +907,21 @@ export default function CommunityDetailScreen() {
                 <View key={child.id} style={[styles.childCard, index < children.length - 1 && styles.childCardBorder]}>
                   <TouchableOpacity style={styles.childBody} onPress={() => router.push(`/communities/${child.slug}` as any)}>
                     <Text style={styles.childName}>{isRTL && child.name_ar ? child.name_ar : child.name}</Text>
+                    <View style={styles.childBadgeRow}>
+                      {child.is_member && (
+                        <View style={[styles.childBadge, styles.childBadgeJoined]}>
+                          <Text style={[styles.childBadgeText, styles.childBadgeTextJoined]}>Joined</Text>
+                        </View>
+                      )}
+                      {child.is_verified && (
+                        <View style={[styles.childBadge, styles.childBadgeVerified]}>
+                          <Text style={[styles.childBadgeText, styles.childBadgeTextVerified]}>Verified</Text>
+                        </View>
+                      )}
+                      <View style={[styles.childBadge, styles.childBadgeLevel]}>
+                        <Text style={[styles.childBadgeText, styles.childBadgeTextLevel]}>{child.level}</Text>
+                      </View>
+                    </View>
                     <Text style={styles.childMeta}>
                       {child.level} · {child.member_count.toLocaleString()} members{child.city ? ` · ${child.city}` : ''}
                     </Text>
@@ -1324,6 +1384,8 @@ const styles = StyleSheet.create({
   tagRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 6 },
   levelTag: { paddingHorizontal: Spacing.sm, paddingVertical: 3, borderRadius: Radius.full },
   levelTagText: { fontSize: 11, fontWeight: FontWeight.semibold },
+  pendingApprovalTag: { paddingHorizontal: Spacing.sm, paddingVertical: 3, borderRadius: Radius.full, backgroundColor: '#f0f9ff', borderWidth: 1, borderColor: '#bae6fd' },
+  pendingApprovalTagText: { fontSize: 11, fontWeight: FontWeight.semibold, color: '#0369a1' },
   cityText: { fontSize: FontSize.xs, color: Colors.gray[500] },
 
   statsRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.gray[50], borderRadius: Radius.xl, padding: Spacing.lg, marginBottom: Spacing.lg },
@@ -1352,6 +1414,33 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   socialProofChipText: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: '#0369a1' },
+  parentContextCard: {
+    marginBottom: Spacing.lg,
+    borderWidth: 1,
+    borderColor: '#ddd6fe',
+    backgroundColor: '#f5f3ff',
+    borderRadius: Radius.xl,
+    padding: Spacing.md,
+  },
+  parentContextLabel: {
+    fontSize: 11,
+    fontWeight: FontWeight.bold,
+    color: '#6d28d9',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  parentContextRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, marginTop: Spacing.sm },
+  parentContextName: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: '#4c1d95' },
+  parentContextHint: { fontSize: FontSize.xs, color: '#6d28d9', marginTop: 4, lineHeight: 18 },
+  parentContextBtn: {
+    borderWidth: 1,
+    borderColor: '#c4b5fd',
+    backgroundColor: '#fff',
+    borderRadius: Radius.full,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  parentContextBtnText: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: '#6d28d9' },
 
   joinBtn: { borderRadius: Radius.xl, paddingVertical: Spacing.md + 2, alignItems: 'center' },
   joinBtnDefault: { backgroundColor: Colors.brand[600] },
@@ -1381,6 +1470,15 @@ const styles = StyleSheet.create({
   childCardBorder: { borderBottomWidth: 1, borderBottomColor: Colors.gray[100] },
   childBody: { flex: 1 },
   childName: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[900] },
+  childBadgeRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, flexWrap: 'wrap', marginTop: 6 },
+  childBadge: { borderRadius: Radius.full, paddingHorizontal: Spacing.sm, paddingVertical: 4, borderWidth: 1 },
+  childBadgeJoined: { backgroundColor: '#f0fdf4', borderColor: '#86efac' },
+  childBadgeVerified: { backgroundColor: '#f0f9ff', borderColor: '#bae6fd' },
+  childBadgeLevel: { backgroundColor: '#f5f3ff', borderColor: '#ddd6fe' },
+  childBadgeText: { fontSize: 10, fontWeight: FontWeight.bold },
+  childBadgeTextJoined: { color: '#15803d' },
+  childBadgeTextVerified: { color: '#0369a1' },
+  childBadgeTextLevel: { color: '#6d28d9' },
   childMeta: { fontSize: FontSize.xs, color: Colors.gray[500], marginTop: 3 },
   childJoinBtn: { borderRadius: Radius.full, backgroundColor: Colors.brand[600], paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm },
   childJoinBtnActive: { backgroundColor: '#f0fdf4', borderWidth: 1, borderColor: '#86efac' },
