@@ -14,6 +14,13 @@ const COMMUNITY_SELECT =
 const COMMUNITY_SELECT_LEGACY =
   'id, name, name_ar, slug, description, description_ar, level, type, city, country, cover_url, member_count, is_verified, is_private, created_by, owner_user_id, created_at, updated_at'
 
+type TrendingCommunityRow = {
+  id: string
+  name: string
+  member_count: number
+  parent_community_id?: string | null
+} & Record<string, unknown>
+
 export async function GET(req: NextRequest) {
   try {
     const params = TrendingCommunitiesSchema.parse(Object.fromEntries(req.nextUrl.searchParams))
@@ -40,20 +47,22 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    let communitiesResult = await admin
+    let { data: communitiesData, error: communitiesError } = await admin
       .from('communities')
       .select(COMMUNITY_SELECT)
       .order('member_count', { ascending: false })
       .limit(100)
 
-    if (communitiesResult.error && `${communitiesResult.error.message ?? ''}`.includes('parent_community_id')) {
-      communitiesResult = await admin
+    if (communitiesError && `${communitiesError.message ?? ''}`.includes('parent_community_id')) {
+      const legacyResult = await admin
         .from('communities')
         .select(COMMUNITY_SELECT_LEGACY)
         .order('member_count', { ascending: false })
         .limit(100)
+      communitiesData = legacyResult.data
+      communitiesError = legacyResult.error
     }
-    if (communitiesResult.error) throw communitiesResult.error
+    if (communitiesError) throw communitiesError
 
     const { data: recentMemberships, error: membershipsError } = await admin
       .from('community_memberships')
@@ -89,7 +98,8 @@ export async function GET(req: NextRequest) {
     }
 
     const memberSet = new Set(memberIds)
-    const scored = (communitiesResult.data ?? [])
+    const rows = (communitiesData ?? []) as unknown as TrendingCommunityRow[]
+    const scored = rows
       .map((community) => {
         const score =
           (newMembers7d.get(community.id) ?? 0) * 2 +
