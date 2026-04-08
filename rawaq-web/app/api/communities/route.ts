@@ -5,6 +5,7 @@ import { optionalAuth, requireAuth } from '@/lib/auth'
 import { ForbiddenException, handleApiError, ok, created } from '@/lib/errors'
 import { writeCommunityAuditLog } from '@/lib/community-governance'
 import { generateCommunitySlug } from '@/lib/community-slug'
+import type { CommunityApprovalStatus } from '@/types/database'
 import { z } from 'zod'
 
 const COMMUNITY_LEVELS = ['micro', 'interest', 'district', 'city', 'country'] as const
@@ -408,7 +409,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const approvalStatus = input.level === 'district' && ctx.role !== 'admin'
+    const approvalStatus: CommunityApprovalStatus = input.level === 'district' && ctx.role !== 'admin'
       ? 'pending'
       : 'approved'
 
