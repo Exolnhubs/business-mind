@@ -220,7 +220,7 @@ export async function GET(req: NextRequest) {
     // If authenticated, annotate is_member for each community
     const memberSet = new Set(memberIds)
 
-    const rows = (data ?? []) as CommunityListRow[]
+    const rows = (data ?? []) as unknown as CommunityListRow[]
 
     let enriched = rows.map((c) => ({
       ...c,
