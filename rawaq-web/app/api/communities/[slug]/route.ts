@@ -2,19 +2,20 @@ import { NextRequest } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { optionalAuth, requireAuth } from '@/lib/auth'
-import { handleApiError, ok, NotFoundException } from '@/lib/errors'
+import { handleApiError, ok, NotFoundException, ForbiddenException } from '@/lib/errors'
 import { requireCommunityOwner } from '@/lib/community-governance'
 import type { Community, CommunityHierarchy } from '@/types/database'
 import { z } from 'zod'
 
 const UpdateCommunitySchema = z.object({
-  name: z.string().trim().min(2).max(100),
+  name: z.string().trim().min(2).max(100).optional(),
   name_ar: z.string().trim().max(100).nullable().optional(),
   description: z.string().trim().max(2000).nullable().optional(),
   description_ar: z.string().trim().max(2000).nullable().optional(),
   city: z.string().trim().max(80).nullable().optional(),
   cover_url: z.string().trim().url().nullable().optional(),
   is_private: z.boolean().optional(),
+  is_verified: z.boolean().optional(),
 })
 
 // GET /api/communities/:slug — community detail
@@ -128,6 +129,38 @@ export async function GET(
         .filter(Boolean) as Array<{ id: string; display_name: string; avatar_url: string | null; joined_at: string }>
     }
 
+    const { data: timedOutMembershipRows } = await admin
+      .from('community_memberships')
+      .select('user_id, joined_at, timeout_until')
+      .eq('community_id', community.id)
+      .eq('status', 'timed_out')
+      .order('timeout_until', { ascending: true })
+      .limit(50)
+
+    const timedOutMemberIds = (timedOutMembershipRows ?? []).map((row) => row.user_id)
+    let timed_out_members: Array<{ id: string; display_name: string; avatar_url: string | null; joined_at: string; timeout_until: string | null }> = []
+    if (timedOutMemberIds.length > 0) {
+      const { data: timedOutProfiles } = await admin
+        .from('profiles')
+        .select('id, display_name, avatar_url')
+        .in('id', timedOutMemberIds)
+
+      const profileById = new Map((timedOutProfiles ?? []).map((profile) => [profile.id, profile]))
+      timed_out_members = (timedOutMembershipRows ?? [])
+        .map((row) => {
+          const profile = profileById.get(row.user_id)
+          if (!profile) return null
+          return {
+            id: profile.id,
+            display_name: profile.display_name,
+            avatar_url: profile.avatar_url,
+            joined_at: row.joined_at,
+            timeout_until: row.timeout_until,
+          }
+        })
+        .filter(Boolean) as Array<{ id: string; display_name: string; avatar_url: string | null; joined_at: string; timeout_until: string | null }>
+    }
+
     const activity: Array<{ id: string; type: 'member_joined' | 'event_published'; title: string; subtitle: string; created_at: string; href: string | null }> = []
 
     for (const member of recent_members.slice(0, 4)) {
@@ -163,6 +196,7 @@ export async function GET(
       ancestors,
       recent_events,
       recent_members,
+      timed_out_members,
       activity: activity.slice(0, 6),
     })
   } catch (err) {
@@ -178,24 +212,44 @@ export async function PATCH(
     const { slug } = await params
     const input = UpdateCommunitySchema.parse(await req.json())
     const ctx = await requireAuth()
-    const gov = await requireCommunityOwner(slug, ctx.userId, ctx.role)
     const admin = createSupabaseAdminClient()
+    const { data: targetCommunity, error: targetCommunityError } = await admin
+      .from('communities')
+      .select('*')
+      .eq('slug', slug)
+      .maybeSingle()
 
-    const updatePayload = {
-      name: input.name,
-      name_ar: input.name_ar?.trim() ? input.name_ar.trim() : null,
-      description: input.description?.trim() ? input.description.trim() : null,
-      description_ar: input.description_ar?.trim() ? input.description_ar.trim() : null,
-      city: input.city?.trim() ? input.city.trim() : null,
-      cover_url: input.cover_url?.trim() ? input.cover_url.trim() : null,
-      is_private: input.is_private,
+    if (targetCommunityError) throw targetCommunityError
+    if (!targetCommunity) throw new NotFoundException('Community not found')
+
+    const isPlatformAdmin = ctx.role === 'admin'
+
+    if (!isPlatformAdmin) {
+      await requireCommunityOwner(slug, ctx.userId, ctx.role)
+      if (input.is_verified !== undefined) {
+        throw new ForbiddenException('Only platform admins can change verification status')
+      }
+    }
+
+    const updatePayload: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
     }
+
+    if (input.name !== undefined) updatePayload.name = input.name
+    if (input.name_ar !== undefined) updatePayload.name_ar = input.name_ar?.trim() ? input.name_ar.trim() : null
+    if (input.description !== undefined) updatePayload.description = input.description?.trim() ? input.description.trim() : null
+    if (input.description_ar !== undefined) updatePayload.description_ar = input.description_ar?.trim() ? input.description_ar.trim() : null
+    if (input.city !== undefined) updatePayload.city = input.city?.trim() ? input.city.trim() : null
+    if (input.cover_url !== undefined) updatePayload.cover_url = input.cover_url?.trim() ? input.cover_url.trim() : null
+    if (input.is_private !== undefined) updatePayload.is_private = input.is_private
+    if (isPlatformAdmin && input.is_verified !== undefined) updatePayload.is_verified = input.is_verified
+
+    if (Object.keys(updatePayload).length === 1) return ok(targetCommunity)
 
     const { data, error } = await admin
       .from('communities')
       .update(updatePayload)
-      .eq('id', gov.community.id)
+      .eq('id', targetCommunity.id)
       .select('*')
       .single()
 

@@ -20,6 +20,7 @@ type CommunityDetail = Community & {
   ancestors: Pick<Community, 'id' | 'name' | 'name_ar' | 'slug' | 'level'>[]
   recent_events: Pick<Event, 'id' | 'title' | 'title_ar' | 'cover_image_url' | 'start_at' | 'city' | 'is_free' | 'price' | 'currency' | 'bookings_count'>[]
   recent_members: Array<{ id: string; display_name: string; avatar_url: string | null; joined_at: string }>
+  timed_out_members: Array<{ id: string; display_name: string; avatar_url: string | null; joined_at: string; timeout_until: string | null }>
   activity: Array<{ id: string; type: 'member_joined' | 'event_published'; title: string; subtitle: string; created_at: string; href: string | null }>
 }
 type MembershipMutationResponse = {
@@ -94,7 +95,7 @@ const LEVEL_ICONS: Record<CommunityLevel, string> = {
 
 export default function CommunityDetailPage() {
   const { slug }   = useParams<{ slug: string }>()
-  const { user }   = useAuth()
+  const { user, profile }   = useAuth()
   const router     = useRouter()
 
   const [community, setCommunity] = useState<CommunityDetail | null>(null)
@@ -123,6 +124,7 @@ export default function CommunityDetailPage() {
     is_private: false,
   })
   const [savingSettings, setSavingSettings] = useState(false)
+  const [verifying, setVerifying] = useState(false)
   const [selectedMemberHistory, setSelectedMemberHistory] = useState<{
     member: CommunityDetail['recent_members'][number]
     warnings: CommunityWarningEntry[]
@@ -144,6 +146,7 @@ export default function CommunityDetailPage() {
   const isCommunityOwner = effectiveRole === 'owner'
   const canModerate = effectiveRole === 'owner' || effectiveRole === 'community_admin'
   const canParticipateInHappenings = memberStatus ? memberStatus === 'active' : isMember
+  const isPlatformAdmin = profile?.role === 'admin'
   const { happenings, loading: happeningsLoading, posting, post, toggleRsvp, toggleReact, remove, report } =
     useHappenings(slug, isMember)
 
@@ -376,6 +379,71 @@ export default function CommunityDetailPage() {
     }
   }
 
+  async function toggleVerification() {
+    if (!community) return
+    setVerifying(true)
+    try {
+      const res = await fetch(`/api/communities/${slug}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_verified: !community.is_verified }),
+      })
+      if (res.ok) {
+        const json = await res.json() as { data: Community }
+        setCommunity((prev) => (prev ? { ...prev, ...json.data } : prev))
+      } else {
+        window.alert('Failed to update verification status')
+      }
+    } finally {
+      setVerifying(false)
+    }
+  }
+
+  function exportMembersCsv() {
+    if (!community) return
+    const rows = [
+      ['name', 'status', 'joined_at', 'timeout_until'],
+      ...community.recent_members.map((member) => [member.display_name, 'active', member.joined_at, '']),
+      ...community.timed_out_members.map((member) => [member.display_name, 'timed_out', member.joined_at, member.timeout_until ?? '']),
+    ]
+    const csv = rows
+      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+      .join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${community.slug}-members.csv`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
+  async function removeAllTimedOutMembers() {
+    if (!community?.timed_out_members.length) return
+    if (!window.confirm(`Remove ${community.timed_out_members.length} timed-out members from this community?`)) return
+    setMemberActionLoading('bulk-remove-timed-out')
+    try {
+      for (const member of community.timed_out_members) {
+        await fetch(`/api/communities/${slug}/members/${member.id}/sanctions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sanction_type: 'removed',
+            reason: 'Removed after timeout period by bulk moderation action',
+          }),
+        })
+      }
+      const refreshed = await fetch(`/api/communities/${slug}`)
+      if (refreshed.ok) {
+        const json = await refreshed.json() as { data: CommunityDetail }
+        setCommunity(json.data)
+      }
+      await loadAuditLogs()
+    } finally {
+      setMemberActionLoading(null)
+    }
+  }
+
   async function handleHappeningRsvp(target: Parameters<typeof toggleRsvp>[0]) {
     if (!canParticipateInHappenings) {
       window.alert('Your membership is temporarily restricted from interacting with happenings.')
@@ -569,6 +637,19 @@ export default function CommunityDetailPage() {
                     Role: {community.member_role}
                   </span>
                 )}
+                {isPlatformAdmin && (
+                  <button
+                    onClick={toggleVerification}
+                    disabled={verifying}
+                    className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                      community.is_verified
+                        ? 'border-brand-200 bg-brand-50 text-brand-700'
+                        : 'border-slate-200 bg-slate-50 text-slate-700'
+                    }`}
+                  >
+                    {verifying ? '...' : community.is_verified ? 'Verified · Unverify' : 'Verify community'}
+                  </button>
+                )}
               </div>
             </div>
 
@@ -642,8 +723,27 @@ export default function CommunityDetailPage() {
       <div className="grid gap-6 md:grid-cols-2 mb-8">
         <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold text-gray-900">Members</h2>
-            <span className="text-sm text-gray-500">{community.member_count.toLocaleString()} total</span>
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">Members</h2>
+              <span className="text-sm text-gray-500">{community.member_count.toLocaleString()} total</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={exportMembersCsv}
+                className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700"
+              >
+                Export CSV
+              </button>
+              {isCommunityOwner && community.timed_out_members.length > 0 && (
+                <button
+                  onClick={removeAllTimedOutMembers}
+                  disabled={memberActionLoading === 'bulk-remove-timed-out'}
+                  className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700"
+                >
+                  {memberActionLoading === 'bulk-remove-timed-out' ? 'Removing...' : 'Remove timed-out members'}
+                </button>
+              )}
+            </div>
           </div>
           {community.recent_members.length === 0 ? (
             <p className="text-sm text-gray-500">No members yet.</p>
@@ -841,6 +941,39 @@ export default function CommunityDetailPage() {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+          {community.timed_out_members.length > 0 && (
+            <div className="mt-5 rounded-2xl border border-orange-100 bg-orange-50 px-4 py-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-bold text-gray-900">Timed-out Members</h3>
+                  <p className="text-xs text-gray-500">These members are temporarily restricted.</p>
+                </div>
+                <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-orange-700">
+                  {community.timed_out_members.length}
+                </span>
+              </div>
+              <div className="space-y-3">
+                {community.timed_out_members.map((member) => (
+                  <div key={`timedout-${member.id}`} className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-orange-100 text-sm font-semibold text-orange-700">
+                      {member.avatar_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={member.avatar_url} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        member.display_name.slice(0, 1).toUpperCase()
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{member.display_name}</p>
+                      <p className="text-xs text-gray-500">
+                        Timeout until {member.timeout_until ? formatDate(member.timeout_until) : 'unknown'}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
