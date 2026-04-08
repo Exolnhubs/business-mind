@@ -140,12 +140,29 @@ export default function CommunitiesPage() {
   const [joinedOnly, setJoinedOnly]   = useState(false)
   const [page, setPage]               = useState(1)
   const [hasMore, setHasMore]         = useState(false)
+  const [recommended, setRecommended] = useState<CommunityWithMembership[]>([])
   const [suggested, setSuggested]     = useState<CommunityWithMembership[]>([])
   const [suggestedJoining, setSuggestedJoining] = useState<string | null>(null)
   const PER_PAGE = 18
 
+  const fetchRecommended = useCallback(async () => {
+    if (!user) {
+      setRecommended([])
+      return
+    }
+
+    const res = await fetch('/api/communities?recommended=true&per_page=6&page=1')
+    if (res.ok) {
+      const json = await res.json() as { data: { data: CommunityWithMembership[] } }
+      setRecommended((json.data.data ?? []).filter((c) => !c.is_member))
+    }
+  }, [user])
+
   const fetchSuggested = useCallback(async () => {
-    if (!user) return
+    if (!user) {
+      setSuggested([])
+      return
+    }
     const res = await fetch('/api/communities?per_page=6&page=1')
     if (res.ok) {
       const json = await res.json() as { data: { data: CommunityWithMembership[] } }
@@ -153,12 +170,14 @@ export default function CommunitiesPage() {
     }
   }, [user])
 
+  useEffect(() => { fetchRecommended() }, [fetchRecommended])
   useEffect(() => { fetchSuggested() }, [fetchSuggested])
 
-  async function joinSuggested(community: CommunityWithMembership) {
+  async function joinCommunityRecommendation(community: CommunityWithMembership) {
     setSuggestedJoining(community.slug)
     const res = await fetch(`/api/communities/${community.slug}/join`, { method: 'POST' })
     if (res.ok) {
+      setRecommended((prev) => prev.filter((c) => c.slug !== community.slug))
       setSuggested((prev) => prev.filter((c) => c.slug !== community.slug))
       setCommunities((prev) =>
         prev.map((c) => c.slug === community.slug ? { ...c, is_member: true, member_count: c.member_count + 1 } : c)
@@ -234,6 +253,37 @@ export default function CommunitiesPage() {
       </div>
 
       {/* Suggested for you — shown when user is logged in, not filtering */}
+      {user && !joinedOnly && !search && recommended.length > 0 && (
+        <div className="mb-6">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Recommended for you</h2>
+          <div className="flex flex-wrap gap-3">
+            {recommended.map((c) => (
+              <div
+                key={c.id}
+                className="flex items-center gap-3 rounded-2xl border border-brand-100 bg-brand-50/60 px-4 py-3 shadow-sm"
+              >
+                <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-lg ${LEVEL_COLORS[c.level].split(' ')[0]}`}>
+                  {LEVEL_ICONS[c.level]}
+                </div>
+                <div className="min-w-0">
+                  <p className="line-clamp-1 text-sm font-semibold text-gray-900">{c.name}</p>
+                  <p className="text-xs text-gray-500">
+                    {LEVEL_LABELS[c.level]}{c.city ? ` · ${c.city}` : ''} · {c.member_count.toLocaleString()} members
+                  </p>
+                </div>
+                <button
+                  onClick={() => joinCommunityRecommendation(c)}
+                  disabled={suggestedJoining === c.slug}
+                  className="ml-2 rounded-xl bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-brand-700 disabled:opacity-60"
+                >
+                  {suggestedJoining === c.slug ? '...' : 'Join'}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {user && !joinedOnly && !search && suggested.length > 0 && (
         <div className="mb-6">
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Suggested for you</h2>
@@ -251,7 +301,7 @@ export default function CommunitiesPage() {
                   <p className="text-xs text-gray-400">{c.member_count.toLocaleString()} members</p>
                 </div>
                 <button
-                  onClick={() => joinSuggested(c)}
+                  onClick={() => joinCommunityRecommendation(c)}
                   disabled={suggestedJoining === c.slug}
                   className="ml-2 rounded-xl bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700 transition-colors disabled:opacity-60"
                 >

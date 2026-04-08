@@ -39,6 +39,7 @@ const ListCommunitiesSchema = z.object({
   city:     z.string().optional(),
   q:        z.string().max(100).optional(),
   member_only: z.coerce.boolean().optional(),
+  recommended: z.coerce.boolean().optional(),
   page:     z.coerce.number().int().positive().default(1),
   per_page: z.coerce.number().int().min(1).max(50).default(20),
 })
@@ -62,6 +63,58 @@ const COMMUNITY_LIST_SELECT =
 const COMMUNITY_LIST_SELECT_LEGACY =
   'id, name, name_ar, slug, description, description_ar, level, type, city, country, cover_url, member_count, is_verified, is_private, created_by, owner_user_id, created_at, updated_at'
 
+const INTEREST_TO_COMMUNITY_TYPES: Record<string, (typeof COMMUNITY_TYPES)[number][]> = {
+  tech: ['tech'],
+  coding: ['tech'],
+  programming: ['tech'],
+  startup: ['entrepreneur'],
+  startups: ['entrepreneur'],
+  founder: ['entrepreneur'],
+  founders: ['entrepreneur'],
+  business: ['entrepreneur'],
+  entrepreneur: ['entrepreneur'],
+  entrepreneurs: ['entrepreneur'],
+  sports: ['sports'],
+  sport: ['sports'],
+  football: ['sports'],
+  soccer: ['sports'],
+  gym: ['sports'],
+  fitness: ['sports'],
+  padel: ['sports'],
+  gaming: ['gaming'],
+  gamer: ['gaming'],
+  esports: ['gaming'],
+  books: ['book_club'],
+  book: ['book_club'],
+  reading: ['book_club'],
+  literature: ['book_club'],
+  art: ['arts'],
+  arts: ['arts'],
+  music: ['arts'],
+  design: ['arts'],
+}
+
+function extractRecommendedCommunityTypes(preferences: unknown): Set<(typeof COMMUNITY_TYPES)[number]> {
+  const rawInterests = typeof preferences === 'object' && preferences !== null
+    ? (preferences as { interests?: unknown }).interests
+    : null
+
+  if (!Array.isArray(rawInterests)) {
+    return new Set()
+  }
+
+  const types = new Set<(typeof COMMUNITY_TYPES)[number]>()
+  for (const interest of rawInterests) {
+    if (typeof interest !== 'string') continue
+    const normalized = interest.trim().toLowerCase()
+    for (const communityType of INTEREST_TO_COMMUNITY_TYPES[normalized] ?? []) {
+      types.add(communityType)
+    }
+  }
+
+  return types
+}
+
 // GET /api/communities — list communities (public)
 export async function GET(req: NextRequest) {
   try {
@@ -74,10 +127,14 @@ export async function GET(req: NextRequest) {
     const ctx       = await optionalAuth()
     const from      = (params.page - 1) * params.per_page
     const to        = from + params.per_page - 1
+    const queryFrom = params.recommended ? 0 : from
+    const queryTo   = params.recommended ? Math.max(params.per_page * 4, 24) - 1 : to
 
     let memberIds: string[] = []
     const memberRoleByCommunityId = new Map<string, string>()
     const memberStatusByCommunityId = new Map<string, string>()
+    let recommendedTypes = new Set<(typeof COMMUNITY_TYPES)[number]>()
+    let userCity: string | null = null
     if (ctx?.userId) {
       const { data: memberships } = await admin
         .from('community_memberships')
@@ -89,6 +146,17 @@ export async function GET(req: NextRequest) {
       for (const membership of memberships ?? []) {
         memberRoleByCommunityId.set(membership.community_id, membership.role)
         memberStatusByCommunityId.set(membership.community_id, membership.status)
+      }
+
+      if (params.recommended) {
+        const { data: profile } = await admin
+          .from('profiles')
+          .select('city, preferences')
+          .eq('id', ctx.userId)
+          .maybeSingle()
+
+        recommendedTypes = extractRecommendedCommunityTypes(profile?.preferences)
+        userCity = profile?.city ?? null
       }
     }
 
@@ -120,7 +188,7 @@ export async function GET(req: NextRequest) {
         .select(selectColumns, { count: 'exact' })
         .order('member_count', { ascending: false })
         .order('name')
-        .range(from, to)
+        .range(queryFrom, queryTo)
 
       if (params.level) query = query.eq('level', params.level)
       if (params.city) query = query.ilike('city', `%${params.city}%`)
@@ -143,13 +211,31 @@ export async function GET(req: NextRequest) {
     // If authenticated, annotate is_member for each community
     const memberSet = new Set(memberIds)
 
-    const enriched = (data ?? []).map((c) => ({
+    let enriched = (data ?? []).map((c) => ({
       ...c,
       parent_community_id: 'parent_community_id' in c ? c.parent_community_id : null,
       is_member: memberSet.has(c.id) && !['removed', 'banned'].includes(memberStatusByCommunityId.get(c.id) ?? ''),
       member_role: memberRoleByCommunityId.get(c.id) ?? null,
       member_status: memberStatusByCommunityId.get(c.id) ?? null,
     }))
+
+    if (params.recommended && recommendedTypes.size > 0) {
+      enriched = [...enriched]
+        .sort((a, b) => {
+          const aMatchesInterest = recommendedTypes.has(a.type as (typeof COMMUNITY_TYPES)[number]) ? 1 : 0
+          const bMatchesInterest = recommendedTypes.has(b.type as (typeof COMMUNITY_TYPES)[number]) ? 1 : 0
+          if (aMatchesInterest !== bMatchesInterest) return bMatchesInterest - aMatchesInterest
+
+          const aMatchesCity = userCity && a.city && a.city.toLowerCase() === userCity.toLowerCase() ? 1 : 0
+          const bMatchesCity = userCity && b.city && b.city.toLowerCase() === userCity.toLowerCase() ? 1 : 0
+          if (aMatchesCity !== bMatchesCity) return bMatchesCity - aMatchesCity
+
+          if (a.is_member !== b.is_member) return a.is_member ? 1 : -1
+          if (a.member_count !== b.member_count) return b.member_count - a.member_count
+          return a.name.localeCompare(b.name)
+        })
+        .slice(from, to + 1)
+    }
 
     return ok({
       data: enriched,
