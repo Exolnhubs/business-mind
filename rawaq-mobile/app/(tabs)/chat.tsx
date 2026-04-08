@@ -14,6 +14,29 @@ interface ChatMessage extends GlobalChat {
   author: Pick<Profile, 'id' | 'display_name' | 'avatar_url'> | null
 }
 
+type ChatAuthor = Pick<Profile, 'id' | 'display_name' | 'avatar_url'>
+
+async function attachAuthors(rows: GlobalChat[]): Promise<ChatMessage[]> {
+  const authorIds = [...new Set(rows.map((row) => row.user_id))]
+  if (authorIds.length === 0) {
+    return rows.map((row) => ({ ...row, author: null }))
+  }
+
+  const { data: authors } = await supabase
+    .from('profiles')
+    .select('id, display_name, avatar_url')
+    .in('id', authorIds)
+
+  const authorById = new Map<string, ChatAuthor>(
+    (authors ?? []).map((author) => [author.id, author]),
+  )
+
+  return rows.map((row) => ({
+    ...row,
+    author: authorById.get(row.user_id) ?? null,
+  }))
+}
+
 export default function ChatScreen() {
   const { user, profile } = useAuth()
   const { t } = useLocale()
@@ -25,17 +48,20 @@ export default function ChatScreen() {
   const [sending, setSending]   = useState(false)
 
   useEffect(() => {
-    // Initial load
-    supabase
-      .from('global_chat')
-      .select('*, author:profiles!user_id(id, display_name, avatar_url)')
-      .eq('is_deleted', false)
-      .order('created_at', { ascending: false })
-      .limit(50)
-      .then(({ data }) => {
-        setMessages(((data ?? []) as ChatMessage[]).reverse())
-        setLoading(false)
-      })
+    async function loadMessages() {
+      const { data } = await supabase
+        .from('global_chat')
+        .select('*')
+        .eq('is_deleted', false)
+        .order('created_at', { ascending: false })
+        .limit(50)
+
+      const hydrated = await attachAuthors((data ?? []) as GlobalChat[])
+      setMessages(hydrated.reverse())
+      setLoading(false)
+    }
+
+    void loadMessages()
 
     // Realtime subscription
     const channel = supabase
@@ -77,7 +103,7 @@ export default function ChatScreen() {
 
     const { data } = await supabase
       .from('global_chat')
-      .insert({ user_id: user.id, content, mentions: [] })
+      .insert({ user_id: user.id, content, mentions: [], is_deleted: false })
       .select()
       .single()
 

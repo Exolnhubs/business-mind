@@ -15,19 +15,30 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { Spinner } from '@/components/ui/Spinner'
 import { formatDate } from '@/lib/utils'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
-import type { BookingWithEvent } from '@/types/database'
+import type { Booking, Event } from '@/types/database'
+
+type BookingListRow = Pick<
+  Booking,
+  'id' | 'status' | 'ticket_id' | 'seat' | 'scanned_at' | 'created_at' | 'updated_at' | 'user_id' | 'event_id' | 'notes'
+> & {
+  event: Pick<Event, 'id' | 'title' | 'title_ar' | 'start_at' | 'cover_image_url' | 'city' | 'is_free' | 'price' | 'is_cancelled'> | null
+}
+
+type BookingListItem =
+  | { type: 'header'; id: string; label: string }
+  | { type: 'item'; id: string; booking: BookingListRow }
 
 export default function BookingsScreen() {
   const { user } = useAuth()
   const { t, locale } = useLocale()
   const router = useRouter()
   const { refundBookingId } = useLocalSearchParams<{ refundBookingId?: string }>()
-  const [bookings,    setBookings]    = useState<BookingWithEvent[]>([])
+  const [bookings,    setBookings]    = useState<BookingListRow[]>([])
   const [loading,     setLoading]     = useState(true)
   const [refreshing,  setRefreshing]  = useState(false)
 
   // Refund modal state
-  const [refundTarget, setRefundTarget] = useState<BookingWithEvent | null>(null)
+  const [refundTarget, setRefundTarget] = useState<BookingListRow | null>(null)
   const [userNote,     setUserNote]     = useState('')
   const [submitting,   setSubmitting]   = useState(false)
 
@@ -38,7 +49,7 @@ export default function BookingsScreen() {
       .select(`id, status, ticket_id, seat, scanned_at, created_at, updated_at, user_id, event_id, notes, event:events!event_id(id, title, title_ar, start_at, cover_image_url, city, is_free, price, is_cancelled)`)
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
-    setBookings((data ?? []) as BookingWithEvent[])
+    setBookings((data ?? []) as unknown as BookingListRow[])
     setLoading(false)
     setRefreshing(false)
   }, [user])
@@ -58,7 +69,7 @@ export default function BookingsScreen() {
     router.replace('/(tabs)/bookings' as any)
   }, [bookings, refundBookingId, router])
 
-  function openRefundModal(b: BookingWithEvent) {
+  function openRefundModal(b: BookingListRow) {
     setUserNote('')
     setRefundTarget(b)
   }
@@ -107,12 +118,15 @@ export default function BookingsScreen() {
     (b) => b.event && new Date(b.event.start_at) <= new Date(),
   )
 
-  const all = [
-    ...(upcoming.length ? [{ type: 'header', id: 'h1', label: `${t('bookings.upcoming')} (${upcoming.length})` }] : []),
-    ...upcoming.map((b) => ({ type: 'item', id: b.id, booking: b })),
-    ...(past.length ? [{ type: 'header', id: 'h2', label: `${t('bookings.past')} (${past.length})` }] : []),
-    ...past.map((b) => ({ type: 'item', id: b.id, booking: b })),
-  ]
+  const all: BookingListItem[] = []
+  if (upcoming.length) {
+    all.push({ type: 'header', id: 'h1', label: `${t('bookings.upcoming')} (${upcoming.length})` })
+    all.push(...upcoming.map((booking): BookingListItem => ({ type: 'item', id: booking.id, booking })))
+  }
+  if (past.length) {
+    all.push({ type: 'header', id: 'h2', label: `${t('bookings.past')} (${past.length})` })
+    all.push(...past.map((booking): BookingListItem => ({ type: 'item', id: booking.id, booking })))
+  }
 
   return (
     <>
@@ -143,7 +157,7 @@ export default function BookingsScreen() {
           if (item.type === 'header') {
             return <Text style={styles.sectionHeader}>{item.label}</Text>
           }
-          const b = item.booking!
+          const b = item.booking
           const title = locale === 'ar' && b.event?.title_ar ? b.event.title_ar : b.event?.title ?? 'Event'
           const isActive     = b.status === 'confirmed' && !b.event?.is_cancelled
           const canRefund    = canRefundBooking(b)
@@ -252,7 +266,7 @@ export default function BookingsScreen() {
   )
 }
 
-function canRefundBooking(booking: BookingWithEvent) {
+function canRefundBooking(booking: BookingListRow) {
   const isActive = booking.status === 'confirmed' && !booking.event?.is_cancelled
   const isPaid = !booking.event?.is_free && (booking.event?.price ?? 0) > 0
   const isUpcoming = booking.event ? new Date(booking.event.start_at) > new Date() : false
