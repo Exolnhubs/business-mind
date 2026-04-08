@@ -14,6 +14,7 @@ import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
 import type { Community, CommunityLevel } from '@/types/database'
 
 type CommunityWithMembership = Community & { is_member: boolean }
+type TrendingCommunity = CommunityWithMembership & { trending_score?: number }
 type MembershipMutationResponse = { is_member?: boolean; member_count?: number }
 
 const LEVEL_META: Record<CommunityLevel, { label: string; icon: keyof typeof Ionicons.glyphMap; tint: string; bg: string; accent: string }> = {
@@ -46,8 +47,18 @@ export default function CommunitiesScreen() {
   const [joinedOnly, setJoinedOnly]   = useState(false)
   const [page, setPage]               = useState(1)
   const [hasMore, setHasMore]         = useState(false)
+  const [trending, setTrending]       = useState<TrendingCommunity[]>([])
   const [joining, setJoining]         = useState<string | null>(null)
   const isLoadingPageRef              = useRef(false)
+
+  const loadTrending = useCallback(async () => {
+    try {
+      const { data } = await apiGet<{ data: TrendingCommunity[] }>(`/api/communities/trending?per_page=8&page=1`)
+      setTrending(data?.data ?? [])
+    } catch {
+      setTrending([])
+    }
+  }, [])
 
   const load = useCallback(async (p: number, q: string, lvl: CommunityLevel | 'all', memberOnly = false, append = false) => {
     if (isLoadingPageRef.current) return
@@ -80,7 +91,12 @@ export default function CommunitiesScreen() {
     return () => clearTimeout(t)
   }, [search, levelFilter, joinedOnly, load])
 
+  useEffect(() => {
+    void loadTrending()
+  }, [loadTrending])
+
   useFocusEffect(useCallback(() => { load(1, search, levelFilter, joinedOnly, false) }, [load, search, levelFilter, joinedOnly]))
+  useFocusEffect(useCallback(() => { void loadTrending() }, [loadTrending]))
 
   async function handleJoinLeave(community: CommunityWithMembership) {
     if (!user) { router.push('/auth/login' as any); return }
@@ -242,6 +258,41 @@ export default function CommunitiesScreen() {
         )}
       />
 
+      {!joinedOnly && search.trim().length === 0 && trending.length > 0 && (
+        <View style={styles.trendingSection}>
+          <View style={styles.trendingHeader}>
+            <Text style={styles.trendingTitle}>Trending now</Text>
+            <Text style={styles.trendingHint}>Fast-growing communities this week</Text>
+          </View>
+          <FlatList
+            horizontal
+            data={trending}
+            keyExtractor={(item) => item.id}
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.trendingRow}
+            renderItem={({ item }) => {
+              const meta = LEVEL_META[item.level]
+              const name = isRTL && item.name_ar ? item.name_ar : item.name
+              return (
+                <TouchableOpacity
+                  onPress={() => router.push(`/communities/${item.slug}` as any)}
+                  activeOpacity={0.88}
+                  style={styles.trendingCard}
+                >
+                  <View style={[styles.trendingIcon, { backgroundColor: meta.bg }]}>
+                    <Ionicons name={meta.icon} size={18} color={meta.tint} />
+                  </View>
+                  <Text style={styles.trendingName} numberOfLines={1}>{name}</Text>
+                  <Text style={styles.trendingMeta} numberOfLines={1}>
+                    {item.city ? `${item.city} · ` : ''}{item.member_count.toLocaleString()} members
+                  </Text>
+                </TouchableOpacity>
+              )
+            }}
+          />
+        </View>
+      )}
+
       {/* List */}
       {loading
         ? <View style={styles.center}><Spinner /></View>
@@ -307,6 +358,31 @@ const styles = StyleSheet.create({
   filterChipActive: { backgroundColor: Colors.brand[600], borderColor: Colors.brand[600] },
   filterChipText:   { fontSize: FontSize.xs, fontWeight: FontWeight.medium, color: Colors.gray[700] },
   filterChipTextActive: { color: '#fff' },
+
+  trendingSection: { marginBottom: Spacing.md },
+  trendingHeader: { paddingHorizontal: Spacing.lg, marginBottom: Spacing.sm },
+  trendingTitle: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.gray[900] },
+  trendingHint: { marginTop: 2, fontSize: FontSize.xs, color: Colors.gray[500] },
+  trendingRow: { paddingHorizontal: Spacing.lg, gap: Spacing.sm },
+  trendingCard: {
+    width: 180,
+    padding: Spacing.md,
+    borderRadius: Radius.xl,
+    backgroundColor: '#fff7ed',
+    borderWidth: 1,
+    borderColor: '#fdba74',
+    ...Shadow.card,
+  },
+  trendingIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: Radius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.sm,
+  },
+  trendingName: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[900] },
+  trendingMeta: { marginTop: 4, fontSize: FontSize.xs, color: Colors.gray[500] },
 
   list: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing['3xl'], gap: Spacing.md },
 

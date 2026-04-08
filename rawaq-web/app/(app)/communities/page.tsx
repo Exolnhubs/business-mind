@@ -8,6 +8,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import type { Community, CommunityLevel } from '@/types/database'
 
 type CommunityWithMembership = Community & { is_member: boolean }
+type TrendingCommunity = CommunityWithMembership & { trending_score?: number }
 type MembershipMutationResponse = { is_member?: boolean; member_count?: number }
 
 const LEVEL_LABELS: Record<CommunityLevel, string> = {
@@ -140,10 +141,20 @@ export default function CommunitiesPage() {
   const [joinedOnly, setJoinedOnly]   = useState(false)
   const [page, setPage]               = useState(1)
   const [hasMore, setHasMore]         = useState(false)
+  const [trending, setTrending]       = useState<TrendingCommunity[]>([])
   const [recommended, setRecommended] = useState<CommunityWithMembership[]>([])
   const [suggested, setSuggested]     = useState<CommunityWithMembership[]>([])
   const [suggestedJoining, setSuggestedJoining] = useState<string | null>(null)
   const PER_PAGE = 18
+  const suggestedCommunities = suggested.filter((community) => !recommended.some((item) => item.id === community.id))
+
+  const fetchTrending = useCallback(async () => {
+    const res = await fetch('/api/communities/trending?per_page=6&page=1')
+    if (res.ok) {
+      const json = await res.json() as { data: { data: TrendingCommunity[] } }
+      setTrending(json.data.data ?? [])
+    }
+  }, [])
 
   const fetchRecommended = useCallback(async () => {
     if (!user) {
@@ -170,6 +181,7 @@ export default function CommunitiesPage() {
     }
   }, [user])
 
+  useEffect(() => { fetchTrending() }, [fetchTrending])
   useEffect(() => { fetchRecommended() }, [fetchRecommended])
   useEffect(() => { fetchSuggested() }, [fetchSuggested])
 
@@ -177,6 +189,7 @@ export default function CommunitiesPage() {
     setSuggestedJoining(community.slug)
     const res = await fetch(`/api/communities/${community.slug}/join`, { method: 'POST' })
     if (res.ok) {
+      setTrending((prev) => prev.filter((c) => c.slug !== community.slug))
       setRecommended((prev) => prev.filter((c) => c.slug !== community.slug))
       setSuggested((prev) => prev.filter((c) => c.slug !== community.slug))
       setCommunities((prev) =>
@@ -253,6 +266,35 @@ export default function CommunitiesPage() {
       </div>
 
       {/* Suggested for you — shown when user is logged in, not filtering */}
+      {!joinedOnly && !search && trending.length > 0 && (
+        <div className="mb-6">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Trending now</h2>
+          <div className="grid gap-3 md:grid-cols-3">
+            {trending.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => router.push(`/communities/${c.slug}`)}
+                className="rounded-2xl border border-amber-200 bg-amber-50/70 px-4 py-4 text-left shadow-sm transition-colors hover:border-amber-300 hover:bg-amber-50"
+              >
+                <div className="mb-3 flex items-start justify-between gap-3">
+                  <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-lg ${LEVEL_COLORS[c.level].split(' ')[0]}`}>
+                    {LEVEL_ICONS[c.level]}
+                  </div>
+                  <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-700">
+                    Trending
+                  </span>
+                </div>
+                <p className="line-clamp-1 text-sm font-semibold text-gray-900">{c.name}</p>
+                <p className="mt-1 text-xs text-gray-500">
+                  {c.city ? `${c.city} · ` : ''}{c.member_count.toLocaleString()} members
+                </p>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {user && !joinedOnly && !search && recommended.length > 0 && (
         <div className="mb-6">
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Recommended for you</h2>
@@ -284,11 +326,11 @@ export default function CommunitiesPage() {
         </div>
       )}
 
-      {user && !joinedOnly && !search && suggested.length > 0 && (
+      {user && !joinedOnly && !search && suggestedCommunities.length > 0 && (
         <div className="mb-6">
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Suggested for you</h2>
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Popular communities</h2>
           <div className="flex flex-wrap gap-3">
-            {suggested.map((c) => (
+            {suggestedCommunities.map((c) => (
               <div
                 key={c.id}
                 className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-sm"
