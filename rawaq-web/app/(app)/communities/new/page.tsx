@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { Suspense, useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/auth-context'
 import type { Community, CommunityLevel, CommunityType } from '@/types/database'
@@ -38,7 +38,7 @@ const TYPE_OPTIONS: Array<{ value: CommunityType; label: string }> = [
 
 type CommunityPickerItem = Pick<Community, 'id' | 'slug' | 'name' | 'name_ar' | 'level'>
 
-export default function NewCommunityPage() {
+function NewCommunityPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user, profile, loading } = useAuth()
@@ -361,5 +361,13 @@ export default function NewCommunityPage() {
         </div>
       </form>
     </div>
+  )
+}
+
+export default function NewCommunityPage() {
+  return (
+    <Suspense fallback={<div className="mx-auto max-w-4xl px-4 py-12 text-sm text-gray-500">Loading...</div>}>
+      <NewCommunityPageContent />
+    </Suspense>
   )
 }
