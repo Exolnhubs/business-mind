@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/auth-context'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
 import { formatRelativeTime } from '@/lib/utils'
+import type { Comment, OrganizerProfile, Profile } from '@/types/database'
 
 interface PendingOrganizer {
   id: string
@@ -32,6 +33,45 @@ interface Stats {
   pendingOrganizers: number
   flaggedComments: number
   totalTips: number
+}
+
+type PendingOrganizerRow = Pick<OrganizerProfile, 'id' | 'business_name' | 'created_at' | 'user_id'>
+type FlaggedCommentRow = Pick<Comment, 'id' | 'content' | 'created_at' | 'event_id' | 'user_id'>
+
+async function hydratePendingOrganizers(rows: PendingOrganizerRow[]): Promise<PendingOrganizer[]> {
+  const userIds = [...new Set(rows.map((row) => row.user_id))]
+  const { data: users } = userIds.length
+    ? await supabase.from('profiles').select('id, display_name, city').in('id', userIds)
+    : { data: [] as Pick<Profile, 'id' | 'display_name' | 'city'>[] }
+
+  const userById = new Map((users ?? []).map((user) => [user.id, user]))
+
+  return rows.map((row) => ({
+    id: row.id,
+    business_name: row.business_name,
+    created_at: row.created_at,
+    user: userById.get(row.user_id) ?? null,
+  }))
+}
+
+async function hydrateFlaggedComments(rows: FlaggedCommentRow[]): Promise<FlaggedComment[]> {
+  const userIds = [...new Set(rows.map((row) => row.user_id))]
+  const { data: authors } = userIds.length
+    ? await supabase.from('profiles').select('id, display_name').in('id', userIds)
+    : { data: [] as Pick<Profile, 'id' | 'display_name'>[] }
+
+  const authorById = new Map((authors ?? []).map((author) => [author.id, author]))
+
+  return rows.map((row) => ({
+    id: row.id,
+    content: row.content,
+    created_at: row.created_at,
+    event_id: row.event_id,
+    user_id: row.user_id,
+    author: authorById.get(row.user_id)
+      ? { display_name: authorById.get(row.user_id)?.display_name ?? null }
+      : null,
+  }))
 }
 
 export default function AdminDashboard() {
@@ -64,13 +104,13 @@ export default function AdminDashboard() {
       supabase.from('tips').select('amount'),
       supabase
         .from('organizer_profiles')
-        .select('id, business_name, created_at, user:profiles!user_id(id, display_name, city)')
+        .select('id, business_name, created_at, user_id')
         .eq('status', 'pending')
         .order('created_at', { ascending: true })
         .limit(20),
       supabase
         .from('comments')
-        .select('id, content, created_at, event_id, user_id, author:profiles!user_id(display_name)')
+        .select('id, content, created_at, event_id, user_id')
         .eq('is_flagged', true)
         .eq('is_deleted', false)
         .order('created_at', { ascending: false })
@@ -78,6 +118,8 @@ export default function AdminDashboard() {
     ])
 
     const totalTips = (tipsData ?? []).reduce((s, t) => s + t.amount, 0)
+    const hydratedPending = await hydratePendingOrganizers((pendingOrgs ?? []) as PendingOrganizerRow[])
+    const hydratedFlagged = await hydrateFlaggedComments((flaggedCmts ?? []) as FlaggedCommentRow[])
 
     setStats({
       totalUsers: totalUsers ?? 0,
@@ -87,8 +129,8 @@ export default function AdminDashboard() {
       flaggedComments: flaggedCount ?? 0,
       totalTips,
     })
-    setPending((pendingOrgs ?? []) as PendingOrganizer[])
-    setFlagged((flaggedCmts ?? []) as FlaggedComment[])
+    setPending(hydratedPending)
+    setFlagged(hydratedFlagged)
     setLoading(false)
     setRefreshing(false)
   }, [])
