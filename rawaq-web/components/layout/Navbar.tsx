@@ -115,7 +115,7 @@ function NotificationBell({ userId }: { userId: string }) {
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute end-0 mt-2 w-80 bg-white rounded-xl shadow-lg border border-gray-100 z-20 overflow-hidden animate-fade-in">
+          <div className="fixed top-[4.5rem] inset-x-3 mt-0 w-auto max-w-none bg-white rounded-xl shadow-lg border border-gray-100 z-20 overflow-hidden animate-fade-in sm:absolute sm:top-auto sm:inset-x-auto sm:end-0 sm:mt-2 sm:w-80">
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
               <span className="text-sm font-semibold text-gray-900">{t('notif.title')}</span>
               {unread > 0 && (
