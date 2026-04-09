@@ -1,17 +1,31 @@
-import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native'
-import { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
+import { View, Text, TouchableOpacity, StyleSheet, Image, Animated } from 'react-native'
 import { useRouter } from 'expo-router'
 import { Badge } from '@/components/ui/Badge'
-import { formatDate, formatCurrency } from '@/lib/utils'
+import { formatCurrency } from '@/lib/utils'
 import { useLocale } from '@/contexts/locale-context'
 import { useAuth } from '@/contexts/auth-context'
 import { supabase } from '@/lib/supabase'
-import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
+import { Colors, Spacing } from '@/theme'
 import type { EventWithOrganizer } from '@/types/database'
 
 const CATEGORY_EMOJI: Record<string, string> = {
   sports: '⚽', art: '🎨', music: '🎵', tech: '💻', food: '🍽️',
   community: '🤝', education: '📚', health: '💪', business: '💼', entertainment: '🎭',
+}
+
+// Brand ink — matches web + splash
+const INK = '#1a0d04'
+
+function formatShortDate(isoDate: string, locale: string): string {
+  try {
+    return new Date(isoDate).toLocaleDateString(locale === 'ar' ? 'ar-SA' : 'en-US', {
+      month: 'short',
+      day: 'numeric',
+    })
+  } catch {
+    return ''
+  }
 }
 
 interface EventCardProps {
@@ -22,7 +36,7 @@ interface EventCardProps {
   variant?: 'default' | 'rail'
 }
 
-export function EventCard({
+export const EventCard = React.memo(function EventCard({
   event,
   isSaved: initialSaved = false,
   onUnsave,
@@ -34,13 +48,14 @@ export function EventCard({
   const { user } = useAuth()
   const [saved, setSaved] = useState(initialSaved)
 
-  useEffect(() => {
-    setSaved(initialSaved)
-  }, [initialSaved])
+  useEffect(() => { setSaved(initialSaved) }, [initialSaved])
 
   const icon = CATEGORY_EMOJI[event.category?.name_en?.toLowerCase() ?? ''] ?? '📅'
   const spotsLeft = event.capacity ? event.capacity - event.bookings_count : null
   const isFull = spotsLeft !== null && spotsLeft <= 0
+  const almostFull = spotsLeft !== null && spotsLeft > 0 && spotsLeft <= 10
+  const shortDate = formatShortDate(event.start_at, locale)
+  const title = locale === 'ar' && event.title_ar ? event.title_ar : event.title
 
   async function toggleSave() {
     if (!user) return
@@ -59,142 +74,287 @@ export function EventCard({
       onSaveChange?.(event.id, false)
     }
   }
-  const title = locale === 'ar' && event.title_ar ? event.title_ar : event.title
 
   return (
     <TouchableOpacity
-      style={[styles.card, variant === 'rail' && styles.cardRail]}
-      activeOpacity={0.8}
+      style={[cardStyles.card, variant === 'rail' && cardStyles.cardRail]}
+      activeOpacity={0.82}
       onPress={() => router.push(`/events/${event.id}`)}
     >
-      {/* Cover */}
-      <View style={[styles.cover, variant === 'rail' && styles.coverRail]}>
+      {/* ── Cover ─────────────────────────────────────────── */}
+      <View style={[cardStyles.cover, variant === 'rail' && cardStyles.coverRail]}>
         {event.cover_image_url
           ? <Image source={{ uri: event.cover_image_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-          : <Text style={styles.coverEmoji}>{icon}</Text>
+          : (
+            <View style={cardStyles.coverPlaceholder}>
+              <Text style={cardStyles.coverEmoji}>{icon}</Text>
+            </View>
+          )
         }
+
+        {/* Soft scrim at bottom — lifts badges off the image */}
+        <View style={cardStyles.coverScrim} />
+
+        {/* Date badge — top left */}
+        <View style={cardStyles.dateBadge}>
+          <Text style={cardStyles.dateBadgeText}>{shortDate}</Text>
+        </View>
+
+        {/* Heart — top right */}
         {user && (
-          <TouchableOpacity style={styles.heartBtn} onPress={toggleSave} hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}>
-            <Text style={styles.heartIcon}>{saved ? '❤️' : '🤍'}</Text>
+          <TouchableOpacity
+            style={cardStyles.heartBtn}
+            onPress={toggleSave}
+            hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+          >
+            <Text style={cardStyles.heartIcon}>{saved ? '❤️' : '🤍'}</Text>
           </TouchableOpacity>
         )}
-        <View style={styles.badges}>
+
+        {/* Attribute badges sit on the scrim */}
+        <View style={cardStyles.badges}>
           {event.is_free && <Badge label="Free" variant="green" />}
-          {event.is_family_friendly && <Badge label="👨‍👩‍👧 Family" variant="blue" />}
+          {event.is_family_friendly && <Badge label="Family" variant="blue" />}
           {event.gender_restriction !== 'mixed' && (
-            <Badge label={event.gender_restriction === 'male' ? '♂ Men' : '♀ Women'} variant="yellow" />
+            <Badge
+              label={event.gender_restriction === 'male' ? 'Men' : 'Women'}
+              variant="yellow"
+            />
           )}
         </View>
+
         {isFull && (
-          <View style={styles.fullOverlay}>
+          <View style={cardStyles.fullOverlay}>
             <Badge label="Full" variant="red" />
           </View>
         )}
       </View>
 
-      {/* Content */}
-      <View style={styles.body}>
-        <Text style={styles.title} numberOfLines={2}>{title}</Text>
+      {/* ── Body ─────────────────────────────────────────── */}
+      <View style={cardStyles.body}>
+        <Text style={cardStyles.title} numberOfLines={2}>{title}</Text>
 
-        <Text style={styles.meta}>📅 {formatDate(event.start_at, locale)}</Text>
-        <Text style={styles.meta} numberOfLines={1}>
+        <Text style={cardStyles.location} numberOfLines={1}>
           📍 {event.city}{event.venue_name ? ` · ${event.venue_name}` : ''}
         </Text>
 
-        <View style={styles.footer}>
-          <Text style={styles.organizer} numberOfLines={1}>
+        <View style={cardStyles.footer}>
+          <Text style={cardStyles.organizer} numberOfLines={1}>
             {event.organizer?.organizer_profile?.business_name ?? event.organizer?.display_name ?? ''}
           </Text>
-          <Text style={[styles.price, event.is_free && styles.priceGreen]}>
-            {event.is_free ? 'Free' : formatCurrency(event.price ?? 0, locale)}
-          </Text>
+          <View style={[cardStyles.pricePill, event.is_free && cardStyles.pricePillFree]}>
+            <Text style={[cardStyles.priceText, event.is_free && cardStyles.priceTextFree]}>
+              {event.is_free ? 'Free' : formatCurrency(event.price ?? 0, locale)}
+            </Text>
+          </View>
         </View>
 
-        {spotsLeft !== null && spotsLeft > 0 && spotsLeft <= 10 && (
-          <Text style={styles.urgency}>⚡ {spotsLeft} spot{spotsLeft !== 1 ? 's' : ''} left</Text>
+        {almostFull && (
+          <View style={cardStyles.urgencyRow}>
+            <Text style={cardStyles.urgencyText}>
+              ⚡ {spotsLeft} spot{spotsLeft !== 1 ? 's' : ''} left
+            </Text>
+          </View>
         )}
       </View>
     </TouchableOpacity>
   )
-}
+})
 
+// ── Skeleton ──────────────────────────────────────────────────
 export function EventCardSkeleton() {
+  const shimmer = useRef(new Animated.Value(0)).current
+
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(shimmer, { toValue: 1, duration: 900, useNativeDriver: true }),
+        Animated.timing(shimmer, { toValue: 0, duration: 900, useNativeDriver: true }),
+      ])
+    )
+    anim.start()
+    return () => anim.stop()
+  }, [shimmer])
+
+  const opacity = shimmer.interpolate({ inputRange: [0, 1], outputRange: [0.45, 0.88] })
+
   return (
-    <View style={[styles.card, styles.skeleton]}>
-      <View style={[styles.cover, { backgroundColor: Colors.gray[200] }]} />
-      <View style={styles.body}>
+    <Animated.View style={[skeletonStyles.card, { opacity }]}>
+      <View style={skeletonStyles.cover} />
+      <View style={skeletonStyles.body}>
         <View style={skeletonStyles.line} />
-        <View style={[skeletonStyles.line, { width: '60%' }]} />
-        <View style={[skeletonStyles.line, { width: '70%' }]} />
+        <View style={[skeletonStyles.line, { width: '62%' }]} />
+        <View style={[skeletonStyles.line, { width: '48%', marginTop: Spacing.sm }]} />
       </View>
-    </View>
+    </Animated.View>
   )
 }
 
-const styles = StyleSheet.create({
+// ── Styles ────────────────────────────────────────────────────
+const cardStyles = StyleSheet.create({
   card: {
-    backgroundColor: Colors.white,
-    borderRadius: Radius.lg,
+    backgroundColor: '#fff',
+    borderRadius: 16,
     overflow: 'hidden',
     marginBottom: Spacing.lg,
-    ...Shadow.card,
+    shadowColor: INK,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.09,
+    shadowRadius: 8,
+    elevation: 3,
   },
   cardRail: {
     width: 268,
     marginBottom: 0,
     marginRight: Spacing.md,
   },
-  skeleton: { opacity: 0.7 },
+
+  // Cover
   cover: {
-    height: 130,
-    backgroundColor: Colors.brand[100],
+    height: 160,
+    backgroundColor: '#2a1108',
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  coverRail: { height: 148 },
+  coverPlaceholder: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#2a1108',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  coverRail: {
-    height: 148,
+  coverEmoji: { fontSize: 52 },
+
+  // Dark vignette at bottom — makes badges readable on any image
+  coverScrim: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 60,
+    backgroundColor: 'rgba(8,4,0,0.42)',
   },
-  coverEmoji: { fontSize: 48 },
-  heartBtn: { position: 'absolute', top: Spacing.sm, right: Spacing.sm, zIndex: 10, width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.9)', justifyContent: 'center', alignItems: 'center' },
+
+  // Short date pill — amber tint, top-left
+  dateBadge: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    backgroundColor: 'rgba(245,158,11,0.90)',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  dateBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#fff',
+    letterSpacing: 0.2,
+  },
+
+  // Heart — frosted glass circle, top-right
+  heartBtn: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(255,255,255,0.88)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   heartIcon: { fontSize: 14 },
+
+  // Attribute badges — sit on the bottom scrim
   badges: {
     position: 'absolute',
-    top: Spacing.sm,
-    left: Spacing.sm,
+    bottom: 8,
+    left: 10,
     flexDirection: 'row',
-    gap: Spacing.xs,
+    gap: 4,
     flexWrap: 'wrap',
   },
+
   fullOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: 'rgba(0,0,0,0.48)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  body: { padding: Spacing.md },
+
+  // Body
+  body: { padding: 12 },
   title: {
-    fontSize: FontSize.base,
-    fontWeight: FontWeight.semibold,
-    color: Colors.gray[900],
-    marginBottom: Spacing.xs,
+    fontSize: 15,
+    fontWeight: '700',
+    color: INK,
+    marginBottom: 4,
+    lineHeight: 20,
   },
-  meta: { fontSize: FontSize.xs, color: Colors.gray[500], marginBottom: 2 },
+  location: {
+    fontSize: 12,
+    color: Colors.gray[500],
+    marginBottom: 8,
+  },
   footer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: Spacing.sm,
-    paddingTop: Spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: Colors.gray[100],
   },
-  organizer: { fontSize: FontSize.xs, color: Colors.gray[500], flex: 1, marginRight: Spacing.sm },
-  price: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.brand[600] },
-  priceGreen: { color: Colors.green.text },
-  urgency: { fontSize: FontSize.xs, color: '#ea580c', fontWeight: FontWeight.medium, marginTop: 4 },
+  organizer: {
+    fontSize: 11,
+    color: Colors.gray[400],
+    flex: 1,
+    marginRight: 8,
+  },
+
+  // Price — amber tinted pill for paid, green tint for free
+  pricePill: {
+    backgroundColor: 'rgba(245,158,11,0.10)',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  pricePillFree: {
+    backgroundColor: 'rgba(34,197,94,0.10)',
+  },
+  priceText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#d97706',
+  },
+  priceTextFree: {
+    color: '#16a34a',
+  },
+
+  // Urgency strip — "⚡ 3 spots left"
+  urgencyRow: {
+    marginTop: 8,
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: '#fef3c7',
+  },
+  urgencyText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#d97706',
+  },
 })
 
 const skeletonStyles = StyleSheet.create({
+  card: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginBottom: Spacing.lg,
+  },
+  cover: {
+    height: 160,
+    backgroundColor: Colors.gray[200],
+  },
+  body: { padding: 12 },
   line: {
     height: 12,
     backgroundColor: Colors.gray[200],

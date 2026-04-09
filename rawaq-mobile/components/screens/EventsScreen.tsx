@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import {
   Animated, View, Text, FlatList, TextInput, StyleSheet,
   TouchableOpacity, ScrollView, RefreshControl, Alert, ActivityIndicator,
@@ -679,14 +679,14 @@ export default function EventsScreen() {
     fetchEvents()
   }
 
-  function handleSaveChange(id: string, saved: boolean) {
+  const handleSaveChange = useCallback((id: string, saved: boolean) => {
     setSavedIds((prev) => {
       const next = new Set(prev)
       if (saved) next.add(id)
       else next.delete(id)
       return next
     })
-  }
+  }, [])
 
   async function handleJoinSuggested(slug: string) {
     setJoiningSlug(slug)
@@ -698,19 +698,30 @@ export default function EventsScreen() {
     setJoiningSlug(null)
   }
 
-  const claimedHappeningIds = new Set<string>()
-  const filteredCommunityRailHappenings = claimUniqueHappenings(filteredCommunityHappenings, claimedHappeningIds)
-  const nearbyRailHappenings = claimUniqueHappenings(nearbyHappenings, claimedHappeningIds)
-  const weekendRailHappenings = claimUniqueHappenings(nearYouWeekendHappenings, claimedHappeningIds)
-  const communityRailHappenings = claimUniqueHappenings(myCommunityHappenings, claimedHappeningIds)
-  const activeRailHappenings = claimUniqueHappenings(activeHappenings, claimedHappeningIds)
-
-  const communityDiscoveryItems = interleaveDiscoveryItems(myCommunityEvents, communityRailHappenings, 8)
-  const weekendDiscoveryItems = interleaveDiscoveryItems(nearYouWeekendEvents, weekendRailHappenings, 8)
-  const filteredCommunityItems = interleaveDiscoveryItems([], filteredCommunityRailHappenings, 8)
-  const activeNowItems = interleaveDiscoveryItems([], activeRailHappenings, 8)
-  const nearbyHappeningItems = interleaveDiscoveryItems([], nearbyRailHappenings, 8)
+  const {
+    communityDiscoveryItems,
+    weekendDiscoveryItems,
+    filteredCommunityItems,
+    activeNowItems,
+    nearbyHappeningItems,
+  } = useMemo(() => {
+    const claimedIds = new Set<string>()
+    const filteredCommunityRail = claimUniqueHappenings(filteredCommunityHappenings, claimedIds)
+    const nearbyRail           = claimUniqueHappenings(nearbyHappenings, claimedIds)
+    const weekendRail          = claimUniqueHappenings(nearYouWeekendHappenings, claimedIds)
+    const communityRail        = claimUniqueHappenings(myCommunityHappenings, claimedIds)
+    const activeRail           = claimUniqueHappenings(activeHappenings, claimedIds)
+    return {
+      communityDiscoveryItems: interleaveDiscoveryItems(myCommunityEvents, communityRail, 8),
+      weekendDiscoveryItems:   interleaveDiscoveryItems(nearYouWeekendEvents, weekendRail, 8),
+      filteredCommunityItems:  interleaveDiscoveryItems([], filteredCommunityRail, 8),
+      activeNowItems:          interleaveDiscoveryItems([], activeRail, 8),
+      nearbyHappeningItems:    interleaveDiscoveryItems([], nearbyRail, 8),
+    }
+  }, [filteredCommunityHappenings, nearbyHappenings, nearYouWeekendHappenings, myCommunityHappenings, activeHappenings, myCommunityEvents, nearYouWeekendEvents])
   const showDiscoveryHeader = showRecommendationRails || nearMe || !!communitySlug
+
+  const keyExtractor = useCallback((e: EventWithOrganizer) => e.id, [])
 
   return (
     <View style={styles.container}>
@@ -890,7 +901,7 @@ export default function EventsScreen() {
       ) : (
         <FlatList
           data={events}
-          keyExtractor={(e) => e.id}
+          keyExtractor={keyExtractor}
           ListHeaderComponent={
             showDiscoveryHeader
               ? (
@@ -1298,7 +1309,7 @@ function MixedDiscoveryRail({
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.gray[50] },
   searchRow: { backgroundColor: Colors.white, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.gray[100] },
-  searchBox: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: Colors.gray[100], borderRadius: Radius.lg, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2 },
+  searchBox: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: Colors.gray[100], borderRadius: 100, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2, borderWidth: 1, borderColor: Colors.gray[200] },
   searchInput: { flex: 1, fontSize: FontSize.base, color: Colors.gray[900] },
   searchActionBtn: {
     width: 32,
@@ -1315,8 +1326,8 @@ const styles = StyleSheet.create({
     borderColor: Colors.green.DEFAULT,
   },
   categoryRow: { backgroundColor: Colors.white, paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.gray[100], paddingLeft: Spacing.lg },
-  chip: { flexShrink: 0, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: Radius.full, backgroundColor: Colors.gray[100], marginRight: Spacing.sm },
-  chipActive: { backgroundColor: Colors.brand[500] },
+  chip: { flexShrink: 0, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: Radius.full, backgroundColor: Colors.gray[100], marginRight: Spacing.sm, borderWidth: 1, borderColor: Colors.gray[200] },
+  chipActive: { backgroundColor: Colors.brand[500], borderColor: Colors.brand[500] },
   chipText: { fontSize: FontSize.sm, color: Colors.gray[600], fontWeight: FontWeight.medium },
   chipTextActive: { color: Colors.white },
   filterRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, backgroundColor: Colors.white, borderBottomWidth: 1, borderBottomColor: Colors.gray[100] },
@@ -1333,15 +1344,20 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     backgroundColor: Colors.white,
     borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: Colors.gray[100],
   },
   railSectionUrgent: {
-    backgroundColor: '#fff7ed',
+    backgroundColor: '#fffbf5',
+    borderColor: '#fde8c8',
   },
   railSectionWeekend: {
-    backgroundColor: '#f0fdf4',
+    backgroundColor: '#f7fdf9',
+    borderColor: '#c6f0d8',
   },
   railSectionActive: {
-    backgroundColor: '#f0fdfa',
+    backgroundColor: '#f5fdfb',
+    borderColor: '#b2f0e8',
   },
   railHeader: {
     paddingHorizontal: Spacing.lg,
@@ -1350,7 +1366,8 @@ const styles = StyleSheet.create({
   railTitle: {
     fontSize: FontSize.lg,
     fontWeight: FontWeight.bold,
-    color: Colors.gray[900],
+    color: '#1a0d04',
+    letterSpacing: -0.2,
   },
   railSubtitleRow: {
     flexDirection: 'row',
@@ -1492,14 +1509,14 @@ const styles = StyleSheet.create({
   // Discover communities nudge
   discoverSection: { paddingBottom: Spacing.lg, borderBottomWidth: 1, borderBottomColor: Colors.gray[100], marginBottom: Spacing.sm },
   discoverHeader: { paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md },
-  discoverTitle: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.gray[900] },
+  discoverTitle: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: '#1a0d04' },
   discoverSub: { fontSize: FontSize.xs, color: Colors.gray[400], marginTop: 2 },
   discoverCard: {
     width: 150,
-    backgroundColor: Colors.white,
+    backgroundColor: 'rgba(245,158,11,0.04)',
     borderRadius: Radius.xl,
     borderWidth: 1,
-    borderColor: Colors.gray[200],
+    borderColor: 'rgba(245,158,11,0.20)',
     padding: Spacing.md,
     gap: Spacing.sm,
   },
