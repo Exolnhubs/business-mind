@@ -2,7 +2,7 @@ import { useState } from 'react'
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, KeyboardAvoidingView, Platform,
-  ScrollView, ActivityIndicator,
+  ScrollView, ActivityIndicator, Image,
 } from 'react-native'
 import { Link } from 'expo-router'
 import * as WebBrowser from 'expo-web-browser'
@@ -78,7 +78,7 @@ export default function LoginScreen() {
     >
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
-          <Text style={styles.logo}>🪄</Text>
+          <Image source={require('../../assets/icon.png')} style={styles.logo} resizeMode="contain" />
           <Text style={styles.title}>Rawaq</Text>
           <Text style={styles.subtitle}>{t('auth.login')}</Text>
         </View>
@@ -172,7 +172,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.brand[50] },
   scroll: { flexGrow: 1, justifyContent: 'center', padding: Spacing.xl },
   header: { alignItems: 'center', marginBottom: Spacing['3xl'] },
-  logo: { fontSize: 52, marginBottom: Spacing.sm },
+  logo: { width: 64, height: 64, marginBottom: Spacing.sm },
   title: { fontSize: 28, fontWeight: FontWeight.bold, color: Colors.brand[600], marginBottom: Spacing.xs },
   subtitle: { fontSize: FontSize.base, color: Colors.gray[500] },
   card: {

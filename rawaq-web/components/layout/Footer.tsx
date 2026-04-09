@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { useLocale } from '@/contexts/locale-context'
 
 export function Footer() {
@@ -16,7 +17,7 @@ export function Footer() {
           {/* Brand */}
           <div className="space-y-4">
             <Link href="/" className="footer-logo inline-flex items-center gap-2.5">
-              <span className="footer-wand text-2xl leading-none">🪄</span>
+              <span className="footer-wand leading-none"><Image src="/icon.png" alt="" width={28} height={28} /></span>
               <span className="footer-brand-name">Rawaq</span>
             </Link>
             <p

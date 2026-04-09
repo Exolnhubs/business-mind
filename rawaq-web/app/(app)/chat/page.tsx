@@ -6,7 +6,6 @@ import { createSupabaseBrowserClient } from '@/lib/supabase/client'
 import { useAuth } from '@/contexts/auth-context'
 import { formatRelativeTime } from '@/lib/utils'
 import { Spinner } from '@/components/ui/Spinner'
-import { EmptyState } from '@/components/ui/EmptyState'
 
 interface ChatMessage {
   id: string
@@ -14,6 +13,9 @@ interface ChatMessage {
   created_at: string
   mentions: string[]
   author: { id: string; display_name: string; avatar_url: string | null } | null
+  isNew?: boolean
+  isInitialBatch?: boolean
+  batchIndex?: number
 }
 
 const PAGE_SIZE = 50
@@ -33,15 +35,13 @@ export default function ChatPage() {
 
   const bottomRef = useRef<HTMLDivElement>(null)
   const oldestCursorRef = useRef<string | null>(null)
-  // Track if the user is scrolled near bottom to decide whether to auto-scroll
   const containerRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
-  // Redirect if not authenticated (after auth loads)
   useEffect(() => {
     if (!authLoading && !user) router.replace('/login')
   }, [authLoading, user, router])
 
-  // Load initial messages
   useEffect(() => {
     if (!user) return
     loadMessages()
@@ -53,16 +53,14 @@ export default function ChatPage() {
     const res = await fetch(`/api/chat?limit=${PAGE_SIZE}`)
     if (res.ok) {
       const { data } = await res.json() as { data: ChatMessage[] }
-      // API returns newest-first; reverse to show oldest-first in the chat window
       const ordered = [...data].reverse()
-      setMessages(ordered)
+      setMessages(
+        ordered.map((m, i) => ({ ...m, isInitialBatch: true, batchIndex: i }))
+      )
       setHasMore(data.length === PAGE_SIZE)
-      if (data.length > 0) {
-        oldestCursorRef.current = data[data.length - 1].created_at
-      }
+      if (data.length > 0) oldestCursorRef.current = data[data.length - 1].created_at
     }
     setFetching(false)
-    // Scroll to bottom after initial load
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'instant' }), 50)
   }
 
@@ -80,7 +78,6 @@ export default function ChatPage() {
     setLoadingMore(false)
   }
 
-  // Real-time subscription
   useEffect(() => {
     if (!user) return
 
@@ -99,6 +96,7 @@ export default function ChatPage() {
           const newMsg: ChatMessage = {
             ...(payload.new as ChatMessage),
             author: author ?? { id: payload.new.user_id, display_name: 'Unknown', avatar_url: null },
+            isNew: true,
           }
 
           startTransition(() => {
@@ -108,13 +106,10 @@ export default function ChatPage() {
             })
           })
 
-          // Auto-scroll only if the user is already near the bottom
           const el = containerRef.current
           if (el) {
             const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120
-            if (nearBottom) {
-              setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 30)
-            }
+            if (nearBottom) setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 30)
           }
         },
       )
@@ -132,7 +127,6 @@ export default function ChatPage() {
     setSending(true)
     setContent('')
 
-    // Optimistic insert
     const tempId = `temp-${Date.now()}`
     const optimistic: ChatMessage = {
       id: tempId,
@@ -140,6 +134,7 @@ export default function ChatPage() {
       created_at: new Date().toISOString(),
       mentions: [],
       author: { id: user.id, display_name: profile?.display_name ?? 'You', avatar_url: profile?.avatar_url ?? null },
+      isNew: true,
     }
     setMessages((prev) => [...prev, optimistic])
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 30)
@@ -151,16 +146,15 @@ export default function ChatPage() {
     })
 
     if (!res.ok) {
-      // Roll back optimistic message on failure
       setMessages((prev) => prev.filter((m) => m.id !== tempId))
       setContent(text)
     } else {
-      // Replace temp with real message (realtime will also fire; dedup handles it)
       const { data: real } = await res.json() as { data: ChatMessage }
-      setMessages((prev) => prev.map((m) => (m.id === tempId ? real : m)))
+      setMessages((prev) => prev.map((m) => (m.id === tempId ? { ...real, isNew: false } : m)))
     }
 
     setSending(false)
+    inputRef.current?.focus()
   }
 
   if (authLoading || !user) {
@@ -172,102 +166,164 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 flex flex-col" style={{ height: 'calc(100vh - 5rem)' }}>
-      {/* Header */}
-      <div className="mb-4 shrink-0">
-        <h1 className="text-xl font-bold text-gray-900">💬 Global Chat</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Chat with everyone on Rawaq</p>
-      </div>
+    <div className="chat-page-wrap">
+      <div className="chat-panel">
 
-      {/* Messages container */}
-      <div
-        ref={containerRef}
-        className="card flex-1 overflow-y-auto p-4 space-y-3 min-h-0"
-      >
-        {/* Load more */}
-        {hasMore && (
-          <div className="text-center pb-2">
-            <button
-              onClick={loadMore}
-              disabled={loadingMore}
-              className="btn-ghost text-xs text-brand-600"
-            >
-              {loadingMore ? <Spinner size="sm" /> : 'Load older messages'}
-            </button>
+        {/* ── Header ──────────────────────────────── */}
+        <div className="chat-header">
+          <div className="chat-header-pattern" aria-hidden="true" />
+          <div className="chat-header-content">
+            <div>
+              <h1 className="chat-title">Global Chat</h1>
+              <p className="chat-subtitle">Connect with the Rawaq community in real time</p>
+            </div>
+            <div className="chat-live-badge" aria-label="Live chat active">
+              <span className="chat-live-dot" aria-hidden="true" />
+              Live
+            </div>
           </div>
-        )}
+        </div>
 
-        {fetching ? (
-          <div className="flex items-center justify-center h-full">
-            <Spinner size="lg" />
-          </div>
-        ) : messages.length === 0 ? (
-          <EmptyState icon="💬" title="No messages yet" description="Start the conversation!" />
-        ) : (
-          messages.map((msg) => {
-            const isOwn = msg.author?.id === user.id
-            return (
-              <div
-                key={msg.id}
-                className={`flex gap-2.5 items-end ${isOwn ? 'flex-row-reverse' : ''}`}
-              >
-                {/* Avatar */}
-                <div className="w-7 h-7 rounded-full bg-brand-100 text-brand-700 text-xs font-bold flex items-center justify-center uppercase shrink-0">
-                  {msg.author?.display_name?.[0] ?? '?'}
-                </div>
+        {/* ── Messages ────────────────────────────── */}
+        <div ref={containerRef} className="chat-messages-wrap">
 
-                <div className={`flex flex-col gap-0.5 max-w-[72%] ${isOwn ? 'items-end' : 'items-start'}`}>
-                  {/* Author + time */}
-                  <span className="text-xs text-gray-400 px-1">
-                    {isOwn ? 'You' : msg.author?.display_name ?? 'Unknown'}
-                    {' · '}
-                    {formatRelativeTime(msg.created_at)}
-                  </span>
+          {hasMore && (
+            <div className="chat-load-more-wrap">
+              <button onClick={loadMore} disabled={loadingMore} className="chat-load-more-btn">
+                {loadingMore ? (
+                  <Spinner size="sm" />
+                ) : (
+                  <>
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                      <path d="M6 10V2M6 2L2.5 5.5M6 2L9.5 5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                    Load older messages
+                  </>
+                )}
+              </button>
+            </div>
+          )}
 
-                  {/* Bubble */}
+          {fetching ? (
+            <div className="chat-state-center">
+              <Spinner size="lg" />
+              <span className="chat-state-label">Loading messages…</span>
+            </div>
+          ) : messages.length === 0 ? (
+            <div className="chat-state-center">
+              <div className="chat-empty-icon" aria-hidden="true">
+                <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+                  <rect x="4" y="6" width="32" height="22" rx="6" fill="none" stroke="currentColor" strokeWidth="1.5" opacity="0.4"/>
+                  <path d="M12 28L8 34" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity="0.4"/>
+                  <circle cx="14" cy="17" r="2" fill="currentColor" opacity="0.5"/>
+                  <circle cx="20" cy="17" r="2" fill="currentColor" opacity="0.5"/>
+                  <circle cx="26" cy="17" r="2" fill="currentColor" opacity="0.5"/>
+                </svg>
+              </div>
+              <p className="chat-empty-title">No messages yet</p>
+              <p className="chat-empty-body">Be the first to say something to the Rawaq community</p>
+            </div>
+          ) : (
+            messages.map((msg) => {
+              const isOwn = msg.author?.id === user.id
+              const isPending = msg.id.startsWith('temp-')
+
+              let animClass = ''
+              if (msg.isNew) animClass = ' chat-msg--new'
+              else if (msg.isInitialBatch) animClass = ' chat-msg--initial'
+
+              return (
+                <div
+                  key={msg.id}
+                  className={`chat-msg-row${isOwn ? ' chat-msg-row--own' : ''}${animClass}`}
+                  style={msg.isInitialBatch
+                    ? { animationDelay: `${Math.min((msg.batchIndex ?? 0) * 30, 360)}ms` }
+                    : undefined
+                  }
+                >
+                  {/* Avatar */}
                   <div
-                    className={`px-3.5 py-2 rounded-2xl text-sm leading-relaxed break-words ${
-                      isOwn
-                        ? 'bg-brand-500 text-white rounded-br-sm'
-                        : 'bg-white border border-gray-100 text-gray-900 rounded-bl-sm shadow-sm'
-                    } ${msg.id.startsWith('temp-') ? 'opacity-60' : ''}`}
+                    className={`chat-avatar${isOwn ? ' chat-avatar--own' : ''}`}
+                    aria-hidden="true"
+                    title={isOwn ? 'You' : (msg.author?.display_name ?? 'Unknown')}
                   >
-                    {msg.content}
+                    {msg.author?.avatar_url ? (
+                      <img src={msg.author.avatar_url} alt="" className="chat-avatar-img" />
+                    ) : (
+                      (msg.author?.display_name?.[0] ?? '?').toUpperCase()
+                    )}
+                  </div>
+
+                  {/* Bubble + meta */}
+                  <div className={`chat-msg-body${isOwn ? ' chat-msg-body--own' : ''}`}>
+                    <span className={`chat-msg-meta${isOwn ? ' chat-msg-meta--own' : ''}`}>
+                      {isOwn ? 'You' : (msg.author?.display_name ?? 'Unknown')}
+                      <span className="chat-msg-time">· {formatRelativeTime(msg.created_at)}</span>
+                    </span>
+                    <div
+                      className={`chat-bubble${isOwn ? ' chat-bubble--own' : ' chat-bubble--other'}${isPending ? ' chat-bubble--pending' : ''}`}
+                    >
+                      {msg.content}
+                    </div>
                   </div>
                 </div>
-              </div>
-            )
-          })
-        )}
+              )
+            })
+          )}
 
-        <div ref={bottomRef} />
+          <div ref={bottomRef} />
+        </div>
+
+        {/* ── Input ───────────────────────────────── */}
+        <form onSubmit={sendMessage} className="chat-input-wrap">
+          <div className="chat-input-row">
+            <input
+              ref={inputRef}
+              type="text"
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              placeholder="Say something to the community…"
+              disabled={sending}
+              maxLength={1000}
+              className="chat-input"
+              autoComplete="off"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  sendMessage(e as unknown as FormEvent)
+                }
+              }}
+            />
+            <button
+              type="submit"
+              disabled={!content.trim() || sending}
+              className="chat-send-btn"
+              aria-label="Send message"
+            >
+              {sending ? (
+                <Spinner size="sm" />
+              ) : (
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+                  <path
+                    d="M15.5 2.5L8 10M15.5 2.5L10.5 15.5L8 10M15.5 2.5L2.5 7L8 10"
+                    stroke="currentColor"
+                    strokeWidth="1.75"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              )}
+            </button>
+          </div>
+          <p className="chat-input-hint">
+            Enter to send
+            {content.length > 0 && (
+              <span className="chat-char-count"> · {content.length}/1000</span>
+            )}
+          </p>
+        </form>
+
       </div>
-
-      {/* Input */}
-      <form onSubmit={sendMessage} className="flex gap-2 mt-3 shrink-0">
-        <input
-          type="text"
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          placeholder="Type a message…"
-          disabled={sending}
-          maxLength={1000}
-          className="input flex-1"
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault()
-              sendMessage(e as unknown as FormEvent)
-            }
-          }}
-        />
-        <button
-          type="submit"
-          disabled={!content.trim() || sending}
-          className="btn-primary px-4"
-        >
-          {sending ? <Spinner size="sm" /> : '➤'}
-        </button>
-      </form>
     </div>
   )
 }

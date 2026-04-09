@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState, useTransition } from 'react'
 import { createSupabaseBrowserClient } from '@/lib/supabase/client'
@@ -212,7 +213,7 @@ export function Navbar() {
       <nav className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16 gap-6">
         {/* Logo */}
         <Link href="/" className="nav-logo flex items-center gap-2 shrink-0">
-          <span className="nav-wand text-2xl leading-none">🪄</span>
+          <span className="nav-wand leading-none"><Image src="/icon.png" alt="" width={28} height={28} /></span>
           <span className="hidden sm:block font-bold text-xl" style={{ fontFamily: 'var(--font-display)', color: 'var(--c-gold-dim)', letterSpacing: '-0.01em' }}>
             Rawaq
           </span>

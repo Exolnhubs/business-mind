@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { useLocale } from '@/contexts/locale-context'
 
 const COUNTRIES = [
@@ -36,7 +37,7 @@ export default function AboutPage() {
 
       {/* Hero */}
       <section className="text-center space-y-4">
-        <div className="text-6xl">🪄</div>
+        <div className="flex justify-center"><Image src="/icon.png" alt="Rawaq" width={64} height={64} /></div>
         <h1 className="text-4xl font-bold text-gray-900">{t('about.title')}</h1>
         <p className="text-xl text-gray-500 max-w-2xl mx-auto leading-relaxed">
           {t('about.hero_sub')}

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, KeyboardAvoidingView, Platform,
-  ScrollView, ActivityIndicator,
+  ScrollView, ActivityIndicator, Image,
 } from 'react-native'
 import { Link } from 'expo-router'
 import * as Location from 'expo-location'
@@ -144,7 +144,7 @@ export default function RegisterScreen() {
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1, backgroundColor: Colors.brand[50] }}>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
-          <Text style={styles.logo}>🪄</Text>
+          <Image source={require('../../assets/icon.png')} style={styles.logo} resizeMode="contain" />
           <Text style={styles.title}>{t('auth.join')}</Text>
         </View>
 
@@ -302,7 +302,7 @@ export default function RegisterScreen() {
 const styles = StyleSheet.create({
   scroll: { flexGrow: 1, padding: Spacing.xl },
   header: { alignItems: 'center', marginBottom: Spacing['3xl'], marginTop: Spacing['3xl'] },
-  logo: { fontSize: 52 },
+  logo: { width: 64, height: 64 },
   title: { fontSize: 26, fontWeight: FontWeight.bold, color: Colors.brand[600], marginTop: Spacing.sm },
   card: { backgroundColor: Colors.white, borderRadius: Radius.xl, padding: Spacing['2xl'], shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 4, marginBottom: Spacing['3xl'] },
   googleBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm, borderWidth: 1, borderColor: Colors.gray[200], borderRadius: Radius.lg, paddingVertical: Spacing.md, marginBottom: Spacing.sm },

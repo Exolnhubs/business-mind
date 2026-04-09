@@ -1,11 +1,12 @@
 import Link from 'next/link'
+import Image from 'next/image'
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-brand-50 via-white to-amber-50 flex flex-col">
       <header className="px-6 py-4">
         <Link href="/" className="flex items-center gap-2 text-brand-600 font-bold text-xl w-fit">
-          <span>🪄</span> Rawaq
+          <Image src="/icon.png" alt="" width={24} height={24} className="block" /> Rawaq
         </Link>
       </header>
 
