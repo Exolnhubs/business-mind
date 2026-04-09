@@ -575,7 +575,8 @@ export default function CommunityDetailScreen() {
             ? <Image source={{ uri: community.cover_url }} style={styles.heroImg} />
             : (
               <View style={[styles.heroPlaceholder, { backgroundColor: meta.bg }]}>
-                <Ionicons name={meta.icon} size={56} color={meta.tint} />
+                <Ionicons name={meta.icon} size={44} color={meta.tint} />
+                <Text style={[styles.heroPlaceholderLabel, { color: meta.tint }]}>{meta.label} community</Text>
               </View>
             )
           }
@@ -601,7 +602,7 @@ export default function CommunityDetailScreen() {
           {/* Top: icon + name + verified */}
           <View style={styles.identityTop}>
             <View style={[styles.identityIcon, { backgroundColor: meta.bg }]}>
-              <Ionicons name={meta.icon} size={24} color={meta.tint} />
+              <Ionicons name={meta.icon} size={26} color={meta.tint} />
             </View>
             <View style={styles.identityText}>
               <View style={styles.nameRow}>
@@ -628,22 +629,19 @@ export default function CommunityDetailScreen() {
             </View>
           </View>
 
-          {/* Stats row */}
-          <View style={styles.statsRow}>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{community.member_count.toLocaleString()}</Text>
-              <Text style={styles.statLabel}>Members</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{community.event_count}</Text>
-              <Text style={styles.statLabel}>Events</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{community.recent_members.length}</Text>
-              <Text style={styles.statLabel}>Recent joins</Text>
-            </View>
+          {/* Stats line */}
+          <View style={styles.statLine}>
+            <Ionicons name="people-outline" size={13} color={Colors.gray[400]} />
+            <Text style={styles.statLineText}><Text style={styles.statLineValue}>{community.member_count.toLocaleString()}</Text> members</Text>
+            <Text style={styles.statLineSep}>·</Text>
+            <Ionicons name="calendar-outline" size={13} color={Colors.gray[400]} />
+            <Text style={styles.statLineText}><Text style={styles.statLineValue}>{community.event_count}</Text> events</Text>
+            {community.recent_members.length > 0 && (
+              <>
+                <Text style={styles.statLineSep}>·</Text>
+                <Text style={styles.statLineText}><Text style={styles.statLineValue}>{community.recent_members.length}</Text> recent joins</Text>
+              </>
+            )}
           </View>
 
           {/* Description */}
@@ -991,11 +989,13 @@ export default function CommunityDetailScreen() {
             <View style={styles.centerSmall}><Spinner /></View>
           ) : happenings.length === 0 ? (
             <View style={styles.happeningsEmpty}>
-              <Text style={styles.happeningsEmptyIcon}>📍</Text>
+              <Ionicons name="radio-outline" size={28} color={Colors.brand[300]} />
               <Text style={styles.happeningsEmptyText}>Nothing happening right now</Text>
-              {canParticipateInHappenings && (
-                <Text style={styles.happeningsEmptyHint}>Be the first — post a happening!</Text>
-              )}
+              <Text style={styles.happeningsEmptyHint}>
+                {canParticipateInHappenings
+                  ? 'Open invites, questions, alerts — post something!'
+                  : 'Join to post open invites, questions, and alerts'}
+              </Text>
             </View>
           ) : (
             <View style={styles.happeningsList}>
@@ -1005,10 +1005,11 @@ export default function CommunityDetailScreen() {
                 const ttlM = Math.floor((ttlMs % 3_600_000) / 60_000)
                 const ttl = ttlMs <= 0 ? 'Expired' : ttlH > 0 ? `${ttlH}h ${ttlM}m left` : `${ttlM}m left`
                 const TYPE_EMOJI: Record<HappeningType, string> = { open_invite: '🙋', info: 'ℹ️', question: '❓', alert: '🚨' }
+                const TYPE_BG: Record<HappeningType, string> = { open_invite: Colors.brand[50], info: '#f0f9ff', question: '#f5f3ff', alert: '#fff1f2' }
                 const isLast = i === happenings.length - 1
 
                 return (
-                  <View key={h.id} style={[styles.happeningCard, !isLast && styles.happeningCardBorder]}>
+                  <View key={h.id} style={[styles.happeningCard, !isLast && styles.happeningCardBorder, { backgroundColor: TYPE_BG[h.type] }]}>
                     <View style={styles.happeningHeader}>
                       <View style={styles.happeningAuthorRow}>
                         <View style={styles.avatar}>
@@ -1360,7 +1361,7 @@ export default function CommunityDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f4f5f9' },
+  container: { flex: 1, backgroundColor: '#faf8f5' },
   content: { paddingBottom: Spacing['5xl'] },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   centerSmall: { alignItems: 'center', paddingVertical: Spacing['2xl'] },
@@ -1368,19 +1369,20 @@ const styles = StyleSheet.create({
   // Hero
   hero: { position: 'relative' },
   heroImg: { width: '100%', height: 200, resizeMode: 'cover' },
-  heroPlaceholder: { width: '100%', height: 200, alignItems: 'center', justifyContent: 'center' },
+  heroPlaceholder: { width: '100%', height: 220, alignItems: 'center', justifyContent: 'center', gap: 10 },
+  heroPlaceholderLabel: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, letterSpacing: 1.4, textTransform: 'uppercase' as const },
   breadcrumbBar: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.48)', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm + 2 },
   bcItem: { flexDirection: 'row', alignItems: 'center' },
   bcSep: { color: 'rgba(255,255,255,0.5)', marginHorizontal: 5, fontSize: 12 },
   bcText: { color: 'rgba(255,255,255,0.9)', fontSize: FontSize.xs, fontWeight: FontWeight.medium },
 
   // Identity card
-  identityCard: { backgroundColor: '#fff', marginHorizontal: Spacing.lg, marginTop: -Spacing.md, borderRadius: Radius['xl'], padding: Spacing.lg, ...Shadow.card, zIndex: 10, marginBottom: Spacing.lg },
+  identityCard: { backgroundColor: '#fff', marginHorizontal: Spacing.lg, marginTop: -Spacing.md, borderRadius: Radius['xl'], padding: Spacing.xl, shadowColor: '#1a1208', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 14, elevation: 6, zIndex: 10, marginBottom: Spacing.lg },
   identityTop: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.md, marginBottom: Spacing.lg },
-  identityIcon: { width: 52, height: 52, borderRadius: Radius.xl, alignItems: 'center', justifyContent: 'center' },
+  identityIcon: { width: 56, height: 56, borderRadius: Radius.xl, alignItems: 'center', justifyContent: 'center' },
   identityText: { flex: 1 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  name: { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.gray[900], flex: 1 },
+  name: { fontSize: FontSize['2xl'], fontWeight: FontWeight.bold, color: Colors.gray[900], flex: 1, lineHeight: 30 },
   tagRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 6 },
   levelTag: { paddingHorizontal: Spacing.sm, paddingVertical: 3, borderRadius: Radius.full },
   levelTagText: { fontSize: 11, fontWeight: FontWeight.semibold },
@@ -1388,13 +1390,12 @@ const styles = StyleSheet.create({
   pendingApprovalTagText: { fontSize: 11, fontWeight: FontWeight.semibold, color: '#0369a1' },
   cityText: { fontSize: FontSize.xs, color: Colors.gray[500] },
 
-  statsRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.gray[50], borderRadius: Radius.xl, padding: Spacing.lg, marginBottom: Spacing.lg },
-  statItem: { flex: 1, alignItems: 'center' },
-  statValue: { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.gray[900] },
-  statLabel: { fontSize: 11, color: Colors.gray[500], marginTop: 2 },
-  statDivider: { width: 1, height: 32, backgroundColor: Colors.gray[200] },
+  statLine: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: Spacing.xs, marginBottom: Spacing.lg, paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md, backgroundColor: '#f9f6f0', borderRadius: Radius.lg },
+  statLineValue: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.gray[900] },
+  statLineText: { fontSize: FontSize.sm, color: Colors.gray[500] },
+  statLineSep: { fontSize: FontSize.sm, color: Colors.gray[300], marginHorizontal: 2 },
 
-  description: { fontSize: FontSize.sm, color: Colors.gray[600], lineHeight: 22, marginBottom: Spacing.lg },
+  description: { fontSize: FontSize.sm, color: Colors.gray[600], lineHeight: 22, marginBottom: Spacing.md },
   socialProofCard: {
     marginBottom: Spacing.lg,
     borderWidth: 1,
@@ -1442,16 +1443,16 @@ const styles = StyleSheet.create({
   },
   parentContextBtnText: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: '#6d28d9' },
 
-  joinBtn: { borderRadius: Radius.xl, paddingVertical: Spacing.md + 2, alignItems: 'center' },
+  joinBtn: { borderRadius: Radius.full, paddingVertical: Spacing.lg, alignItems: 'center', marginTop: Spacing.md },
   joinBtnDefault: { backgroundColor: Colors.brand[600] },
-  joinBtnJoined: { backgroundColor: '#f0fdf4', borderWidth: 1.5, borderColor: '#86efac' },
+  joinBtnJoined: { backgroundColor: '#f6fef0', borderWidth: 1.5, borderColor: '#86efac' },
   joinBtnInner: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   joinBtnText: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: '#fff' },
   joinBtnTextJoined: { color: '#15803d' },
   followBtn: {
     marginTop: Spacing.sm,
-    borderRadius: Radius.xl,
-    paddingVertical: Spacing.md + 2,
+    borderRadius: Radius.full,
+    paddingVertical: Spacing.md + 4,
     alignItems: 'center',
     borderWidth: 1,
   },
@@ -1461,11 +1462,11 @@ const styles = StyleSheet.create({
   followBtnTextActive: { color: '#0369a1' },
 
   // Sections
-  section: { paddingHorizontal: Spacing.lg, marginBottom: Spacing.xl },
+  section: { paddingHorizontal: Spacing.lg, marginBottom: Spacing['2xl'] },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.md },
-  sectionTitle: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.gray[900], marginBottom: Spacing.md },
+  sectionTitle: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.gray[900], marginBottom: Spacing.md },
   sectionLink: { fontSize: FontSize.sm, color: Colors.brand[600], fontWeight: FontWeight.medium },
-  childrenList: { backgroundColor: '#fff', borderRadius: Radius.xl, overflow: 'hidden', borderWidth: 1, borderColor: Colors.gray[200], ...Shadow.card },
+  childrenList: { backgroundColor: '#fff', borderRadius: Radius.xl, overflow: 'hidden', borderWidth: 1, borderColor: '#edeae4', ...Shadow.card },
   childCard: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md },
   childCardBorder: { borderBottomWidth: 1, borderBottomColor: Colors.gray[100] },
   childBody: { flex: 1 },
@@ -1486,7 +1487,7 @@ const styles = StyleSheet.create({
   childJoinTextActive: { color: '#15803d' },
 
   // Members
-  membersList: { backgroundColor: '#fff', borderRadius: Radius.xl, overflow: 'hidden', borderWidth: 1, borderColor: Colors.gray[200], ...Shadow.card },
+  membersList: { backgroundColor: '#fff', borderRadius: Radius.xl, overflow: 'hidden', borderWidth: 1, borderColor: '#edeae4', ...Shadow.card },
   memberRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md },
   memberRowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.gray[100] },
   avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.brand[100], alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
@@ -1503,8 +1504,10 @@ const styles = StyleSheet.create({
     borderColor: Colors.gray[200],
     backgroundColor: Colors.gray[50],
     borderRadius: Radius.lg,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 5,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    minHeight: 36,
+    justifyContent: 'center',
   },
   memberActionChipDanger: { borderColor: '#fecaca', backgroundColor: '#fef2f2' },
   memberActionText: { fontSize: 11, color: Colors.gray[700], fontWeight: FontWeight.semibold },
@@ -1519,7 +1522,7 @@ const styles = StyleSheet.create({
   simplePanelMeta: { fontSize: FontSize.xs, color: Colors.gray[500], marginTop: 2 },
 
   // Activity
-  activityList: { backgroundColor: '#fff', borderRadius: Radius.xl, overflow: 'hidden', borderWidth: 1, borderColor: Colors.gray[200], ...Shadow.card },
+  activityList: { backgroundColor: '#fff', borderRadius: Radius.xl, overflow: 'hidden', borderWidth: 1, borderColor: '#edeae4', ...Shadow.card },
   activityItem: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md },
   activityItemBorder: { borderBottomWidth: 1, borderBottomColor: Colors.gray[100] },
   activityDot: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
@@ -1529,7 +1532,7 @@ const styles = StyleSheet.create({
   activityDate: { fontSize: 11, color: Colors.gray[400] },
 
   // Events
-  eventCard: { backgroundColor: '#fff', borderRadius: Radius.xl, padding: Spacing.md, marginBottom: Spacing.sm, flexDirection: 'row', alignItems: 'center', gap: Spacing.md, borderWidth: 1, borderColor: Colors.gray[200], ...Shadow.card },
+  eventCard: { backgroundColor: '#fff', borderRadius: Radius.xl, padding: Spacing.md, marginBottom: Spacing.sm, flexDirection: 'row', alignItems: 'center', gap: Spacing.md, borderWidth: 1, borderColor: '#edeae4', ...Shadow.card },
   eventThumb: { width: 68, height: 56, borderRadius: Radius.lg, resizeMode: 'cover' },
   eventThumbEmpty: { backgroundColor: Colors.brand[50], alignItems: 'center', justifyContent: 'center' },
   eventDetails: { flex: 1 },
@@ -1546,18 +1549,17 @@ const styles = StyleSheet.create({
   sectionSub: { fontSize: FontSize.xs, color: Colors.gray[400], marginBottom: Spacing.md },
 
   // Post happening button
-  postHappeningBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.brand[600], borderRadius: Radius.lg, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm },
+  postHappeningBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.brand[600], borderRadius: Radius.full, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 3, minHeight: 36 },
   postHappeningBtnText: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: '#fff' },
 
   // Happenings empty
-  happeningsEmpty: { alignItems: 'center', paddingVertical: Spacing['3xl'], backgroundColor: '#fff', borderRadius: Radius.xl, borderWidth: 1, borderColor: Colors.gray[200], borderStyle: 'dashed' },
-  happeningsEmptyIcon: { fontSize: 28, marginBottom: Spacing.sm },
-  happeningsEmptyText: { fontSize: FontSize.sm, fontWeight: FontWeight.medium, color: Colors.gray[600] },
-  happeningsEmptyHint: { fontSize: FontSize.xs, color: Colors.gray[400], marginTop: 4 },
+  happeningsEmpty: { alignItems: 'center', paddingVertical: Spacing['3xl'], paddingHorizontal: Spacing.xl, backgroundColor: Colors.brand[50], borderRadius: Radius.xl, borderWidth: 1, borderColor: Colors.brand[100], gap: Spacing.sm },
+  happeningsEmptyText: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[700] },
+  happeningsEmptyHint: { fontSize: FontSize.xs, color: Colors.gray[500], textAlign: 'center' as const, lineHeight: 18 },
 
   // Happening cards
-  happeningsList: { backgroundColor: '#fff', borderRadius: Radius.xl, overflow: 'hidden', borderWidth: 1, borderColor: Colors.gray[200], ...Shadow.card },
-  happeningCard: { padding: Spacing.md },
+  happeningsList: { borderRadius: Radius.xl, overflow: 'hidden', borderWidth: 1, borderColor: '#edeae4', ...Shadow.card },
+  happeningCard: { padding: Spacing.lg },
   happeningCardBorder: { borderBottomWidth: 1, borderBottomColor: Colors.gray[100] },
   happeningHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.sm },
   happeningAuthorRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
@@ -1565,9 +1567,9 @@ const styles = StyleSheet.create({
   happeningTtl: { fontSize: 11, color: Colors.gray[400], marginTop: 1 },
   happeningTypeBadge: { width: 30, height: 30, borderRadius: 15, backgroundColor: Colors.gray[100], alignItems: 'center', justifyContent: 'center' },
   happeningTypeText: { fontSize: 14 },
-  happeningBody: { fontSize: FontSize.sm, color: Colors.gray[800], lineHeight: 20, marginBottom: Spacing.md },
+  happeningBody: { fontSize: FontSize.sm, color: Colors.gray[800], lineHeight: 21, marginBottom: Spacing.md },
   happeningActions: { flexDirection: 'row', gap: Spacing.sm },
-  happeningActionBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.md, paddingVertical: 6, borderRadius: Radius.lg, backgroundColor: Colors.gray[100] },
+  happeningActionBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2, borderRadius: Radius.lg, backgroundColor: Colors.gray[100], minHeight: 36 },
   happeningActionBtnActive: { backgroundColor: Colors.brand[600] },
   happeningReactActive: { backgroundColor: '#fef9c3' },
   happeningActionText: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.gray[700] },

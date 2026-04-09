@@ -225,9 +225,6 @@ export default function CommunitiesScreen() {
         onPress={() => router.push(`/communities/${item.slug}` as any)}
         activeOpacity={0.88}
       >
-        {/* Left accent bar */}
-        <View style={[styles.cardAccent, { backgroundColor: meta.accent }]} />
-
         <View style={styles.cardBody}>
           {/* Top row */}
           <View style={styles.cardTop}>
@@ -412,7 +409,10 @@ export default function CommunitiesScreen() {
       {user && !joinedOnly && search.trim().length === 0 && recommended.length > 0 && (
         <View style={styles.discoverySection}>
           <View style={styles.discoveryHeader}>
-            <Text style={styles.discoveryTitle}>Recommended for you</Text>
+            <View style={styles.sectionTitleRow}>
+              <View style={[styles.sectionDot, { backgroundColor: Colors.brand[400] }]} />
+              <Text style={styles.discoveryTitle}>Recommended for you</Text>
+            </View>
             <Text style={styles.discoveryHint}>Personalized by your interests and city</Text>
           </View>
           <FlatList
@@ -429,7 +429,10 @@ export default function CommunitiesScreen() {
       {!joinedOnly && search.trim().length === 0 && trending.length > 0 && (
         <View style={styles.trendingSection}>
           <View style={styles.trendingHeader}>
-            <Text style={styles.trendingTitle}>Trending now</Text>
+            <View style={styles.sectionTitleRow}>
+              <View style={[styles.sectionDot, { backgroundColor: Colors.brand[500] }]} />
+              <Text style={styles.trendingTitle}>Trending now</Text>
+            </View>
             <Text style={styles.trendingHint}>Fast-growing communities this week</Text>
           </View>
           <FlatList
@@ -464,7 +467,10 @@ export default function CommunitiesScreen() {
       {user && !joinedOnly && search.trim().length === 0 && popularCommunities.length > 0 && (
         <View style={styles.discoverySection}>
           <View style={styles.discoveryHeader}>
-            <Text style={styles.discoveryTitle}>Popular communities</Text>
+            <View style={styles.sectionTitleRow}>
+              <View style={[styles.sectionDot, { backgroundColor: Colors.gray[400] }]} />
+              <Text style={styles.discoveryTitle}>Popular communities</Text>
+            </View>
             <Text style={styles.discoveryHint}>Established groups people are already joining</Text>
           </View>
           <FlatList
@@ -506,7 +512,7 @@ export default function CommunitiesScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f4f5f9' },
+  container: { flex: 1, backgroundColor: '#faf8f5' },
 
   header: {
     flexDirection: 'row',
@@ -519,17 +525,17 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.gray[100],
   },
-  headerEyebrow: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.brand[500], letterSpacing: 0.8, textTransform: 'uppercase' },
-  headerTitle:   { fontSize: FontSize['2xl'], fontWeight: FontWeight.bold, color: Colors.gray[900], marginTop: 2 },
+  headerEyebrow: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.brand[600], letterSpacing: 1.2, textTransform: 'uppercase' },
+  headerTitle:   { fontSize: FontSize['3xl'], fontWeight: FontWeight.bold, color: Colors.gray[900], marginTop: 2 },
 
-  myBtn:         { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: Radius.full, backgroundColor: Colors.brand[50], borderWidth: 1, borderColor: Colors.brand[200] },
+  myBtn:         { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 3, borderRadius: Radius.full, backgroundColor: Colors.brand[50], borderWidth: 1, borderColor: Colors.brand[200], minHeight: 44 },
   myBtnActive:   { backgroundColor: Colors.brand[600], borderColor: Colors.brand[600] },
   myBtnText:     { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.brand[600] },
   myBtnTextActive: { color: '#fff' },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   addBtn: {
-    width: 38,
-    height: 38,
+    width: 44,
+    height: 44,
     borderRadius: Radius.full,
     backgroundColor: Colors.brand[600],
     alignItems: 'center',
@@ -537,7 +543,7 @@ const styles = StyleSheet.create({
     ...Shadow.card,
   },
 
-  searchWrap:  { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: '#fff', marginHorizontal: Spacing.lg, marginTop: Spacing.md, marginBottom: Spacing.xs, borderRadius: Radius.xl, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2, borderWidth: 1, borderColor: Colors.gray[200], ...Shadow.card },
+  searchWrap:  { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: '#fff', marginHorizontal: Spacing.lg, marginTop: Spacing.md, marginBottom: Spacing.xs, borderRadius: Radius.xl, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2, borderWidth: 1, borderColor: '#e8e3d8', ...Shadow.card },
   searchInput: { flex: 1, fontSize: FontSize.sm, color: Colors.gray[900] },
 
   filterList: { minHeight: 56 },
@@ -549,16 +555,18 @@ const styles = StyleSheet.create({
 
   discoverySection: { marginBottom: Spacing.md },
   discoveryHeader: { paddingHorizontal: Spacing.lg, marginBottom: Spacing.sm },
-  discoveryTitle: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.gray[900] },
+  sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  sectionDot: { width: 7, height: 7, borderRadius: 4 },
+  discoveryTitle: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.gray[900] },
   discoveryHint: { marginTop: 2, fontSize: FontSize.xs, color: Colors.gray[500] },
   discoveryRow: { paddingHorizontal: Spacing.lg, gap: Spacing.sm },
   recommendedCard: {
     width: 220,
     padding: Spacing.md,
     borderRadius: Radius.xl,
-    backgroundColor: '#eef6ff',
+    backgroundColor: Colors.brand[50],
     borderWidth: 1,
-    borderColor: '#bfdbfe',
+    borderColor: Colors.brand[200],
     ...Shadow.card,
   },
   popularCard: {
@@ -585,16 +593,16 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
     backgroundColor: Colors.brand[600],
     borderRadius: Radius.full,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 6,
-    minWidth: 68,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm + 2,
+    minWidth: 72,
     alignItems: 'center',
   },
   discoveryJoinText: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: '#fff' },
 
   trendingSection: { marginBottom: Spacing.md },
   trendingHeader: { paddingHorizontal: Spacing.lg, marginBottom: Spacing.sm },
-  trendingTitle: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.gray[900] },
+  trendingTitle: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.gray[900] },
   trendingHint: { marginTop: 2, fontSize: FontSize.xs, color: Colors.gray[500] },
   trendingRow: { paddingHorizontal: Spacing.lg, gap: Spacing.sm },
   trendingCard: {
@@ -603,7 +611,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.xl,
     backgroundColor: '#fff7ed',
     borderWidth: 1,
-    borderColor: '#fdba74',
+    borderColor: Colors.brand[300],
     ...Shadow.card,
   },
   trendingIcon: {
@@ -617,25 +625,23 @@ const styles = StyleSheet.create({
   trendingName: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[900] },
   trendingMeta: { marginTop: 4, fontSize: FontSize.xs, color: Colors.gray[500] },
 
-  list: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing['3xl'], gap: Spacing.md },
+  list: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm, paddingBottom: Spacing['3xl'], gap: Spacing.lg },
 
   card: {
-    flexDirection: 'row',
     backgroundColor: '#fff',
-    borderRadius: Radius['sm'],
+    borderRadius: Radius.xl,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: Colors.gray[100] ?? Colors.gray[200],
+    borderColor: '#edeae4',
     ...Shadow.card,
   },
-  cardAccent: { width: 4 },
   cardBody:   { flex: 1, padding: Spacing.lg },
   cardTop:    { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.md },
 
-  iconWrap:  { width: 46, height: 46, borderRadius: Radius.xl, alignItems: 'center', justifyContent: 'center' },
+  iconWrap:  { width: 52, height: 52, borderRadius: Radius.xl, alignItems: 'center', justifyContent: 'center' },
   cardCenter:{ flex: 1 },
   nameRow:   { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  cardName:  { fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.gray[900], flex: 1 },
+  cardName:  { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.gray[900], flex: 1 },
 
   tagRow:      { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginTop: 6 },
   levelTag:    { paddingHorizontal: Spacing.sm, paddingVertical: 3, borderRadius: Radius.full },
@@ -644,15 +650,15 @@ const styles = StyleSheet.create({
   joinedTag:   { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: Spacing.sm, paddingVertical: 3, borderRadius: Radius.full, backgroundColor: '#dcfce7' },
   joinedTagText: { fontSize: 11, fontWeight: FontWeight.semibold, color: '#15803d' },
 
-  joinBtn:         { paddingHorizontal: 14, paddingVertical: 8, borderRadius: Radius.lg, alignItems: 'center', justifyContent: 'center', minWidth: 68 },
+  joinBtn:         { paddingHorizontal: 14, paddingVertical: 9, borderRadius: Radius.full, alignItems: 'center', justifyContent: 'center', minWidth: 68 },
   joinBtnDefault:  { backgroundColor: Colors.brand[600] },
-  joinBtnJoined:   { backgroundColor: '#f0fdf4', borderWidth: 1, borderColor: '#86efac' },
+  joinBtnJoined:   { backgroundColor: '#f6fef0', borderWidth: 1, borderColor: '#86efac' },
   joinBtnText:     { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: '#fff' },
   joinBtnTextJoined: { color: '#15803d' },
 
-  desc:       { fontSize: FontSize.xs, color: Colors.gray[500], lineHeight: 18, marginTop: Spacing.md },
+  desc:       { fontSize: FontSize.xs, color: Colors.gray[500], lineHeight: 19, marginTop: Spacing.sm },
 
-  cardFooter: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: Spacing.md },
+  cardFooter: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: Spacing.sm },
   footerText: { fontSize: 11, color: Colors.gray[400] },
 
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: Spacing['4xl'] },
