@@ -101,7 +101,7 @@ function NotificationBell({ userId }: { userId: string }) {
         className="btn-ghost relative p-2"
         aria-label="Notifications"
       >
-        <svg className="w-5 h-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+        <svg className={`w-5 h-5 text-gray-600 ${unread > 0 ? 'animate-bell-wobble' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
           <path strokeLinecap="round" strokeLinejoin="round"
             d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V4a2 2 0 10-4 0v1.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
         </svg>
@@ -174,6 +174,13 @@ export function Navbar() {
   const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
+  const [scrolled, setScrolled] = useState(false)
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8)
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
 
   async function handleSignOut() {
     setSigningOut(true)
@@ -184,23 +191,31 @@ export function Navbar() {
     setMenuOpen(false)
   }
 
-  const navLink = (href: string, label: string) => (
-    <Link
-      href={href}
-      className={`text-sm font-medium transition-colors hover:text-brand-600 ${pathname.startsWith(href) ? 'text-brand-600' : 'text-gray-600'
-        }`}
-    >
-      {label}
-    </Link>
-  )
+  const navLink = (href: string, label: string) => {
+    const active = pathname === href || (href !== '/' && pathname.startsWith(href))
+    return (
+      <Link
+        href={href}
+        className={`nav-link ${active ? 'nav-link--active' : ''}`}
+      >
+        {label}
+      </Link>
+    )
+  }
 
   return (
-    <header className="sticky top-0 z-40 bg-white/90 backdrop-blur border-b border-gray-100">
+    <header
+      className={`sticky top-0 z-40 bg-white/92 backdrop-blur-md border-b border-gray-100 transition-shadow duration-300 ${
+        scrolled ? 'navbar-scrolled' : ''
+      }`}
+    >
       <nav className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16 gap-6">
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-2 font-bold text-xl text-brand-600 shrink-0">
-          <span className="text-2xl">🪄</span>
-          <span className="hidden sm:block">Rawaq</span>
+        <Link href="/" className="nav-logo flex items-center gap-2 shrink-0">
+          <span className="nav-wand text-2xl leading-none">🪄</span>
+          <span className="hidden sm:block font-bold text-xl" style={{ fontFamily: 'var(--font-display)', color: 'var(--c-gold-dim)', letterSpacing: '-0.01em' }}>
+            Rawaq
+          </span>
         </Link>
 
         {/* Desktop links */}
@@ -217,7 +232,7 @@ export function Navbar() {
           {/* Locale toggle */}
           <button
             onClick={toggleLocale}
-            className="btn-ghost text-xs font-semibold px-2.5 py-1.5 rounded-lg"
+            className="nav-locale btn-ghost text-xs font-bold px-2.5 py-1.5 rounded-lg tracking-wide"
             title="Switch language"
           >
             {locale === 'en' ? 'ع' : 'EN'}

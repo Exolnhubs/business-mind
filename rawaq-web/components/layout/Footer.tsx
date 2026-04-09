@@ -5,47 +5,82 @@ import { useLocale } from '@/contexts/locale-context'
 
 export function Footer() {
   const { t } = useLocale()
+
   return (
-    <footer className="mt-auto border-t border-gray-100 bg-white">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 mb-8">
+    <footer className="footer-dark mt-auto">
+      <div className="max-w-7xl mx-auto px-6 sm:px-8 py-14 sm:py-16">
+
+        {/* Main grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-10 sm:gap-8 mb-12">
+
           {/* Brand */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-brand-600 font-bold text-lg">
-              <span>🪄</span> Rawaq
-            </div>
-            <p className="text-xs text-gray-400 leading-relaxed max-w-xs">
+          <div className="space-y-4">
+            <Link href="/" className="footer-logo inline-flex items-center gap-2.5">
+              <span className="footer-wand text-2xl leading-none">🪄</span>
+              <span className="footer-brand-name">Rawaq</span>
+            </Link>
+            <p
+              className="text-sm leading-relaxed max-w-xs"
+              style={{ color: 'oklch(0.55 0.015 74)' }}
+            >
               {t('footer.tagline')}
             </p>
           </div>
 
           {/* Platform */}
-          <div className="space-y-2">
-            <p className="text-xs font-semibold text-gray-700 uppercase tracking-wider">{t('footer.platform')}</p>
-            <div className="flex flex-col gap-1.5 text-sm text-gray-500">
-              <Link href="/events" className="hover:text-gray-800 transition-colors">{t('footer.browse_events')}</Link>
-              <Link href="/register" className="hover:text-gray-800 transition-colors">{t('footer.sign_up_free')}</Link>
-              <Link href="/login" className="hover:text-gray-800 transition-colors">{t('nav.login')}</Link>
+          <div>
+            <p className="footer-section-label">{t('footer.platform')}</p>
+            <div className="flex flex-col gap-2">
+              <FooterLink href="/events">{t('footer.browse_events')}</FooterLink>
+              <FooterLink href="/register">{t('footer.sign_up_free')}</FooterLink>
+              <FooterLink href="/login">{t('nav.login')}</FooterLink>
             </div>
           </div>
 
           {/* Company */}
-          <div className="space-y-2">
-            <p className="text-xs font-semibold text-gray-700 uppercase tracking-wider">{t('footer.company')}</p>
-            <div className="flex flex-col gap-1.5 text-sm text-gray-500">
-              <Link href="/about" className="hover:text-gray-800 transition-colors">{t('footer.about')}</Link>
-              <Link href="/terms" className="hover:text-gray-800 transition-colors">{t('footer.terms')}</Link>
-              <Link href="/privacy" className="hover:text-gray-800 transition-colors">{t('footer.privacy')}</Link>
-              <a href="mailto:hello@rawaq.app" className="hover:text-gray-800 transition-colors">{t('footer.contact')}</a>
+          <div>
+            <p className="footer-section-label">{t('footer.company')}</p>
+            <div className="flex flex-col gap-2">
+              <FooterLink href="/about">{t('footer.about')}</FooterLink>
+              <FooterLink href="/terms">{t('footer.terms')}</FooterLink>
+              <FooterLink href="/privacy">{t('footer.privacy')}</FooterLink>
+              <FooterLinkExternal href="mailto:hello@rawaq.app">{t('footer.contact')}</FooterLinkExternal>
             </div>
           </div>
         </div>
 
-        <div className="border-t border-gray-100 pt-6 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <p className="text-xs text-gray-400">© {new Date().getFullYear()} {t('footer.rights')}</p>
-          <p className="text-xs text-gray-400">🌍 {t('footer.connecting')}</p>
+        {/* Bottom bar */}
+        <div
+          className="footer-divider border-t pt-7 flex flex-col sm:flex-row items-center justify-between gap-3"
+        >
+          <p className="text-xs" style={{ color: 'oklch(0.42 0.012 74)' }}>
+            © {new Date().getFullYear()} {t('footer.rights')}
+          </p>
+          <p className="text-xs flex items-center gap-1.5" style={{ color: 'oklch(0.42 0.012 74)' }}>
+            <span className="footer-globe">🌍</span>
+            {t('footer.connecting')}
+          </p>
         </div>
+
       </div>
     </footer>
+  )
+}
+
+function FooterLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <Link href={href} className="footer-link">
+      {children}
+      <span className="footer-link-arrow" aria-hidden>→</span>
+    </Link>
+  )
+}
+
+function FooterLinkExternal({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <a href={href} className="footer-link">
+      {children}
+      <span className="footer-link-arrow" aria-hidden>→</span>
+    </a>
   )
 }

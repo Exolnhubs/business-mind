@@ -56,116 +56,147 @@ export default function LandingPage() {
 
       <main className="flex-1">
 
-        {/* ── Hero ─────────────────────────────────────────────── */}
-        <section className="relative overflow-hidden bg-gradient-to-b from-brand-50 to-white py-20 sm:py-28 px-4">
-          {/* Floating orbs */}
-          <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
-            <div className="animate-float-slow absolute -top-16 -left-16 w-72 h-72 rounded-full bg-brand-200 opacity-30 blur-3xl" />
-            <div className="animate-float-slower absolute top-24 -right-20 w-96 h-96 rounded-full bg-brand-300 opacity-20 blur-3xl" />
-            <div className="animate-float-slow absolute bottom-0 left-1/3 w-56 h-56 rounded-full bg-brand-100 opacity-40 blur-2xl" />
-          </div>
+        {/* ── Hero ──────────────────────────────────────────────── */}
+        <section className="hero-dark relative overflow-hidden">
+          {/* Geometric crosshatch pattern */}
+          <div className="hero-star-pattern" aria-hidden />
+          {/* Ambient amber glow — bottom-right */}
+          <div className="hero-amber-glow" aria-hidden />
+          {/* Secondary glow — top-left */}
+          <div className="hero-amber-glow-2" aria-hidden />
 
-          <div className="relative max-w-4xl mx-auto text-center space-y-6">
-            <div className="animate-badge-pop inline-flex items-center gap-2 bg-brand-100 text-brand-700 text-sm font-medium px-4 py-1.5 rounded-full">
-              🌍 {t('landing.badge')}
-            </div>
-            <h1
-              className="animate-hero-in text-4xl sm:text-6xl font-bold text-gray-900 leading-tight"
-              style={{ animationDelay: '0.1s' }}
+          <div className="relative max-w-6xl mx-auto px-6 sm:px-10 pt-24 pb-28 sm:pt-32 sm:pb-40">
+
+            {/* Badge */}
+            <div
+              className="animate-badge-pop inline-flex items-center gap-2.5 border border-amber-500/25 text-amber-400/90 text-[11px] font-bold tracking-[0.18em] uppercase px-4 py-1.5 rounded-full mb-10"
             >
-              {t('landing.hero_line1')}<br />
-              <span className="animate-gradient bg-gradient-to-r from-brand-400 via-brand-600 to-brand-400 bg-clip-text text-transparent">
-                {t('landing.hero_line2')}
-              </span>
+              <span>🌍</span>
+              <span>{t('landing.badge')}</span>
+            </div>
+
+            {/* Headline */}
+            <h1
+              className="hero-headline animate-hero-in"
+              style={{ animationDelay: '0.05s' }}
+            >
+              {t('landing.hero_line1')}
+              <br />
+              <span className="text-amber-400">{t('landing.hero_line2')}</span>
             </h1>
+
+            {/* Sub-headline */}
             <p
-              className="animate-hero-in text-lg sm:text-xl text-gray-500 max-w-2xl mx-auto leading-relaxed"
-              style={{ animationDelay: '0.25s' }}
+              className="animate-hero-in mt-6 text-lg sm:text-xl leading-relaxed max-w-2xl"
+              style={{
+                animationDelay: '0.18s',
+                color: 'oklch(0.72 0.018 76)',
+              }}
             >
               {t('landing.hero_sub')}
             </p>
+
+            {/* CTAs */}
             <div
-              className="animate-hero-in flex flex-col sm:flex-row gap-3 justify-center pt-2"
-              style={{ animationDelay: '0.4s' }}
+              className="animate-hero-in flex flex-wrap gap-3 mt-9"
+              style={{ animationDelay: '0.32s' }}
             >
-              <Link href="/events" className="btn-primary px-8 py-3 text-base">
+              <Link href="/events" className="btn-hero-primary">
                 {t('landing.browse_events')}
               </Link>
-              <Link href="/register" className="btn-secondary px-8 py-3 text-base">
+              <Link href="/register" className="btn-hero-outline">
                 {t('landing.create_account')}
               </Link>
             </div>
 
-            {/* Stats row */}
+            {/* Stats */}
             <div
-              className="animate-hero-in flex justify-center gap-10 pt-6"
-              style={{ animationDelay: '0.55s' }}
+              className="animate-hero-in flex gap-0 mt-16 divide-x divide-white/10"
+              style={{ animationDelay: '0.48s' }}
             >
               {STATS.map((s) => (
-                <div key={s.label} className="text-center">
-                  <div className="text-2xl font-bold text-brand-600">{s.value}</div>
-                  <div className="text-xs text-gray-400 font-medium mt-0.5">{s.label}</div>
+                <div key={s.label} className="pe-8 ps-8 first:ps-0">
+                  <div className="hero-stat-value">{s.value}</div>
+                  <div className="hero-stat-label">{s.label}</div>
                 </div>
               ))}
             </div>
           </div>
         </section>
 
-        {/* ── Countries marquee ────────────────────────────────── */}
-        <section className="border-y border-gray-100 bg-white py-5">
+        {/* ── Countries marquee ──────────────────────────────────── */}
+        <section
+          className="py-5"
+          style={{
+            borderTop: '1px solid oklch(0.88 0.012 78)',
+            borderBottom: '1px solid oklch(0.88 0.012 78)',
+            backgroundColor: 'var(--c-paper)',
+          }}
+        >
           <div className="marquee-wrap">
             <div className="marquee-track">
-              {/* Duplicate list for seamless loop */}
               {[...COUNTRIES, ...COUNTRIES].map((c, i) => (
-                <span key={i} className="flex items-center gap-1.5 text-sm text-gray-500 font-medium px-5">
-                  {c.flag} {locale === 'ar' ? c.ar : c.en}
+                <span key={i} className="marquee-pill">
+                  <span className="text-base">{c.flag}</span>
+                  {locale === 'ar' ? c.ar : c.en}
                 </span>
               ))}
             </div>
           </div>
         </section>
 
-        {/* ── Categories ───────────────────────────────────────── */}
-        <section className="max-w-5xl mx-auto px-4 sm:px-6 py-16 space-y-8 text-center">
-          <ScrollReveal>
-            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">{t('landing.categories_title')}</h2>
-          </ScrollReveal>
-          <ScrollReveal delay={1}>
-            <div className="flex flex-wrap justify-center gap-3">
-              {CATEGORY_KEYS.map((c) => (
-                <Link
-                  key={c.key}
-                  href="/events"
-                  className="category-chip flex items-center gap-2 bg-white border border-gray-200 rounded-full px-5 py-2.5 text-sm font-medium text-gray-700 hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700 shadow-sm"
-                >
-                  <span>{c.icon}</span> {t(c.key)}
-                </Link>
-              ))}
-            </div>
-          </ScrollReveal>
+        {/* ── Categories ─────────────────────────────────────────── */}
+        <section className="py-20 sm:py-24 px-6" style={{ backgroundColor: 'var(--c-paper)' }}>
+          <div className="max-w-5xl mx-auto">
+            <ScrollReveal>
+              <h2 className="section-heading text-center mb-12">
+                {t('landing.categories_title')}
+              </h2>
+            </ScrollReveal>
+            <ScrollReveal delay={1}>
+              <div className="flex flex-wrap justify-center gap-3">
+                {CATEGORY_KEYS.map((c) => (
+                  <Link
+                    key={c.key}
+                    href="/events"
+                    className="category-chip flex items-center gap-2.5 bg-white rounded-full px-5 py-2.5 text-sm font-semibold shadow-sm"
+                    style={{
+                      border: '1px solid oklch(0.87 0.012 78)',
+                      color: 'oklch(0.38 0.025 70)',
+                    }}
+                  >
+                    <span className="text-base leading-none">{c.icon}</span>
+                    {t(c.key)}
+                  </Link>
+                ))}
+              </div>
+            </ScrollReveal>
+          </div>
         </section>
 
-        {/* ── How it works ─────────────────────────────────────── */}
-        <section className="bg-gray-50 py-16 px-4">
-          <div className="max-w-5xl mx-auto space-y-10">
+        {/* ── How it works ──────────────────────────────────────── */}
+        <section
+          className="py-20 sm:py-28 px-6 overflow-hidden"
+          style={{ backgroundColor: 'var(--c-ink-mid)' }}
+        >
+          <div className="max-w-5xl mx-auto">
             <ScrollReveal>
-              <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 text-center">{t('landing.how_title')}</h2>
+              <h2
+                className="section-heading text-center mb-16 sm:mb-20"
+                style={{ color: 'oklch(0.93 0.01 80)' }}
+              >
+                {t('landing.how_title')}
+              </h2>
             </ScrollReveal>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-10 sm:gap-8">
               {HOW_STEPS.map((h, idx) => (
                 <ScrollReveal key={h.step} delay={(idx + 1) as 1 | 2 | 3}>
-                  <div className="card p-7 space-y-3 text-center">
-                    <div className="relative inline-flex">
-                      <div className="text-4xl">{h.icon}</div>
-                    </div>
-                    <div className="flex items-center justify-center gap-2">
-                      <span className="animate-step-pulse inline-flex items-center justify-center w-7 h-7 rounded-full bg-brand-100 text-brand-600 text-xs font-bold">
-                        {h.step}
-                      </span>
-                      <span className="text-xs font-bold text-brand-400 tracking-widest uppercase">{t('landing.step')}</span>
-                    </div>
-                    <h3 className="text-lg font-bold text-gray-900">{t(h.titleKey)}</h3>
-                    <p className="text-sm text-gray-500 leading-relaxed">{t(h.bodyKey)}</p>
+                  <div className="how-step">
+                    <div className="how-step-number">{h.step}</div>
+                    <span className="how-step-icon">{h.icon}</span>
+                    <h3>{t(h.titleKey)}</h3>
+                    <p>{t(h.bodyKey)}</p>
                   </div>
                 </ScrollReveal>
               ))}
@@ -173,42 +204,46 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* ── Organizers CTA ───────────────────────────────────── */}
-        <section className="max-w-5xl mx-auto px-4 sm:px-6 py-16">
-          <ScrollReveal>
-            <div className="relative overflow-hidden animate-gradient bg-gradient-to-r from-brand-400 via-brand-600 to-brand-500 rounded-3xl p-8 sm:p-12 text-white text-center space-y-5">
-              {/* Decorative blurred circles */}
-              <div className="pointer-events-none absolute -top-10 -left-10 w-48 h-48 rounded-full bg-white opacity-10 blur-2xl" aria-hidden />
-              <div className="pointer-events-none absolute -bottom-12 -right-8 w-64 h-64 rounded-full bg-white opacity-10 blur-2xl" aria-hidden />
-              <div className="relative">
-                <div className="text-5xl mb-4">🏢</div>
-                <h2 className="text-2xl sm:text-3xl font-bold">{t('landing.org_title')}</h2>
-                <p className="text-brand-100 max-w-xl mx-auto mt-3">
-                  {t('landing.org_sub')}
-                </p>
-                <Link
-                  href="/register"
-                  className="mt-5 inline-block bg-white text-brand-600 font-semibold px-8 py-3 rounded-xl hover:bg-brand-50 transition-colors text-sm"
-                >
-                  {t('landing.org_cta')}
-                </Link>
+        {/* ── Organiser CTA ──────────────────────────────────────── */}
+        <section className="py-16 sm:py-20 px-6" style={{ backgroundColor: 'var(--c-paper)' }}>
+          <div className="max-w-5xl mx-auto">
+            <ScrollReveal>
+              <div className="org-cta-panel">
+                {/* Decorative orbs inside amber panel */}
+                <div className="org-cta-orb" aria-hidden />
+                <div className="org-cta-orb-2" aria-hidden />
+
+                <div className="relative z-10 p-10 sm:p-14">
+                  <div className="text-5xl mb-5">🏢</div>
+                  <h2 className="org-cta-title">{t('landing.org_title')}</h2>
+                  <p className="org-cta-body">{t('landing.org_sub')}</p>
+                  <Link href="/register" className="org-cta-btn">
+                    {t('landing.org_cta')}
+                  </Link>
+                </div>
               </div>
-            </div>
-          </ScrollReveal>
+            </ScrollReveal>
+          </div>
         </section>
 
-        {/* ── Final CTA ────────────────────────────────────────── */}
-        <section className="text-center py-16 px-4 space-y-5">
+        {/* ── Final CTA ─────────────────────────────────────────── */}
+        <section
+          className="py-20 sm:py-28 px-6 text-center"
+          style={{ backgroundColor: 'var(--c-muted)' }}
+        >
           <ScrollReveal>
-            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">{t('landing.final_title')}</h2>
+            <h2 className="final-heading mb-4">{t('landing.final_title')}</h2>
           </ScrollReveal>
           <ScrollReveal delay={1}>
-            <p className="text-gray-500 max-w-md mx-auto">
+            <p
+              className="max-w-md mx-auto mb-8 text-base leading-relaxed"
+              style={{ color: 'oklch(0.52 0.02 70)' }}
+            >
               {t('landing.final_sub')}
             </p>
           </ScrollReveal>
           <ScrollReveal delay={2}>
-            <Link href="/events" className="btn-primary px-8 py-3 text-base inline-block">
+            <Link href="/events" className="btn-primary px-10 py-3.5 text-base inline-block">
               {t('landing.see_all')}
             </Link>
           </ScrollReveal>
