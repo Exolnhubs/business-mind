@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocale } from '@/contexts/locale-context'
 
 interface Category {
@@ -34,11 +34,82 @@ export function EventFiltersPlayful() {
   const params = useSearchParams()
   const [geoLoading, setGeoLoading] = useState(false)
   const [categories, setCategories] = useState<Category[]>([])
+  const [fadeLeft, setFadeLeft]   = useState(false)
+  const [fadeRight, setFadeRight] = useState(false)
+  const catsRef = useRef<HTMLDivElement>(null)
 
+  // ── Drag-to-scroll (document-level so it works outside the element bounds) ──
+  useEffect(() => {
+    const el = catsRef.current
+    if (!el) return
+
+    let isDown = false
+    let startX = 0
+    let scrollLeft = 0
+    let didDrag = false
+
+    const updateFades = () => {
+      setFadeLeft(el.scrollLeft > 4)
+      setFadeRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 4)
+    }
+
+    // Document-level handlers keep the drag alive even when cursor leaves the row
+    const onDocMouseMove = (e: MouseEvent) => {
+      if (!isDown) return
+      e.preventDefault()
+      const walk = e.clientX - startX
+      if (Math.abs(walk) > 4) didDrag = true
+      el.scrollLeft = scrollLeft - walk * 1.4
+    }
+
+    const onDocMouseUp = () => {
+      if (!isDown) return
+      isDown = false
+      el.classList.remove('ef-cats-track--dragging')
+      document.removeEventListener('mousemove', onDocMouseMove)
+      document.removeEventListener('mouseup', onDocMouseUp)
+    }
+
+    const onMouseDown = (e: MouseEvent) => {
+      isDown = true
+      didDrag = false
+      startX = e.clientX
+      scrollLeft = el.scrollLeft
+      el.classList.add('ef-cats-track--dragging')
+      document.addEventListener('mousemove', onDocMouseMove)
+      document.addEventListener('mouseup', onDocMouseUp)
+    }
+
+    const onClickCapture = (e: MouseEvent) => {
+      if (didDrag) { e.stopPropagation(); didDrag = false }
+    }
+
+    el.addEventListener('mousedown', onMouseDown)
+    el.addEventListener('click', onClickCapture, true)
+    el.addEventListener('scroll', updateFades, { passive: true })
+
+    return () => {
+      el.removeEventListener('mousedown', onMouseDown)
+      el.removeEventListener('click', onClickCapture, true)
+      el.removeEventListener('scroll', updateFades)
+      document.removeEventListener('mousemove', onDocMouseMove)
+      document.removeEventListener('mouseup', onDocMouseUp)
+    }
+  }, [])
+
+  // ── Fetch categories + recalculate fades once content is known ──
   useEffect(() => {
     fetch('/api/categories')
       .then((r) => r.json())
-      .then((json) => setCategories(json.data ?? []))
+      .then((json) => {
+        setCategories(json.data ?? [])
+        // Wait one frame for the DOM to reflect the new pill widths
+        requestAnimationFrame(() => {
+          const el = catsRef.current
+          if (!el) return
+          setFadeRight(el.scrollWidth > el.clientWidth + 4)
+        })
+      })
       .catch(() => {})
   }, [])
 
@@ -63,10 +134,7 @@ export function EventFiltersPlayful() {
   function useNearMe() {
     if (hasGeo) {
       const p = new URLSearchParams(params.toString())
-      p.delete('lat')
-      p.delete('lng')
-      p.delete('radius_km')
-      p.delete('page')
+      p.delete('lat'); p.delete('lng'); p.delete('radius_km'); p.delete('page')
       router.push(`${pathname}?${p.toString()}`)
       return
     }
@@ -86,138 +154,173 @@ export function EventFiltersPlayful() {
     )
   }
 
-  const category = params.get('category') ?? ''
-  const city = params.get('city') ?? ''
-  const gender = params.get('gender') ?? ''
-  const freeOnly = params.get('free') === 'true'
+  const category  = params.get('category') ?? ''
+  const city      = params.get('city')     ?? ''
+  const gender    = params.get('gender')   ?? ''
+  const freeOnly  = params.get('free')     === 'true'
   const familyFriendly = params.get('family') === 'true'
-  const query = params.get('q') ?? ''
-  const activeCount = [category, city, gender, query, freeOnly ? 'free' : '', familyFriendly ? 'family' : '', hasGeo ? 'geo' : '']
-    .filter(Boolean)
-    .length
+  const query     = params.get('q')        ?? ''
+  const hasFilters = !!(category || city || gender || freeOnly || familyFriendly || query || hasGeo)
+  const activeCount = [category, city, gender, query, freeOnly ? '1' : '', familyFriendly ? '1' : '', hasGeo ? '1' : ''].filter(Boolean).length
 
   return (
-    <div className="relative overflow-hidden rounded-[2rem] border border-gray-200 bg-white/90 p-4 shadow-[0_20px_60px_rgb(15_23_42_/_.08)] backdrop-blur sm:p-5">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-r from-brand-100/50 via-transparent to-orange-100/50" />
+    <div className="ef-wrap">
 
-      <div className="relative space-y-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="space-y-1">
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-gray-400">{t('events.filters.panel.badge')}</p>
-            <h3 className="text-lg font-bold text-gray-900">{t('events.filters.panel.title')}</h3>
-            <p className="text-sm text-gray-500">{t('events.filters.panel.subtitle')}</p>
+      {/* ── Dark header ─────────────────────────────────── */}
+      <div className="ef-header">
+        <div className="ef-pattern" aria-hidden="true" />
+        <div className="ef-header-inner">
+          <div>
+            <p className="ef-eyebrow">{t('events.filters.panel.badge')}</p>
+            <h3 className="ef-title">{t('events.filters.panel.title')}</h3>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-600">
-              <span className="h-2 w-2 rounded-full bg-brand-500" />
+          <div className="ef-header-right">
+            <span className={`ef-count-badge${activeCount > 0 ? ' ef-count-badge--active' : ''}`}>
+              <span className={`ef-count-dot${activeCount > 0 ? ' ef-count-dot--lit' : ''}`} aria-hidden="true" />
               {t('events.filters.panel.active').replace('{n}', String(activeCount))}
             </span>
-            {(category || city || gender || freeOnly || familyFriendly || query || hasGeo) && (
+            {hasFilters && (
               <button
                 onClick={() => router.push(pathname)}
-                className="inline-flex items-center gap-2 rounded-full border border-transparent bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-black"
+                className="ef-clear-btn"
+                aria-label="Clear all filters"
               >
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
+                  <path d="M1.5 1.5L8.5 8.5M8.5 1.5L1.5 8.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                </svg>
                 {t('events.filters.reset')}
               </button>
             )}
           </div>
         </div>
+      </div>
 
-        <div className="grid gap-3 lg:grid-cols-[1.35fr_repeat(3,minmax(0,0.8fr))]">
-          <label className="group flex min-h-[74px] flex-col justify-between rounded-[1.5rem] border border-gray-200 bg-gradient-to-br from-white to-gray-50 px-4 py-3 shadow-sm transition hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-md">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">{t('common.search')}</span>
+      {/* ── Body ────────────────────────────────────────── */}
+      <div className="ef-body">
+
+        {/* Row 1 — Search + City + Audience */}
+        <div className="ef-row-1">
+          {/* Search */}
+          <div className="ef-search-wrap">
+            <svg className="ef-search-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.5"/>
+              <path d="M10.5 10.5L13.5 13.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
             <input
               type="search"
               placeholder={t('events.filters.search_placeholder')}
               defaultValue={query}
               onChange={(e) => setParam('q', e.target.value || null)}
-              className="mt-2 w-full border-0 bg-transparent px-0 py-0 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-0"
+              className="ef-search-input"
             />
-          </label>
+          </div>
 
-          <label className="flex min-h-[74px] flex-col justify-between rounded-[1.5rem] border border-gray-200 bg-white px-4 py-3 shadow-sm transition hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-md">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">{t('events.filters.category')}</span>
-            <select
-              value={category}
-              onChange={(e) => setParam('category', e.target.value || null)}
-              className="mt-2 w-full cursor-pointer border-0 bg-transparent px-0 py-0 text-sm font-medium text-gray-900 focus:outline-none focus:ring-0"
-            >
-              <option value="">{t('events.filter.all_categories')}</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.icon ? `${c.icon} ` : ''}{c.name_en}
-                </option>
-              ))}
-            </select>
-          </label>
+          {/* City */}
+          <div className="ef-select-wrap">
+            <span className="ef-select-label">{t('auth.city')}</span>
+            <div className="ef-select-row">
+              <select
+                value={city}
+                onChange={(e) => setParam('city', e.target.value || null)}
+                className="ef-select"
+              >
+                <option value="">{t('events.filter.all_cities')}</option>
+                {CITIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <svg className="ef-chevron" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+          </div>
 
-          <label className="flex min-h-[74px] flex-col justify-between rounded-[1.5rem] border border-gray-200 bg-white px-4 py-3 shadow-sm transition hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-md">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">{t('auth.city')}</span>
-            <select
-              value={city}
-              onChange={(e) => setParam('city', e.target.value || null)}
-              className="mt-2 w-full cursor-pointer border-0 bg-transparent px-0 py-0 text-sm font-medium text-gray-900 focus:outline-none focus:ring-0"
-            >
-              <option value="">{t('events.filter.all_cities')}</option>
-              {CITIES.map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-          </label>
-
-          <label className="flex min-h-[74px] flex-col justify-between rounded-[1.5rem] border border-gray-200 bg-white px-4 py-3 shadow-sm transition hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-md">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">{t('events.filters.audience')}</span>
-            <select
-              value={gender}
-              onChange={(e) => setParam('gender', e.target.value || null)}
-              className="mt-2 w-full cursor-pointer border-0 bg-transparent px-0 py-0 text-sm font-medium text-gray-900 focus:outline-none focus:ring-0"
-            >
-              <option value="">{t('events.filters.all_genders')}</option>
-              <option value="mixed">{t('events.filter.gender.mixed')}</option>
-              <option value="male">{t('events.filter.gender.male')}</option>
-              <option value="female">{t('events.filter.gender.female')}</option>
-            </select>
-          </label>
+          {/* Audience */}
+          <div className="ef-select-wrap">
+            <span className="ef-select-label">{t('events.filters.audience')}</span>
+            <div className="ef-select-row">
+              <select
+                value={gender}
+                onChange={(e) => setParam('gender', e.target.value || null)}
+                className="ef-select"
+              >
+                <option value="">{t('events.filters.all_genders')}</option>
+                <option value="mixed">{t('events.filter.gender.mixed')}</option>
+                <option value="male">{t('events.filter.gender.male')}</option>
+                <option value="female">{t('events.filter.gender.female')}</option>
+              </select>
+              <svg className="ef-chevron" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="ef-divider" />
+
+        {/* Row 2 — Category pills (horizontal scroll + drag) */}
+        <div className="ef-cats-wrap">
+          {fadeLeft  && <div className="ef-cats-fade ef-cats-fade--left"  aria-hidden="true" />}
+          {fadeRight && <div className="ef-cats-fade ef-cats-fade--right" aria-hidden="true" />}
+          <div ref={catsRef} className="ef-cats-track">
+            <button
+              onClick={() => setParam('category', null)}
+              className={`ef-cat-pill${!category ? ' ef-cat-pill--active' : ''}`}
+              style={{ animationDelay: '0ms' }}
+            >
+              {t('events.filter.all_categories')}
+            </button>
+            {categories.map((cat, i) => (
+              <button
+                key={cat.id}
+                onClick={() => setParam('category', category === cat.id ? null : cat.id)}
+                className={`ef-cat-pill${category === cat.id ? ' ef-cat-pill--active' : ''}`}
+                style={{ animationDelay: `${(i + 1) * 38}ms` }}
+              >
+                {cat.icon && <span aria-hidden="true">{cat.icon}</span>}
+                {cat.name_en}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="ef-divider" />
+
+        {/* Row 3 — Quick-toggle chips */}
+        <div className="ef-toggles">
           <button
             onClick={() => toggleBool('free')}
-            className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition ${
-              freeOnly
-                ? 'border-green-200 bg-green-50 text-green-700 shadow-sm'
-                : 'border-gray-200 bg-white text-gray-600 hover:border-green-200 hover:bg-green-50/70 hover:text-green-700'
-            }`}
+            className={`ef-toggle${freeOnly ? ' ef-toggle--on ef-toggle--green' : ''}`}
           >
-            <span>{freeOnly ? '✨' : '💸'}</span>
+            <span aria-hidden="true">{freeOnly ? '✓' : '💸'}</span>
             {t('events.filter.free_only')}
           </button>
 
           <button
             onClick={() => toggleBool('family')}
-            className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition ${
-              familyFriendly
-                ? 'border-blue-200 bg-blue-50 text-blue-700 shadow-sm'
-                : 'border-gray-200 bg-white text-gray-600 hover:border-blue-200 hover:bg-blue-50/70 hover:text-blue-700'
-            }`}
+            className={`ef-toggle${familyFriendly ? ' ef-toggle--on ef-toggle--blue' : ''}`}
           >
-            <span>{familyFriendly ? '🪁' : '👨‍👩‍👧'}</span>
+            <span aria-hidden="true">{familyFriendly ? '✓' : '👨‍👩‍👧'}</span>
             {t('events.filter.family_friendly')}
           </button>
 
           <button
             onClick={useNearMe}
             disabled={geoLoading}
-            className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition disabled:opacity-50 ${
-              hasGeo
-                ? 'border-brand-200 bg-brand-50 text-brand-700 shadow-sm'
-                : 'border-gray-200 bg-white text-gray-600 hover:border-brand-200 hover:bg-brand-50/80 hover:text-brand-700'
-            }`}
+            className={`ef-toggle${hasGeo ? ' ef-toggle--on ef-toggle--amber' : ''}${geoLoading ? ' ef-toggle--loading' : ''}`}
           >
-            <span>{geoLoading ? '...' : hasGeo ? '📡' : '📍'}</span>
-            {hasGeo ? t('events.filters.near_me_active') : t('events.filters.use_near_me')}
+            <span
+              className={geoLoading ? 'ef-geo-pulse' : ''}
+              aria-hidden="true"
+            >
+              {geoLoading ? '◌' : hasGeo ? '📡' : '📍'}
+            </span>
+            {geoLoading
+              ? 'Locating…'
+              : hasGeo
+              ? t('events.filters.near_me_active')
+              : t('events.filters.use_near_me')}
           </button>
         </div>
+
       </div>
     </div>
   )

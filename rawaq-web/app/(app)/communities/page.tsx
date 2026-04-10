@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/auth-context'
 import { Spinner } from '@/components/ui/Spinner'
@@ -150,8 +150,58 @@ export default function CommunitiesPage() {
   const [recommended, setRecommended] = useState<CommunityWithMembership[]>([])
   const [suggested, setSuggested]     = useState<CommunityWithMembership[]>([])
   const [suggestedJoining, setSuggestedJoining] = useState<string | null>(null)
+  const levelsRef = useRef<HTMLDivElement>(null)
+  const [levelFadeLeft,  setLevelFadeLeft]  = useState(false)
+  const [levelFadeRight, setLevelFadeRight] = useState(false)
   const PER_PAGE = 18
   const suggestedCommunities = suggested.filter((community) => !recommended.some((item) => item.id === community.id))
+
+  // Drag-to-scroll for level pills (document-level so drag survives leaving the row)
+  useEffect(() => {
+    const el = levelsRef.current
+    if (!el) return
+    let isDown = false, startX = 0, scrollLeft = 0, didDrag = false
+
+    const updateFades = () => {
+      setLevelFadeLeft(el.scrollLeft > 4)
+      setLevelFadeRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 4)
+    }
+
+    const onDocMouseMove = (e: MouseEvent) => {
+      if (!isDown) return
+      e.preventDefault()
+      const walk = e.clientX - startX
+      if (Math.abs(walk) > 4) didDrag = true
+      el.scrollLeft = scrollLeft - walk * 1.4
+    }
+    const onDocMouseUp = () => {
+      if (!isDown) return
+      isDown = false
+      el.classList.remove('cf-levels--dragging')
+      document.removeEventListener('mousemove', onDocMouseMove)
+      document.removeEventListener('mouseup', onDocMouseUp)
+    }
+    const onMouseDown = (e: MouseEvent) => {
+      isDown = true; didDrag = false
+      startX = e.clientX; scrollLeft = el.scrollLeft
+      el.classList.add('cf-levels--dragging')
+      document.addEventListener('mousemove', onDocMouseMove)
+      document.addEventListener('mouseup', onDocMouseUp)
+    }
+    const onClickCapture = (e: MouseEvent) => { if (didDrag) { e.stopPropagation(); didDrag = false } }
+    el.addEventListener('mousedown', onMouseDown)
+    el.addEventListener('click', onClickCapture, true)
+    el.addEventListener('scroll', updateFades, { passive: true })
+    // Initial fade check
+    requestAnimationFrame(updateFades)
+    return () => {
+      el.removeEventListener('mousedown', onMouseDown)
+      el.removeEventListener('click', onClickCapture, true)
+      el.removeEventListener('scroll', updateFades)
+      document.removeEventListener('mousemove', onDocMouseMove)
+      document.removeEventListener('mouseup', onDocMouseUp)
+    }
+  }, [])
 
   const fetchTrending = useCallback(async () => {
     const res = await fetch('/api/communities/trending?per_page=6&page=1')
@@ -373,37 +423,68 @@ export default function CommunitiesPage() {
       )}
 
       {/* Filters */}
-      <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-        <div className="flex flex-col gap-3 sm:flex-row">
-        <input
-          type="search"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search communities..."
-          className="input flex-1"
-        />
-        <div className="flex min-h-[44px] flex-wrap gap-2">
-          <button
-            onClick={() => setLevel('all')}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              level === 'all' ? 'bg-brand-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
-          >
-            All
-          </button>
-          {ALL_LEVELS.map((l) => (
-            <button
-              key={l}
-              onClick={() => setLevel(l)}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                level === l ? 'bg-brand-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              {LEVEL_ICONS[l]} {LEVEL_LABELS[l]}
-            </button>
-          ))}
+      <div className="cf-wrap">
+        {/* Dark header */}
+        <div className="cf-header">
+          <div className="ef-pattern" aria-hidden="true" />
+          <div className="ef-header-inner" style={{ position: 'relative' }}>
+            <div>
+              <p className="ef-eyebrow">Browse</p>
+              <h3 className="ef-title">Filter Communities</h3>
+            </div>
+            {(search || level !== 'all') && (
+              <button
+                onClick={() => { setSearch(''); setLevel('all') }}
+                className="ef-clear-btn"
+                aria-label="Clear filters"
+              >
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
+                  <path d="M1.5 1.5L8.5 8.5M8.5 1.5L1.5 8.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                </svg>
+                Clear
+              </button>
+            )}
+          </div>
         </div>
-      </div>
+        {/* Body */}
+        <div className="cf-body">
+          {/* Search */}
+          <div className="cf-search-wrap">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" style={{ color: 'oklch(0.58 0.012 72)', flexShrink: 0 }}>
+              <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.5"/>
+              <path d="M10.5 10.5L13.5 13.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search communities…"
+              className="ef-search-input"
+            />
+          </div>
+          {/* Level pills */}
+          <div className="cf-levels-wrap">
+            {levelFadeLeft  && <div className="cf-levels-fade cf-levels-fade--left"  aria-hidden="true" />}
+            {levelFadeRight && <div className="cf-levels-fade cf-levels-fade--right" aria-hidden="true" />}
+            <div ref={levelsRef} className="cf-levels">
+              <button
+                onClick={() => setLevel('all')}
+                className={`cf-level-btn${level === 'all' ? ' cf-level-btn--active' : ''}`}
+              >
+                All
+              </button>
+              {ALL_LEVELS.map((l) => (
+                <button
+                  key={l}
+                  onClick={() => setLevel(l)}
+                  className={`cf-level-btn${level === l ? ' cf-level-btn--active' : ''}`}
+                >
+                  {LEVEL_ICONS[l]} {LEVEL_LABELS[l]}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Grid */}
