@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { PlanSelector } from '@/components/plans/PlanSelector'
-import type { PlanDefinition } from '@/types/plans'
+import type { PlanDefinition, Subscription } from '@/types/plans'
 
 export const metadata: Metadata = { title: 'My Plan' }
 
@@ -22,7 +22,6 @@ export default async function PlansPage() {
 
   const isOrganizer = profile.role === 'organizer'
 
-  // Get current plan_id — organizers have it on organizer_profiles
   let currentPlanId = profile.plan_id
   if (isOrganizer) {
     const { data: op } = await supabase
@@ -33,30 +32,43 @@ export default async function PlansPage() {
     if (op) currentPlanId = op.plan_id
   }
 
-  // Fetch relevant plans (type-filtered)
-  const { data: plans } = await supabase
-    .from('plan_definitions')
-    .select('*')
-    .eq('type', isOrganizer ? 'organizer' : 'user')
-    .eq('is_active', true)
-    .order('sort_order')
+  const [{ data: plans }, { data: subscription }] = await Promise.all([
+    supabase
+      .from('plan_definitions')
+      .select('*')
+      .eq('type', isOrganizer ? 'organizer' : 'user')
+      .eq('is_active', true)
+      .order('sort_order'),
+    supabase
+      .from('subscriptions')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ])
+
+  let usage: { events_created: number; month: string } | null = null
+  if (isOrganizer) {
+    const monthStr = new Date().toISOString().slice(0, 7) + '-01'
+    const { data: usageData } = await supabase
+      .from('organizer_monthly_usage')
+      .select('events_created')
+      .eq('organizer_id', user.id)
+      .eq('month', monthStr)
+      .maybeSingle()
+    usage = { events_created: usageData?.events_created ?? 0, month: monthStr }
+  }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10 space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">
-          {isOrganizer ? 'Organizer Plan' : 'My Plan'}
-        </h1>
-        <p className="text-sm text-gray-500 mt-1">
-          {isOrganizer
-            ? 'Choose the plan that fits your event volume. Lower platform fees as you grow.'
-            : 'Upgrade to Premium for early access, exclusive events, and more.'}
-        </p>
-      </div>
-
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10">
       <PlanSelector
         plans={(plans ?? []) as PlanDefinition[]}
         currentPlanId={currentPlanId}
+        subscription={subscription as Subscription | null}
+        usage={usage}
+        isOrganizer={isOrganizer}
       />
     </div>
   )

@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/auth-context'
 import { createSupabaseBrowserClient } from '@/lib/supabase/client'
 import { Spinner } from '@/components/ui/Spinner'
 import { FileUpload } from '@/components/ui/FileUpload'
+import { PlanStatusCard } from '@/components/plans/PlanStatusCard'
 import type { GenderType } from '@/types/database'
 
 interface ProfileForm {
@@ -510,31 +511,7 @@ export default function ProfilePage() {
       </a>
 
       {/* ── My Plan ────────────────────────────────────────── */}
-      <div className="card p-6">
-        <div className="flex items-center justify-between mb-1">
-          <h2 className="text-base font-semibold text-gray-900">My Plan</h2>
-          <a href="/plans" className="text-sm text-brand-600 hover:text-brand-700 font-medium hover:underline">
-            {profile?.plan_id === 'user_free' || profile?.plan_id === 'org_basic' ? '⬆ Upgrade' : 'Manage plan'} →
-          </a>
-        </div>
-        <p className="text-sm text-gray-500 mb-0">
-          Current plan:{' '}
-          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ml-1 ${
-            profile?.plan_id === 'user_premium' ? 'bg-purple-100 text-purple-700' :
-            profile?.plan_id === 'org_pro'      ? 'bg-blue-100 text-blue-700'    :
-            profile?.plan_id === 'org_elite'    ? 'bg-amber-100 text-amber-700'  :
-            'bg-gray-100 text-gray-600'
-          }`}>
-            {{
-              user_free:    'Free',
-              user_premium: 'Premium',
-              org_basic:    'Basic',
-              org_pro:      'Pro',
-              org_elite:    'Elite',
-            }[profile?.plan_id ?? 'user_free'] ?? profile?.plan_id}
-          </span>
-        </p>
-      </div>
+      <PlanStatusCard planId={profile?.plan_id ?? 'user_free'} />
 
       {/* ── Account Security ───────────────────────────────── */}
       <div className="card p-6">

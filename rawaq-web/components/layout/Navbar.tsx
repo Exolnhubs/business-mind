@@ -295,6 +295,10 @@ export function Navbar() {
                         className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50">
                         🎟️ {t('nav.my_bookings')}
                       </Link>
+                      <Link href="/plans" onClick={() => setMenuOpen(false)}
+                        className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50">
+                        ⭐ My Plan
+                      </Link>
                       <Link href="/profile" onClick={() => setMenuOpen(false)}
                         className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50">
                         ⚙️ {t('nav.profile_settings')}
