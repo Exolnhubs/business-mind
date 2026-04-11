@@ -27,12 +27,14 @@ import {
 import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import * as ImagePicker from 'expo-image-picker'
+import * as Location from 'expo-location'
 import { supabase } from '@/lib/supabase'
 import { uploadViaApi } from '@/lib/upload'
 import { apiGet, apiPost } from '@/lib/api'
 import { useAuth } from '@/contexts/auth-context'
 import { useLocale } from '@/contexts/locale-context'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
+import type { CommunityLevel, CommunityType } from '@/types/database'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -41,10 +43,26 @@ type CommunitySuggestion = {
   name: string
   name_ar: string | null
   slug: string
-  level: string
+  level: CommunityLevel
+  city: string | null
+  country: string
   member_count: number
   description: string | null
+  description_ar: string | null
   is_member: boolean
+}
+
+type CommunitiesListResponse = {
+  data: CommunitySuggestion[]
+  has_more?: boolean
+}
+
+type CommunityLocation = {
+  city: string | null
+  countryCode: string | null
+  countryName: string | null
+  lat: number | null
+  lng: number | null
 }
 
 type StepId =
@@ -90,6 +108,57 @@ const STEP_ICON: Record<StepId, { icon: keyof typeof Ionicons.glyphMap; color: s
   done:          { icon: 'checkmark-circle-outline', color: '#15803d',          bg: '#dcfce7'          },
 }
 
+const INTEREST_TO_COMMUNITY_TYPES: Record<string, CommunityType[]> = {
+  tech: ['tech'],
+  coding: ['tech'],
+  programming: ['tech'],
+  startup: ['entrepreneur'],
+  startups: ['entrepreneur'],
+  founder: ['entrepreneur'],
+  founders: ['entrepreneur'],
+  business: ['entrepreneur'],
+  entrepreneur: ['entrepreneur'],
+  entrepreneurs: ['entrepreneur'],
+  sports: ['sports'],
+  sport: ['sports'],
+  football: ['sports'],
+  soccer: ['sports'],
+  gym: ['sports'],
+  fitness: ['sports'],
+  padel: ['sports'],
+  gaming: ['gaming'],
+  gamer: ['gaming'],
+  esports: ['gaming'],
+  books: ['book_club'],
+  book: ['book_club'],
+  reading: ['book_club'],
+  literature: ['book_club'],
+  art: ['arts'],
+  arts: ['arts'],
+  music: ['arts'],
+  design: ['arts'],
+}
+
+function dedupeCommunities(items: CommunitySuggestion[]) {
+  const seen = new Set<string>()
+  return items.filter((community) => {
+    if (seen.has(community.slug)) return false
+    seen.add(community.slug)
+    return true
+  })
+}
+
+function extractRecommendedCommunityTypes(selectedInterests: string[]) {
+  const types = new Set<CommunityType>()
+  for (const interest of selectedInterests) {
+    const normalized = interest.trim().toLowerCase()
+    for (const communityType of INTEREST_TO_COMMUNITY_TYPES[normalized] ?? []) {
+      types.add(communityType)
+    }
+  }
+  return Array.from(types)
+}
+
 // ── Component ──────────────────────────────────────────────────────────────
 
 export default function OnboardingScreen() {
@@ -111,6 +180,17 @@ export default function OnboardingScreen() {
   const [interests, setInterests] = useState<string[]>([])
   const [communitySuggestions, setCommunitySuggestions] = useState<CommunitySuggestion[]>([])
   const [selectedCommunities, setSelectedCommunities]   = useState<string[]>([])
+  const [lockedCommunities, setLockedCommunities]       = useState<string[]>([])
+  const [interestCommunitySlugs, setInterestCommunitySlugs] = useState<string[]>([])
+  const [communityLoading, setCommunityLoading]         = useState(false)
+  const [communityLocationError, setCommunityLocationError] = useState<string | null>(null)
+  const [communityLocation, setCommunityLocation] = useState<CommunityLocation>({
+    city: profile?.city ?? null,
+    countryCode: null,
+    countryName: null,
+    lat: profile?.lat ?? profile?.signup_lat ?? null,
+    lng: profile?.lng ?? profile?.signup_lng ?? null,
+  })
 
   // Organizer fields
   const [orgDesc, setOrgDesc]       = useState('')
@@ -124,6 +204,16 @@ export default function OnboardingScreen() {
   const isOptional  = OPTIONAL_STEPS.has(currentStep)
   const canProceed  = currentStep !== 'gender' || gender !== null
   const firstName   = profile?.display_name?.split(' ')[0] ?? 'there'
+
+  useEffect(() => {
+    setCommunityLocation((prev) => ({
+      city: prev.city ?? profile?.city ?? null,
+      countryCode: prev.countryCode,
+      countryName: prev.countryName,
+      lat: prev.lat ?? profile?.lat ?? profile?.signup_lat ?? null,
+      lng: prev.lng ?? profile?.lng ?? profile?.signup_lng ?? null,
+    }))
+  }, [profile?.city, profile?.lat, profile?.lng, profile?.signup_lat, profile?.signup_lng])
 
   // ── Animation values ────────────────────────────────────────────────────
 
@@ -194,17 +284,166 @@ export default function OnboardingScreen() {
     return () => loop.stop()
   }, [currentStep])
 
-  // Fetch community suggestions when that step activates
-  useEffect(() => {
-    if (currentStep !== 'communities' || communitySuggestions.length > 0) return
-    apiGet<{ data: { data: CommunitySuggestion[] } }>('/api/communities?per_page=18')
-      .then(({ data }) => {
-        const items = (data?.data?.data ?? []).filter(
-          (c) => c.level === 'micro' || c.level === 'interest' || c.level === 'district'
-        )
-        setCommunitySuggestions(items.slice(0, 15))
+  async function resolveCommunityLocation(promptIfMissing = false) {
+    const fallbackCity = communityLocation.city ?? profile?.city ?? null
+    let lat = communityLocation.lat ?? profile?.lat ?? profile?.signup_lat ?? null
+    let lng = communityLocation.lng ?? profile?.lng ?? profile?.signup_lng ?? null
+
+    if ((lat === null || lng === null) && promptIfMissing) {
+      const { status } = await Location.requestForegroundPermissionsAsync()
+      if (status !== 'granted') {
+        setCommunityLocationError('Allow location access to auto-select your city and country communities.')
+        return {
+          city: fallbackCity,
+          countryCode: null,
+          countryName: null,
+          lat: null,
+          lng: null,
+        } satisfies CommunityLocation
+      }
+
+      const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
+      lat = position.coords.latitude
+      lng = position.coords.longitude
+    }
+
+    if (lat === null || lng === null) {
+      const nextLocation = {
+        city: fallbackCity,
+        countryCode: null,
+        countryName: null,
+        lat,
+        lng,
+      } satisfies CommunityLocation
+      setCommunityLocation(nextLocation)
+      if (!fallbackCity) {
+        setCommunityLocationError('Share your location to auto-join your city and country communities.')
+      }
+      return nextLocation
+    }
+
+    const [geo] = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng })
+    const nextLocation = {
+      city: fallbackCity ?? geo?.city ?? geo?.subregion ?? geo?.region ?? null,
+      countryCode: geo?.isoCountryCode?.toUpperCase() ?? null,
+      countryName: geo?.country ?? null,
+      lat,
+      lng,
+    } satisfies CommunityLocation
+
+    setCommunityLocation(nextLocation)
+    setCommunityLocationError(nextLocation.countryCode ? null : 'Share your location to auto-select your country community.')
+    return nextLocation
+  }
+
+  async function fetchCommunitiesForOnboarding(location: CommunityLocation) {
+    const required: CommunitySuggestion[] = []
+    const interestTypes = extractRecommendedCommunityTypes(interests)
+
+    if (location.countryCode) {
+      const { data } = await apiGet<CommunitiesListResponse>('/api/communities?level=country&per_page=30&page=1')
+      const countryCommunities = (data?.data ?? [])
+        .filter((community) => community.level === 'country' && community.country.toUpperCase() === location.countryCode)
+        .sort((a, b) => b.member_count - a.member_count)
+      if (countryCommunities[0]) required.push(countryCommunities[0])
+    }
+
+    if (location.city) {
+      const params = new URLSearchParams({
+        level: 'city',
+        city: location.city,
+        per_page: '10',
+        page: '1',
       })
-      .catch(() => {})
+      const { data } = await apiGet<CommunitiesListResponse>(`/api/communities?${params}`)
+      const cityCommunities = (data?.data ?? [])
+        .filter((community) =>
+          community.level === 'city' &&
+          (community.city ?? '').toLowerCase() === location.city?.toLowerCase() &&
+          (!location.countryCode || community.country.toUpperCase() === location.countryCode),
+        )
+        .sort((a, b) => b.member_count - a.member_count)
+      if (cityCommunities[0]) required.push(cityCommunities[0])
+    }
+
+    let interestBased: CommunitySuggestion[] = []
+    if (interestTypes.length > 0) {
+      const responses = await Promise.all(
+        interestTypes.map((type) => {
+          const params = new URLSearchParams({
+            level: 'interest',
+            type,
+            per_page: '6',
+            page: '1',
+          })
+          return apiGet<CommunitiesListResponse>(`/api/communities?${params}`)
+        })
+      )
+
+      interestBased = responses
+        .flatMap(({ data }) => data?.data ?? [])
+        .filter((community) => !community.is_member && community.level === 'interest')
+        .sort((a, b) => {
+          const aMatchesCity = location.city && a.city && a.city.toLowerCase() === location.city.toLowerCase() ? 1 : 0
+          const bMatchesCity = location.city && b.city && b.city.toLowerCase() === location.city.toLowerCase() ? 1 : 0
+          if (aMatchesCity !== bMatchesCity) return bMatchesCity - aMatchesCity
+          return b.member_count - a.member_count
+        })
+    }
+
+    const { data: trendingData } = await apiGet<CommunitiesListResponse>('/api/communities/trending?per_page=12&page=1')
+    let trending = (trendingData?.data ?? []).filter((community) => !community.is_member)
+
+    if (trending.length === 0) {
+      const { data: fallbackData } = await apiGet<CommunitiesListResponse>('/api/communities?per_page=18&page=1')
+      trending = (fallbackData?.data ?? []).filter(
+        (community) =>
+          !community.is_member &&
+          (community.level === 'micro' || community.level === 'interest' || community.level === 'district'),
+      )
+    }
+
+    const dedupedRequired = dedupeCommunities(required)
+    const dedupedInterestBased = dedupeCommunities(interestBased)
+      .filter((community) => !dedupedRequired.some((requiredCommunity) => requiredCommunity.slug === community.slug))
+      .slice(0, 8)
+    const dedupedTrending = dedupeCommunities(trending)
+      .filter((community) =>
+        !dedupedRequired.some((requiredCommunity) => requiredCommunity.slug === community.slug) &&
+        !dedupedInterestBased.some((interestCommunity) => interestCommunity.slug === community.slug),
+      )
+
+    return {
+      required: dedupedRequired,
+      interestBased: dedupedInterestBased,
+      suggested: [...dedupedRequired, ...dedupedInterestBased, ...dedupedTrending].slice(0, 14),
+    }
+  }
+
+  async function loadCommunityStep(promptForLocation = false) {
+    setCommunityLoading(true)
+    try {
+      const location = await resolveCommunityLocation(promptForLocation)
+      const { required, interestBased, suggested } = await fetchCommunitiesForOnboarding(location)
+      const locked = required.map((community) => community.slug)
+      setLockedCommunities(locked)
+      setInterestCommunitySlugs(interestBased.map((community) => community.slug))
+      setCommunitySuggestions(suggested)
+      setSelectedCommunities((prev) => Array.from(new Set([...prev, ...locked])))
+    } catch {
+      setCommunityLocationError('Could not load communities right now. You can still finish onboarding and join later.')
+      setLockedCommunities([])
+      setInterestCommunitySlugs([])
+      setCommunitySuggestions([])
+    } finally {
+      setCommunityLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (currentStep !== 'communities') return
+    void loadCommunityStep(false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentStep])
 
   // ── Image picker ────────────────────────────────────────────────────────
@@ -236,12 +475,17 @@ export default function OnboardingScreen() {
       let logoUrl: string | null = null
       if (orgLogoUri) logoUrl = await uploadViaApi(orgLogoUri, 'avatar')
 
-      await supabase
+      const { error: profileError } = await supabase
         .from('profiles')
         .update({
           gender:     gender ?? undefined,
           bio:        bio.trim() || null,
           avatar_url: avatarUrl,
+          city:       communityLocation.city ?? profile?.city ?? null,
+          lat:        communityLocation.lat ?? profile?.lat ?? null,
+          lng:        communityLocation.lng ?? profile?.lng ?? null,
+          signup_lat: profile?.signup_lat ?? communityLocation.lat ?? null,
+          signup_lng: profile?.signup_lng ?? communityLocation.lng ?? null,
           preferences: {
             ...(profile?.preferences as Record<string, unknown> ?? {}),
             onboarding_completed: true,
@@ -250,8 +494,10 @@ export default function OnboardingScreen() {
         } as any)
         .eq('id', user.id)
 
+      if (profileError) throw profileError
+
       if (isOrganizer) {
-        await supabase
+        const { error: organizerError } = await supabase
           .from('organizer_profiles')
           .update({
             description:    orgDesc.trim()    || null,
@@ -261,6 +507,8 @@ export default function OnboardingScreen() {
             phone:          orgPhone.trim()   || null,
           } as any)
           .eq('user_id', user.id)
+
+        if (organizerError) throw organizerError
       }
 
       if (selectedCommunities.length > 0) {
@@ -491,26 +739,133 @@ export default function OnboardingScreen() {
   }
 
   function StepCommunities() {
-    const levelIcon: Record<string, keyof typeof Ionicons.glyphMap> = {
+    const levelIcon: Record<CommunityLevel, keyof typeof Ionicons.glyphMap> = {
       micro:    'home-outline',
       interest: 'heart-outline',
       district: 'business-outline',
       city:     'location-outline',
       country:  'earth-outline',
     }
+    const requiredCommunities = communitySuggestions.filter((community) => lockedCommunities.includes(community.slug))
+    const interestCommunities = communitySuggestions.filter(
+      (community) => interestCommunitySlugs.includes(community.slug) && !lockedCommunities.includes(community.slug)
+    )
+    const suggestedCommunities = communitySuggestions.filter(
+      (community) => !lockedCommunities.includes(community.slug) && !interestCommunitySlugs.includes(community.slug)
+    )
+    const locationLabel = [communityLocation.city, communityLocation.countryName].filter(Boolean).join(', ')
     return (
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={s.stepContent}>
           <StepHeroIcon step="communities" />
-          <Text style={s.stepTitle}>Join your communities</Text>
+          <Text style={s.stepTitle}>Choose communities to join</Text>
           <Text style={s.stepSub}>
-            Your feed is personalised based on the communities you join. Pick micro-circles, interest groups, or districts near you.
+            We&apos;ve pre-selected your city and country communities when we can. Add any trending groups you&apos;d like on top.
           </Text>
-          {communitySuggestions.length === 0 ? (
+          {!!locationLabel && (
+            <View style={s.commLocationPill}>
+              <Ionicons name="navigate-outline" size={14} color={Colors.brand[700]} />
+              <Text style={s.commLocationText}>Near {locationLabel}</Text>
+            </View>
+          )}
+          {(communityLocationError || (!communityLocation.countryCode && !communityLoading)) && (
+            <View style={s.locationPrompt}>
+              <View style={s.locationPromptTextWrap}>
+                <Text style={s.locationPromptTitle}>Use your location</Text>
+                <Text style={s.locationPromptText}>
+                  {communityLocationError ?? 'We need your location to auto-select your city and country communities.'}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={s.locationPromptBtn}
+                onPress={() => void loadCommunityStep(true)}
+                activeOpacity={0.82}
+              >
+                <Text style={s.locationPromptBtnText}>Use location</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          {communityLoading ? (
             <ActivityIndicator color={Colors.brand[500]} style={{ marginTop: Spacing['2xl'] }} />
+          ) : communitySuggestions.length === 0 ? (
+            <View style={s.commEmptyState}>
+              <Text style={s.commEmptyTitle}>No communities to suggest yet</Text>
+              <Text style={s.commEmptyText}>You can finish onboarding now and join communities any time from the Communities tab.</Text>
+            </View>
           ) : (
-            <View style={s.commGrid}>
-              {communitySuggestions.map((c) => {
+            <>
+            {requiredCommunities.length > 0 && (
+              <View style={s.commSection}>
+                <Text style={s.commSectionTitle}>Required for your area</Text>
+                <Text style={s.commSectionSub}>These stay selected so your local feed starts in the right place.</Text>
+                <View style={s.commGrid}>
+                  {requiredCommunities.map((c) => {
+                    const name = isRTL && c.name_ar ? c.name_ar : c.name
+                    return (
+                      <View key={c.id} style={[s.commCard, s.commCardOn, s.commCardLocked]}>
+                        <Ionicons
+                          name={levelIcon[c.level]}
+                          size={20}
+                          color={Colors.brand[600]}
+                        />
+                        <Text style={[s.commName, s.commNameOn]} numberOfLines={2}>{name}</Text>
+                        <Text style={s.commMeta}>{c.member_count.toLocaleString()} members</Text>
+                        <View style={s.commRequiredBadge}>
+                          <Ionicons name="lock-closed" size={10} color="#92400e" />
+                          <Text style={s.commRequiredBadgeText}>Required</Text>
+                        </View>
+                        <View style={s.commTick}>
+                          <Ionicons name="checkmark" size={10} color={Colors.white} />
+                        </View>
+                      </View>
+                    )
+                  })}
+                </View>
+              </View>
+            )}
+            {interestCommunities.length > 0 && (
+              <View style={s.commSection}>
+                <Text style={s.commSectionTitle}>Based on your interests</Text>
+                <Text style={s.commSectionSub}>These match what you told us you&apos;re into, so your communities feel relevant right away.</Text>
+                <View style={s.commGrid}>
+                  {interestCommunities.map((c) => {
+                    const on   = selectedCommunities.includes(c.slug)
+                    const name = isRTL && c.name_ar ? c.name_ar : c.name
+                    return (
+                      <TouchableOpacity
+                        key={c.id}
+                        style={[s.commCard, on && s.commCardOn]}
+                        onPress={() =>
+                          setSelectedCommunities((prev) =>
+                            on ? prev.filter((slug) => slug !== c.slug) : [...prev, c.slug]
+                          )
+                        }
+                        activeOpacity={0.8}
+                      >
+                        <Ionicons
+                          name={levelIcon[c.level]}
+                          size={20}
+                          color={on ? Colors.brand[600] : Colors.gray[400]}
+                        />
+                        <Text style={[s.commName, on && s.commNameOn]} numberOfLines={2}>{name}</Text>
+                        <Text style={s.commMeta}>{c.member_count.toLocaleString()} members</Text>
+                        {on && (
+                          <View style={s.commTick}>
+                            <Ionicons name="checkmark" size={10} color={Colors.white} />
+                          </View>
+                        )}
+                      </TouchableOpacity>
+                    )
+                  })}
+                </View>
+              </View>
+            )}
+            {suggestedCommunities.length > 0 && (
+              <View style={s.commSection}>
+                <Text style={s.commSectionTitle}>Trending communities</Text>
+                <Text style={s.commSectionSub}>Pick a few groups so your feed feels personal from day one.</Text>
+                <View style={s.commGrid}>
+              {suggestedCommunities.map((c) => {
                 const on   = selectedCommunities.includes(c.slug)
                 const name = isRTL && c.name_ar ? c.name_ar : c.name
                 return (
@@ -525,7 +880,7 @@ export default function OnboardingScreen() {
                     activeOpacity={0.8}
                   >
                     <Ionicons
-                      name={levelIcon[c.level] ?? 'home-outline'}
+                      name={levelIcon[c.level]}
                       size={20}
                       color={on ? Colors.brand[600] : Colors.gray[400]}
                     />
@@ -540,6 +895,9 @@ export default function OnboardingScreen() {
                 )
               })}
             </View>
+              </View>
+            )}
+            </>
           )}
           {selectedCommunities.length > 0 && (
             <Text style={s.commSelectedLabel}>{selectedCommunities.length} selected</Text>
@@ -711,14 +1069,14 @@ export default function OnboardingScreen() {
             { opacity: fadeIn, transform: [{ translateX: slideX }] },
           ]}
         >
-          {currentStep === 'welcome'      && <StepWelcome />}
-          {currentStep === 'gender'       && <StepGender />}
-          {currentStep === 'photo-bio'    && <StepPhotoBio />}
-          {currentStep === 'interests'    && <StepInterests />}
-          {currentStep === 'communities'  && <StepCommunities />}
-          {currentStep === 'org-details'  && <StepOrgDetails />}
-          {currentStep === 'org-contact'  && <StepOrgContact />}
-          {currentStep === 'done'         && <StepDone />}
+          {currentStep === 'welcome'      && StepWelcome()}
+          {currentStep === 'gender'       && StepGender()}
+          {currentStep === 'photo-bio'    && StepPhotoBio()}
+          {currentStep === 'interests'    && StepInterests()}
+          {currentStep === 'communities'  && StepCommunities()}
+          {currentStep === 'org-details'  && StepOrgDetails()}
+          {currentStep === 'org-contact'  && StepOrgContact()}
+          {currentStep === 'done'         && StepDone()}
         </Animated.View>
 
         {/* ── Footer ─────────────────────────────────────────────── */}
@@ -981,6 +1339,53 @@ const s = StyleSheet.create({
   chipLabelOn: { color: Colors.brand[700] },
 
   // Communities grid
+  commSection: { marginBottom: Spacing.lg },
+  commSectionTitle: {
+    fontSize: FontSize.base,
+    fontWeight: FontWeight.bold,
+    color: Colors.gray[800],
+    marginBottom: 4,
+  },
+  commSectionSub: {
+    fontSize: FontSize.sm,
+    color: Colors.gray[500],
+    lineHeight: 20,
+    marginBottom: Spacing.md,
+  },
+  commLocationPill: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: Spacing.md,
+    backgroundColor: Colors.brand[100],
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.full,
+  },
+  commLocationText: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.brand[700] },
+  locationPrompt: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: Spacing.md,
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.brand[200],
+    borderRadius: Radius.xl,
+    padding: Spacing.md,
+    marginBottom: Spacing.lg,
+  },
+  locationPromptTextWrap: { flex: 1, gap: 2 },
+  locationPromptTitle: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.gray[800] },
+  locationPromptText: { fontSize: FontSize.sm, color: Colors.gray[500], lineHeight: 18 },
+  locationPromptBtn: {
+    alignSelf: 'flex-start',
+    backgroundColor: Colors.brand[600],
+    borderRadius: Radius.full,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm + 1,
+  },
+  locationPromptBtnText: { color: Colors.white, fontSize: FontSize.sm, fontWeight: FontWeight.semibold },
   commGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, paddingBottom: Spacing['3xl'] },
   commCard: {
     width: '47%',
@@ -992,15 +1397,37 @@ const s = StyleSheet.create({
     position: 'relative',
   },
   commCardOn:      { borderColor: Colors.brand[400], backgroundColor: Colors.brand[50] },
+  commCardLocked:  { borderColor: Colors.brand[300] },
   commName:        { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[800] },
   commNameOn:      { color: Colors.brand[800] },
   commMeta:        { fontSize: 11, color: Colors.gray[400] },
+  commRequiredBadge: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: Radius.full,
+    backgroundColor: '#fef3c7',
+  },
+  commRequiredBadgeText: { fontSize: 10, fontWeight: FontWeight.semibold, color: '#92400e' },
   commTick: {
     position: 'absolute', top: 8, right: 8,
     width: 18, height: 18, borderRadius: 9,
     backgroundColor: Colors.brand[500],
     alignItems: 'center', justifyContent: 'center',
   },
+  commEmptyState: {
+    backgroundColor: Colors.white,
+    borderRadius: Radius.xl,
+    padding: Spacing.xl,
+    marginBottom: Spacing.xl,
+    ...Shadow.card,
+  },
+  commEmptyTitle: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.gray[800], marginBottom: 6 },
+  commEmptyText: { fontSize: FontSize.sm, color: Colors.gray[500], lineHeight: 20 },
   commSelectedLabel: {
     fontSize: FontSize.sm, color: Colors.brand[600],
     fontWeight: FontWeight.semibold, textAlign: 'center', marginBottom: Spacing.lg,
