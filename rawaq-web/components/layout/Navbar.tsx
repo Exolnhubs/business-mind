@@ -213,10 +213,10 @@ export function Navbar() {
       <nav className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16 gap-6">
         {/* Logo */}
         <Link href="/" className="nav-logo flex items-center gap-2 shrink-0">
-          <span className="nav-wand leading-none"><Image src="/icon.png" alt="" width={28} height={28} /></span>
-          <span className="hidden sm:block font-bold text-xl" style={{ fontFamily: 'var(--font-display)', color: 'var(--c-gold-dim)', letterSpacing: '-0.01em' }}>
+          <span className="nav-wand leading-none"><Image src="/icon.png" alt="" width={150} height={28} /></span>
+          {/* <span className="hidden sm:block font-bold text-xl" style={{ fontFamily: 'var(--font-display)', color: 'var(--c-gold-dim)', letterSpacing: '-0.01em' }}>
             Rawaq
-          </span>
+          </span> */}
         </Link>
 
         {/* Desktop links */}

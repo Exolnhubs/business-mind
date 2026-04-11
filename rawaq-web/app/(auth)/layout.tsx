@@ -6,7 +6,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
     <div className="min-h-screen bg-gradient-to-br from-brand-50 via-white to-amber-50 flex flex-col">
       <header className="px-6 py-4">
         <Link href="/" className="flex items-center gap-2 text-brand-600 font-bold text-xl w-fit">
-          <Image src="/icon.png" alt="" width={24} height={24} className="block" /> Rawaq
+          <Image src="/icon.png" alt="" width={150} height={24} className="block" />
         </Link>
       </header>
 

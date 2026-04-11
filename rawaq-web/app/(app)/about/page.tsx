@@ -6,27 +6,27 @@ import { useLocale } from '@/contexts/locale-context'
 
 const COUNTRIES = [
   { flag: '🇸🇦', name: 'Saudi Arabia', name_ar: 'المملكة العربية السعودية' },
-  { flag: '🇦🇪', name: 'UAE',          name_ar: 'الإمارات'                  },
-  { flag: '🇪🇬', name: 'Egypt',        name_ar: 'مصر'                       },
-  { flag: '🇯🇴', name: 'Jordan',       name_ar: 'الأردن'                    },
-  { flag: '🇰🇼', name: 'Kuwait',       name_ar: 'الكويت'                    },
-  { flag: '🇶🇦', name: 'Qatar',        name_ar: 'قطر'                       },
-  { flag: '🇧🇭', name: 'Bahrain',      name_ar: 'البحرين'                   },
-  { flag: '🇴🇲', name: 'Oman',         name_ar: 'عُمان'                     },
-  { flag: '🇱🇧', name: 'Lebanon',      name_ar: 'لبنان'                     },
-  { flag: '🇲🇦', name: 'Morocco',      name_ar: 'المغرب'                    },
-  { flag: '🇹🇳', name: 'Tunisia',      name_ar: 'تونس'                      },
-  { flag: '🇮🇶', name: 'Iraq',         name_ar: 'العراق'                    },
-  { flag: '🇵🇸', name: 'Palestine',    name_ar: 'فلسطين'                    },
+  { flag: '🇦🇪', name: 'UAE', name_ar: 'الإمارات' },
+  { flag: '🇪🇬', name: 'Egypt', name_ar: 'مصر' },
+  { flag: '🇯🇴', name: 'Jordan', name_ar: 'الأردن' },
+  { flag: '🇰🇼', name: 'Kuwait', name_ar: 'الكويت' },
+  { flag: '🇶🇦', name: 'Qatar', name_ar: 'قطر' },
+  { flag: '🇧🇭', name: 'Bahrain', name_ar: 'البحرين' },
+  { flag: '🇴🇲', name: 'Oman', name_ar: 'عُمان' },
+  { flag: '🇱🇧', name: 'Lebanon', name_ar: 'لبنان' },
+  { flag: '🇲🇦', name: 'Morocco', name_ar: 'المغرب' },
+  { flag: '🇹🇳', name: 'Tunisia', name_ar: 'تونس' },
+  { flag: '🇮🇶', name: 'Iraq', name_ar: 'العراق' },
+  { flag: '🇵🇸', name: 'Palestine', name_ar: 'فلسطين' },
 ]
 
 const FEATURE_KEYS = [
   { icon: '🔍', titleKey: 'about.feat_discover_title', bodyKey: 'about.feat_discover_body' },
-  { icon: '🎟️', titleKey: 'about.feat_booking_title',  bodyKey: 'about.feat_booking_body'  },
+  { icon: '🎟️', titleKey: 'about.feat_booking_title', bodyKey: 'about.feat_booking_body' },
   { icon: '🏢', titleKey: 'about.feat_organizer_title', bodyKey: 'about.feat_organizer_body' },
-  { icon: '💬', titleKey: 'about.feat_chat_title',     bodyKey: 'about.feat_chat_body'     },
-  { icon: '📍', titleKey: 'about.feat_near_title',     bodyKey: 'about.feat_near_body'     },
-  { icon: '🌍', titleKey: 'about.feat_arab_title',     bodyKey: 'about.feat_arab_body'     },
+  { icon: '💬', titleKey: 'about.feat_chat_title', bodyKey: 'about.feat_chat_body' },
+  { icon: '📍', titleKey: 'about.feat_near_title', bodyKey: 'about.feat_near_body' },
+  { icon: '🌍', titleKey: 'about.feat_arab_title', bodyKey: 'about.feat_arab_body' },
 ]
 
 export default function AboutPage() {
@@ -37,7 +37,7 @@ export default function AboutPage() {
 
       {/* Hero */}
       <section className="text-center space-y-4">
-        <div className="flex justify-center"><Image src="/icon.png" alt="Rawaq" width={64} height={64} /></div>
+        <div className="flex justify-center"><Image src="/icon.png" alt="Rawaq" width={150} height={64} /></div>
         <h1 className="text-4xl font-bold text-gray-900">{t('about.title')}</h1>
         <p className="text-xl text-gray-500 max-w-2xl mx-auto leading-relaxed">
           {t('about.hero_sub')}
@@ -89,7 +89,7 @@ export default function AboutPage() {
           <div className="text-4xl">👤</div>
           <h2 className="text-xl font-bold text-gray-900">{t('about.for_attendees')}</h2>
           <ul className="space-y-2 text-sm text-gray-600">
-            {(['attendee_1','attendee_2','attendee_3','attendee_4','attendee_5'] as const).map((k) => (
+            {(['attendee_1', 'attendee_2', 'attendee_3', 'attendee_4', 'attendee_5'] as const).map((k) => (
               <li key={k} className="flex items-start gap-2">
                 <span className="text-brand-500 mt-0.5">✓</span> {t(`about.${k}`)}
               </li>
@@ -101,7 +101,7 @@ export default function AboutPage() {
           <div className="text-4xl">🏢</div>
           <h2 className="text-xl font-bold text-gray-900">{t('about.for_organizers')}</h2>
           <ul className="space-y-2 text-sm text-gray-600">
-            {(['organizer_1','organizer_2','organizer_3','organizer_4','organizer_5'] as const).map((k) => (
+            {(['organizer_1', 'organizer_2', 'organizer_3', 'organizer_4', 'organizer_5'] as const).map((k) => (
               <li key={k} className="flex items-start gap-2">
                 <span className="text-brand-500 mt-0.5">✓</span> {t(`about.${k}`)}
               </li>

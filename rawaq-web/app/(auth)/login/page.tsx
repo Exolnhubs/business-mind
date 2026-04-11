@@ -74,7 +74,7 @@ function LoginForm() {
     <div className="w-full max-w-sm">
       <div className="card p-8 animate-fade-in">
         <div className="text-center mb-6">
-          <div className="mb-3 flex justify-center"><Image src="/icon.png" alt="Rawaq" width={52} height={52} /></div>
+          <div className="mb-3 flex justify-center"><Image src="/icon.png" alt="Rawaq" width={150} height={52} /></div>
           <h1 className="text-xl font-bold text-gray-900">{t('auth.login_title')}</h1>
           <p className="text-sm text-gray-500 mt-1">{t('auth.login_sub')}</p>
         </div>

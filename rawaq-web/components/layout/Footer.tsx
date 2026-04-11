@@ -17,8 +17,8 @@ export function Footer() {
           {/* Brand */}
           <div className="space-y-4">
             <Link href="/" className="footer-logo inline-flex items-center gap-2.5">
-              <span className="footer-wand leading-none"><Image src="/icon.png" alt="" width={28} height={28} /></span>
-              <span className="footer-brand-name">Rawaq</span>
+              <span className="footer-wand leading-none"><Image src="/icon.png" alt="" width={150} height={28} /></span>
+              {/* <span className="footer-brand-name">Rawaq</span> */}
             </Link>
             <p
               className="text-sm leading-relaxed max-w-xs"
