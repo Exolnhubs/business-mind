@@ -130,6 +130,8 @@ export default function CommunityDetailScreen() {
   const [moderationDurationHours, setModerationDurationHours] = useState(24)
   const [showHistoryModal, setShowHistoryModal] = useState(false)
   const [historyLoading, setHistoryLoading] = useState(false)
+  const [showActivityAccordion, setShowActivityAccordion] = useState(false)
+  const [showModeratorAccordion, setShowModeratorAccordion] = useState(false)
   const [selectedMemberHistory, setSelectedMemberHistory] = useState<{
     member: CommunityDetail['recent_members'][number]
     warnings: CommunityWarningEntry[]
@@ -564,6 +566,8 @@ export default function CommunityDetailScreen() {
   const name = isRTL && community.name_ar ? community.name_ar : community.name
   const description = isRTL && community.description_ar ? community.description_ar : community.description
   const meta = LEVEL_META[community.level]
+  const locationLabel = [community.city, community.country].filter(Boolean).join(' • ')
+  const moderatorControlsVisible = isCommunityOwner || canModerate
 
   return (
     <>
@@ -736,401 +740,462 @@ export default function CommunityDetailScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* ── Members ──────────────────────────────────────────── */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Members</Text>
-          {community.recent_members.length === 0
-            ? <EmptyState icon="👥" title="No members yet" description="Be the first to join" />
-            : (
-              <View style={styles.membersList}>
-                {community.recent_members.map((m, i) => (
-                  <View key={m.id} style={[styles.memberRow, i < community.recent_members.length - 1 && styles.memberRowBorder]}>
-                    <View style={styles.avatar}>
-                      {m.avatar_url
-                        ? <Image source={{ uri: m.avatar_url }} style={styles.avatarImg} />
-                        : <Text style={styles.avatarInitial}>{m.display_name.slice(0, 1).toUpperCase()}</Text>
-                      }
-                    </View>
-                    <View style={styles.memberInfo}>
-                      <Text style={styles.memberName}>{m.display_name}</Text>
-                      <Text style={styles.memberMeta}>Joined {formatDate(m.joined_at)}</Text>
-                      {admins.some((entry) => entry.user_id === m.id && entry.role === 'community_admin') && (
-                        <Text style={styles.memberAdminMeta}>Community admin</Text>
-                      )}
-                      {community.owner_user_id === m.id && (
-                        <Text style={styles.memberOwnerMeta}>Owner</Text>
-                      )}
-                    </View>
-                    {canModerate ? (
-                      <View style={styles.memberActions}>
-                        {isCommunityOwner &&
-                          community.owner_user_id !== m.id &&
-                          !admins.some((entry) => entry.user_id === m.id && entry.role === 'owner') && (
-                            <TouchableOpacity
-                              onPress={() => openAdminRoleMenu(m)}
-                              disabled={memberActionLoading === `assign-${m.id}` || memberActionLoading === `revoke-${m.id}`}
-                              style={styles.memberActionChip}
-                            >
-                              <Text style={styles.memberActionText}>
-                                {admins.some((entry) => entry.user_id === m.id && entry.role === 'community_admin') ? 'Admin role' : 'Make admin'}
-                              </Text>
-                            </TouchableOpacity>
-                          )}
-                        {community.owner_user_id !== m.id &&
-                          !admins.some((entry) => entry.user_id === m.id && entry.role === 'owner') &&
-                          m.id !== user?.id &&
-                          (isCommunityOwner || !admins.some((entry) => entry.user_id === m.id && entry.role === 'community_admin')) && (
-                            <TouchableOpacity
-                              onPress={() => openMemberModerationMenu(m)}
-                              disabled={
-                                memberActionLoading === `warn-${m.id}` ||
-                                memberActionLoading === `timeout-${m.id}` ||
-                                memberActionLoading === `removed-${m.id}` ||
-                                memberActionLoading === `banned-${m.id}`
-                              }
-                              style={[styles.memberActionChip, styles.memberActionChipDanger]}
-                            >
-                              <Text style={[styles.memberActionText, styles.memberActionTextDanger]}>Moderate</Text>
-                            </TouchableOpacity>
-                          )}
+          <View style={styles.summaryCard}>
+            <Text style={styles.sectionEyebrow}>Discover the community</Text>
+            <Text style={styles.summaryHeadline}>
+              Start with the live pulse, then decide if this feels like your people.
+            </Text>
+            <Text style={styles.summaryBody}>
+              {locationLabel ? `Centered around ${locationLabel}. ` : ''}
+              Happenings and events are the clearest signal of what this community actually feels like.
+            </Text>
+            <View style={styles.summaryMetricsRow}>
+              <View style={styles.summaryMetricCard}>
+                <Text style={styles.summaryMetricValue}>{community.member_count.toLocaleString()}</Text>
+                <Text style={styles.summaryMetricLabel}>members</Text>
+              </View>
+              <View style={styles.summaryMetricCard}>
+                <Text style={styles.summaryMetricValue}>{community.event_count.toLocaleString()}</Text>
+                <Text style={styles.summaryMetricLabel}>events</Text>
+              </View>
+              <View style={styles.summaryMetricCard}>
+                <Text style={styles.summaryMetricValue}>{children.length}</Text>
+                <Text style={styles.summaryMetricLabel}>sub-groups</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <View style={[styles.sectionCard, styles.happeningsSectionCard]}>
+            <View style={styles.sectionHeader}>
+              <View>
+                <Text style={styles.sectionEyebrow}>Live inside the community</Text>
+                <Text style={[styles.sectionTitle, { marginBottom: 2 }]}>What&apos;s Happening Now</Text>
+                <Text style={styles.sectionSub}>Spontaneous, time-limited posts</Text>
+              </View>
+              {canParticipateInHappenings && (
+                <TouchableOpacity onPress={() => setShowPostModal(true)} style={styles.postHappeningBtn}>
+                  <Ionicons name="add" size={14} color="#fff" />
+                  <Text style={styles.postHappeningBtnText}>Post</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {happeningsLoading ? (
+              <View style={styles.centerSmall}><Spinner /></View>
+            ) : happenings.length === 0 ? (
+              <View style={styles.happeningsEmpty}>
+                <Ionicons name="radio-outline" size={28} color={Colors.brand[300]} />
+                <Text style={styles.happeningsEmptyText}>Nothing happening right now</Text>
+                <Text style={styles.happeningsEmptyHint}>
+                  {canParticipateInHappenings
+                    ? 'Open invites, questions, alerts - post something.'
+                    : 'Join to post open invites, questions, and alerts.'}
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.happeningsList}>
+                {happenings.map((h, i) => {
+                  const ttlMs = new Date(h.expires_at).getTime() - Date.now()
+                  const ttlH = Math.floor(ttlMs / 3_600_000)
+                  const ttlM = Math.floor((ttlMs % 3_600_000) / 60_000)
+                  const ttl = ttlMs <= 0 ? 'Expired' : ttlH > 0 ? `${ttlH}h ${ttlM}m left` : `${ttlM}m left`
+                  const typeLabel: Record<HappeningType, string> = { open_invite: 'Invite', info: 'Info', question: 'Q', alert: 'Alert' }
+                  const typeBg: Record<HappeningType, string> = { open_invite: Colors.brand[50], info: '#f0f9ff', question: '#f5f3ff', alert: '#fff1f2' }
+                  const isLast = i === happenings.length - 1
+
+                  return (
+                    <View key={h.id} style={[styles.happeningCard, !isLast && styles.happeningCardBorder, { backgroundColor: typeBg[h.type] }]}>
+                      <View style={styles.happeningHeader}>
+                        <View style={styles.happeningAuthorRow}>
+                          <View style={styles.avatar}>
+                            {h.author.avatar_url
+                              ? <Image source={{ uri: h.author.avatar_url }} style={styles.avatarImg} />
+                              : <Text style={styles.avatarInitial}>{h.author.display_name.slice(0, 1).toUpperCase()}</Text>
+                            }
+                          </View>
+                          <View>
+                            <Text style={styles.happeningAuthor}>{h.author.display_name}</Text>
+                            <Text style={styles.happeningTtl}>{ttl}</Text>
+                          </View>
+                        </View>
+                        <View style={styles.happeningTypeBadge}>
+                          <Text style={styles.happeningTypeText}>{typeLabel[h.type]}</Text>
+                        </View>
                       </View>
-                    ) : (
-                      <Ionicons name="chevron-forward" size={14} color={Colors.gray[300]} />
+                      <Text style={styles.happeningBody}>{h.body}</Text>
+                      {h.lat && h.lng && (
+                        <TouchableOpacity
+                          onPress={() => Linking.openURL(`https://maps.google.com/?q=${h.lat},${h.lng}`)}
+                          style={styles.happeningLocBtn}
+                        >
+                          <Ionicons name="location-outline" size={12} color={Colors.brand[600]} />
+                          <Text style={styles.happeningLocText}>{h.location_label?.trim() || 'View on map'}</Text>
+                        </TouchableOpacity>
+                      )}
+                      {user && ttlMs > 0 && (
+                        <View style={styles.happeningActions}>
+                          <TouchableOpacity onPress={() => toggleHappeningRsvp(h)} style={[styles.happeningActionBtn, h.user_has_rsvp && styles.happeningActionBtnActive]}>
+                            <Text style={[styles.happeningActionText, h.user_has_rsvp && styles.happeningActionTextActive]}>
+                              {h.user_has_rsvp ? "I'm in" : 'Join'} • {h.rsvp_count}
+                            </Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity onPress={() => toggleHappeningReact(h)} style={[styles.happeningActionBtn, h.user_has_reacted && styles.happeningReactActive]}>
+                            <Text style={[styles.happeningActionText, h.user_has_reacted && styles.happeningReactTextActive]}>
+                              Like • {h.reaction_count}
+                            </Text>
+                          </TouchableOpacity>
+                          {h.author_id !== user?.id && (
+                            <TouchableOpacity onPress={() => reportHappening(h.id)} style={styles.happeningReportBtn}>
+                              <Ionicons name="flag-outline" size={14} color={Colors.gray[400]} />
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      )}
+                    </View>
+                  )
+                })}
+              </View>
+            )}
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <View>
+                <Text style={styles.sectionEyebrow}>Main highlight</Text>
+                <Text style={styles.sectionTitle}>Upcoming Events</Text>
+                <Text style={styles.sectionSub}>The clearest way to understand what this community actually does.</Text>
+              </View>
+              <TouchableOpacity onPress={() => router.push({ pathname: '/(tabs)/home', params: { community: slug } } as any)}>
+                <Text style={styles.sectionLink}>View all</Text>
+              </TouchableOpacity>
+            </View>
+
+            {eventsLoading && events.length === 0
+              ? <View style={styles.centerSmall}><Spinner /></View>
+              : events.length === 0
+                ? <EmptyState icon="📅" title="No upcoming events" description="Check back soon" />
+                : (
+                  <>
+                    {events.map((ev) => {
+                      const title = isRTL && ev.title_ar ? ev.title_ar : ev.title
+                      return (
+                        <TouchableOpacity
+                          key={ev.id}
+                          style={styles.eventCard}
+                          onPress={() => router.push(`/events/${ev.id}` as any)}
+                          activeOpacity={0.85}
+                        >
+                          {ev.cover_image_url
+                            ? <Image source={{ uri: ev.cover_image_url }} style={styles.eventThumb} />
+                            : (
+                              <View style={[styles.eventThumb, styles.eventThumbEmpty]}>
+                                <Ionicons name="calendar-outline" size={22} color={Colors.brand[300]} />
+                              </View>
+                            )
+                          }
+                          <View style={styles.eventDetails}>
+                            <Text style={styles.eventTitle} numberOfLines={2}>{title}</Text>
+                            <Text style={styles.eventMeta}>
+                              <Ionicons name="time-outline" size={11} color={Colors.gray[400]} /> {formatDate(ev.start_at)}
+                            </Text>
+                            <Text style={styles.eventMeta}>{ev.city || 'Location announced soon'}</Text>
+                          </View>
+                          <View style={[styles.priceBadge, ev.is_free && styles.priceBadgeFree]}>
+                            <Text style={[styles.priceText, ev.is_free && styles.priceTextFree]}>
+                              {ev.is_free ? 'Free' : `${ev.price} ${ev.currency}`}
+                            </Text>
+                          </View>
+                        </TouchableOpacity>
+                      )
+                    })}
+                    {nextCursor && (
+                      <TouchableOpacity style={styles.loadMoreBtn} onPress={() => loadEvents(nextCursor)} disabled={eventsLoading}>
+                        {eventsLoading
+                          ? <ActivityIndicator size="small" color={Colors.brand[500]} />
+                          : <Text style={styles.loadMoreText}>Load more events</Text>
+                        }
+                      </TouchableOpacity>
                     )}
+                  </>
+                )
+            }
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <View>
+                <Text style={styles.sectionEyebrow}>Explore deeper</Text>
+                <Text style={styles.sectionTitle}>Sub-communities</Text>
+              </View>
+              {canCreateChildHere && (
+                <TouchableOpacity onPress={() => router.push((community.level === 'country' ? `/communities/create?root=${slug}` : `/communities/create?parent=${slug}`) as any)}>
+                  <Text style={styles.sectionLink}>Create here</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            <Text style={styles.sectionSubInline}>Joined and verified circles appear first.</Text>
+            {childrenLoading ? (
+              <View style={styles.centerSmall}><Spinner /></View>
+            ) : children.length === 0 ? (
+              <EmptyState icon="🪴" title="No sub-communities yet" description="Create the first nested circle here." />
+            ) : (
+              <View style={styles.childrenList}>
+                {children.map((child, index) => (
+                  <View key={child.id} style={[styles.childCard, index < children.length - 1 && styles.childCardBorder]}>
+                    <TouchableOpacity style={styles.childBody} onPress={() => router.push(`/communities/${child.slug}` as any)}>
+                      <Text style={styles.childName}>{isRTL && child.name_ar ? child.name_ar : child.name}</Text>
+                      <View style={styles.childBadgeRow}>
+                        {child.is_member && (
+                          <View style={[styles.childBadge, styles.childBadgeJoined]}>
+                            <Text style={[styles.childBadgeText, styles.childBadgeTextJoined]}>Joined</Text>
+                          </View>
+                        )}
+                        {child.is_verified && (
+                          <View style={[styles.childBadge, styles.childBadgeVerified]}>
+                            <Text style={[styles.childBadgeText, styles.childBadgeTextVerified]}>Verified</Text>
+                          </View>
+                        )}
+                        <View style={[styles.childBadge, styles.childBadgeLevel]}>
+                          <Text style={[styles.childBadgeText, styles.childBadgeTextLevel]}>{child.level}</Text>
+                        </View>
+                      </View>
+                      <Text style={styles.childMeta}>
+                        {child.level} • {child.member_count.toLocaleString()} members{child.city ? ` • ${child.city}` : ''}
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => toggleChildMembership(child)}
+                      disabled={childJoiningSlug === child.slug}
+                      style={[styles.childJoinBtn, child.is_member && styles.childJoinBtnActive]}
+                    >
+                      <Text style={[styles.childJoinText, child.is_member && styles.childJoinTextActive]}>
+                        {childJoiningSlug === child.slug ? '...' : child.is_member ? 'Joined' : 'Join'}
+                      </Text>
+                    </TouchableOpacity>
                   </View>
                 ))}
               </View>
-            )
-          }
-        </View>
-
-        {/* ── Activity feed ────────────────────────────────────── */}
-        {(isCommunityOwner || canModerate) && (
-          <View style={styles.section}>
-            {isCommunityOwner && (
-              <View style={styles.adminPanel}>
-                <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionTitle}>Community Admins</Text>
-                  <Text style={styles.sectionSubInline}>{admins.length} roles</Text>
-                </View>
-                {adminsLoading ? (
-                  <View style={styles.centerSmall}><Spinner /></View>
-                ) : admins.length === 0 ? (
-                  <Text style={styles.emptyPanelText}>No community admins assigned yet.</Text>
-                ) : (
-                  admins.map((entry, index) => (
-                    <View key={entry.user_id} style={[styles.simplePanelRow, index < admins.length - 1 && styles.simplePanelRowBorder]}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.simplePanelTitle}>{entry.profile?.display_name ?? entry.user_id}</Text>
-                        <Text style={styles.simplePanelMeta}>{entry.role} - joined {formatDate(entry.joined_at)}</Text>
-                      </View>
-                      {entry.role === 'community_admin' && (
-                        <TouchableOpacity
-                          onPress={() => revokeCommunityAdmin(entry.user_id)}
-                          disabled={memberActionLoading === `revoke-${entry.user_id}`}
-                          style={styles.memberActionChip}
-                        >
-                          <Text style={styles.memberActionText}>Revoke</Text>
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                  ))
-                )}
-              </View>
-            )}
-
-            {canModerate && (
-              <View style={styles.reportsPanel}>
-                <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionTitle}>Happening Reports</Text>
-                  <TouchableOpacity onPress={() => { void loadReports() }} disabled={reportsLoading}>
-                    <Text style={styles.sectionLink}>Refresh</Text>
-                  </TouchableOpacity>
-                </View>
-                {reportsLoading ? (
-                  <View style={styles.centerSmall}><Spinner /></View>
-                ) : reports.length === 0 ? (
-                  <Text style={styles.emptyPanelText}>No pending happening reports.</Text>
-                ) : (
-                  reports.map((reportItem, index) => (
-                    <View key={`${reportItem.happening_id}:${reportItem.reporter_id}`} style={[styles.simplePanelRow, index < reports.length - 1 && styles.simplePanelRowBorder]}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.simplePanelTitle}>{reportItem.reason}</Text>
-                        <Text style={styles.simplePanelMeta}>Reporter: {reportItem.reporter?.display_name ?? reportItem.reporter_id}</Text>
-                        {reportItem.happening && (
-                          <Text style={styles.simplePanelMeta} numberOfLines={2}>{reportItem.happening.body}</Text>
-                        )}
-                      </View>
-                      <View style={styles.memberActions}>
-                        <TouchableOpacity
-                          onPress={() => updateReport(reportItem, 'resolved')}
-                          disabled={reportActionLoading === `${reportItem.happening_id}:${reportItem.reporter_id}:resolved`}
-                          style={styles.memberActionChip}
-                        >
-                          <Text style={styles.memberActionText}>Resolve</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          onPress={() => updateReport(reportItem, 'dismissed')}
-                          disabled={reportActionLoading === `${reportItem.happening_id}:${reportItem.reporter_id}:dismissed`}
-                          style={[styles.memberActionChip, styles.memberActionChipDanger]}
-                        >
-                          <Text style={[styles.memberActionText, styles.memberActionTextDanger]}>Dismiss</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  ))
-                )}
-              </View>
             )}
           </View>
-        )}
-
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Sub-communities</Text>
-            {canCreateChildHere && (
-              <TouchableOpacity onPress={() => router.push((community.level === 'country' ? `/communities/create?root=${slug}` : `/communities/create?parent=${slug}`) as any)}>
-                <Text style={styles.sectionLink}>Create here →</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-          <Text style={styles.sectionSubInline}>Joined and verified circles appear first.</Text>
-          {childrenLoading ? (
-            <View style={styles.centerSmall}><Spinner /></View>
-          ) : children.length === 0 ? (
-            <EmptyState icon="🪴" title="No sub-communities yet" description="Create the first nested circle here." />
-          ) : (
-            <View style={styles.childrenList}>
-              {children.map((child, index) => (
-                <View key={child.id} style={[styles.childCard, index < children.length - 1 && styles.childCardBorder]}>
-                  <TouchableOpacity style={styles.childBody} onPress={() => router.push(`/communities/${child.slug}` as any)}>
-                    <Text style={styles.childName}>{isRTL && child.name_ar ? child.name_ar : child.name}</Text>
-                    <View style={styles.childBadgeRow}>
-                      {child.is_member && (
-                        <View style={[styles.childBadge, styles.childBadgeJoined]}>
-                          <Text style={[styles.childBadgeText, styles.childBadgeTextJoined]}>Joined</Text>
-                        </View>
-                      )}
-                      {child.is_verified && (
-                        <View style={[styles.childBadge, styles.childBadgeVerified]}>
-                          <Text style={[styles.childBadgeText, styles.childBadgeTextVerified]}>Verified</Text>
-                        </View>
-                      )}
-                      <View style={[styles.childBadge, styles.childBadgeLevel]}>
-                        <Text style={[styles.childBadgeText, styles.childBadgeTextLevel]}>{child.level}</Text>
-                      </View>
-                    </View>
-                    <Text style={styles.childMeta}>
-                      {child.level} · {child.member_count.toLocaleString()} members{child.city ? ` · ${child.city}` : ''}
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => toggleChildMembership(child)}
-                    disabled={childJoiningSlug === child.slug}
-                    style={[styles.childJoinBtn, child.is_member && styles.childJoinBtnActive]}
-                  >
-                    <Text style={[styles.childJoinText, child.is_member && styles.childJoinTextActive]}>
-                      {childJoiningSlug === child.slug ? '...' : child.is_member ? 'Joined' : 'Join'}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              ))}
-            </View>
-          )}
         </View>
 
         {community.activity.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Recent Activity</Text>
-            <View style={styles.activityList}>
-              {community.activity.map((item, i) => {
-                const isEvent = item.type === 'event_published'
-                return (
-                  <TouchableOpacity
-                    key={item.id}
-                    style={[styles.activityItem, i < community.activity.length - 1 && styles.activityItemBorder]}
-                    activeOpacity={item.href ? 0.8 : 1}
-                    onPress={item.href ? () => router.push(item.href as any) : undefined}
-                  >
-                    <View style={[styles.activityDot, { backgroundColor: isEvent ? Colors.brand[100] : '#dcfce7' }]}>
-                      <Ionicons name={isEvent ? 'calendar-outline' : 'person-add-outline'} size={14} color={isEvent ? Colors.brand[600] : '#15803d'} />
-                    </View>
-                    <View style={styles.activityBody}>
-                      <Text style={styles.activityTitle}>{item.title}</Text>
-                      <Text style={styles.activitySub}>{item.subtitle}</Text>
-                    </View>
-                    <Text style={styles.activityDate}>{formatDate(item.created_at)}</Text>
-                  </TouchableOpacity>
-                )
-              })}
+            <View style={styles.accordionCard}>
+              <TouchableOpacity style={styles.accordionHeader} activeOpacity={0.86} onPress={() => setShowActivityAccordion((prev) => !prev)}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.sectionEyebrow}>Secondary context</Text>
+                  <Text style={styles.accordionTitle}>Recent activity</Text>
+                  <Text style={styles.accordionHint}>Useful context, but not the main thing a new visitor needs first.</Text>
+                </View>
+                <View style={styles.accordionMeta}>
+                  <Text style={styles.accordionBadge}>{community.activity.length}</Text>
+                  <Ionicons name={showActivityAccordion ? 'chevron-up' : 'chevron-down'} size={18} color={Colors.gray[500]} />
+                </View>
+              </TouchableOpacity>
+              {showActivityAccordion && (
+                <View style={styles.accordionBody}>
+                  <View style={styles.activityList}>
+                    {community.activity.map((item, i) => {
+                      const isEvent = item.type === 'event_published'
+                      return (
+                        <TouchableOpacity
+                          key={item.id}
+                          style={[styles.activityItem, i < community.activity.length - 1 && styles.activityItemBorder]}
+                          activeOpacity={item.href ? 0.8 : 1}
+                          onPress={item.href ? () => router.push(item.href as any) : undefined}
+                        >
+                          <View style={[styles.activityDot, { backgroundColor: isEvent ? Colors.brand[100] : '#dcfce7' }]}>
+                            <Ionicons name={isEvent ? 'calendar-outline' : 'person-add-outline'} size={14} color={isEvent ? Colors.brand[600] : '#15803d'} />
+                          </View>
+                          <View style={styles.activityBody}>
+                            <Text style={styles.activityTitle}>{item.title}</Text>
+                            <Text style={styles.activitySub}>{item.subtitle}</Text>
+                          </View>
+                          <Text style={styles.activityDate}>{formatDate(item.created_at)}</Text>
+                        </TouchableOpacity>
+                      )
+                    })}
+                  </View>
+                </View>
+              )}
             </View>
           </View>
         )}
 
-        {/* ── Happenings ───────────────────────────────────────── */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <View>
-              <Text style={[styles.sectionTitle, { marginBottom: 2 }]}>What&apos;s Happening Now</Text>
-              <Text style={styles.sectionSub}>Spontaneous, time-limited posts</Text>
-            </View>
-            {canParticipateInHappenings && (
-              <TouchableOpacity
-                onPress={() => setShowPostModal(true)}
-                style={styles.postHappeningBtn}
-              >
-                <Ionicons name="add" size={14} color="#fff" />
-                <Text style={styles.postHappeningBtnText}>Post</Text>
+        {moderatorControlsVisible && (
+          <View style={styles.section}>
+            <View style={[styles.accordionCard, styles.moderatorAccordionCard]}>
+              <TouchableOpacity style={styles.accordionHeader} activeOpacity={0.86} onPress={() => setShowModeratorAccordion((prev) => !prev)}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.sectionEyebrow, { color: '#b45309' }]}>Moderator only</Text>
+                  <Text style={styles.accordionTitle}>Moderator center</Text>
+                  <Text style={styles.accordionHint}>Member management, admin roles, and reports stay here instead of crowding the public view.</Text>
+                </View>
+                <View style={styles.accordionMeta}>
+                  <Text style={styles.accordionBadge}>{reports.length}</Text>
+                  <Ionicons name={showModeratorAccordion ? 'chevron-up' : 'chevron-down'} size={18} color={Colors.gray[500]} />
+                </View>
               </TouchableOpacity>
-            )}
-          </View>
 
-          {happeningsLoading ? (
-            <View style={styles.centerSmall}><Spinner /></View>
-          ) : happenings.length === 0 ? (
-            <View style={styles.happeningsEmpty}>
-              <Ionicons name="radio-outline" size={28} color={Colors.brand[300]} />
-              <Text style={styles.happeningsEmptyText}>Nothing happening right now</Text>
-              <Text style={styles.happeningsEmptyHint}>
-                {canParticipateInHappenings
-                  ? 'Open invites, questions, alerts — post something!'
-                  : 'Join to post open invites, questions, and alerts'}
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.happeningsList}>
-              {happenings.map((h, i) => {
-                const ttlMs = new Date(h.expires_at).getTime() - Date.now()
-                const ttlH = Math.floor(ttlMs / 3_600_000)
-                const ttlM = Math.floor((ttlMs % 3_600_000) / 60_000)
-                const ttl = ttlMs <= 0 ? 'Expired' : ttlH > 0 ? `${ttlH}h ${ttlM}m left` : `${ttlM}m left`
-                const TYPE_EMOJI: Record<HappeningType, string> = { open_invite: '🙋', info: 'ℹ️', question: '❓', alert: '🚨' }
-                const TYPE_BG: Record<HappeningType, string> = { open_invite: Colors.brand[50], info: '#f0f9ff', question: '#f5f3ff', alert: '#fff1f2' }
-                const isLast = i === happenings.length - 1
-
-                return (
-                  <View key={h.id} style={[styles.happeningCard, !isLast && styles.happeningCardBorder, { backgroundColor: TYPE_BG[h.type] }]}>
-                    <View style={styles.happeningHeader}>
-                      <View style={styles.happeningAuthorRow}>
-                        <View style={styles.avatar}>
-                          {h.author.avatar_url
-                            ? <Image source={{ uri: h.author.avatar_url }} style={styles.avatarImg} />
-                            : <Text style={styles.avatarInitial}>{h.author.display_name.slice(0, 1).toUpperCase()}</Text>
-                          }
-                        </View>
-                        <View>
-                          <Text style={styles.happeningAuthor}>{h.author.display_name}</Text>
-                          <Text style={styles.happeningTtl}>{ttl}</Text>
-                        </View>
-                      </View>
-                      <View style={styles.happeningTypeBadge}>
-                        <Text style={styles.happeningTypeText}>{TYPE_EMOJI[h.type]}</Text>
+              {showModeratorAccordion && (
+                <View style={styles.accordionBody}>
+                  <View style={styles.sectionCard}>
+                    <View style={styles.sectionHeader}>
+                      <View>
+                        <Text style={styles.sectionTitle}>Member management</Text>
+                        <Text style={styles.sectionSubInline}>{community.member_count.toLocaleString()} members</Text>
                       </View>
                     </View>
-                    <Text style={styles.happeningBody}>{h.body}</Text>
-                    {h.lat && h.lng && (
-                      <TouchableOpacity
-                        onPress={() => Linking.openURL(`https://maps.google.com/?q=${h.lat},${h.lng}`)}
-                        style={styles.happeningLocBtn}
-                      >
-                        <Ionicons name="location-outline" size={12} color={Colors.brand[600]} />
-                        <Text style={styles.happeningLocText}>{h.location_label?.trim() || 'View on map'}</Text>
-                      </TouchableOpacity>
-                    )}
-                    {user && ttlMs > 0 && (
-                      <View style={styles.happeningActions}>
-                        <TouchableOpacity
-                          onPress={() => toggleHappeningRsvp(h)}
-                          style={[styles.happeningActionBtn, h.user_has_rsvp && styles.happeningActionBtnActive]}
-                        >
-                          <Text style={[styles.happeningActionText, h.user_has_rsvp && styles.happeningActionTextActive]}>
-                            🙋 {h.user_has_rsvp ? "I'm in" : 'Join'} · {h.rsvp_count}
-                          </Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          onPress={() => toggleHappeningReact(h)}
-                          style={[styles.happeningActionBtn, h.user_has_reacted && styles.happeningReactActive]}
-                        >
-                          <Text style={[styles.happeningActionText, h.user_has_reacted && styles.happeningReactTextActive]}>
-                            👍 {h.reaction_count}
-                          </Text>
-                        </TouchableOpacity>
-                        {h.author_id !== user?.id && (
-                          <TouchableOpacity
-                            onPress={() => reportHappening(h.id)}
-                            style={styles.happeningReportBtn}
-                          >
-                            <Ionicons name="flag-outline" size={14} color={Colors.gray[400]} />
-                          </TouchableOpacity>
-                        )}
-                      </View>
-                    )}
-                  </View>
-                )
-              })}
-            </View>
-          )}
-        </View>
-
-        {/* ── Events ───────────────────────────────────────────── */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Upcoming Events</Text>
-            <TouchableOpacity onPress={() => router.push({ pathname: '/(tabs)/home', params: { community: slug } } as any)}>
-              <Text style={styles.sectionLink}>View all →</Text>
-            </TouchableOpacity>
-          </View>
-
-          {eventsLoading && events.length === 0
-            ? <View style={styles.centerSmall}><Spinner /></View>
-            : events.length === 0
-              ? <EmptyState icon="📅" title="No upcoming events" description="Check back soon" />
-              : (
-                <>
-                  {events.map((ev) => {
-                    const title = isRTL && ev.title_ar ? ev.title_ar : ev.title
-                    return (
-                      <TouchableOpacity
-                        key={ev.id}
-                        style={styles.eventCard}
-                        onPress={() => router.push(`/events/${ev.id}` as any)}
-                        activeOpacity={0.85}
-                      >
-                        {ev.cover_image_url
-                          ? <Image source={{ uri: ev.cover_image_url }} style={styles.eventThumb} />
-                          : (
-                            <View style={[styles.eventThumb, styles.eventThumbEmpty]}>
-                              <Ionicons name="calendar-outline" size={22} color={Colors.brand[300]} />
+                    {community.recent_members.length === 0
+                      ? <EmptyState icon="👥" title="No members yet" description="Be the first to join" />
+                      : (
+                        <View style={styles.membersList}>
+                          {community.recent_members.map((m, i) => (
+                            <View key={m.id} style={[styles.memberRow, i < community.recent_members.length - 1 && styles.memberRowBorder]}>
+                              <View style={styles.avatar}>
+                                {m.avatar_url
+                                  ? <Image source={{ uri: m.avatar_url }} style={styles.avatarImg} />
+                                  : <Text style={styles.avatarInitial}>{m.display_name.slice(0, 1).toUpperCase()}</Text>
+                                }
+                              </View>
+                              <View style={styles.memberInfo}>
+                                <Text style={styles.memberName}>{m.display_name}</Text>
+                                <Text style={styles.memberMeta}>Joined {formatDate(m.joined_at)}</Text>
+                                {admins.some((entry) => entry.user_id === m.id && entry.role === 'community_admin') && (
+                                  <Text style={styles.memberAdminMeta}>Community admin</Text>
+                                )}
+                                {community.owner_user_id === m.id && (
+                                  <Text style={styles.memberOwnerMeta}>Owner</Text>
+                                )}
+                              </View>
+                              <View style={styles.memberActions}>
+                                {isCommunityOwner &&
+                                  community.owner_user_id !== m.id &&
+                                  !admins.some((entry) => entry.user_id === m.id && entry.role === 'owner') && (
+                                    <TouchableOpacity
+                                      onPress={() => openAdminRoleMenu(m)}
+                                      disabled={memberActionLoading === `assign-${m.id}` || memberActionLoading === `revoke-${m.id}`}
+                                      style={styles.memberActionChip}
+                                    >
+                                      <Text style={styles.memberActionText}>
+                                        {admins.some((entry) => entry.user_id === m.id && entry.role === 'community_admin') ? 'Admin role' : 'Make admin'}
+                                      </Text>
+                                    </TouchableOpacity>
+                                  )}
+                                {community.owner_user_id !== m.id &&
+                                  !admins.some((entry) => entry.user_id === m.id && entry.role === 'owner') &&
+                                  m.id !== user?.id &&
+                                  (isCommunityOwner || !admins.some((entry) => entry.user_id === m.id && entry.role === 'community_admin')) && (
+                                    <TouchableOpacity
+                                      onPress={() => openMemberModerationMenu(m)}
+                                      disabled={
+                                        memberActionLoading === `warn-${m.id}` ||
+                                        memberActionLoading === `timeout-${m.id}` ||
+                                        memberActionLoading === `removed-${m.id}` ||
+                                        memberActionLoading === `banned-${m.id}`
+                                      }
+                                      style={[styles.memberActionChip, styles.memberActionChipDanger]}
+                                    >
+                                      <Text style={[styles.memberActionText, styles.memberActionTextDanger]}>Moderate</Text>
+                                    </TouchableOpacity>
+                                  )}
+                              </View>
                             </View>
-                          )
-                        }
-                        <View style={styles.eventDetails}>
-                          <Text style={styles.eventTitle} numberOfLines={1}>{title}</Text>
-                          <Text style={styles.eventMeta}>
-                            <Ionicons name="time-outline" size={11} color={Colors.gray[400]} /> {formatDate(ev.start_at)}
-                          </Text>
-                          <Text style={styles.eventMeta}>📍 {ev.city}</Text>
+                          ))}
                         </View>
-                        <View style={[styles.priceBadge, ev.is_free && styles.priceBadgeFree]}>
-                          <Text style={[styles.priceText, ev.is_free && styles.priceTextFree]}>
-                            {ev.is_free ? 'Free' : `${ev.price} ${ev.currency}`}
-                          </Text>
-                        </View>
-                      </TouchableOpacity>
-                    )
-                  })}
-                  {nextCursor && (
-                    <TouchableOpacity style={styles.loadMoreBtn} onPress={() => loadEvents(nextCursor)} disabled={eventsLoading}>
-                      {eventsLoading
-                        ? <ActivityIndicator size="small" color={Colors.brand[500]} />
-                        : <Text style={styles.loadMoreText}>Load more events</Text>
-                      }
-                    </TouchableOpacity>
+                      )
+                    }
+                  </View>
+
+                  {isCommunityOwner && (
+                    <View style={[styles.sectionCard, styles.adminPanel]}>
+                      <View style={styles.sectionHeader}>
+                        <Text style={styles.sectionTitle}>Community Admins</Text>
+                        <Text style={styles.sectionSubInline}>{admins.length} roles</Text>
+                      </View>
+                      {adminsLoading ? (
+                        <View style={styles.centerSmall}><Spinner /></View>
+                      ) : admins.length === 0 ? (
+                        <Text style={styles.emptyPanelText}>No community admins assigned yet.</Text>
+                      ) : (
+                        admins.map((entry, index) => (
+                          <View key={entry.user_id} style={[styles.simplePanelRow, index < admins.length - 1 && styles.simplePanelRowBorder]}>
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.simplePanelTitle}>{entry.profile?.display_name ?? entry.user_id}</Text>
+                              <Text style={styles.simplePanelMeta}>{entry.role} - joined {formatDate(entry.joined_at)}</Text>
+                            </View>
+                            {entry.role === 'community_admin' && (
+                              <TouchableOpacity
+                                onPress={() => revokeCommunityAdmin(entry.user_id)}
+                                disabled={memberActionLoading === `revoke-${entry.user_id}`}
+                                style={styles.memberActionChip}
+                              >
+                                <Text style={styles.memberActionText}>Revoke</Text>
+                              </TouchableOpacity>
+                            )}
+                          </View>
+                        ))
+                      )}
+                    </View>
                   )}
-                </>
-              )
-          }
-        </View>
+
+                  {canModerate && (
+                    <View style={[styles.sectionCard, styles.reportsPanel]}>
+                      <View style={styles.sectionHeader}>
+                        <Text style={styles.sectionTitle}>Happening Reports</Text>
+                        <TouchableOpacity onPress={() => { void loadReports() }} disabled={reportsLoading}>
+                          <Text style={styles.sectionLink}>Refresh</Text>
+                        </TouchableOpacity>
+                      </View>
+                      {reportsLoading ? (
+                        <View style={styles.centerSmall}><Spinner /></View>
+                      ) : reports.length === 0 ? (
+                        <Text style={styles.emptyPanelText}>No pending happening reports.</Text>
+                      ) : (
+                        reports.map((reportItem, index) => (
+                          <View key={`${reportItem.happening_id}:${reportItem.reporter_id}`} style={[styles.simplePanelRow, index < reports.length - 1 && styles.simplePanelRowBorder]}>
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.simplePanelTitle}>{reportItem.reason}</Text>
+                              <Text style={styles.simplePanelMeta}>Reporter: {reportItem.reporter?.display_name ?? reportItem.reporter_id}</Text>
+                              {reportItem.happening && (
+                                <Text style={styles.simplePanelMeta} numberOfLines={2}>{reportItem.happening.body}</Text>
+                              )}
+                            </View>
+                            <View style={styles.memberActions}>
+                              <TouchableOpacity
+                                onPress={() => updateReport(reportItem, 'resolved')}
+                                disabled={reportActionLoading === `${reportItem.happening_id}:${reportItem.reporter_id}:resolved`}
+                                style={styles.memberActionChip}
+                              >
+                                <Text style={styles.memberActionText}>Resolve</Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                onPress={() => updateReport(reportItem, 'dismissed')}
+                                disabled={reportActionLoading === `${reportItem.happening_id}:${reportItem.reporter_id}:dismissed`}
+                                style={[styles.memberActionChip, styles.memberActionChipDanger]}
+                              >
+                                <Text style={[styles.memberActionText, styles.memberActionTextDanger]}>Dismiss</Text>
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+                        ))
+                      )}
+                    </View>
+                  )}
+                </View>
+              )}
+            </View>
+          </View>
+        )}
+
       </ScrollView>
 
       {/* ── Post Happening Modal ──────────────────────────────── */}
@@ -1463,9 +1528,129 @@ const styles = StyleSheet.create({
 
   // Sections
   section: { paddingHorizontal: Spacing.lg, marginBottom: Spacing['2xl'] },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.md },
+  sectionHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: Spacing.md, gap: Spacing.md },
   sectionTitle: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.gray[900], marginBottom: Spacing.md },
   sectionLink: { fontSize: FontSize.sm, color: Colors.brand[600], fontWeight: FontWeight.medium },
+  sectionEyebrow: {
+    fontSize: 11,
+    fontWeight: FontWeight.bold,
+    color: Colors.brand[600],
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: 6,
+  },
+  summaryCard: {
+    borderRadius: Radius.xl + 4,
+    borderWidth: 1,
+    borderColor: '#eadfd4',
+    backgroundColor: '#f7f0e8',
+    padding: Spacing.xl,
+    gap: Spacing.md,
+    ...Shadow.card,
+  },
+  summaryHeadline: {
+    fontSize: FontSize.xl,
+    fontWeight: FontWeight.bold,
+    color: Colors.gray[900],
+    lineHeight: 30,
+    maxWidth: 300,
+  },
+  summaryBody: {
+    fontSize: FontSize.sm,
+    color: Colors.gray[600],
+    lineHeight: 22,
+    maxWidth: 320,
+  },
+  summaryMetricsRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    flexWrap: 'wrap',
+  },
+  summaryMetricCard: {
+    minWidth: 92,
+    flexGrow: 1,
+    borderRadius: Radius.xl,
+    backgroundColor: 'rgba(255,255,255,0.72)',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    borderWidth: 1,
+    borderColor: '#efe7df',
+  },
+  summaryMetricValue: {
+    fontSize: FontSize.lg,
+    fontWeight: FontWeight.bold,
+    color: Colors.gray[900],
+  },
+  summaryMetricLabel: {
+    fontSize: FontSize.xs,
+    color: Colors.gray[500],
+    marginTop: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  sectionCard: {
+    borderRadius: Radius.xl + 2,
+    borderWidth: 1,
+    borderColor: '#ede5db',
+    backgroundColor: '#faf7f2',
+    padding: Spacing.lg,
+    ...Shadow.card,
+  },
+  happeningsSectionCard: {
+    backgroundColor: '#f6f2eb',
+  },
+  accordionCard: {
+    borderRadius: Radius.xl + 2,
+    borderWidth: 1,
+    borderColor: '#e8dfd5',
+    backgroundColor: '#f8f4ee',
+    overflow: 'hidden',
+    ...Shadow.card,
+  },
+  accordionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.lg,
+  },
+  accordionTitle: {
+    fontSize: FontSize.lg,
+    fontWeight: FontWeight.bold,
+    color: Colors.gray[900],
+  },
+  accordionHint: {
+    fontSize: FontSize.xs,
+    color: Colors.gray[500],
+    lineHeight: 18,
+    marginTop: 4,
+    maxWidth: 290,
+  },
+  accordionMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  accordionBadge: {
+    minWidth: 30,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 6,
+    borderRadius: Radius.full,
+    backgroundColor: '#efe5d8',
+    color: Colors.gray[700],
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.bold,
+    textAlign: 'center' as const,
+  },
+  accordionBody: {
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.lg,
+    gap: Spacing.md,
+  },
+  moderatorAccordionCard: {
+    backgroundColor: '#fff8ee',
+    borderColor: '#f3d7b2',
+  },
   childrenList: { backgroundColor: '#fff', borderRadius: Radius.xl, overflow: 'hidden', borderWidth: 1, borderColor: '#edeae4', ...Shadow.card },
   childCard: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md },
   childCardBorder: { borderBottomWidth: 1, borderBottomColor: Colors.gray[100] },
@@ -1618,5 +1803,3 @@ const styles = StyleSheet.create({
   historyBody: { fontSize: FontSize.sm, color: Colors.gray[800], marginTop: 4 },
   historyMeta: { fontSize: FontSize.xs, color: Colors.gray[500], marginTop: 6 },
 }) 
-
-

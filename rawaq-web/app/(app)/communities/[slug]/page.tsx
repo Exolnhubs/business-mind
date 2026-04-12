@@ -611,462 +611,699 @@ export default function CommunityDetailPage() {
   if (!community) return null
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
-      {/* Hero */}
-      <div className="rounded-2xl overflow-hidden border border-gray-100 shadow-sm mb-8">
-        {community.cover_url ? (
-          <img src={community.cover_url} alt="" className="w-full h-48 object-cover" />
-        ) : (
-          <div className="w-full h-48 bg-gradient-to-br from-brand-50 to-brand-100 flex items-center justify-center text-6xl">
-            {LEVEL_ICONS[community.level]}
-          </div>
-        )}
-        <div className="p-6">
-          {/* Breadcrumb ancestors */}
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+
+      {/* ──────── HERO ──────── */}
+      <section className="mb-8">
+        {/* Cover image */}
+        <div className="relative h-52 sm:h-64 overflow-hidden rounded-t-2xl">
+          {community.cover_url ? (
+            <img src={community.cover_url} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <div
+              className="w-full h-full flex items-center justify-center text-7xl"
+              style={{ background: 'oklch(0.16 0.03 68)' }}
+            >
+              {LEVEL_ICONS[community.level]}
+            </div>
+          )}
+        </div>
+
+        {/* Dark ink info panel */}
+        <div className="rounded-b-2xl px-6 pt-5 pb-6" style={{ background: 'var(--c-ink)' }}>
+          {/* Breadcrumbs */}
           {community.ancestors.length > 0 && (
-            <div className="flex items-center gap-1 text-xs text-gray-400 mb-2 flex-wrap">
+            <div className="flex items-center gap-1 text-xs mb-3 flex-wrap" style={{ color: 'oklch(1 0 0 / 0.4)' }}>
               {community.ancestors.map((a, i) => (
                 <span key={a.id} className="flex items-center gap-1">
-                  {i > 0 && <span></span>}
-                  <Link href={`/communities/${a.slug}`} className="hover:text-brand-600 transition-colors">
+                  {i > 0 && <span className="opacity-40">›</span>}
+                  <Link href={`/communities/${a.slug}`} className="hover:text-white transition-colors">
                     {LEVEL_ICONS[a.level]} {a.name}
                   </Link>
                 </span>
               ))}
-              <span></span>
-              <span className="text-gray-600">{community.name}</span>
-            </div>
-          )}
-          {directParent && (
-            <div className="mb-4 rounded-2xl border border-violet-100 bg-violet-50 px-4 py-3">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-violet-700">Nested under</p>
-              <div className="mt-2 flex items-center justify-between gap-3">
-                <div>
-                  <Link href={`/communities/${directParent.slug}`} className="text-sm font-semibold text-violet-900 hover:text-violet-700">
-                    {LEVEL_ICONS[directParent.level]} {directParent.name}
-                  </Link>
-                  <p className="mt-1 text-xs text-violet-700">
-                    This community is part of a larger circle. Members often branch here for a more focused experience.
-                  </p>
-                </div>
-                {canCreateSibling && (
-                  <Link
-                    href={`/communities/new?parent=${directParent.slug}`}
-                    className="rounded-full border border-violet-200 bg-white px-3 py-1.5 text-xs font-semibold text-violet-700 hover:bg-violet-100"
-                  >
-                    Create sibling
-                  </Link>
-                )}
-              </div>
+              <span className="opacity-40">›</span>
+              <span style={{ color: 'oklch(1 0 0 / 0.65)' }}>{community.name}</span>
             </div>
           )}
 
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <h1 className="text-2xl font-bold text-gray-900">{community.name}</h1>
+          <div className="flex flex-col sm:flex-row sm:items-start gap-5">
+            <div className="min-w-0 flex-1">
+              {/* Nested under */}
+              {directParent && (
+                <div className="mb-3 flex items-center justify-between gap-3 rounded-xl px-4 py-2.5"
+                  style={{ background: 'oklch(1 0 0 / 0.06)' }}>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-bold uppercase tracking-widest mb-1"
+                      style={{ color: 'oklch(1 0 0 / 0.35)' }}>Nested under</p>
+                    <Link href={`/communities/${directParent.slug}`}
+                      className="text-sm font-semibold hover:opacity-80 transition-opacity"
+                      style={{ color: 'var(--c-gold)' }}>
+                      {LEVEL_ICONS[directParent.level]} {directParent.name}
+                    </Link>
+                  </div>
+                  {canCreateSibling && (
+                    <Link href={`/communities/new?parent=${directParent.slug}`}
+                      className="shrink-0 rounded-full px-3 py-1 text-xs font-semibold"
+                      style={{ background: 'oklch(1 0 0 / 0.1)', color: 'oklch(1 0 0 / 0.65)' }}>
+                      Create sibling
+                    </Link>
+                  )}
+                </div>
+              )}
+
+              {/* Name */}
+              <div className="flex items-center gap-2.5 mb-1">
+                <h1 className="text-3xl sm:text-4xl font-bold tracking-tight leading-none text-white"
+                  style={{ fontFamily: 'var(--font-display)' }}>
+                  {community.name}
+                </h1>
                 {community.is_verified && (
-                  <span className="text-brand-500 text-lg" title="Verified">✓</span>
+                  <span className="text-xl" style={{ color: 'var(--c-gold)' }} title="Verified">✓</span>
                 )}
               </div>
               {community.name_ar && (
-                <p className="text-gray-500 text-sm" dir="rtl">{community.name_ar}</p>
+                <p className="text-sm mt-1" dir="rtl" style={{ color: 'oklch(1 0 0 / 0.5)' }}>
+                  {community.name_ar}
+                </p>
               )}
-              <div className="flex items-center gap-3 mt-2 text-sm text-gray-500">
-                <span>{LEVEL_ICONS[community.level]} {community.level}</span>
-                {community.city && <span>📍 {community.city}</span>}
-                <span>👥 {community.member_count.toLocaleString()} members</span>
-                <span>📅 {community.event_count} events</span>
-              </div>
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <span
-                  className={`rounded-full border px-3 py-1 text-xs font-semibold ${
-                    community.is_member
-                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                      : 'border-gray-200 bg-gray-50 text-gray-600'
-                  }`}
-                >
-                  {community.is_member ? 'You joined this community' : 'Not joined yet'}
+
+              {/* Stats */}
+              <div className="flex flex-wrap items-center gap-3 mt-3 text-sm">
+                <span style={{ color: 'oklch(1 0 0 / 0.5)' }}>{LEVEL_ICONS[community.level]} {community.level}</span>
+                {community.city && (
+                  <span style={{ color: 'oklch(1 0 0 / 0.5)' }}>📍 {community.city}</span>
+                )}
+                <span className="font-semibold tabular-nums" style={{ color: 'var(--c-gold)' }}>
+                  {community.member_count.toLocaleString()} members
                 </span>
+                <span style={{ color: 'oklch(1 0 0 / 0.5)' }}>{community.event_count} events</span>
+              </div>
+
+              {/* Role badges */}
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                {community.is_member && (
+                  <span className="rounded-full px-2.5 py-0.5 text-[11px] font-bold"
+                    style={{ background: 'oklch(0.78 0.18 72 / 0.18)', color: 'var(--c-gold)' }}>
+                    Member
+                  </span>
+                )}
                 {community.member_role && (
-                  <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
-                    Role: {community.member_role}
+                  <span className="rounded-full px-2.5 py-0.5 text-[11px] font-bold"
+                    style={{ background: 'oklch(0.78 0.18 72 / 0.15)', color: 'var(--c-gold)' }}>
+                    {community.member_role}
                   </span>
                 )}
                 {community.approval_status !== 'approved' && (
-                  <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">
-                    {community.approval_status === 'pending' ? 'Pending admin approval' : 'Dismissed by admin'}
+                  <span className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold"
+                    style={{ background: 'oklch(0.7 0.15 220 / 0.15)', color: 'oklch(0.75 0.1 220)' }}>
+                    {community.approval_status === 'pending' ? 'Pending approval' : 'Dismissed'}
                   </span>
                 )}
                 {isPlatformAdmin && (
-                  <button
-                    onClick={toggleVerification}
-                    disabled={verifying}
-                    className={`rounded-full border px-3 py-1 text-xs font-semibold ${
-                      community.is_verified
-                        ? 'border-brand-200 bg-brand-50 text-brand-700'
-                        : 'border-slate-200 bg-slate-50 text-slate-700'
-                    }`}
-                  >
+                  <button onClick={toggleVerification} disabled={verifying}
+                    className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition-opacity hover:opacity-80 cursor-pointer"
+                    style={{
+                      background: community.is_verified ? 'oklch(0.78 0.18 72 / 0.2)' : 'oklch(1 0 0 / 0.08)',
+                      color: community.is_verified ? 'var(--c-gold)' : 'oklch(1 0 0 / 0.6)',
+                    }}>
                     {verifying ? '...' : community.is_verified ? 'Verified · Unverify' : 'Verify community'}
                   </button>
                 )}
               </div>
+
+              {/* Description */}
+              {community.description && (
+                <p className="mt-4 text-sm leading-relaxed max-w-prose"
+                  style={{ color: 'oklch(1 0 0 / 0.6)' }}>
+                  {community.description}
+                </p>
+              )}
+
+              {/* City members preview */}
+              {!community.is_member && community.viewer_city && community.city_members_preview.length > 0 && (
+                <div className="mt-4 rounded-xl px-4 py-3" style={{ background: 'oklch(1 0 0 / 0.06)' }}>
+                  <p className="text-sm font-semibold text-white mb-2">
+                    People from {community.viewer_city} are already here
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {community.city_members_preview.map((m) => (
+                      <span key={m.id} className="rounded-full px-2.5 py-1 text-xs font-medium"
+                        style={{ background: 'oklch(1 0 0 / 0.1)', color: 'oklch(1 0 0 / 0.75)' }}>
+                        {m.display_name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
-            <div className="flex shrink-0 flex-col gap-2 sm:min-w-[220px]">
+            {/* CTA buttons */}
+            <div className="flex sm:flex-col gap-2 sm:min-w-[170px]">
               <button
                 onClick={toggleMembership}
                 disabled={joining}
-                className={`px-5 py-2.5 rounded-xl font-semibold transition-colors ${
-                  community.is_member
-                    ? 'border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                    : 'bg-brand-600 text-white hover:bg-brand-700'
-                }`}
+                className="flex-1 sm:flex-none rounded-xl px-5 py-2.5 text-sm font-semibold transition-all cursor-pointer"
+                style={community.is_member ? {
+                  background: 'oklch(1 0 0 / 0.08)',
+                  color: 'oklch(1 0 0 / 0.7)',
+                } : {
+                  background: 'var(--c-gold)',
+                  color: 'var(--c-ink)',
+                }}
               >
-                {joining ? <Spinner size="sm" /> : community.is_member ? 'Joined · Leave community' : 'Join community'}
+                {joining ? <Spinner size="sm" /> : community.is_member ? 'Joined · Leave' : 'Join community'}
               </button>
               <button
                 onClick={toggleFollow}
                 disabled={following}
-                className={`px-5 py-2.5 rounded-xl border font-semibold transition-colors ${
-                  community.is_following
-                    ? 'border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100'
-                    : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
-                }`}
+                className="flex-1 sm:flex-none rounded-xl border px-5 py-2.5 text-sm font-semibold transition-all cursor-pointer"
+                style={community.is_following ? {
+                  borderColor: 'oklch(0.65 0.15 220 / 0.4)',
+                  background: 'oklch(0.65 0.15 220 / 0.1)',
+                  color: 'oklch(0.78 0.1 220)',
+                } : {
+                  borderColor: 'oklch(1 0 0 / 0.18)',
+                  background: 'transparent',
+                  color: 'oklch(1 0 0 / 0.65)',
+                }}
               >
                 {following ? <Spinner size="sm" /> : community.is_following ? 'Following' : 'Follow updates'}
               </button>
             </div>
           </div>
-
-          {community.description && (
-            <p className="mt-4 text-gray-600 text-sm leading-relaxed">{community.description}</p>
-          )}
-
-          {!community.is_member && community.viewer_city && community.city_members_preview.length > 0 && (
-            <div className="mt-4 rounded-2xl border border-sky-100 bg-sky-50/70 px-4 py-3">
-              <p className="text-sm font-semibold text-gray-900">
-                People from {community.viewer_city} are already here
-              </p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {community.city_members_preview.map((member) => (
-                  <span
-                    key={member.id}
-                    className="rounded-full border border-sky-200 bg-white px-3 py-1 text-xs font-medium text-sky-700"
-                  >
-                    {member.display_name}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
-      </div>
+      </section>
 
-      {isCommunityOwner && (
-        <div className="mb-8 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-center justify-between gap-4">
-            <div>
-              <h2 className="text-lg font-bold text-gray-900">Community Settings</h2>
-              <p className="mt-1 text-xs text-gray-500">Edit the public details and access mode for this community.</p>
-            </div>
-            <button
-              onClick={saveCommunitySettings}
-              disabled={savingSettings || !settingsForm.name.trim()}
-              className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:opacity-50"
-            >
-              {savingSettings ? 'Saving...' : 'Save changes'}
-            </button>
-          </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="block">
-              <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">Name</span>
-              <input value={settingsForm.name} onChange={(e) => setSettingsForm((prev) => ({ ...prev, name: e.target.value }))} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900" />
-            </label>
-            <label className="block">
-              <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">Arabic name</span>
-              <input value={settingsForm.name_ar} dir="rtl" onChange={(e) => setSettingsForm((prev) => ({ ...prev, name_ar: e.target.value }))} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900" />
-            </label>
-            <label className="block">
-              <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">City</span>
-              <input value={settingsForm.city} onChange={(e) => setSettingsForm((prev) => ({ ...prev, city: e.target.value }))} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900" />
-            </label>
-            <label className="block">
-              <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">Cover image URL</span>
-              <input value={settingsForm.cover_url} onChange={(e) => setSettingsForm((prev) => ({ ...prev, cover_url: e.target.value }))} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900" />
-            </label>
-            <label className="block md:col-span-2">
-              <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">Description</span>
-              <textarea value={settingsForm.description} rows={4} onChange={(e) => setSettingsForm((prev) => ({ ...prev, description: e.target.value }))} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900" />
-            </label>
-            <label className="block md:col-span-2">
-              <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">Arabic description</span>
-              <textarea value={settingsForm.description_ar} rows={4} dir="rtl" onChange={(e) => setSettingsForm((prev) => ({ ...prev, description_ar: e.target.value }))} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900" />
-            </label>
-            <label className="md:col-span-2 flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
-              <input type="checkbox" checked={settingsForm.is_private} onChange={(e) => setSettingsForm((prev) => ({ ...prev, is_private: e.target.checked }))} />
-              <span className="text-sm text-gray-700">Make this community private</span>
-            </label>
-          </div>
-        </div>
-      )}
+      {/* ──────── MAIN: content + sidebar ──────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_288px] gap-6 items-start">
 
-      <div className="grid gap-6 md:grid-cols-2 mb-8">
-        <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-lg font-bold text-gray-900">Members</h2>
-              <span className="text-sm text-gray-500">{community.member_count.toLocaleString()} total</span>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                onClick={exportMembersCsv}
-                className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700"
-              >
-                Export CSV
-              </button>
-              {isCommunityOwner && community.timed_out_members.length > 0 && (
-                <button
-                  onClick={removeAllTimedOutMembers}
-                  disabled={memberActionLoading === 'bulk-remove-timed-out'}
-                  className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700"
-                >
-                  {memberActionLoading === 'bulk-remove-timed-out' ? 'Removing...' : 'Remove timed-out members'}
-                </button>
-              )}
-            </div>
-          </div>
-          {community.recent_members.length === 0 ? (
-            <p className="text-sm text-gray-500">No members yet.</p>
-          ) : (
-            <div className="space-y-3">
-              {community.recent_members.map((member) => (
-                <div key={member.id} className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-brand-100 text-sm font-semibold text-brand-700">
-                    {member.avatar_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={member.avatar_url} alt="" className="h-full w-full object-cover" />
-                    ) : (
-                      member.display_name.slice(0, 1).toUpperCase()
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">{member.display_name}</p>
-                    <p className="text-xs text-gray-500">Joined {formatDate(member.joined_at)}</p>
-                    {admins.some((entry) => entry.user_id === member.id && entry.role === 'community_admin') && (
-                      <p className="text-[11px] font-semibold text-brand-600 mt-1">Community admin</p>
-                    )}
-                    {community.owner_user_id === member.id && (
-                      <p className="text-[11px] font-semibold text-amber-600 mt-1">Owner</p>
-                    )}
-                  </div>
-                  {canModerate && (
-                    <div className="ml-auto flex flex-wrap gap-2">
-                      {isCommunityOwner &&
-                        community.owner_user_id !== member.id &&
-                        !admins.some((entry) => entry.user_id === member.id && entry.role === 'owner') && (
-                        admins.some((entry) => entry.user_id === member.id && entry.role === 'community_admin') ? (
-                          <button
-                            onClick={() => revokeCommunityAdmin(member.id)}
-                            disabled={memberActionLoading === `revoke-${member.id}`}
-                            className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700"
-                          >
-                            Revoke admin
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => assignCommunityAdmin(member.id)}
-                            disabled={memberActionLoading === `assign-${member.id}`}
-                            className="rounded-lg border border-brand-200 bg-brand-50 px-2.5 py-1 text-[11px] font-semibold text-brand-700"
-                          >
-                            Make admin
-                          </button>
-                        )
-                      )}
-                      {community.owner_user_id !== member.id &&
-                        !admins.some((entry) => entry.user_id === member.id && entry.role === 'owner') &&
-                        member.id !== user?.id &&
-                        (isCommunityOwner || !admins.some((entry) => entry.user_id === member.id && entry.role === 'community_admin')) && (
-                        <>
-                          <button
-                            onClick={() => issueWarning(member.id)}
-                            disabled={memberActionLoading === `warn-${member.id}`}
-                            className="rounded-lg border border-yellow-200 bg-yellow-50 px-2.5 py-1 text-[11px] font-semibold text-yellow-700"
-                          >
-                            Warn
-                          </button>
-                          <button
-                            onClick={() => loadMemberHistory(member)}
-                            disabled={historyLoading && selectedMemberHistory?.member.id === member.id}
-                            className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-700"
-                          >
-                            History
-                          </button>
-                          <button
-                            onClick={() => issueSanction(member.id, 'timeout')}
-                            disabled={memberActionLoading === `timeout-${member.id}`}
-                            className="rounded-lg border border-orange-200 bg-orange-50 px-2.5 py-1 text-[11px] font-semibold text-orange-700"
-                          >
-                            Timeout
-                          </button>
-                          <button
-                            onClick={() => issueSanction(member.id, 'removed')}
-                            disabled={memberActionLoading === `removed-${member.id}`}
-                            className="rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1 text-[11px] font-semibold text-gray-700"
-                          >
-                            Remove
-                          </button>
-                          <button
-                            onClick={() => issueSanction(member.id, 'banned')}
-                            disabled={memberActionLoading === `banned-${member.id}`}
-                            className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] font-semibold text-red-700"
-                          >
-                            Ban
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  )}
+        {/* ── LEFT: PRIMARY CONTENT ── */}
+        <div className="space-y-6 min-w-0">
+
+          {/* Settings (owner, collapsible) */}
+          {isCommunityOwner && (
+            <details className="group rounded-2xl border border-slate-100 bg-white shadow-sm">
+              <summary className="flex cursor-pointer select-none list-none items-center justify-between p-5">
+                <div>
+                  <p className="text-base font-semibold text-gray-900">Community Settings</p>
+                  <p className="mt-0.5 text-xs text-gray-400">Name, description, visibility</p>
                 </div>
-              ))}
-            </div>
+                <svg className="h-5 w-5 text-gray-400 transition-transform duration-200 group-open:rotate-180"
+                  fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </summary>
+              <div className="border-t border-gray-100 px-5 pb-5 pt-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="block">
+                    <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">Name</span>
+                    <input value={settingsForm.name} onChange={(e) => setSettingsForm((prev) => ({ ...prev, name: e.target.value }))} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900" />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">Arabic name</span>
+                    <input value={settingsForm.name_ar} dir="rtl" onChange={(e) => setSettingsForm((prev) => ({ ...prev, name_ar: e.target.value }))} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900" />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">City</span>
+                    <input value={settingsForm.city} onChange={(e) => setSettingsForm((prev) => ({ ...prev, city: e.target.value }))} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900" />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">Cover image URL</span>
+                    <input value={settingsForm.cover_url} onChange={(e) => setSettingsForm((prev) => ({ ...prev, cover_url: e.target.value }))} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900" />
+                  </label>
+                  <label className="block md:col-span-2">
+                    <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">Description</span>
+                    <textarea value={settingsForm.description} rows={4} onChange={(e) => setSettingsForm((prev) => ({ ...prev, description: e.target.value }))} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900" />
+                  </label>
+                  <label className="block md:col-span-2">
+                    <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">Arabic description</span>
+                    <textarea value={settingsForm.description_ar} rows={4} dir="rtl" onChange={(e) => setSettingsForm((prev) => ({ ...prev, description_ar: e.target.value }))} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900" />
+                  </label>
+                  <label className="md:col-span-2 flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+                    <input type="checkbox" checked={settingsForm.is_private} onChange={(e) => setSettingsForm((prev) => ({ ...prev, is_private: e.target.checked }))} />
+                    <span className="text-sm text-gray-700">Make this community private</span>
+                  </label>
+                </div>
+                <div className="mt-4 flex justify-end">
+                  <button onClick={saveCommunitySettings} disabled={savingSettings || !settingsForm.name.trim()}
+                    className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:opacity-50">
+                    {savingSettings ? 'Saving...' : 'Save changes'}
+                  </button>
+                </div>
+              </div>
+            </details>
           )}
-        </div>
 
-        {canModerate && (
-          <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-5 shadow-sm">
+          {/* ── HAPPENINGS (primary content) ── */}
+          <div>
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-lg font-bold text-gray-900">Moderation History</h2>
-                <p className="text-xs text-gray-500 mt-1">Warnings and sanctions for the selected member.</p>
+                <h2 className="text-xl font-bold text-gray-900" style={{ fontFamily: 'var(--font-display)' }}>
+                  What&apos;s Happening
+                </h2>
+                <p className="text-xs text-gray-400 mt-0.5">Spontaneous, time-limited posts from members</p>
               </div>
-              {selectedMemberHistory && (
-                <button
-                  onClick={() => setSelectedMemberHistory(null)}
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700"
-                >
-                  Clear
+              {canParticipateInHappenings && !showPostForm && (
+                <button onClick={() => setShowPostForm(true)}
+                  className="rounded-xl px-4 py-2 text-sm font-semibold transition-colors cursor-pointer"
+                  style={{ background: 'var(--c-gold)', color: 'var(--c-ink)' }}>
+                  + Post happening
                 </button>
               )}
             </div>
-            {historyLoading ? (
+
+            {showPostForm && (
+              <PostHappeningForm
+                posting={posting}
+                onPost={async (data) => {
+                  const ok = await post(data)
+                  if (ok) setShowPostForm(false)
+                  return ok
+                }}
+                onCancel={() => setShowPostForm(false)}
+              />
+            )}
+
+            {happeningsLoading ? (
               <div className="flex justify-center py-8"><Spinner size="lg" /></div>
-            ) : !selectedMemberHistory ? (
-              <p className="text-sm text-gray-500">Choose a member and tap History to inspect moderation records.</p>
+            ) : happenings.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 py-10 text-center">
+                <p className="text-2xl mb-2">📍</p>
+                <p className="text-sm font-medium text-gray-600">Nothing happening right now</p>
+                {canParticipateInHappenings && (
+                  <p className="text-xs text-gray-400 mt-1">Be the first — post a happening!</p>
+                )}
+              </div>
             ) : (
-              <div className="space-y-4">
-                <div>
-                  <p className="text-sm font-semibold text-gray-900">{selectedMemberHistory.member.display_name}</p>
-                  <p className="text-xs text-gray-500">Warnings: {selectedMemberHistory.warnings.length} · Sanctions: {selectedMemberHistory.sanctions.length}</p>
+              <div className="space-y-3">
+                {happenings.map((h) => (
+                  <HappeningCard
+                    key={h.id}
+                    happening={h}
+                    onRsvp={handleHappeningRsvp}
+                    onReact={handleHappeningReact}
+                    onDelete={remove}
+                    onReport={report}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* ── EVENTS ── */}
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-900" style={{ fontFamily: 'var(--font-display)' }}>
+                Upcoming Events
+              </h2>
+              <div className="flex items-center gap-3">
+                {user?.role === 'organizer' && (
+                  <Link href={`/organizer/events/new?community=${slug}`}
+                    className="text-xs font-semibold bg-brand-600 text-white px-3 py-1.5 rounded-full hover:bg-brand-700 transition-colors">
+                    + Create event
+                  </Link>
+                )}
+                <Link href={`/events?community=${slug}`} className="text-sm text-brand-600 hover:underline">
+                  View all
+                </Link>
+              </div>
+            </div>
+
+            {eventsLoading && events.length === 0 ? (
+              <div className="flex justify-center py-12"><Spinner size="lg" /></div>
+            ) : events.length === 0 ? (
+              <EmptyState icon="📅" title="No upcoming events" description="Be the first to create an event in this community" />
+            ) : (
+              <div className="space-y-3">
+                {events.map((ev) => (
+                  <Link key={ev.id} href={`/events/${ev.id}`}
+                    className="flex gap-4 p-4 bg-white rounded-xl border border-gray-100 hover:border-brand-200 hover:shadow-sm transition-all">
+                    {ev.cover_image_url ? (
+                      <img src={ev.cover_image_url} alt="" className="w-20 h-16 rounded-lg object-cover shrink-0" />
+                    ) : (
+                      <div className="w-20 h-16 rounded-lg bg-brand-50 flex items-center justify-center text-2xl shrink-0">📅</div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-gray-900 line-clamp-1">{ev.title}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{formatDate(ev.start_at)}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">📍 {ev.city}</p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <span className={`text-xs font-semibold px-2 py-1 rounded-full ${ev.is_free ? 'bg-green-50 text-green-700' : 'bg-brand-50 text-brand-700'}`}>
+                        {ev.is_free ? 'Free' : `${ev.price} ${ev.currency}`}
+                      </span>
+                    </div>
+                  </Link>
+                ))}
+                {nextCursor && (
+                  <div className="text-center pt-4">
+                    <button onClick={() => loadEvents(nextCursor)} disabled={eventsLoading} className="btn-secondary text-sm">
+                      {eventsLoading ? <Spinner size="sm" /> : 'Load more events'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* ── MODERATION (owners & mods only, collapsible) ── */}
+          {(isCommunityOwner || canModerate) && (
+            <details className="group">
+              <summary className="flex cursor-pointer select-none list-none items-center gap-3 rounded-2xl border border-red-100 bg-red-50/40 px-5 py-4 hover:bg-red-50/60 transition-colors">
+                <span className="flex-1">
+                  <span className="text-base font-semibold text-gray-900">Moderation Tools</span>
+                  <span className="ml-2 text-xs text-gray-400">Members, reports, audit trail</span>
+                </span>
+                <svg className="h-5 w-5 text-gray-400 transition-transform duration-200 group-open:rotate-180"
+                  fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </summary>
+              <div className="mt-4 space-y-4">
+
+                {/* Member Management */}
+                <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="text-base font-semibold text-gray-900">Member Management</h3>
+                      <span className="text-xs text-gray-500">{community.member_count.toLocaleString()} members</span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button onClick={exportMembersCsv}
+                        className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 cursor-pointer">
+                        Export CSV
+                      </button>
+                      {isCommunityOwner && community.timed_out_members.length > 0 && (
+                        <button onClick={removeAllTimedOutMembers} disabled={memberActionLoading === 'bulk-remove-timed-out'}
+                          className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 cursor-pointer">
+                          {memberActionLoading === 'bulk-remove-timed-out' ? 'Removing...' : 'Remove timed-out members'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  {community.recent_members.length === 0 ? (
+                    <p className="text-sm text-gray-500">No members yet.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {community.recent_members.map((member) => (
+                        <div key={member.id} className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-brand-100 text-sm font-semibold text-brand-700">
+                            {member.avatar_url ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={member.avatar_url} alt="" className="h-full w-full object-cover" />
+                            ) : (
+                              member.display_name.slice(0, 1).toUpperCase()
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">{member.display_name}</p>
+                            <p className="text-xs text-gray-500">Joined {formatDate(member.joined_at)}</p>
+                            {admins.some((entry) => entry.user_id === member.id && entry.role === 'community_admin') && (
+                              <p className="text-[11px] font-semibold text-brand-600 mt-1">Community admin</p>
+                            )}
+                            {community.owner_user_id === member.id && (
+                              <p className="text-[11px] font-semibold text-amber-600 mt-1">Owner</p>
+                            )}
+                          </div>
+                          {canModerate && (
+                            <div className="ml-auto flex flex-wrap gap-2">
+                              {isCommunityOwner &&
+                                community.owner_user_id !== member.id &&
+                                !admins.some((entry) => entry.user_id === member.id && entry.role === 'owner') && (
+                                admins.some((entry) => entry.user_id === member.id && entry.role === 'community_admin') ? (
+                                  <button onClick={() => revokeCommunityAdmin(member.id)} disabled={memberActionLoading === `revoke-${member.id}`}
+                                    className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700 cursor-pointer">
+                                    Revoke admin
+                                  </button>
+                                ) : (
+                                  <button onClick={() => assignCommunityAdmin(member.id)} disabled={memberActionLoading === `assign-${member.id}`}
+                                    className="rounded-lg border border-brand-200 bg-brand-50 px-2.5 py-1 text-[11px] font-semibold text-brand-700 cursor-pointer">
+                                    Make admin
+                                  </button>
+                                )
+                              )}
+                              {community.owner_user_id !== member.id &&
+                                !admins.some((entry) => entry.user_id === member.id && entry.role === 'owner') &&
+                                member.id !== user?.id &&
+                                (isCommunityOwner || !admins.some((entry) => entry.user_id === member.id && entry.role === 'community_admin')) && (
+                                <>
+                                  <button onClick={() => issueWarning(member.id)} disabled={memberActionLoading === `warn-${member.id}`}
+                                    className="rounded-lg border border-yellow-200 bg-yellow-50 px-2.5 py-1 text-[11px] font-semibold text-yellow-700 cursor-pointer">
+                                    Warn
+                                  </button>
+                                  <button onClick={() => loadMemberHistory(member)} disabled={historyLoading && selectedMemberHistory?.member.id === member.id}
+                                    className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-700 cursor-pointer">
+                                    History
+                                  </button>
+                                  <button onClick={() => issueSanction(member.id, 'timeout')} disabled={memberActionLoading === `timeout-${member.id}`}
+                                    className="rounded-lg border border-orange-200 bg-orange-50 px-2.5 py-1 text-[11px] font-semibold text-orange-700 cursor-pointer">
+                                    Timeout
+                                  </button>
+                                  <button onClick={() => issueSanction(member.id, 'removed')} disabled={memberActionLoading === `removed-${member.id}`}
+                                    className="rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1 text-[11px] font-semibold text-gray-700 cursor-pointer">
+                                    Remove
+                                  </button>
+                                  <button onClick={() => issueSanction(member.id, 'banned')} disabled={memberActionLoading === `banned-${member.id}`}
+                                    className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] font-semibold text-red-700 cursor-pointer">
+                                    Ban
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <div className="space-y-2">
-                  {selectedMemberHistory.warnings.map((warning) => (
-                    <div key={warning.id} className="rounded-xl border border-yellow-100 bg-yellow-50 px-4 py-3">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-yellow-700">{warning.severity} warning</p>
-                      <p className="text-sm text-gray-800 mt-1">{warning.reason}</p>
-                      <p className="text-xs text-gray-500 mt-1">{formatDate(warning.created_at)}</p>
+
+                {/* Moderation History */}
+                <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-5 shadow-sm">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="text-base font-semibold text-gray-900">Moderation History</h3>
+                      <p className="text-xs text-gray-500 mt-1">Warnings and sanctions for the selected member.</p>
                     </div>
-                  ))}
-                  {selectedMemberHistory.sanctions.map((sanction) => (
-                    <div key={sanction.id} className="rounded-xl border border-red-100 bg-red-50 px-4 py-3">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-red-700">{sanction.sanction_type}</p>
-                      <p className="text-sm text-gray-800 mt-1">{sanction.reason}</p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Started {formatDate(sanction.starts_at)}
-                        {sanction.ends_at ? ` · Ends ${formatDate(sanction.ends_at)}` : ''}
-                        {sanction.revoked_at ? ` · Revoked ${formatDate(sanction.revoked_at)}` : ''}
-                      </p>
+                    {selectedMemberHistory && (
+                      <button onClick={() => setSelectedMemberHistory(null)}
+                        className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 cursor-pointer">
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                  {historyLoading ? (
+                    <div className="flex justify-center py-8"><Spinner size="lg" /></div>
+                  ) : !selectedMemberHistory ? (
+                    <p className="text-sm text-gray-500">Choose a member and tap History to inspect moderation records.</p>
+                  ) : (
+                    <div className="space-y-4">
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">{selectedMemberHistory.member.display_name}</p>
+                        <p className="text-xs text-gray-500">Warnings: {selectedMemberHistory.warnings.length} · Sanctions: {selectedMemberHistory.sanctions.length}</p>
+                      </div>
+                      <div className="space-y-2">
+                        {selectedMemberHistory.warnings.map((warning) => (
+                          <div key={warning.id} className="rounded-xl border border-yellow-100 bg-yellow-50 px-4 py-3">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-yellow-700">{warning.severity} warning</p>
+                            <p className="text-sm text-gray-800 mt-1">{warning.reason}</p>
+                            <p className="text-xs text-gray-500 mt-1">{formatDate(warning.created_at)}</p>
+                          </div>
+                        ))}
+                        {selectedMemberHistory.sanctions.map((sanction) => (
+                          <div key={sanction.id} className="rounded-xl border border-red-100 bg-red-50 px-4 py-3">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-red-700">{sanction.sanction_type}</p>
+                            <p className="text-sm text-gray-800 mt-1">{sanction.reason}</p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Started {formatDate(sanction.starts_at)}
+                              {sanction.ends_at ? ` · Ends ${formatDate(sanction.ends_at)}` : ''}
+                              {sanction.revoked_at ? ` · Revoked ${formatDate(sanction.revoked_at)}` : ''}
+                            </p>
+                          </div>
+                        ))}
+                        {selectedMemberHistory.warnings.length === 0 && selectedMemberHistory.sanctions.length === 0 && (
+                          <p className="text-sm text-gray-500">No moderation history for this member yet.</p>
+                        )}
+                      </div>
                     </div>
-                  ))}
-                  {selectedMemberHistory.warnings.length === 0 && selectedMemberHistory.sanctions.length === 0 && (
-                    <p className="text-sm text-gray-500">No moderation history for this member yet.</p>
+                  )}
+                </div>
+
+                {/* Timed-out Members */}
+                {community.timed_out_members.length > 0 && (
+                  <div className="rounded-2xl border border-orange-100 bg-orange-50 px-4 py-4">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <div>
+                        <h3 className="text-sm font-bold text-gray-900">Timed-out Members</h3>
+                        <p className="text-xs text-gray-500">These members are temporarily restricted.</p>
+                      </div>
+                      <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-orange-700">
+                        {community.timed_out_members.length}
+                      </span>
+                    </div>
+                    <div className="space-y-3">
+                      {community.timed_out_members.map((member) => (
+                        <div key={`timedout-${member.id}`} className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-orange-100 text-sm font-semibold text-orange-700">
+                            {member.avatar_url ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={member.avatar_url} alt="" className="h-full w-full object-cover" />
+                            ) : (
+                              member.display_name.slice(0, 1).toUpperCase()
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">{member.display_name}</p>
+                            <p className="text-xs text-gray-500">
+                              Timeout until {member.timeout_until ? formatDate(member.timeout_until) : 'unknown'}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Community Admins + Happening Reports */}
+                <div className="grid gap-4 md:grid-cols-2">
+                  {isCommunityOwner && (
+                    <div className="rounded-2xl border border-brand-100 bg-brand-50/60 p-5 shadow-sm">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-base font-semibold text-gray-900">Community Admins</h3>
+                        <span className="text-xs font-semibold text-brand-700">{admins.length} roles</span>
+                      </div>
+                      {adminsLoading ? (
+                        <div className="flex justify-center py-8"><Spinner size="lg" /></div>
+                      ) : admins.length === 0 ? (
+                        <p className="text-sm text-gray-500">No community admins assigned yet.</p>
+                      ) : (
+                        <div className="space-y-3">
+                          {admins.map((entry) => (
+                            <div key={entry.user_id} className="rounded-xl border border-white/70 bg-white px-4 py-3">
+                              <div className="flex items-center justify-between gap-3">
+                                <div>
+                                  <p className="text-sm font-semibold text-gray-900">{entry.profile?.display_name ?? entry.user_id}</p>
+                                  <p className="text-xs text-gray-500">{entry.role} · joined {formatDate(entry.joined_at)}</p>
+                                </div>
+                                {entry.role === 'community_admin' && (
+                                  <button onClick={() => revokeCommunityAdmin(entry.user_id)} disabled={memberActionLoading === `revoke-${entry.user_id}`}
+                                    className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700 cursor-pointer">
+                                    Revoke
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {canModerate && (
+                    <div className="rounded-2xl border border-red-100 bg-red-50/50 p-5 shadow-sm">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h3 className="text-base font-semibold text-gray-900">Happening Reports</h3>
+                          <p className="text-xs text-gray-500 mt-1">Community admins review these directly.</p>
+                        </div>
+                        <button onClick={loadReports} disabled={reportsLoading}
+                          className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 cursor-pointer">
+                          Refresh
+                        </button>
+                      </div>
+                      {reportsLoading ? (
+                        <div className="flex justify-center py-8"><Spinner size="lg" /></div>
+                      ) : reports.length === 0 ? (
+                        <p className="text-sm text-gray-500">No pending happening reports.</p>
+                      ) : (
+                        <div className="space-y-3">
+                          {reports.map((reportItem) => (
+                            <div key={`${reportItem.happening_id}:${reportItem.reporter_id}`}
+                              className="rounded-xl border border-white/70 bg-white px-4 py-3">
+                              <p className="text-sm font-semibold text-gray-900">{reportItem.reason}</p>
+                              <p className="text-xs text-gray-500 mt-1">Reporter: {reportItem.reporter?.display_name ?? reportItem.reporter_id}</p>
+                              {reportItem.happening && (
+                                <p className="text-xs text-gray-600 mt-2 line-clamp-2">{reportItem.happening.body}</p>
+                              )}
+                              {reportItem.details && <p className="text-xs text-gray-500 mt-2">{reportItem.details}</p>}
+                              <div className="mt-3 flex gap-2">
+                                <button onClick={() => updateReport(reportItem, 'resolved')}
+                                  disabled={reportActionLoading === `${reportItem.happening_id}:${reportItem.reporter_id}:resolved`}
+                                  className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 cursor-pointer">
+                                  Resolve
+                                </button>
+                                <button onClick={() => updateReport(reportItem, 'dismissed')}
+                                  disabled={reportActionLoading === `${reportItem.happening_id}:${reportItem.reporter_id}:dismissed`}
+                                  className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-700 cursor-pointer">
+                                  Dismiss
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Audit Trail */}
+                <div className="rounded-2xl border border-indigo-100 bg-indigo-50/50 p-5 shadow-sm">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="text-base font-semibold text-gray-900">Community Audit Trail</h3>
+                      <p className="text-xs text-gray-500 mt-1">Recent governance actions by owners and community admins.</p>
+                    </div>
+                    <button onClick={loadAuditLogs} disabled={auditLogsLoading}
+                      className="rounded-lg border border-indigo-200 bg-white px-3 py-1.5 text-xs font-semibold text-indigo-700 cursor-pointer">
+                      Refresh
+                    </button>
+                  </div>
+                  {auditLogsLoading ? (
+                    <div className="flex justify-center py-8"><Spinner size="lg" /></div>
+                  ) : auditLogs.length === 0 ? (
+                    <p className="text-sm text-gray-500">No governance actions recorded yet.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {auditLogs.map((log) => (
+                        <div key={log.id} className="rounded-xl border border-white/70 bg-white px-4 py-3">
+                          <p className="text-sm font-semibold text-gray-900">{auditActionLabel(log.action)}</p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {log.actor?.display_name ?? log.actor_user_id} · {formatDate(log.created_at)}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">Target: {log.target_type}</p>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
               </div>
-            )}
-          </div>
-        )}
-
-        <div className="rounded-2xl border border-violet-100 bg-violet-50/50 p-5 shadow-sm">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-bold text-gray-900">Sub-communities</h2>
-              <p className="text-xs text-gray-500 mt-1">Smaller circles nested under this community, ranked by relevance first.</p>
-            </div>
-            {canCreateChildHere && (
-              <Link
-                href={community.level === 'country' ? `/communities/new?root=${slug}` : `/communities/new?parent=${slug}`}
-                className="rounded-full bg-violet-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-violet-700"
-              >
-                + Create sub-community here
-              </Link>
-            )}
-          </div>
-          {childrenLoading ? (
-            <div className="flex justify-center py-8"><Spinner size="lg" /></div>
-          ) : children.length === 0 ? (
-            <p className="text-sm text-gray-500">No sub-communities yet.</p>
-          ) : (
-            <div className="space-y-3">
-              {children.map((child) => (
-                <div key={child.id} className="rounded-xl border border-white/70 bg-white px-4 py-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <Link href={`/communities/${child.slug}`} className="text-sm font-semibold text-gray-900 hover:text-brand-600">
-                        {child.name}
-                      </Link>
-                      <div className="mt-2 flex flex-wrap items-center gap-2">
-                        {child.is_member && (
-                          <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
-                            Joined
-                          </span>
-                        )}
-                        {child.is_verified && (
-                          <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-700">
-                            Verified
-                          </span>
-                        )}
-                        <span className="rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-700">
-                          {child.level}
-                        </span>
-                      </div>
-                      <p className="mt-1 text-xs text-gray-500">
-                        {child.level} · {child.member_count.toLocaleString()} members
-                        {child.city ? ` · ${child.city}` : ''}
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => toggleChildMembership(child)}
-                      disabled={childJoiningSlug === child.slug}
-                      className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
-                        child.is_member
-                          ? 'border border-emerald-200 bg-emerald-50 text-emerald-700'
-                          : 'bg-brand-600 text-white'
-                      }`}
-                    >
-                      {childJoiningSlug === child.slug ? '...' : child.is_member ? 'Joined' : 'Join'}
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
+            </details>
           )}
-          {community.timed_out_members.length > 0 && (
-            <div className="mt-5 rounded-2xl border border-orange-100 bg-orange-50 px-4 py-4">
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <div>
-                  <h3 className="text-sm font-bold text-gray-900">Timed-out Members</h3>
-                  <p className="text-xs text-gray-500">These members are temporarily restricted.</p>
-                </div>
-                <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-orange-700">
-                  {community.timed_out_members.length}
-                </span>
-              </div>
-              <div className="space-y-3">
-                {community.timed_out_members.map((member) => (
-                  <div key={`timedout-${member.id}`} className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-orange-100 text-sm font-semibold text-orange-700">
+        </div>
+
+        {/* ── RIGHT: SIDEBAR ── */}
+        <aside className="space-y-4 lg:sticky lg:top-20">
+
+          {/* Members */}
+          <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold text-gray-900">
+                Members
+                <span className="ml-2 text-xs font-normal text-gray-400">{community.member_count.toLocaleString()}</span>
+              </h3>
+              {isCommunityOwner && (
+                <button onClick={exportMembersCsv}
+                  className="text-xs font-medium text-gray-400 hover:text-gray-600 transition-colors cursor-pointer">
+                  Export CSV
+                </button>
+              )}
+            </div>
+            {community.recent_members.length === 0 ? (
+              <p className="text-xs text-gray-400">No members yet.</p>
+            ) : (
+              <div className="space-y-2.5">
+                {community.recent_members.slice(0, 8).map((member) => (
+                  <div key={member.id} className="flex items-center gap-2.5">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-brand-100 text-xs font-semibold text-brand-700">
                       {member.avatar_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={member.avatar_url} alt="" className="h-full w-full object-cover" />
@@ -1074,298 +1311,87 @@ export default function CommunityDetailPage() {
                         member.display_name.slice(0, 1).toUpperCase()
                       )}
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">{member.display_name}</p>
-                      <p className="text-xs text-gray-500">
-                        Timeout until {member.timeout_until ? formatDate(member.timeout_until) : 'unknown'}
-                      </p>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-medium text-gray-900 truncate">{member.display_name}</p>
+                      {admins.some((entry) => entry.user_id === member.id && entry.role === 'community_admin') && (
+                        <p className="text-[10px] font-semibold text-brand-600">Admin</p>
+                      )}
+                      {community.owner_user_id === member.id && (
+                        <p className="text-[10px] font-semibold text-amber-600">Owner</p>
+                      )}
                     </div>
                   </div>
                 ))}
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
 
-        <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-bold text-gray-900 mb-4">Recent Activity</h2>
-          {community.activity.length === 0 ? (
-            <p className="text-sm text-gray-500">No activity yet.</p>
-          ) : (
-            <div className="space-y-3">
-              {community.activity.map((item) => {
-                const row = (
-                  <div className="flex items-start gap-3 rounded-xl bg-gray-50 px-3 py-3">
-                    <div className="mt-0.5 text-lg">{item.type === 'member_joined' ? '👋' : '🗓️'}</div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-gray-900">{item.title}</p>
-                      <p className="text-xs text-gray-500">{item.subtitle}</p>
-                      <p className="text-xs text-gray-400 mt-1">{formatDate(item.created_at)}</p>
+          {/* Sub-communities */}
+          <div className="rounded-2xl border border-violet-100 bg-violet-50/40 p-4 shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold text-gray-900">Sub-communities</h3>
+              {canCreateChildHere && (
+                <Link
+                  href={community.level === 'country' ? `/communities/new?root=${slug}` : `/communities/new?parent=${slug}`}
+                  className="text-xs font-medium text-violet-600 hover:text-violet-700 transition-colors">
+                  + Create
+                </Link>
+              )}
+            </div>
+            {childrenLoading ? (
+              <div className="flex justify-center py-4"><Spinner /></div>
+            ) : children.length === 0 ? (
+              <p className="text-xs text-gray-400">No sub-communities yet.</p>
+            ) : (
+              <div className="space-y-2.5">
+                {children.map((child) => (
+                  <div key={child.id} className="flex items-center justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <Link href={`/communities/${child.slug}`}
+                        className="text-xs font-semibold text-gray-900 hover:text-brand-600 truncate block">
+                        {child.name}
+                      </Link>
+                      <p className="text-[10px] text-gray-400">{child.member_count.toLocaleString()} members</p>
                     </div>
+                    <button
+                      onClick={() => toggleChildMembership(child)}
+                      disabled={childJoiningSlug === child.slug}
+                      className={`shrink-0 rounded-lg px-2.5 py-1 text-[11px] font-semibold cursor-pointer ${
+                        child.is_member
+                          ? 'border border-emerald-200 bg-emerald-50 text-emerald-700'
+                          : 'bg-brand-600 text-white'
+                      }`}>
+                      {childJoiningSlug === child.slug ? '...' : child.is_member ? 'Joined' : 'Join'}
+                    </button>
                   </div>
-                )
-                return item.href ? <Link key={item.id} href={item.href}>{row}</Link> : <div key={item.id}>{row}</div>
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {(isCommunityOwner || canModerate) && (
-        <div className="grid gap-6 md:grid-cols-2 mb-8">
-          {isCommunityOwner && (
-            <div className="rounded-2xl border border-brand-100 bg-brand-50/60 p-5 shadow-sm">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-bold text-gray-900">Community Admins</h2>
-                <span className="text-xs font-semibold text-brand-700">{admins.length} roles</span>
+                ))}
               </div>
-              {adminsLoading ? (
-                <div className="flex justify-center py-8"><Spinner size="lg" /></div>
-              ) : admins.length === 0 ? (
-                <p className="text-sm text-gray-500">No community admins assigned yet.</p>
-              ) : (
-                <div className="space-y-3">
-                  {admins.map((entry) => (
-                    <div key={entry.user_id} className="rounded-xl border border-white/70 bg-white px-4 py-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-semibold text-gray-900">{entry.profile?.display_name ?? entry.user_id}</p>
-                          <p className="text-xs text-gray-500">{entry.role} · joined {formatDate(entry.joined_at)}</p>
-                        </div>
-                        {entry.role === 'community_admin' && (
-                          <button
-                            onClick={() => revokeCommunityAdmin(entry.user_id)}
-                            disabled={memberActionLoading === `revoke-${entry.user_id}`}
-                            className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700"
-                          >
-                            Revoke
-                          </button>
-                        )}
+            )}
+          </div>
+
+          {/* Recent Activity */}
+          <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+            <h3 className="text-sm font-bold text-gray-900 mb-3">Recent Activity</h3>
+            {community.activity.length === 0 ? (
+              <p className="text-xs text-gray-400">No activity yet.</p>
+            ) : (
+              <div className="space-y-2.5">
+                {community.activity.map((item) => {
+                  const row = (
+                    <div className="flex items-start gap-2.5">
+                      <span className="text-base shrink-0 mt-0.5">{item.type === 'member_joined' ? '👋' : '🗓️'}</span>
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium text-gray-900 leading-snug">{item.title}</p>
+                        <p className="text-[10px] text-gray-400 mt-0.5">{formatDate(item.created_at)}</p>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {canModerate && (
-            <div className="rounded-2xl border border-red-100 bg-red-50/50 p-5 shadow-sm">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h2 className="text-lg font-bold text-gray-900">Happening Reports</h2>
-                  <p className="text-xs text-gray-500 mt-1">Community admins review these directly.</p>
-                </div>
-                <button
-                  onClick={loadReports}
-                  disabled={reportsLoading}
-                  className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700"
-                >
-                  Refresh
-                </button>
-              </div>
-              {reportsLoading ? (
-                <div className="flex justify-center py-8"><Spinner size="lg" /></div>
-              ) : reports.length === 0 ? (
-                <p className="text-sm text-gray-500">No pending happening reports.</p>
-              ) : (
-                <div className="space-y-3">
-                  {reports.map((reportItem) => (
-                    <div key={`${reportItem.happening_id}:${reportItem.reporter_id}`} className="rounded-xl border border-white/70 bg-white px-4 py-3">
-                      <p className="text-sm font-semibold text-gray-900">{reportItem.reason}</p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Reporter: {reportItem.reporter?.display_name ?? reportItem.reporter_id}
-                      </p>
-                      {reportItem.happening && (
-                        <p className="text-xs text-gray-600 mt-2 line-clamp-2">
-                          {reportItem.happening.body}
-                        </p>
-                      )}
-                      {reportItem.details && (
-                        <p className="text-xs text-gray-500 mt-2">{reportItem.details}</p>
-                      )}
-                      <div className="mt-3 flex gap-2">
-                        <button
-                          onClick={() => updateReport(reportItem, 'resolved')}
-                          disabled={reportActionLoading === `${reportItem.happening_id}:${reportItem.reporter_id}:resolved`}
-                          className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700"
-                        >
-                          Resolve
-                        </button>
-                        <button
-                          onClick={() => updateReport(reportItem, 'dismissed')}
-                          disabled={reportActionLoading === `${reportItem.happening_id}:${reportItem.reporter_id}:dismissed`}
-                          className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-700"
-                        >
-                          Dismiss
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {canModerate && (
-        <div className="mb-8 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-lg font-bold text-gray-900">Community Audit Trail</h2>
-              <p className="text-xs text-gray-500 mt-1">Recent governance actions by owners and community admins.</p>
-            </div>
-            <button
-              onClick={loadAuditLogs}
-              disabled={auditLogsLoading}
-              className="rounded-lg border border-indigo-200 bg-white px-3 py-1.5 text-xs font-semibold text-indigo-700"
-            >
-              Refresh
-            </button>
-          </div>
-          {auditLogsLoading ? (
-            <div className="flex justify-center py-8"><Spinner size="lg" /></div>
-          ) : auditLogs.length === 0 ? (
-            <p className="text-sm text-gray-500">No governance actions recorded yet.</p>
-          ) : (
-            <div className="space-y-3">
-              {auditLogs.map((log) => (
-                <div key={log.id} className="rounded-xl border border-white/70 bg-white px-4 py-3">
-                  <p className="text-sm font-semibold text-gray-900">{auditActionLabel(log.action)}</p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {log.actor?.display_name ?? log.actor_user_id} · {formatDate(log.created_at)}
-                  </p>
-                  <p className="text-xs text-gray-500 mt-1">Target: {log.target_type}</p>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Happenings section */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-lg font-bold text-gray-900">What&apos;s Happening Now</h2>
-            <p className="text-xs text-gray-400 mt-0.5">Spontaneous, time-limited posts from members</p>
-          </div>
-          {canParticipateInHappenings && !showPostForm && (
-            <button
-              onClick={() => setShowPostForm(true)}
-              className="text-sm font-semibold bg-brand-600 text-white px-4 py-2 rounded-xl hover:bg-brand-700 transition-colors"
-            >
-              + Post happening
-            </button>
-          )}
-        </div>
-
-        {showPostForm && (
-          <PostHappeningForm
-            posting={posting}
-            onPost={async (data) => {
-              const ok = await post(data)
-              if (ok) setShowPostForm(false)
-              return ok
-            }}
-            onCancel={() => setShowPostForm(false)}
-          />
-        )}
-
-        {happeningsLoading ? (
-          <div className="flex justify-center py-8"><Spinner size="lg" /></div>
-        ) : happenings.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 py-10 text-center">
-            <p className="text-2xl mb-2">📍</p>
-            <p className="text-sm font-medium text-gray-600">Nothing happening right now</p>
-            {canParticipateInHappenings && (
-              <p className="text-xs text-gray-400 mt-1">Be the first — post a happening!</p>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {happenings.map((h) => (
-              <HappeningCard
-                key={h.id}
-                happening={h}
-                onRsvp={handleHappeningRsvp}
-                onReact={handleHappeningReact}
-                onDelete={remove}
-                onReport={report}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Events section */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-gray-900">Upcoming Events</h2>
-          <div className="flex items-center gap-3">
-            {user?.role === 'organizer' && (
-              <Link
-                href={`/organizer/events/new?community=${slug}`}
-                className="text-xs font-semibold bg-brand-600 text-white px-3 py-1.5 rounded-full hover:bg-brand-700 transition-colors"
-              >
-                + Create event here
-              </Link>
-            )}
-            <Link
-              href={`/events?community=${slug}`}
-              className="text-sm text-brand-600 hover:underline"
-            >
-              View all
-            </Link>
-          </div>
-        </div>
-
-        {eventsLoading && events.length === 0 ? (
-          <div className="flex justify-center py-12"><Spinner size="lg" /></div>
-        ) : events.length === 0 ? (
-          <EmptyState icon="📅" title="No upcoming events" description="Be the first to create an event in this community" />
-        ) : (
-          <div className="space-y-3">
-            {events.map((ev) => (
-              <Link
-                key={ev.id}
-                href={`/events/${ev.id}`}
-                className="flex gap-4 p-4 bg-white rounded-xl border border-gray-100 hover:border-brand-200 hover:shadow-sm transition-all"
-              >
-                {ev.cover_image_url ? (
-                  <img src={ev.cover_image_url} alt="" className="w-20 h-16 rounded-lg object-cover shrink-0" />
-                ) : (
-                  <div className="w-20 h-16 rounded-lg bg-brand-50 flex items-center justify-center text-2xl shrink-0">📅</div>
-                )}
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-gray-900 line-clamp-1">{ev.title}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{formatDate(ev.start_at)}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">📍 {ev.city}</p>
-                </div>
-                <div className="shrink-0 text-right">
-                  <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
-                    ev.is_free ? 'bg-green-50 text-green-700' : 'bg-brand-50 text-brand-700'
-                  }`}>
-                    {ev.is_free ? 'Free' : `${ev.price} ${ev.currency}`}
-                  </span>
-                </div>
-              </Link>
-            ))}
-
-            {nextCursor && (
-              <div className="text-center pt-4">
-                <button
-                  onClick={() => loadEvents(nextCursor)}
-                  disabled={eventsLoading}
-                  className="btn-secondary text-sm"
-                >
-                  {eventsLoading ? <Spinner size="sm" /> : 'Load more events'}
-                </button>
+                  )
+                  return item.href ? <Link key={item.id} href={item.href}>{row}</Link> : <div key={item.id}>{row}</div>
+                })}
               </div>
             )}
           </div>
-        )}
+        </aside>
       </div>
     </div>
   )
