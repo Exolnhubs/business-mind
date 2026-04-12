@@ -74,11 +74,13 @@ function TicketSelector({
 function PromoInput({
   eventId,
   orderAmount,
+  currency,
   onApplied,
   onCleared,
 }: {
   eventId: string
   orderAmount: number
+  currency: string
   onApplied: (r: PromoValidationResult) => void
   onCleared: () => void
 }) {
@@ -136,7 +138,7 @@ function PromoInput({
       {result && (
         <p className={`text-xs font-medium ${result.valid ? 'text-green-600' : 'text-red-500'}`}>
           {result.valid
-            ? `✓ ${result.discount_type === 'percent' ? `${result.discount_value}% off` : `${formatCurrency(result.discount_amount ?? 0, 'SAR')} off`}`
+            ? `✓ ${result.discount_type === 'percent' ? `${result.discount_value}% off` : `${formatCurrency(result.discount_amount ?? 0, currency)} off`}`
             : `✗ ${result.reason}`}
         </p>
       )}
@@ -352,6 +354,7 @@ export function CheckoutForm({
         <PromoInput
           eventId={eventId}
           orderAmount={basePrice}
+          currency={currency}
           onApplied={setPromo}
           onCleared={() => setPromo(null)}
         />
