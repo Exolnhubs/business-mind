@@ -32,11 +32,11 @@ function getPriceDisplay(
     const prices = paid.map((ticket) => ticket.price)
     const min = Math.min(...prices)
     const max = Math.max(...prices)
-    if (min === max) return { label: formatCurrency(min, locale), isFree: false }
-    return { label: t('events.card.from').replace('{price}', formatCurrency(min, locale)), isFree: false }
+    if (min === max) return { label: formatCurrency(min, event.currency, locale), isFree: false }
+    return { label: t('events.card.from').replace('{price}', formatCurrency(min, event.currency, locale)), isFree: false }
   }
   if (event.is_free || !event.price) return { label: t('events.free'), isFree: true }
-  return { label: formatCurrency(event.price, locale), isFree: false }
+  return { label: formatCurrency(event.price, event.currency, locale), isFree: false }
 }
 
 export function EventCard({ event, locale, isSaved = false, showSave = false }: EventCardProps) {
