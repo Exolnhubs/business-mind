@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import type { PlanDefinition, Subscription } from '@/types/plans'
+import type { ResolvedPlanDefinition, Subscription } from '@/types/plans'
 
 // ── Plan UI metadata (display only) ────────────────────────────────────────
 
@@ -15,39 +15,29 @@ const PLAN_FEATURES: Record<string, string[]> = {
     'Book & attend any public event',
     'Save up to 20 events',
     'Community access & happenings',
-    'Standard booking queue',
+    'Standard discovery experience',
   ],
   user_premium: [
     'Everything in Free',
-    '24-hour early booking access',
     'Unlimited saved events',
-    'Premium-only exclusive events',
-    'Premium badge on your profile',
-    'Ad-free browsing experience',
+    'Access premium-only events',
   ],
   org_basic: [
     '3 events published per month',
-    'Up to 100 attendees per event',
-    'Basic event analytics',
+    'Up to 50 attendees per event',
+    'Organizer dashboard access',
     '10% platform fee on revenue',
   ],
   org_pro: [
     '15 events published per month',
-    'Up to 1,000 attendees per event',
-    'Full analytics dashboard',
-    '1 featured event slot per month',
+    'Up to 200 attendees per event',
     'Ticket scanner access',
-    'Up to 3 team members',
     '6% platform fee on revenue',
   ],
   org_elite: [
     'Unlimited events published',
     'Unlimited attendees per event',
-    'Full analytics + CSV export',
-    '5 featured event slots per month',
     'Ticket scanner access',
-    'Priority support',
-    'Custom ticket branding',
     '3% platform fee on revenue',
   ],
 }
@@ -55,7 +45,7 @@ const PLAN_FEATURES: Record<string, string[]> = {
 // ── Types ───────────────────────────────────────────────────────────────────
 
 interface Props {
-  plans: PlanDefinition[]
+  plans: ResolvedPlanDefinition[]
   currentPlanId: string
   subscription: Subscription | null
   usage: { events_created: number; month: string } | null
@@ -64,11 +54,18 @@ interface Props {
 
 type PlanAction = 'current' | 'upgrade' | 'downgrade'
 
-function getPlanAction(plan: PlanDefinition, activePlanId: string, plans: PlanDefinition[]): PlanAction {
+function getPlanAction(plan: ResolvedPlanDefinition, activePlanId: string, plans: ResolvedPlanDefinition[]): PlanAction {
   if (plan.id === activePlanId) return 'current'
   const active = plans.find(p => p.id === activePlanId)
   if (!active) return 'upgrade'
   return plan.sort_order > active.sort_order ? 'upgrade' : 'downgrade'
+}
+
+function formatPlanAmount(amount: number): string {
+  return new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: amount % 1 === 0 ? 0 : 2,
+    maximumFractionDigits: amount % 1 === 0 ? 0 : 2,
+  }).format(amount)
 }
 
 // ── Main component ──────────────────────────────────────────────────────────
@@ -94,7 +91,7 @@ export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrga
     ? new Date(usage.month + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
     : null
 
-  async function doSelectPlan(plan: PlanDefinition) {
+  async function doSelectPlan(plan: ResolvedPlanDefinition) {
     setLoading(plan.id)
     setMsg(null)
     setConfirmDowngrade(null)
@@ -115,7 +112,7 @@ export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrga
     }
   }
 
-  function handlePlanClick(plan: PlanDefinition, action: PlanAction) {
+  function handlePlanClick(plan: ResolvedPlanDefinition, action: PlanAction) {
     if (action === 'current') return
     if (action === 'downgrade') setConfirmDowngrade(plan.id)
     else doSelectPlan(plan)
@@ -139,7 +136,7 @@ export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrga
         <p className="mt-2 text-sm text-gray-500 max-w-[44ch] leading-relaxed">
           {isOrganizer
             ? 'Publish more events and keep more of what you earn as you grow.'
-            : 'Upgrade for early access, exclusive events, and priority booking.'}
+            : 'Upgrade for unlimited saves and premium-only event access.'}
         </p>
       </div>
 
@@ -159,7 +156,7 @@ export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrga
               <p className="text-[12px] text-white/30 mt-1">Renews {periodEnd}</p>
             ) : (
               <p className="text-[12px] text-white/25 mt-1">
-                {(activePlan?.price_sar ?? 0) === 0 ? 'Free · no billing' : 'Active'}
+                {(activePlan?.price_amount ?? 0) === 0 ? 'Free · no billing' : 'Active'}
               </p>
             )}
           </div>
@@ -261,12 +258,12 @@ export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrga
                     {plan.name}
                   </h3>
                   <div className="flex items-baseline gap-1.5">
-                    {plan.price_sar > 0 ? (
+                    {plan.price_amount > 0 ? (
                       <>
                         <span className="font-display text-4xl font-black" style={{ color: 'var(--c-gold)' }}>
-                          {plan.price_sar}
+                          {formatPlanAmount(plan.price_amount)}
                         </span>
-                        <span className="text-sm text-white/35">SAR / month</span>
+                        <span className="text-sm text-white/35">{plan.price_currency} / month</span>
                       </>
                     ) : (
                       <span className="font-display text-4xl font-black text-white">Free</span>
@@ -285,7 +282,7 @@ export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrga
                     className="rounded-xl px-3.5 py-2 mb-4 text-xs font-semibold"
                     style={{ background: 'oklch(0.78 0.18 72 / 0.12)', color: 'oklch(0.78 0.18 72)' }}
                   >
-                    Save {feeSavedVsBasic} SAR for every 100 SAR earned vs Basic
+                    Save {feeSavedVsBasic}% in platform fees vs Basic
                   </div>
                 )}
 
@@ -380,10 +377,10 @@ export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrga
                   {plan.name}
                 </h3>
                 <div className="flex items-baseline gap-1.5">
-                  {plan.price_sar > 0 ? (
+                  {plan.price_amount > 0 ? (
                     <>
-                      <span className="font-display text-4xl font-black text-gray-900">{plan.price_sar}</span>
-                      <span className="text-sm text-gray-400">SAR / month</span>
+                      <span className="font-display text-4xl font-black text-gray-900">{formatPlanAmount(plan.price_amount)}</span>
+                      <span className="text-sm text-gray-400">{plan.price_currency} / month</span>
                     </>
                   ) : (
                     <span className="font-display text-3xl font-black text-gray-500">Free</span>
@@ -399,7 +396,7 @@ export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrga
               {/* Savings callout (elite) */}
               {feeSavedVsBasic && (
                 <div className="rounded-xl px-3.5 py-2 mb-4 text-xs font-semibold bg-brand-50 text-brand-700">
-                  Save {feeSavedVsBasic} SAR for every 100 SAR earned vs Basic
+                  Save {feeSavedVsBasic}% in platform fees vs Basic
                 </div>
               )}
 

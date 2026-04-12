@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { requireAuth, requireEventOwnership, optionalAuth } from '@/lib/auth'
 import { handleApiError, ok, NotFoundException, ForbiddenException } from '@/lib/errors'
+import { getOrganizerPlanAccess } from '@/lib/plans'
 import { UpdateEventSchema } from '@/lib/validations/events'
 import { sendNotifications } from '@/lib/notifications'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
@@ -69,9 +70,40 @@ export async function PATCH(
     // Fetch current event state before updating (for change detection)
     const { data: before } = await adminClient
       .from('events')
-      .select('title, start_at, end_at, venue_name, address, city, is_published, is_cancelled, organizer_id')
+      .select('title, start_at, end_at, venue_name, address, city, is_published, is_cancelled, organizer_id, capacity')
       .eq('id', id)
       .single()
+
+    const plan = await getOrganizerPlanAccess(ctx.userId)
+
+    if (plan.attendeesPerEvent !== null) {
+      const nextCapacity = input.capacity !== undefined
+        ? input.capacity
+        : ((before as { capacity?: number | null } | null)?.capacity ?? null)
+
+      if (nextCapacity !== null && nextCapacity > plan.attendeesPerEvent) {
+        throw new ForbiddenException(
+          `Your plan allows a maximum of ${plan.attendeesPerEvent} attendees per event. Upgrade your plan or reduce the event capacity.`
+        )
+      }
+    }
+
+    if (input.is_published === true && !before?.is_published && plan.eventsPerMonth !== null) {
+      const monthStr = new Date().toISOString().slice(0, 7) + '-01'
+      const { data: usage } = await adminClient
+        .from('organizer_monthly_usage')
+        .select('events_created')
+        .eq('organizer_id', ctx.userId)
+        .eq('month', monthStr)
+        .maybeSingle()
+
+      const used = usage?.events_created ?? 0
+      if (used >= plan.eventsPerMonth) {
+        throw new ForbiddenException(
+          `Monthly event limit reached (${plan.eventsPerMonth} events/month on your current plan). Upgrade to publish more events.`
+        )
+      }
+    }
 
     // Extract community_ids before updating (not a DB column)
     const { community_ids, ...eventInput } = input

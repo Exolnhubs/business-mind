@@ -20,6 +20,21 @@ export interface PlanDefinition {
   updated_at: string
 }
 
+export interface PlanCountryPrice {
+  plan_id: string
+  country_code: string
+  currency_code: string
+  amount: number
+  created_at: string
+  updated_at: string
+}
+
+export interface ResolvedPlanDefinition extends PlanDefinition {
+  price_amount: number
+  price_currency: string
+  pricing_country_code: string | null
+}
+
 export interface Subscription {
   id: string
   user_id: string

@@ -1,11 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { View, Text, TouchableOpacity, StyleSheet, Image, Animated } from 'react-native'
+import { View, Text, TouchableOpacity, StyleSheet, Image, Animated, Alert } from 'react-native'
 import { useRouter } from 'expo-router'
 import { Badge } from '@/components/ui/Badge'
 import { formatCurrency } from '@/lib/utils'
 import { useLocale } from '@/contexts/locale-context'
 import { useAuth } from '@/contexts/auth-context'
-import { supabase } from '@/lib/supabase'
+import { apiDelete, apiPost } from '@/lib/api'
 import { Colors, Spacing } from '@/theme'
 import type { EventWithOrganizer } from '@/types/database'
 
@@ -62,14 +62,20 @@ export const EventCard = React.memo(function EventCard({
     const next = !saved
     setSaved(next)
     if (next) {
-      await (supabase.from('saved_events') as any).upsert(
-        { user_id: user.id, event_id: event.id },
-        { onConflict: 'user_id,event_id' }
-      )
+      const { error } = await apiPost(`/api/events/${event.id}/save`, {})
+      if (error) {
+        setSaved(false)
+        Alert.alert('Save unavailable', error)
+        return
+      }
       onSaveChange?.(event.id, true)
     } else {
-      await supabase.from('saved_events').delete()
-        .eq('user_id', user.id).eq('event_id', event.id)
+      const { error } = await apiDelete(`/api/events/${event.id}/save`)
+      if (error) {
+        setSaved(true)
+        Alert.alert('Could not unsave', error)
+        return
+      }
       onUnsave?.(event.id)
       onSaveChange?.(event.id, false)
     }

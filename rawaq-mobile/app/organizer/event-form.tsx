@@ -22,6 +22,12 @@ interface Category { id: string; name_en: string; icon: string | null }
 type CommunityOption = Pick<Community, 'id' | 'name' | 'name_ar' | 'slug' | 'level'>
 type TicketDraft = { name: string; is_free: boolean; price: string; capacity: string }
 type TicketTemplate = TicketDraft & { id: string }
+type SubscriptionResponse = {
+  plan: {
+    name: string
+    attendees_per_event: number | null
+  } | null
+}
 
 const EMPTY_TICKET: TicketDraft = { name: '', is_free: true, price: '', capacity: '' }
 
@@ -45,6 +51,8 @@ export default function EventFormScreen() {
   const [loading,    setLoading]    = useState(isEdit)
   const [saving,     setSaving]     = useState(false)
   const [error,      setError]      = useState<string | null>(null)
+  const [attendeePlanLimit, setAttendeePlanLimit] = useState<number | null>(null)
+  const [attendeePlanName, setAttendeePlanName] = useState('your current plan')
   const [communities, setCommunities] = useState<CommunityOption[]>([])
   const [selectedCommunities, setSelectedCommunities] = useState<string[]>([])
   const [visibilityType, setVisibilityType] = useState<EventVisibility>('city')
@@ -139,6 +147,10 @@ export default function EventFormScreen() {
         data: CommunityOption[]
       }>('/api/communities?per_page=50')
       setCommunities(communityData?.data ?? [])
+
+      const { data: subscriptionData } = await apiGet<SubscriptionResponse>('/api/subscriptions')
+      setAttendeePlanLimit(subscriptionData?.plan?.attendees_per_event ?? null)
+      setAttendeePlanName(subscriptionData?.plan?.name ?? 'your current plan')
 
       if (id) {
         const [{ data: ev }, { data: eventCommunities }] = await Promise.all([
@@ -238,6 +250,20 @@ export default function EventFormScreen() {
     setAddress(location?.address ?? '')
   }
 
+  const capacityHelperText = attendeePlanLimit !== null
+    ? `${attendeePlanName} allows up to ${attendeePlanLimit} attendees per event.`
+    : 'Your current plan does not have an attendee cap.'
+
+  function validateCapacity(value: string): string | null {
+    if (!value.trim()) return null
+    const parsed = Number(value)
+    if (!Number.isFinite(parsed) || parsed <= 0) return 'Capacity must be greater than 0.'
+    if (attendeePlanLimit !== null && parsed > attendeePlanLimit) {
+      return `${attendeePlanName} allows up to ${attendeePlanLimit} attendees per event.`
+    }
+    return null
+  }
+
   async function pickCoverImage() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images', 'videos'],
@@ -262,6 +288,8 @@ export default function EventFormScreen() {
     if (!title.trim()) { setError('Title is required.'); return }
     if (!city || !address || !eventLocation) { setError('Pick the event location from the map.'); return }
     if (!startAt) { setError('Start date is required.'); return }
+    const capacityError = validateCapacity(capacity)
+    if (capacityError) { setError(capacityError); return }
     const parsedStart = parseDate(startAt)
     if (isNaN(parsedStart.getTime())) { setError('Invalid start date.'); return }
     const parsedEnd = endAt ? parseDate(endAt) : null
@@ -305,6 +333,8 @@ export default function EventFormScreen() {
     if (!title.trim()) { setError('Title is required.'); return }
     if (!city || !address || !eventLocation) { setError('Pick the event location from the map.'); return }
     if (!startAt) { setError('Start date is required.'); return }
+    const capacityError = validateCapacity(capacity)
+    if (capacityError) { setError(capacityError); return }
     const parsedStart = parseDate(startAt)
     if (isNaN(parsedStart.getTime())) { setError('Invalid start date. Use YYYY-MM-DD HH:MM'); return }
     const parsedEnd = endAt ? parseDate(endAt) : null
@@ -571,6 +601,7 @@ export default function EventFormScreen() {
 
             <Field label="Total Capacity (blank = unlimited)">
               <TextInput style={styles.input} value={capacity} onChangeText={setCapacity} placeholder="100" placeholderTextColor={Colors.gray[400]} keyboardType="number-pad" maxLength={6} />
+              <Text style={styles.helperText}>{capacityHelperText}</Text>
             </Field>
 
             {/* Edit mode keeps price field */}

@@ -2,6 +2,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireAuth } from '@/lib/auth'
 import { handleApiError, ok, NotFoundException, ForbiddenException } from '@/lib/errors'
+import { getResolvedPlanCatalog } from '@/lib/plans'
 import { z } from 'zod'
 
 // GET /api/subscriptions — current user's plan + active subscription + (organizer) usage
@@ -9,6 +10,8 @@ export async function GET() {
   try {
     const ctx = await requireAuth()
     const supabase = await createSupabaseServerClient()
+    const planType = ctx.role === 'organizer' ? 'organizer' : 'user'
+    const catalog = await getResolvedPlanCatalog(ctx.userId, planType)
 
     if (ctx.role === 'organizer') {
       // Organizer: return plan from organizer_profiles + this month's quota usage
@@ -43,8 +46,13 @@ export async function GET() {
         .eq('month', monthStr)
         .maybeSingle()
 
+      const plan = catalog.plans.find((item) => item.id === op?.plan_id) ?? null
+
       return ok({
-        plan: op?.plan ?? null,
+        plan,
+        plans: catalog.plans,
+        pricing_country_code: catalog.countryCode,
+        pricing_source: catalog.source,
         subscription: sub ?? null,
         usage: {
           events_created: usage?.events_created ?? 0,
@@ -75,8 +83,13 @@ export async function GET() {
 
     if (profileErr) throw profileErr
 
+    const plan = catalog.plans.find((item) => item.id === profile?.plan_id) ?? null
+
     return ok({
-      plan: profile?.plan ?? null,
+      plan,
+      plans: catalog.plans,
+      pricing_country_code: catalog.countryCode,
+      pricing_source: catalog.source,
       subscription: sub ?? null,
     })
   } catch (err) {

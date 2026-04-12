@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireOrganizer, optionalAuth } from '@/lib/auth'
 import { handleApiError, ok, created, ForbiddenException } from '@/lib/errors'
+import { getOrganizerPlanAccess } from '@/lib/plans'
 import { CreateEventSchema, ListEventsSchema } from '@/lib/validations/events'
 import { sendNotifications } from '@/lib/notifications'
 
@@ -124,18 +125,10 @@ export async function POST(req: NextRequest) {
     const supabase = await createSupabaseServerClient()
 
     // ── Plan enforcement ─────────────────────────────────────
-    const { data: orgProfile, error: opErr } = await supabase
-      .from('organizer_profiles')
-      .select('plan_id, plan:plan_definitions(events_per_month, attendees_per_event)')
-      .eq('user_id', ctx.userId)
-      .single()
-
-    if (opErr || !orgProfile) throw new ForbiddenException('Organizer profile not found')
-
-    const plan = orgProfile.plan as unknown as { events_per_month: number | null; attendees_per_event: number | null } | null
+    const plan = await getOrganizerPlanAccess(ctx.userId)
 
     // Check monthly quota only when publishing (drafts are free)
-    if (input.is_published && plan?.events_per_month !== null && plan?.events_per_month !== undefined) {
+    if (input.is_published && plan.eventsPerMonth !== null) {
       const monthStr = new Date().toISOString().slice(0, 7) + '-01'
       const { data: usage } = await supabase
         .from('organizer_monthly_usage')
@@ -145,22 +138,22 @@ export async function POST(req: NextRequest) {
         .maybeSingle()
 
       const used = usage?.events_created ?? 0
-      if (used >= plan.events_per_month) {
+      if (used >= plan.eventsPerMonth) {
         throw new ForbiddenException(
-          `Monthly event limit reached (${plan.events_per_month} events/month on your current plan). Upgrade to publish more events.`
+          `Monthly event limit reached (${plan.eventsPerMonth} events/month on your current plan). Upgrade to publish more events.`
         )
       }
     }
 
     // Enforce attendee cap
-    if (plan?.attendees_per_event !== null && plan?.attendees_per_event !== undefined) {
-      if (input.capacity !== undefined && input.capacity !== null && input.capacity > plan.attendees_per_event) {
+    if (plan.attendeesPerEvent !== null) {
+      if (input.capacity !== undefined && input.capacity !== null && input.capacity > plan.attendeesPerEvent) {
         throw new ForbiddenException(
-          `Your plan allows a maximum of ${plan.attendees_per_event} attendees per event. Upgrade your plan or reduce the event capacity.`
+          `Your plan allows a maximum of ${plan.attendeesPerEvent} attendees per event. Upgrade your plan or reduce the event capacity.`
         )
       }
       if (input.capacity === undefined || input.capacity === null) {
-        input.capacity = plan.attendees_per_event
+        input.capacity = plan.attendeesPerEvent
       }
     }
     // ── End plan enforcement ──────────────────────────────────

@@ -1,8 +1,9 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { getResolvedPlanCatalog } from '@/lib/plans'
 import { PlanSelector } from '@/components/plans/PlanSelector'
-import type { PlanDefinition, Subscription } from '@/types/plans'
+import type { ResolvedPlanDefinition, Subscription } from '@/types/plans'
 
 export const metadata: Metadata = { title: 'My Plan' }
 
@@ -32,13 +33,8 @@ export default async function PlansPage() {
     if (op) currentPlanId = op.plan_id
   }
 
-  const [{ data: plans }, { data: subscription }] = await Promise.all([
-    supabase
-      .from('plan_definitions')
-      .select('*')
-      .eq('type', isOrganizer ? 'organizer' : 'user')
-      .eq('is_active', true)
-      .order('sort_order'),
+  const [{ plans }, { data: subscription }] = await Promise.all([
+    getResolvedPlanCatalog(user.id, isOrganizer ? 'organizer' : 'user'),
     supabase
       .from('subscriptions')
       .select('*')
@@ -64,7 +60,7 @@ export default async function PlansPage() {
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10">
       <PlanSelector
-        plans={(plans ?? []) as PlanDefinition[]}
+        plans={plans as ResolvedPlanDefinition[]}
         currentPlanId={currentPlanId}
         subscription={subscription as Subscription | null}
         usage={usage}

@@ -490,6 +490,8 @@ export default function OnboardingScreen() {
             ...(profile?.preferences as Record<string, unknown> ?? {}),
             onboarding_completed: true,
             interests,
+            country_code: communityLocation.countryCode,
+            country_name: communityLocation.countryName,
             show_smart_picks_trigger: true,
           },
         } as any)

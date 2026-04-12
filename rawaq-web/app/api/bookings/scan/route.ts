@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireOrganizer } from '@/lib/auth'
 import { handleApiError, ok, NotFoundException, ForbiddenException } from '@/lib/errors'
+import { canUseTicketScanner, getOrganizerPlanAccess } from '@/lib/plans'
 import { z } from 'zod'
 
 const ScanSchema = z.object({
@@ -18,6 +19,13 @@ export async function POST(req: NextRequest) {
     const { ticket_id } = ScanSchema.parse(body)
 
     const admin = createSupabaseAdminClient()
+
+    if (ctx.role !== 'admin') {
+      const plan = await getOrganizerPlanAccess(ctx.userId)
+      if (!canUseTicketScanner(plan)) {
+        throw new ForbiddenException('QR scanning is available on Pro and Elite organizer plans.')
+      }
+    }
 
     // Look up the booking by ticket_id
     const { data: booking, error } = await admin

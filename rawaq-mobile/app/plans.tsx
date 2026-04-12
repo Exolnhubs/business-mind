@@ -4,25 +4,22 @@ import {
   ActivityIndicator, Alert, RefreshControl,
 } from 'react-native'
 import { useRouter } from 'expo-router'
-import { supabase } from '@/lib/supabase'
+import { apiGet, apiPost } from '@/lib/api'
 import { useAuth } from '@/contexts/auth-context'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
+import type { ResolvedPlanDefinition, Subscription } from '@/types/plans'
 
 // ── Constants ─────────────────────────────────────────────────
 const C_INK  = '#1c1510'
 const C_GOLD = Colors.brand[500]
 
-interface Plan {
-  id: string
-  type: 'user' | 'organizer'
-  name: string
-  name_ar: string
-  price_sar: number
-  events_per_month: number | null
-  attendees_per_event: number | null
-  platform_fee_pct: number
-  features: Record<string, unknown>
-  sort_order: number
+type Plan = ResolvedPlanDefinition
+type SubscriptionResponse = {
+  plan: ResolvedPlanDefinition | null
+  plans: ResolvedPlanDefinition[]
+  subscription: Subscription | null
+  usage?: { events_created: number; month: string }
+  pricing_country_code?: string | null
 }
 
 const PLAN_FLAGSHIP: Record<string, boolean> = {
@@ -31,11 +28,11 @@ const PLAN_FLAGSHIP: Record<string, boolean> = {
 }
 
 const PLAN_FEATURES: Record<string, string[]> = {
-  user_free:    ['Book & attend any public event', 'Save up to 20 events', 'Community access & happenings', 'Standard booking queue'],
-  user_premium: ['Everything in Free', '24-hour early booking access', 'Unlimited saved events', 'Premium-only exclusive events', 'Premium badge on profile', 'Ad-free browsing'],
-  org_basic:    ['3 events published per month', 'Up to 100 attendees per event', 'Basic event analytics', '10% platform fee on revenue'],
-  org_pro:      ['15 events published per month', 'Up to 1,000 attendees per event', 'Full analytics dashboard', '1 featured event slot / month', 'Ticket scanner access', 'Up to 3 team members', '6% platform fee on revenue'],
-  org_elite:    ['Unlimited events published', 'Unlimited attendees per event', 'Full analytics + CSV export', '5 featured event slots / month', 'Ticket scanner access', 'Priority support', 'Custom ticket branding', '3% platform fee on revenue'],
+  user_free:    ['Book & attend any public event', 'Save up to 20 events', 'Community access & happenings', 'Standard discovery experience'],
+  user_premium: ['Everything in Free', 'Unlimited saved events', 'Access premium-only events'],
+  org_basic:    ['3 events published per month', 'Up to 50 attendees per event', 'Organizer dashboard access', '10% platform fee on revenue'],
+  org_pro:      ['15 events published per month', 'Up to 200 attendees per event', 'Ticket scanner access', '6% platform fee on revenue'],
+  org_elite:    ['Unlimited events published', 'Unlimited attendees per event', 'Ticket scanner access', '3% platform fee on revenue'],
 }
 
 type PlanAction = 'current' | 'upgrade' | 'downgrade'
@@ -45,6 +42,13 @@ function getPlanAction(plan: Plan, activePlanId: string, plans: Plan[]): PlanAct
   const active = plans.find(p => p.id === activePlanId)
   if (!active) return 'upgrade'
   return plan.sort_order > active.sort_order ? 'upgrade' : 'downgrade'
+}
+
+function formatPlanAmount(amount: number): string {
+  return new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: amount % 1 === 0 ? 0 : 2,
+    maximumFractionDigits: amount % 1 === 0 ? 0 : 2,
+  }).format(amount)
 }
 
 // ── Screen ─────────────────────────────────────────────────────
@@ -65,35 +69,17 @@ export default function PlansScreen() {
   const load = useCallback(async () => {
     if (!user || !profile) return
 
-    const planType = isOrganizer ? 'organizer' : 'user'
-
-    const [plansRes, currentRes] = await Promise.all([
-      supabase
-        .from('plan_definitions')
-        .select('*')
-        .eq('type', planType)
-        .eq('is_active', true)
-        .order('sort_order'),
-      isOrganizer
-        ? supabase.from('organizer_profiles').select('plan_id').eq('user_id', user.id).single()
-        : Promise.resolve({ data: { plan_id: profile.plan_id ?? 'user_free' } }),
-    ])
-
-    setPlans((plansRes.data ?? []) as Plan[])
-    const pid = (currentRes.data as { plan_id: string } | null)?.plan_id ?? (isOrganizer ? 'org_basic' : 'user_free')
-    setCurrentId(pid)
-
-    // Fetch monthly usage for organizers
-    if (isOrganizer) {
-      const monthStr = new Date().toISOString().slice(0, 7) + '-01'
-      const { data: usage } = await supabase
-        .from('organizer_monthly_usage')
-        .select('events_created')
-        .eq('organizer_id', user.id)
-        .eq('month', monthStr)
-        .maybeSingle()
-      setEventsUsed(usage?.events_created ?? 0)
+    const { data, error } = await apiGet<SubscriptionResponse>('/api/subscriptions')
+    if (error) {
+      setLoading(false)
+      setRefreshing(false)
+      Alert.alert('Error', error)
+      return
     }
+
+    setPlans(data?.plans ?? [])
+    setCurrentId(data?.plan?.id ?? (isOrganizer ? 'org_basic' : 'user_free'))
+    setEventsUsed(data?.usage?.events_created ?? 0)
 
     setLoading(false)
     setRefreshing(false)
@@ -106,19 +92,8 @@ export default function PlansScreen() {
     setSaving(plan.id)
     setConfirmId(null)
     try {
-      let error
-      if (isOrganizer) {
-        ({ error } = await supabase
-          .from('organizer_profiles')
-          .update({ plan_id: plan.id })
-          .eq('user_id', user.id))
-      } else {
-        ({ error } = await supabase
-          .from('profiles')
-          .update({ plan_id: plan.id })
-          .eq('id', user.id))
-      }
-      if (error) throw error
+      const { error } = await apiPost<{ plan_name?: string }>('/api/subscriptions', { plan_id: plan.id })
+      if (error) throw new Error(error)
       setCurrentId(plan.id)
       await refreshProfile()
       Alert.alert('Plan updated', `You are now on the ${plan.name} plan.`)
@@ -134,8 +109,8 @@ export default function PlansScreen() {
     if (action === 'downgrade') {
       setConfirmId(plan.id)
     } else {
-      const priceMsg = plan.price_sar > 0
-        ? `\n\nPrice: ${plan.price_sar} SAR / month (simulated — no charges in MVP)`
+      const priceMsg = plan.price_amount > 0
+        ? `\n\nPrice: ${formatPlanAmount(plan.price_amount)} ${plan.price_currency} / month (simulated — no charges in MVP)`
         : ''
       Alert.alert(
         `Upgrade to ${plan.name}`,
@@ -194,7 +169,7 @@ export default function PlansScreen() {
         <Text style={styles.subtitle}>
           {isOrganizer
             ? 'Publish more events and keep more of what you earn as you grow.'
-            : 'Upgrade for early access, exclusive events, and priority booking.'}
+            : 'Upgrade for unlimited saves and premium-only event access.'}
         </Text>
       </View>
 
@@ -204,7 +179,7 @@ export default function PlansScreen() {
           <View style={{ flex: 1 }}>
             <Text style={styles.statusLabel}>CURRENT PLAN</Text>
             <Text style={styles.statusPlanName}>{activePlan?.name ?? '—'}</Text>
-            {(activePlan?.price_sar ?? 0) === 0 && (
+            {(activePlan?.price_amount ?? 0) === 0 && (
               <Text style={styles.statusSub}>Free · no billing</Text>
             )}
           </View>
@@ -274,10 +249,10 @@ export default function PlansScreen() {
               {/* Price */}
               <Text style={styles.darkPlanName}>{plan.name}</Text>
               <View style={styles.priceRow}>
-                {plan.price_sar > 0 ? (
+                {plan.price_amount > 0 ? (
                   <>
-                    <Text style={styles.darkPrice}>{plan.price_sar}</Text>
-                    <Text style={styles.darkPriceUnit}>SAR / month</Text>
+                    <Text style={styles.darkPrice}>{formatPlanAmount(plan.price_amount)}</Text>
+                    <Text style={styles.darkPriceUnit}>{plan.price_currency} / month</Text>
                   </>
                 ) : (
                   <Text style={styles.darkPriceFree}>Free</Text>
@@ -293,7 +268,7 @@ export default function PlansScreen() {
               {feeSaved && (
                 <View style={styles.darkSavings}>
                   <Text style={styles.darkSavingsText}>
-                    Save {feeSaved} SAR for every 100 SAR earned vs Basic
+                    Save {feeSaved}% in platform fees vs Basic
                   </Text>
                 </View>
               )}
@@ -376,10 +351,10 @@ export default function PlansScreen() {
             {/* Price */}
             <Text style={styles.lightPlanName}>{plan.name}</Text>
             <View style={styles.priceRow}>
-              {plan.price_sar > 0 ? (
+              {plan.price_amount > 0 ? (
                 <>
-                  <Text style={styles.lightPrice}>{plan.price_sar}</Text>
-                  <Text style={styles.lightPriceUnit}>SAR / month</Text>
+                  <Text style={styles.lightPrice}>{formatPlanAmount(plan.price_amount)}</Text>
+                  <Text style={styles.lightPriceUnit}>{plan.price_currency} / month</Text>
                 </>
               ) : (
                 <Text style={styles.lightPriceFree}>Free</Text>
@@ -395,7 +370,7 @@ export default function PlansScreen() {
             {feeSaved && (
               <View style={styles.lightSavings}>
                 <Text style={styles.lightSavingsText}>
-                  Save {feeSaved} SAR for every 100 SAR earned vs Basic
+                  Save {feeSaved}% in platform fees vs Basic
                 </Text>
               </View>
             )}

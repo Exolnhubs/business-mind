@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { handleApiError, ok, NotFoundException, ForbiddenException } from '@/lib/errors'
 import { requireAuth } from '@/lib/auth'
+import { canUseTicketScanner, getOrganizerPlanAccess } from '@/lib/plans'
 
 type BookingGetShape = {
   id: string; status: string; ticket_id: string | null; seat: string | null; scanned_at: string | null
@@ -72,6 +73,13 @@ export async function POST(req: NextRequest) {
     if (!ticket_id) throw new NotFoundException('Ticket ID')
 
     const admin = createSupabaseAdminClient()
+
+    if (ctx.role !== 'admin') {
+      const plan = await getOrganizerPlanAccess(ctx.userId)
+      if (!canUseTicketScanner(plan)) {
+        throw new ForbiddenException('QR scanning is available on Pro and Elite organizer plans.')
+      }
+    }
 
     // Fetch booking + event to check organizer ownership
     const { data: raw, error } = await admin

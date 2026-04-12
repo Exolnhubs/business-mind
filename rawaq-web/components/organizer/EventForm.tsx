@@ -15,6 +15,13 @@ interface EventFormProps {
   initialCommunityIds?: string[]
 }
 
+interface SubscriptionResponse {
+  plan: {
+    name: string
+    attendees_per_event: number | null
+  } | null
+}
+
 type TicketDraft = { name: string; is_free: boolean; price: string; capacity: string }
 
 const EMPTY_TICKET: TicketDraft = { name: '', is_free: true, price: '', capacity: '' }
@@ -82,6 +89,8 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
   const [tickets, setTickets]         = useState<TicketDraft[]>([{ ...EMPTY_TICKET, name: 'General Admission' }])
   const [loading, setLoading]         = useState(false)
   const [error, setError]             = useState<string | null>(null)
+  const [attendeePlanLimit, setAttendeePlanLimit] = useState<number | null>(null)
+  const [attendeePlanName, setAttendeePlanName] = useState('your current plan')
   const [showLocationPicker, setShowLocationPicker] = useState(false)
   const [communities, setCommunities] = useState<Pick<Community, 'id' | 'name' | 'level' | 'type'>[]>([])
   const [selectedCommunities, setSelectedCommunities] = useState<string[]>(initialCommunityIds)
@@ -108,6 +117,19 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
       })
       .catch(() => {})
   }, [])
+
+  useEffect(() => {
+    if (!user) return
+
+    fetch('/api/subscriptions')
+      .then((response) => (response.ok ? response.json() : null))
+      .then((json: { data?: SubscriptionResponse } | null) => {
+        const plan = json?.data?.plan
+        setAttendeePlanLimit(plan?.attendees_per_event ?? null)
+        setAttendeePlanName(plan?.name ?? 'your current plan')
+      })
+      .catch(() => {})
+  }, [user])
 
   const set = (k: keyof typeof form) => (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
@@ -142,11 +164,30 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
         }
       : null
 
+  const capacityHelperText = attendeePlanLimit !== null
+    ? `${attendeePlanName} allows up to ${attendeePlanLimit} attendees per event.`
+    : 'Your current plan does not have an attendee cap.'
+
+  function validateCapacity(value: string): string | null {
+    if (!value.trim()) return null
+    const parsed = Number(value)
+    if (!Number.isFinite(parsed) || parsed <= 0) return 'Capacity must be greater than 0.'
+    if (attendeePlanLimit !== null && parsed > attendeePlanLimit) {
+      return `${attendeePlanName} allows up to ${attendeePlanLimit} attendees per event.`
+    }
+    return null
+  }
+
   // ─── Edit mode: single-form UX (unchanged) ──────────────────────────────────
   async function handleEditSubmit(e: FormEvent) {
     e.preventDefault()
     if (!form.city || !form.address || form.lat === null || form.lng === null) {
       setError('Pick the event location from the map.')
+      return
+    }
+    const capacityError = validateCapacity(form.capacity)
+    if (capacityError) {
+      setError(capacityError)
       return
     }
     setError(null)
@@ -261,6 +302,7 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
           <div>
             <label className="label">Capacity</label>
             <input type="number" min={1} value={form.capacity} onChange={set('capacity')} className="input" placeholder="Unlimited" />
+            <p className="mt-1 text-xs text-gray-400">{capacityHelperText}</p>
           </div>
           <div>
             <label className="label">Price</label>
@@ -388,6 +430,11 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
     e.preventDefault()
     if (!form.city || !form.address || form.lat === null || form.lng === null) {
       setError('Pick the event location from the map')
+      return
+    }
+    const capacityError = validateCapacity(form.capacity)
+    if (capacityError) {
+      setError(capacityError)
       return
     }
     setError(null)
@@ -592,6 +639,7 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
             <div>
               <label className="label">Total Capacity</label>
               <input type="number" min={1} value={form.capacity} onChange={set('capacity')} className="input" placeholder="Unlimited" />
+              <p className="mt-1 text-xs text-gray-400">{capacityHelperText}</p>
             </div>
             <div>
               <label className="label">Gender Restriction</label>

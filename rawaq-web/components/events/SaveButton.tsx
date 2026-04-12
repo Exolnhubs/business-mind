@@ -20,11 +20,18 @@ export function SaveButton({ eventId, initialSaved, size = 'sm' }: Props) {
     setSaved(next)
     startTransition(async () => {
       try {
-        await fetch(`/api/events/${eventId}/save`, {
+        const res = await fetch(`/api/events/${eventId}/save`, {
           method: next ? 'POST' : 'DELETE',
         })
+        if (!res.ok) {
+          const json = await res.json().catch(() => ({}))
+          throw new Error((json as { error?: string }).error ?? 'Could not update saved events')
+        }
       } catch {
         setSaved(!next) // revert on error
+        if (next && typeof window !== 'undefined') {
+          window.alert('You have reached your saved-events limit for the current membership plan.')
+        }
       }
     })
   }

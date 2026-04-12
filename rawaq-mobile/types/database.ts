@@ -1,7 +1,7 @@
 // Auto-maintained DB types — keep in sync with migrations.
 // In production use: `supabase gen types typescript --linked > types/database.ts`
-import type { PlanDefinition, Subscription, OrganizerMonthlyUsage } from './plans'
-export type { PlanDefinition, Subscription, OrganizerMonthlyUsage } from './plans'
+import type { PlanCountryPrice, PlanDefinition, Subscription, OrganizerMonthlyUsage } from './plans'
+export type { PlanCountryPrice, PlanDefinition, Subscription, OrganizerMonthlyUsage } from './plans'
 
 export type UserRole = 'user' | 'organizer' | 'admin'
 export type GenderType = 'male' | 'female' | 'mixed'
@@ -700,6 +700,7 @@ export type Database = {
       community_member_sanctions: { Row: R<CommunityMemberSanction>; Insert: R<Omit<CommunityMemberSanction, 'id' | 'starts_at' | 'revoked_by' | 'revoked_at' | 'revoke_note' | 'created_at'>> & Partial<Pick<R<CommunityMemberSanction>, 'starts_at' | 'revoked_by' | 'revoked_at' | 'revoke_note'>>; Update: R<Partial<CommunityMemberSanction>>; Relationships: [] }
       community_audit_logs: { Row: R<CommunityAuditLog>; Insert: R<Omit<CommunityAuditLog, 'id' | 'created_at'>>; Update: R<Partial<CommunityAuditLog>>; Relationships: [] }
       plan_definitions: { Row: R<PlanDefinition>; Insert: R<Omit<PlanDefinition, 'created_at' | 'updated_at'>>; Update: R<Partial<PlanDefinition>>; Relationships: [] }
+      plan_country_prices: { Row: R<PlanCountryPrice>; Insert: R<Omit<PlanCountryPrice, 'created_at' | 'updated_at'>>; Update: R<Partial<PlanCountryPrice>>; Relationships: [] }
       organizer_monthly_usage: { Row: R<OrganizerMonthlyUsage>; Insert: R<OrganizerMonthlyUsage>; Update: R<Partial<OrganizerMonthlyUsage>>; Relationships: [] }
       organizer_wallet: { Row: R<OrganizerWalletRow>; Insert: R<OrganizerWalletRow>; Update: R<Partial<OrganizerWalletRow>>; Relationships: [] }
       subscriptions: { Row: R<Subscription>; Insert: R<Omit<Subscription, 'id' | 'created_at' | 'updated_at'>>; Update: R<Partial<Subscription>>; Relationships: [] }
