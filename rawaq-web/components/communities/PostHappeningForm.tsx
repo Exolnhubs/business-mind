@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import type { HappeningType } from '@/types/database'
-import { LocationPickerModal } from '@/components/communities/LocationPickerModal'
+import { LocationPickerModal, type PickedLocation } from '@/components/communities/LocationPickerModal'
 
 const TYPES: { key: HappeningType; label: string; icon: string; placeholder: string }[] = [
   { key: 'open_invite', label: 'Open invite', icon: '🎉', placeholder: "Who's free to join right now?" },
@@ -18,12 +18,6 @@ const EXPIRY_OPTIONS = [
   { value: 12, label: '12 hours' },
   { value: 24, label: '24 hours' },
 ]
-
-type PickedLocation = {
-  lat: number
-  lng: number
-  label: string
-}
 
 interface Props {
   posting: boolean

@@ -17,6 +17,10 @@ export type PickedLocation = {
   lat: number
   lng: number
   label: string
+  address: string
+  city: string
+  country: string
+  countryCode: string
 }
 
 type SearchResult = {
@@ -77,25 +81,63 @@ export function LocationPickerModal({
     )
   }, [initialLocation, visible])
 
-  async function reverseLabel(lat: number, lng: number) {
+async function reverseLabel(lat: number, lng: number) {
     try {
       const parts = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng })
       const first = parts[0]
-      if (!first) return `${lat.toFixed(5)}, ${lng.toFixed(5)}`
-      return [first.name, first.street, first.district, first.city, first.region]
-        .filter(Boolean)
-        .join(', ')
+      if (!first) {
+        const fallback = `${lat.toFixed(5)}, ${lng.toFixed(5)}`
+        return {
+          lat,
+          lng,
+          label: fallback,
+          address: fallback,
+          city: 'Selected area',
+          country: '',
+          countryCode: '',
+        }
+      }
+
+      const city = (first.city || first.subregion || first.region || first.district || first.country || 'Selected area').slice(0, 100)
+      const addressLine = [
+        first.name,
+        first.street,
+        first.streetNumber,
+        first.district,
+        first.city,
+        first.region,
+      ].filter(Boolean).join(', ')
+      const label = addressLine || `${lat.toFixed(5)}, ${lng.toFixed(5)}`
+
+      return {
+        lat,
+        lng,
+        label,
+        address: addressLine || label,
+        city,
+        country: first.country || '',
+        countryCode: first.isoCountryCode || '',
+      }
     } catch {
-      return `${lat.toFixed(5)}, ${lng.toFixed(5)}`
+      const fallback = `${lat.toFixed(5)}, ${lng.toFixed(5)}`
+      return {
+        lat,
+        lng,
+        label: fallback,
+        address: fallback,
+        city: 'Selected area',
+        country: '',
+        countryCode: '',
+      }
     }
   }
 
   async function handleMapPick(lat: number, lng: number) {
     setResolving(true)
     try {
-      const label = await reverseLabel(lat, lng)
-      setSelected({ lat, lng, label })
-      setQuery(label)
+      const location = await reverseLabel(lat, lng)
+      setSelected(location)
+      setQuery(location.label)
       setResults([])
       setRegion({
         latitude: lat,
@@ -167,19 +209,18 @@ export function LocationPickerModal({
               {results.map((result) => (
                 <TouchableOpacity
                   key={`${result.lat}-${result.lon}-${result.display_name}`}
-                  onPress={() => {
-                    const lat = Number(result.lat)
-                    const lng = Number(result.lon)
-                    setSelected({ lat, lng, label: result.display_name })
-                    setQuery(result.display_name)
-                    setResults([])
-                    setRegion({
-                      latitude: lat,
+                onPress={() => {
+                  const lat = Number(result.lat)
+                  const lng = Number(result.lon)
+                  setResults([])
+                  setRegion({
+                    latitude: lat,
                       longitude: lng,
-                      latitudeDelta: 0.02,
-                      longitudeDelta: 0.02,
-                    })
-                  }}
+                    latitudeDelta: 0.02,
+                    longitudeDelta: 0.02,
+                  })
+                  handleMapPick(lat, lng)
+                }}
                   style={styles.resultItem}
                 >
                   <Text style={styles.resultTitle}>{result.display_name}</Text>

@@ -8,14 +8,14 @@ import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/dat
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '@/lib/supabase'
 import { apiGet, apiPatch } from '@/lib/api'
 import { uploadViaApi } from '@/lib/upload'
 import { useAuth } from '@/contexts/auth-context'
+import { LocationPickerModal, type PickedLocation } from '@/components/communities/LocationPickerModal'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
 import type { Community, EventVisibility } from '@/types/database'
-
-const CITIES = ['Riyadh', 'Jeddah', 'Dammam', 'Mecca', 'Medina', 'Khobar', 'Tabuk', 'Abha', 'Taif']
 const TEMPLATES_KEY = 'rawaq_ticket_templates'
 
 interface Category { id: string; name_en: string; icon: string | null }
@@ -36,7 +36,10 @@ export default function EventFormScreen() {
   const { user }   = useAuth()
   const router     = useRouter()
   const { id }     = useLocalSearchParams<{ id?: string }>()
+  const insets     = useSafeAreaInsets()
   const isEdit     = !!id
+  const eventCurrency = 'SAR'
+  const headerTopSpacing = Math.max(Spacing.sm, Math.min(insets.top * 0.18, Spacing.md))
 
   const [categories, setCategories] = useState<Category[]>([])
   const [loading,    setLoading]    = useState(isEdit)
@@ -56,8 +59,11 @@ export default function EventFormScreen() {
   const [description,       setDescription]       = useState('')
   const [categoryId,        setCategoryId]        = useState('')
   const [city,              setCity]              = useState('')
+  const [country,           setCountry]           = useState('SA')
   const [venueName,         setVenueName]         = useState('')
   const [address,           setAddress]           = useState('')
+  const [eventLocation,     setEventLocation]     = useState<PickedLocation | null>(null)
+  const [showLocationPicker, setShowLocationPicker] = useState(false)
   const [startAt,           setStartAt]           = useState('')
   const [endAt,             setEndAt]             = useState('')
   // Date picker state
@@ -154,8 +160,22 @@ export default function EventFormScreen() {
           setDescription(ev.description ?? '')
           setCategoryId(ev.category_id ?? '')
           setCity(ev.city)
+          setCountry(ev.country ?? 'SA')
           setVenueName(ev.venue_name ?? '')
           setAddress(ev.address ?? '')
+          setEventLocation(
+            ev.lat !== null && ev.lng !== null
+              ? {
+                  lat: ev.lat,
+                  lng: ev.lng,
+                  label: ev.address ?? [ev.venue_name, ev.city].filter(Boolean).join(', '),
+                  address: ev.address ?? [ev.venue_name, ev.city].filter(Boolean).join(', '),
+                  city: ev.city,
+                  country: ev.country ?? 'SA',
+                  countryCode: ev.country ?? 'SA',
+                }
+              : null,
+          )
           setStartAt(ev.start_at ? new Date(ev.start_at).toISOString().slice(0, 16).replace('T', ' ') : '')
           setEndAt(ev.end_at ? new Date(ev.end_at).toISOString().slice(0, 16).replace('T', ' ') : '')
           setCapacity(ev.capacity?.toString() ?? '')
@@ -211,6 +231,13 @@ export default function EventFormScreen() {
     }
   }
 
+  function applyPickedLocation(location: PickedLocation | null) {
+    setEventLocation(location)
+    setCity(location?.city ?? '')
+    setCountry(location?.countryCode || 'SA')
+    setAddress(location?.address ?? '')
+  }
+
   async function pickCoverImage() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images', 'videos'],
@@ -233,7 +260,7 @@ export default function EventFormScreen() {
   // ─── Edit mode: save directly ───────────────────────────────────────────────
   async function saveEdit() {
     if (!title.trim()) { setError('Title is required.'); return }
-    if (!city) { setError('City is required.'); return }
+    if (!city || !address || !eventLocation) { setError('Pick the event location from the map.'); return }
     if (!startAt) { setError('Start date is required.'); return }
     const parsedStart = parseDate(startAt)
     if (isNaN(parsedStart.getTime())) { setError('Invalid start date.'); return }
@@ -249,9 +276,11 @@ export default function EventFormScreen() {
       description: description.trim() || null,
       category_id: categoryId || null,
       city,
-      country: 'SA',
+      country,
       venue_name: venueName.trim() || null,
       address: address.trim() || null,
+      lat: eventLocation.lat,
+      lng: eventLocation.lng,
       start_at: parsedStart.toISOString(),
       end_at: parsedEnd?.toISOString() ?? null,
       capacity: capacity ? Number(capacity) : null,
@@ -274,7 +303,7 @@ export default function EventFormScreen() {
   // ─── Create wizard step 1: create/update draft event ───────────────────────
   async function handleStep1() {
     if (!title.trim()) { setError('Title is required.'); return }
-    if (!city) { setError('City is required.'); return }
+    if (!city || !address || !eventLocation) { setError('Pick the event location from the map.'); return }
     if (!startAt) { setError('Start date is required.'); return }
     const parsedStart = parseDate(startAt)
     if (isNaN(parsedStart.getTime())) { setError('Invalid start date. Use YYYY-MM-DD HH:MM'); return }
@@ -291,7 +320,9 @@ export default function EventFormScreen() {
       description:        description.trim() || null,
       category_id:        categoryId || null,
       city,
-      country:            'SA',
+      country,
+      lat:                eventLocation.lat,
+      lng:                eventLocation.lng,
       venue_name:         venueName.trim() || null,
       address:            address.trim() || null,
       start_at:           parsedStart.toISOString(),
@@ -395,15 +426,18 @@ export default function EventFormScreen() {
 
   if (loading) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={Colors.brand[500]} />
-      </View>
+      <SafeAreaView edges={['top']} style={styles.safeArea}>
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color={Colors.brand[500]} />
+        </View>
+      </SafeAreaView>
     )
   }
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <SafeAreaView edges={['top']} style={styles.safeArea}>
+      <KeyboardAvoidingView style={styles.safeArea} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <View style={[styles.headerChrome, { paddingTop: headerTopSpacing }]}>
 
         {/* ── Step indicator (create only) ── */}
         {!isEdit && (
@@ -429,6 +463,9 @@ export default function EventFormScreen() {
         <Text style={styles.screenTitle}>
           {isEdit ? 'Edit Event' : step === 1 ? 'Event Details' : step === 2 ? 'Ticket Types' : 'Review & Publish'}
         </Text>
+        </View>
+
+        <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
 
         {/* ── Step 1 / Edit: Event details ── */}
         {(isEdit || step === 1) && (
@@ -472,22 +509,33 @@ export default function EventFormScreen() {
               </View>
             </Field>
 
-            <Field label="City *">
-              <View style={styles.chipRow}>
-                {CITIES.map((c) => (
-                  <TouchableOpacity key={c} style={[styles.chip, city === c && styles.chipActive]} onPress={() => setCity(city === c ? '' : c)}>
-                    <Text style={[styles.chipText, city === c && styles.chipTextActive]}>{c}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </Field>
-
             <Field label="Venue Name">
               <TextInput style={styles.input} value={venueName} onChangeText={setVenueName} placeholder="Venue name" placeholderTextColor={Colors.gray[400]} maxLength={200} />
             </Field>
 
-            <Field label="Address">
-              <TextInput style={styles.input} value={address} onChangeText={setAddress} placeholder="Street address" placeholderTextColor={Colors.gray[400]} maxLength={300} />
+            <Field label="Event Location *">
+              <View style={styles.locationCard}>
+                <View style={styles.locationHeader}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.locationTitle}>
+                      {address || 'No event location selected yet.'}
+                    </Text>
+                    <Text style={styles.locationMeta}>
+                      {city
+                        ? [city, country].filter(Boolean).join(' · ')
+                        : 'Pick the exact event spot from the map and we will fill the city and address automatically.'}
+                    </Text>
+                    {eventLocation ? (
+                      <Text style={styles.locationCoords}>
+                        {eventLocation.lat.toFixed(5)}, {eventLocation.lng.toFixed(5)}
+                      </Text>
+                    ) : null}
+                  </View>
+                  <TouchableOpacity style={styles.locationActionBtn} onPress={() => setShowLocationPicker(true)}>
+                    <Text style={styles.locationActionText}>{eventLocation ? 'Edit on map' : 'Pick on map'}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
             </Field>
 
             <Field label="Start Date & Time *">
@@ -630,7 +678,7 @@ export default function EventFormScreen() {
         {/* ── Step 2: Ticket types ── */}
         {!isEdit && step === 2 && (
           <>
-            <Text style={styles.stepHint}>Define pricing tiers. Add multiple types like Early Bird, General, VIP.</Text>
+            <Text style={styles.stepHint}>Define pricing tiers. Ticket prices automatically use the event currency: {eventCurrency}.</Text>
 
             {/* Template picker row */}
             <TouchableOpacity style={styles.templatePickerBtn} onPress={() => setShowTemplates(true)}>
@@ -663,7 +711,7 @@ export default function EventFormScreen() {
                 </View>
 
                 {!t.is_free && (
-                  <Field label="Price (SAR)">
+                  <Field label="Price">
                     <TextInput style={[styles.input, { marginTop: 4 }]} value={t.price} onChangeText={(v) => updateTicket(i, 'price', v)} placeholder="0.00" placeholderTextColor={Colors.gray[400]} keyboardType="decimal-pad" />
                   </Field>
                 )}
@@ -700,7 +748,7 @@ export default function EventFormScreen() {
             <View style={styles.reviewCard}>
               <Text style={styles.reviewSectionTitle}>Event</Text>
               <ReviewRow label="Title" value={title} />
-              <ReviewRow label="City" value={city} />
+              <ReviewRow label="Location" value={address || city} />
               <ReviewRow label="Starts" value={startAt} />
               {venueName ? <ReviewRow label="Venue" value={venueName} /> : null}
               <ReviewRow label="Visibility" value={visibilityType} />
@@ -718,7 +766,7 @@ export default function EventFormScreen() {
                 <View key={i} style={styles.reviewTicketRow}>
                   <Text style={styles.reviewTicketName}>{t.name}</Text>
                   <Text style={styles.reviewTicketPrice}>
-                    {t.is_free ? 'Free' : `SAR ${t.price}`}
+                    {t.is_free ? 'Free' : `${eventCurrency} ${t.price}`}
                     {t.capacity ? `  ·  ${t.capacity} cap` : ''}
                   </Text>
                 </View>
@@ -747,6 +795,16 @@ export default function EventFormScreen() {
       </ScrollView>
 
       {/* ── Ticket template picker modal ── */}
+      <LocationPickerModal
+        visible={showLocationPicker}
+        initialLocation={eventLocation}
+        onClose={() => setShowLocationPicker(false)}
+        onConfirm={(location) => {
+          applyPickedLocation(location)
+          setShowLocationPicker(false)
+        }}
+      />
+
       <Modal visible={showTemplates} animationType="slide" transparent onRequestClose={() => setShowTemplates(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
@@ -773,7 +831,7 @@ export default function EventFormScreen() {
                     <View style={{ flex: 1 }}>
                       <Text style={styles.templateName}>{item.name}</Text>
                       <Text style={styles.templateMeta}>
-                        {item.is_free ? 'Free' : `SAR ${item.price}`}
+                        {item.is_free ? 'Free' : `${eventCurrency} ${item.price}`}
                         {item.capacity ? `  ·  ${item.capacity} cap` : '  ·  Unlimited'}
                       </Text>
                     </View>
@@ -799,7 +857,8 @@ export default function EventFormScreen() {
         </View>
       </Modal>
 
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   )
 }
 
@@ -827,14 +886,16 @@ const fieldStyles = StyleSheet.create({
 })
 
 const styles = StyleSheet.create({
+  safeArea:            { flex: 1, backgroundColor: Colors.gray[50] },
   container:           { flex: 1, backgroundColor: Colors.gray[50] },
-  content:             { padding: Spacing.lg, paddingBottom: Spacing['4xl'] },
+  content:             { paddingHorizontal: Spacing.lg, paddingTop: Spacing.lg, paddingBottom: Spacing['4xl'] },
   centered:            { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  screenTitle:         { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.gray[900], marginBottom: Spacing['2xl'] },
+  headerChrome:        { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.lg, backgroundColor: Colors.gray[50] },
+  screenTitle:         { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.gray[900] },
   stepHint:            { fontSize: FontSize.sm, color: Colors.gray[500], marginBottom: Spacing['2xl'] },
 
   // Step indicator
-  stepRow:             { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing['2xl'] },
+  stepRow:             { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.lg },
   stepItem:            { alignItems: 'center', flex: 1 },
   stepDot:             { width: 28, height: 28, borderRadius: 14, backgroundColor: Colors.gray[100], alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
   stepDotActive:       { backgroundColor: Colors.brand[600] },
@@ -864,6 +925,13 @@ const styles = StyleSheet.create({
   switchRow:           { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: Colors.white, borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderWidth: 1, borderColor: Colors.gray[200] },
   switchLabel:         { fontSize: FontSize.base, color: Colors.gray[800] },
   helperText:          { fontSize: FontSize.xs, color: Colors.gray[500], marginBottom: Spacing.sm },
+  locationCard:        { borderWidth: 1, borderColor: Colors.gray[200], borderRadius: Radius.lg, backgroundColor: Colors.gray[50], padding: Spacing.md },
+  locationHeader:      { flexDirection: 'row', gap: Spacing.md, alignItems: 'flex-start' },
+  locationTitle:       { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[900] },
+  locationMeta:        { fontSize: FontSize.xs, color: Colors.gray[500], marginTop: 4, lineHeight: 18 },
+  locationCoords:      { fontSize: FontSize.xs, color: Colors.gray[400], marginTop: 6 },
+  locationActionBtn:   { borderWidth: 1, borderColor: Colors.brand[200], borderRadius: Radius.full, backgroundColor: Colors.white, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm },
+  locationActionText:  { fontSize: FontSize.xs, color: Colors.brand[700], fontWeight: FontWeight.semibold },
 
   // Ticket card
   ticketCard:          { backgroundColor: Colors.white, borderRadius: Radius.lg, padding: Spacing.md, marginBottom: Spacing.md, borderWidth: 1, borderColor: Colors.gray[200] },

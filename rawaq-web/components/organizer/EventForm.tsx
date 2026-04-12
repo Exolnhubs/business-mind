@@ -6,6 +6,7 @@ import { createSupabaseBrowserClient } from '@/lib/supabase/client'
 import { useAuth } from '@/contexts/auth-context'
 import { Spinner } from '@/components/ui/Spinner'
 import { FileUpload } from '@/components/ui/FileUpload'
+import { LocationPickerModal, type PickedLocation } from '@/components/communities/LocationPickerModal'
 import type { Event, EventCategory, Community, EventVisibility } from '@/types/database'
 
 interface EventFormProps {
@@ -13,8 +14,6 @@ interface EventFormProps {
   event?: Event
   initialCommunityIds?: string[]
 }
-
-const CITIES = ['Riyadh', 'Jeddah', 'Dammam', 'Mecca', 'Medina', 'Khobar', 'Tabuk', 'Abha', 'Taif']
 
 type TicketDraft = { name: string; is_free: boolean; price: string; capacity: string }
 
@@ -52,6 +51,7 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
   const router = useRouter()
   const supabase = createSupabaseBrowserClient()
   const isEdit = !!event
+  const eventCurrency = event?.currency ?? 'SAR'
 
   const [step, setStep] = useState<1 | 2 | 3>(1)
   const [createdEventId, setCreatedEventId] = useState<string | null>(null)
@@ -64,6 +64,9 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
     cover_image_url:    event?.cover_image_url ?? '',
     category_id:        event?.category_id ?? '',
     city:               event?.city ?? '',
+    country:            event?.country ?? 'SA',
+    lat:                event?.lat ?? null,
+    lng:                event?.lng ?? null,
     venue_name:         event?.venue_name ?? '',
     address:            event?.address ?? '',
     start_at:           event?.start_at ? event.start_at.slice(0, 16) : '',
@@ -79,9 +82,23 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
   const [tickets, setTickets]         = useState<TicketDraft[]>([{ ...EMPTY_TICKET, name: 'General Admission' }])
   const [loading, setLoading]         = useState(false)
   const [error, setError]             = useState<string | null>(null)
+  const [showLocationPicker, setShowLocationPicker] = useState(false)
   const [communities, setCommunities] = useState<Pick<Community, 'id' | 'name' | 'level' | 'type'>[]>([])
   const [selectedCommunities, setSelectedCommunities] = useState<string[]>(initialCommunityIds)
   const [visibilityType, setVisibilityType] = useState<EventVisibility>(event?.visibility_type ?? 'city')
+  const [selectedLocation, setSelectedLocation] = useState<PickedLocation | null>(
+    event && event.lat !== null && event.lng !== null
+      ? {
+          lat: event.lat,
+          lng: event.lng,
+          label: event.address ?? [event.venue_name, event.city].filter(Boolean).join(', '),
+          address: event.address ?? [event.venue_name, event.city].filter(Boolean).join(', '),
+          city: event.city,
+          country: event.country,
+          countryCode: event.country,
+        }
+      : null,
+  )
 
   useEffect(() => {
     fetch('/api/communities?per_page=50')
@@ -99,9 +116,39 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
   const setCheck = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.checked }))
 
+  function applyPickedLocation(location: PickedLocation | null) {
+    setSelectedLocation(location)
+    setForm((f) => ({
+      ...f,
+      city: location?.city ?? '',
+      country: location?.countryCode || 'SA',
+      address: location?.address ?? '',
+      lat: location?.lat ?? null,
+      lng: location?.lng ?? null,
+    }))
+  }
+
+  const locationSummary = selectedLocation
+    ? {
+        title: selectedLocation.address || selectedLocation.label,
+        meta: [selectedLocation.city, selectedLocation.country || selectedLocation.countryCode].filter(Boolean).join(' · '),
+        coordinates: `${selectedLocation.lat.toFixed(5)}, ${selectedLocation.lng.toFixed(5)}`,
+      }
+    : form.address || form.city
+      ? {
+          title: form.address || form.city,
+          meta: [form.city, form.country].filter(Boolean).join(' · '),
+          coordinates: form.lat !== null && form.lng !== null ? `${form.lat.toFixed(5)}, ${form.lng.toFixed(5)}` : '',
+        }
+      : null
+
   // ─── Edit mode: single-form UX (unchanged) ──────────────────────────────────
   async function handleEditSubmit(e: FormEvent) {
     e.preventDefault()
+    if (!form.city || !form.address || form.lat === null || form.lng === null) {
+      setError('Pick the event location from the map.')
+      return
+    }
     setError(null)
     setLoading(true)
 
@@ -115,8 +162,11 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
         description_ar: form.description_ar || null,
         category_id: form.category_id || null,
         city: form.city,
+        country: form.country,
         venue_name: form.venue_name || null,
         address: form.address || null,
+        lat: form.lat,
+        lng: form.lng,
         start_at: new Date(form.start_at).toISOString(),
         end_at: form.end_at ? new Date(form.end_at).toISOString() : null,
         capacity: form.capacity ? Number(form.capacity) : null,
@@ -169,22 +219,30 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
             </select>
           </div>
           <div>
-            <label className="label">City *</label>
-            <select required value={form.city} onChange={set('city')} className="input cursor-pointer">
-              <option value="">Select city</option>
-              {CITIES.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div>
             <label className="label">Venue Name</label>
             <input type="text" value={form.venue_name} onChange={set('venue_name')} className="input" />
           </div>
-          <div>
-            <label className="label">Address</label>
-            <input type="text" value={form.address} onChange={set('address')} className="input" />
+        </div>
+
+        <div>
+          <label className="label">Event Location *</label>
+          <div className="rounded-3xl border border-gray-200 bg-gray-50 p-4">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-gray-900">
+                  {locationSummary?.title ?? 'No event location selected yet.'}
+                </p>
+                <p className="text-sm text-gray-500">
+                  {locationSummary?.meta || 'Pick the exact event spot from the map and we will fill the city and address automatically.'}
+                </p>
+                {locationSummary?.coordinates ? (
+                  <p className="text-xs text-gray-400">{locationSummary.coordinates}</p>
+                ) : null}
+              </div>
+              <button type="button" onClick={() => setShowLocationPicker(true)} className="btn-secondary whitespace-nowrap">
+                {selectedLocation ? 'Edit on Map' : 'Pick on Map'}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -309,6 +367,16 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
           </button>
           <button type="button" onClick={() => router.back()} className="btn-ghost">Cancel</button>
         </div>
+
+        <LocationPickerModal
+          open={showLocationPicker}
+          initialLocation={selectedLocation}
+          onClose={() => setShowLocationPicker(false)}
+          onConfirm={(location) => {
+            applyPickedLocation(location)
+            setShowLocationPicker(false)
+          }}
+        />
       </form>
     )
   }
@@ -318,7 +386,10 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
   // Step 1: create/update draft event, then advance
   async function handleStep1(e: FormEvent) {
     e.preventDefault()
-    if (!form.city) { setError('City is required'); return }
+    if (!form.city || !form.address || form.lat === null || form.lng === null) {
+      setError('Pick the event location from the map')
+      return
+    }
     setError(null)
     setLoading(true)
 
@@ -331,7 +402,9 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
       cover_image_url:    form.cover_image_url || null,
       category_id:        form.category_id || null,
       city:               form.city,
-      country:            'SA',
+      country:            form.country,
+      lat:                form.lat,
+      lng:                form.lng,
       venue_name:         form.venue_name || null,
       address:            form.address || null,
       start_at:           new Date(form.start_at).toISOString(),
@@ -477,22 +550,30 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
               </select>
             </div>
             <div>
-              <label className="label">City *</label>
-              <select required value={form.city} onChange={set('city')} className="input cursor-pointer">
-                <option value="">Select city</option>
-                {CITIES.map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
               <label className="label">Venue Name</label>
               <input type="text" value={form.venue_name} onChange={set('venue_name')} className="input" placeholder="King Abdullah Park" />
             </div>
-            <div>
-              <label className="label">Address</label>
-              <input type="text" value={form.address} onChange={set('address')} className="input" placeholder="King Fahd Road" />
+          </div>
+
+          <div>
+            <label className="label">Event Location *</label>
+            <div className="rounded-3xl border border-gray-200 bg-gray-50 p-4">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold text-gray-900">
+                    {locationSummary?.title ?? 'No event location selected yet.'}
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    {locationSummary?.meta || 'Pick the exact event spot from the map and we will fill the city and address automatically.'}
+                  </p>
+                  {locationSummary?.coordinates ? (
+                    <p className="text-xs text-gray-400">{locationSummary.coordinates}</p>
+                  ) : null}
+                </div>
+                <button type="button" onClick={() => setShowLocationPicker(true)} className="btn-secondary whitespace-nowrap">
+                  {selectedLocation ? 'Edit on Map' : 'Pick on Map'}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -600,7 +681,7 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
       {step === 2 && (
         <form onSubmit={handleStep2} className="space-y-5">
           <p className="text-sm text-gray-500">
-            Define pricing tiers for your event. You can add multiple types (e.g. Early Bird, General, VIP).
+            Define pricing tiers for your event. Ticket prices automatically use the event currency: {eventCurrency}.
           </p>
 
           <div className="space-y-3">
@@ -631,7 +712,7 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
                       </label>
                       {!t.is_free && (
                         <div className="relative">
-                          <span className="absolute start-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">SAR</span>
+                          <span className="absolute start-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">{eventCurrency}</span>
                           <input type="number" min={1} step={0.01} value={t.price}
                             onChange={(e) => updateTicket(i, 'price', e.target.value)}
                             className="input ps-12" placeholder="0" />
@@ -677,8 +758,8 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
                 <dd className="text-gray-900 font-medium mt-0.5">{form.title}</dd>
               </div>
               <div>
-                <dt className="text-gray-500 text-xs font-medium uppercase tracking-wide">City</dt>
-                <dd className="text-gray-900 font-medium mt-0.5">{form.city}</dd>
+                <dt className="text-gray-500 text-xs font-medium uppercase tracking-wide">Location</dt>
+                <dd className="text-gray-900 font-medium mt-0.5">{form.address || form.city}</dd>
               </div>
               <div>
                 <dt className="text-gray-500 text-xs font-medium uppercase tracking-wide">Start</dt>
@@ -712,7 +793,7 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
                   <div key={i} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2 text-sm">
                     <span className="font-medium text-gray-900">{t.name}</span>
                     <span className="text-brand-700 font-semibold">
-                      {t.is_free ? 'Free' : `SAR ${t.price}`}
+                      {t.is_free ? 'Free' : `${eventCurrency} ${t.price}`}
                       {t.capacity ? ` · ${t.capacity} cap` : ''}
                     </span>
                   </div>
@@ -734,6 +815,16 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
           </div>
         </div>
       )}
+
+      <LocationPickerModal
+        open={showLocationPicker}
+        initialLocation={selectedLocation}
+        onClose={() => setShowLocationPicker(false)}
+        onConfirm={(location) => {
+          applyPickedLocation(location)
+          setShowLocationPicker(false)
+        }}
+      />
     </div>
   )
 }

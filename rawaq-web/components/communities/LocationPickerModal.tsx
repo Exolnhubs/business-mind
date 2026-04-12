@@ -8,24 +8,76 @@ const LeafletLocationMap = dynamic(
   { ssr: false },
 )
 
-type PickedLocation = {
+export type PickedLocation = {
   lat: number
   lng: number
   label: string
+  address: string
+  city: string
+  country: string
+  countryCode: string
 }
 
 type NominatimResult = {
   display_name: string
   lat: string
   lon: string
+  address?: {
+    city?: string
+    town?: string
+    village?: string
+    municipality?: string
+    county?: string
+    state_district?: string
+    state?: string
+    country?: string
+    country_code?: string
+    road?: string
+    house_number?: string
+    suburb?: string
+    neighbourhood?: string
+  }
 }
 
-async function reverseGeocode(lat: number, lng: number): Promise<string> {
+function toPickedLocation(lat: number, lng: number, label: string, address?: NominatimResult['address']): PickedLocation {
+  const rawCity =
+    address?.city ||
+    address?.town ||
+    address?.village ||
+    address?.municipality ||
+    address?.county ||
+    address?.state_district ||
+    address?.state ||
+    ''
+  const city = (rawCity || address?.country || 'Selected area').slice(0, 100)
+
+  const streetAddress = [address?.house_number, address?.road].filter(Boolean).join(' ').trim()
+  const fallbackAddress = [
+    streetAddress,
+    address?.suburb,
+    address?.neighbourhood,
+    city,
+    address?.country,
+  ].filter(Boolean).join(', ')
+
+  return {
+    lat,
+    lng,
+    label,
+    address: fallbackAddress || label,
+    city,
+    country: address?.country || '',
+    countryCode: address?.country_code?.toUpperCase() || '',
+  }
+}
+
+async function reverseGeocode(lat: number, lng: number): Promise<PickedLocation> {
   const res = await fetch(
-    `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`,
+    `https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&lat=${lat}&lon=${lng}`,
   )
-  const json = await res.json().catch(() => null) as { display_name?: string } | null
-  return json?.display_name?.trim() || `${lat.toFixed(5)}, ${lng.toFixed(5)}`
+  const json = await res.json().catch(() => null) as NominatimResult | null
+  const label = json?.display_name?.trim() || `${lat.toFixed(5)}, ${lng.toFixed(5)}`
+  return toPickedLocation(lat, lng, label, json?.address)
 }
 
 export function LocationPickerModal({
@@ -60,7 +112,7 @@ export function LocationPickerModal({
     setSearching(true)
     try {
       const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&q=${encodeURIComponent(query.trim())}`,
+        `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=5&q=${encodeURIComponent(query.trim())}`,
       )
       const json = await res.json().catch(() => []) as NominatimResult[]
       setResults(json)
@@ -72,9 +124,9 @@ export function LocationPickerModal({
   async function handleMapPick(lat: number, lng: number) {
     setResolving(true)
     try {
-      const label = await reverseGeocode(lat, lng)
-      setSelected({ lat, lng, label })
-      setQuery(label)
+      const location = await reverseGeocode(lat, lng)
+      setSelected(location)
+      setQuery(location.label)
       setResults([])
     } finally {
       setResolving(false)
@@ -117,12 +169,14 @@ export function LocationPickerModal({
                 key={`${result.lat}-${result.lon}-${result.display_name}`}
                 type="button"
                 onClick={() => {
-                  setSelected({
-                    lat: Number(result.lat),
-                    lng: Number(result.lon),
-                    label: result.display_name,
-                  })
-                  setQuery(result.display_name)
+                  const location = toPickedLocation(
+                    Number(result.lat),
+                    Number(result.lon),
+                    result.display_name,
+                    result.address,
+                  )
+                  setSelected(location)
+                  setQuery(location.label)
                   setResults([])
                 }}
                 className="flex w-full flex-col rounded-xl px-3 py-2 text-left hover:bg-white"
