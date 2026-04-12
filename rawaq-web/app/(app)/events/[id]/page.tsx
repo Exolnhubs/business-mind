@@ -183,14 +183,14 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
                     <p key={tt.id} className="text-sm font-medium">
                       <span className="text-gray-600">{tt.name}: </span>
                       <span className={tt.is_free ? 'text-green-600' : 'text-brand-700'}>
-                        {tt.is_free ? 'Free' : formatCurrency(tt.price, ev.currency ?? 'SAR')}
+                        {tt.is_free ? 'Free' : formatCurrency(tt.price, ev.currency)}
                       </span>
                     </p>
                   ))}
                 </div>
               ) : (
                 <p className="text-sm font-medium">
-                  {ev.is_free ? 'Free' : formatCurrency(ev.price ?? 0)}
+                  {ev.is_free ? 'Free' : formatCurrency(ev.price ?? 0, ev.currency)}
                 </p>
               )}
             </InfoBlock>
@@ -247,15 +247,15 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
                       return (
                         <div>
                           <span className="text-xs text-gray-400 font-medium uppercase tracking-wide block">from</span>
-                          <span className="text-2xl font-bold text-gray-900">{formatCurrency(min, ev.currency ?? 'SAR')}</span>
-                          {max !== min && <span className="text-sm text-gray-500 ml-1">– {formatCurrency(max, ev.currency ?? 'SAR')}</span>}
+                          <span className="text-2xl font-bold text-gray-900">{formatCurrency(min, ev.currency)}</span>
+                          {max !== min && <span className="text-sm text-gray-500 ml-1">– {formatCurrency(max, ev.currency)}</span>}
                         </div>
                       )
                     })()}
                   </div>
                 ) : (
                   <span className="text-2xl font-bold text-gray-900">
-                    {ev.is_free ? 'Free' : formatCurrency(ev.price ?? 0)}
+                    {ev.is_free ? 'Free' : formatCurrency(ev.price ?? 0, ev.currency)}
                   </span>
                 )}
                 {ev.capacity && (
