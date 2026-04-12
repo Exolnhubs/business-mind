@@ -124,6 +124,8 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       const status    = parsed.searchParams.get('status')
       if (bookingId && status === 'success') {
         router.push(`/bookings/${bookingId}/ticket` as any)
+      } else if (transactionId && entity === 'subscription') {
+        router.push('/plans' as any)
       } else if (transactionId && entity === 'donation') {
         router.push('/(tabs)/home' as any)
       } else if (bookingId) {

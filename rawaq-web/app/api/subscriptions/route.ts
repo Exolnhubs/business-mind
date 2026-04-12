@@ -3,6 +3,11 @@ import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireAuth } from '@/lib/auth'
 import { handleApiError, ok, NotFoundException, ForbiddenException } from '@/lib/errors'
 import { getResolvedPlanCatalog } from '@/lib/plans'
+import { assignMembershipPlan } from '@/lib/subscriptions'
+import { getPaymentOptions, resolveGateway } from '@/lib/gateways/selector'
+import { initiatePaymob } from '@/lib/gateways/paymob'
+import { initiateStripe } from '@/lib/gateways/stripe-gw'
+import type { InitiatePaymentParams } from '@/lib/gateways/types'
 import { z } from 'zod'
 
 // GET /api/subscriptions — current user's plan + active subscription + (organizer) usage
@@ -99,74 +104,159 @@ export async function GET() {
 
 const ChangePlanSchema = z.object({
   plan_id: z.string().min(1),
+  payment_option_id: z.string().min(1).optional(),
+  source: z.enum(['web', 'mobile']).default('web'),
 })
 
-// POST /api/subscriptions — self-service plan change (MVP: simulated)
+// POST /api/subscriptions — self-service membership change
 export async function POST(req: Request) {
   try {
     const ctx = await requireAuth()
     const body = await req.json()
-    const { plan_id } = ChangePlanSchema.parse(body)
+    const { plan_id, payment_option_id, source } = ChangePlanSchema.parse(body)
 
-    const admin  = createSupabaseAdminClient()
-    const supabase = await createSupabaseServerClient()
+    const admin = createSupabaseAdminClient()
 
-    // Validate plan exists and matches role type
-    const { data: plan, error: planErr } = await admin
-      .from('plan_definitions')
-      .select('id, type, name, price_sar')
-      .eq('id', plan_id)
-      .eq('is_active', true)
+    const planType = ctx.role === 'organizer' ? 'organizer' : 'user'
+    const catalog = await getResolvedPlanCatalog(ctx.userId, planType)
+    const plan = catalog.plans.find((item) => item.id === plan_id)
+
+    if (!plan) throw new NotFoundException('Plan')
+
+    if (plan.price_amount <= 0) {
+      const result = await assignMembershipPlan({
+        userId: ctx.userId,
+        role: ctx.role,
+        planId: plan.id,
+        paymentRef: `free_${Date.now()}`,
+        isSimulated: true,
+      })
+      return ok({ plan_id: result.planId, plan_name: result.planName, free: true })
+    }
+
+    const paymentOptions = getPaymentOptions(plan.price_currency)
+    const selectedPaymentOptionId = payment_option_id ?? paymentOptions[0]?.id
+    if (!selectedPaymentOptionId) {
+      throw new ForbiddenException('No payment methods are currently available for this plan')
+    }
+
+    const { gateway, method } = resolveGateway(plan.price_currency, selectedPaymentOptionId)
+    const organizerId = ctx.userId
+
+    const { data: existingPendingTx } = await (admin as any)
+      .from('payment_transactions')
+      .select('id')
+      .eq('user_id', ctx.userId)
+      .eq('type', 'subscription')
+      .eq('subscription_plan_id', plan.id)
+      .eq('status', 'pending')
+      .maybeSingle()
+
+    const { data: txRow, error: txErr } = await (admin as any)
+      .from('payment_transactions')
+      .upsert({
+        id: existingPendingTx?.id,
+        user_id: ctx.userId,
+        organizer_id: organizerId,
+        event_id: null,
+        booking_id: null,
+        tip_id: null,
+        subscription_plan_id: plan.id,
+        type: 'subscription',
+        status: 'pending',
+        amount: plan.price_amount,
+        platform_fee: 0,
+        organizer_net: 0,
+        currency: plan.price_currency,
+        gateway,
+        source,
+        payment_method: method,
+        is_simulated: gateway === 'simulated',
+        gateway_payload: { source, entity: 'subscription' },
+        gateway_ref: null,
+        gateway_order_id: null,
+        failure_reason: null,
+        fawry_reference_number: null,
+      })
+      .select('id')
       .single()
 
-    if (planErr || !plan) throw new NotFoundException('Plan')
+    if (txErr) throw txErr
 
-    const expectedType = ctx.role === 'organizer' ? 'organizer' : 'user'
-    if (plan.type !== expectedType) {
-      throw new ForbiddenException('This plan is not available for your account type')
-    }
-
-    // Update plan on the appropriate profile table
-    if (ctx.role === 'organizer') {
-      const { error } = await supabase
-        .from('organizer_profiles')
-        .update({ plan_id })
-        .eq('user_id', ctx.userId)
-      if (error) throw error
-    } else {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ plan_id })
-        .eq('id', ctx.userId)
-      if (error) throw error
-    }
-
-    // Cancel existing active subscription
-    await admin
-      .from('subscriptions')
-      .update({ status: 'cancelled', cancelled_at: new Date().toISOString() })
-      .eq('user_id', ctx.userId)
-      .eq('status', 'active')
-
-    // Create new subscription record for paid plans (free tiers have no record)
-    if (plan.price_sar > 0) {
-      const periodEnd = new Date()
-      periodEnd.setMonth(periodEnd.getMonth() + 1)
-      const { error: subErr } = await admin
-        .from('subscriptions')
-        .insert({
-          user_id: ctx.userId,
-          plan_id,
-          status: 'active',
-          current_period_start: new Date().toISOString(),
-          current_period_end: periodEnd.toISOString(),
+    if (gateway === 'simulated') {
+      await (admin as any)
+        .from('payment_transactions')
+        .update({
+          status: 'succeeded',
+          gateway_ref: `sim_sub_${Date.now()}`,
           is_simulated: true,
-          payment_ref: `self_${Date.now()}`,
-        } as any)
-      if (subErr) throw subErr
+        })
+        .eq('id', txRow.id)
+
+      const result = await assignMembershipPlan({
+        userId: ctx.userId,
+        role: ctx.role,
+        planId: plan.id,
+        paymentRef: txRow.id,
+        isSimulated: true,
+      })
+
+      return ok({
+        plan_id: result.planId,
+        plan_name: result.planName,
+        free: false,
+        transaction_id: txRow.id,
+      })
     }
 
-    return ok({ plan_id, plan_name: plan.name })
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://rawaq.app'
+    const successUrl = source === 'mobile'
+      ? `${appUrl}/api/payments/mobile-return?transaction_id=${txRow.id}&entity=subscription&status=success`
+      : `${appUrl}/plans?payment=success&transaction_id=${txRow.id}`
+    const cancelUrl = source === 'mobile'
+      ? `${appUrl}/api/payments/mobile-return?transaction_id=${txRow.id}&entity=subscription&status=cancelled`
+      : `${appUrl}/plans?payment=cancelled&transaction_id=${txRow.id}`
+
+    const initParams: InitiatePaymentParams = {
+      transactionId: txRow.id,
+      amount: plan.price_amount,
+      currency: plan.price_currency,
+      userId: ctx.userId,
+      organizerId,
+      eventId: ctx.userId,
+      eventTitle: `Rawaq ${plan.name} membership`,
+      platformFeePct: 0,
+      method,
+      kind: 'donation',
+      successUrl,
+      cancelUrl,
+    }
+
+    const gatewayResult = gateway === 'paymob'
+      ? await initiatePaymob(initParams)
+      : await initiateStripe(initParams)
+
+    const { error: gwUpdateErr } = await (admin as any)
+      .from('payment_transactions')
+      .update({
+        gateway_order_id: gatewayResult.gatewayOrderId ?? null,
+        fawry_reference_number: gatewayResult.fawryReferenceNumber ?? null,
+      })
+      .eq('id', txRow.id)
+
+    if (gwUpdateErr) {
+      console.error('[subscriptions] Failed to store gateway metadata', gwUpdateErr)
+    }
+
+    return ok({
+      transaction_id: txRow.id,
+      plan_id: plan.id,
+      plan_name: plan.name,
+      redirect_url: gatewayResult.redirectUrl,
+      fawry_reference_number: gatewayResult.fawryReferenceNumber ?? null,
+      expires_at: gatewayResult.expiresAt ?? null,
+      free: false,
+    })
   } catch (err) {
     return handleApiError(err)
   }

@@ -4,6 +4,7 @@ import {
   ActivityIndicator, Alert, RefreshControl,
 } from 'react-native'
 import { useRouter } from 'expo-router'
+import * as WebBrowser from 'expo-web-browser'
 import { apiGet, apiPost } from '@/lib/api'
 import { useAuth } from '@/contexts/auth-context'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
@@ -20,6 +21,14 @@ type SubscriptionResponse = {
   subscription: Subscription | null
   usage?: { events_created: number; month: string }
   pricing_country_code?: string | null
+}
+
+type SubscriptionPaymentResponse = {
+  transaction_id?: string
+  plan_id?: string
+  plan_name?: string
+  redirect_url?: string
+  free?: boolean
 }
 
 const PLAN_FLAGSHIP: Record<string, boolean> = {
@@ -92,10 +101,58 @@ export default function PlansScreen() {
     setSaving(plan.id)
     setConfirmId(null)
     try {
-      const { error } = await apiPost<{ plan_name?: string }>('/api/subscriptions', { plan_id: plan.id })
+      const { data, error } = await apiPost<SubscriptionPaymentResponse>('/api/subscriptions', {
+        plan_id: plan.id,
+        source: 'mobile',
+      })
       if (error) throw new Error(error)
+
+      if (data?.redirect_url && data.transaction_id) {
+        const browserResult = await WebBrowser.openAuthSessionAsync(
+          data.redirect_url,
+          'rawaq://',
+        )
+
+        const deepLinkUrl = browserResult.type === 'success' ? browserResult.url : null
+        const deepLinkParams = deepLinkUrl ? new URL(deepLinkUrl).searchParams : null
+        const deepLinkStatus = deepLinkParams?.get('status') ?? null
+        const entity = deepLinkParams?.get('entity') ?? null
+        const transactionId = deepLinkParams?.get('transaction_id') ?? data.transaction_id
+
+        if (entity === 'subscription' && deepLinkStatus === 'success') {
+          let activated = false
+          for (const delay of [1500, 2500, 3500, 5000, 5000]) {
+            await new Promise((resolve) => setTimeout(resolve, delay))
+            const { data: statusData } = await apiGet<{
+              activated: boolean
+              active_subscription: { plan_id?: string | null } | null
+            }>(`/api/subscriptions/status/${transactionId}`)
+
+            if (statusData?.activated && statusData.active_subscription?.plan_id) {
+              activated = true
+              setCurrentId(statusData.active_subscription.plan_id)
+              await refreshProfile()
+              await load()
+              Alert.alert('Plan updated', `You are now on the ${plan.name} plan.`)
+              break
+            }
+          }
+
+          if (!activated) {
+            Alert.alert('Payment is processing', 'Your membership payment is being verified. Check back in a moment if your new plan is not visible yet.')
+          }
+          return
+        }
+
+        if (deepLinkStatus === 'failed' || browserResult.type === 'cancel') {
+          Alert.alert('Payment not completed', 'Your membership payment was not completed.')
+          return
+        }
+      }
+
       setCurrentId(plan.id)
       await refreshProfile()
+      await load()
       Alert.alert('Plan updated', `You are now on the ${plan.name} plan.`)
     } catch (e) {
       Alert.alert('Error', e instanceof Error ? e.message : 'Failed to change plan')
@@ -110,7 +167,7 @@ export default function PlansScreen() {
       setConfirmId(plan.id)
     } else {
       const priceMsg = plan.price_amount > 0
-        ? `\n\nPrice: ${formatPlanAmount(plan.price_amount)} ${plan.price_currency} / month (simulated — no charges in MVP)`
+        ? `\n\nPrice: ${formatPlanAmount(plan.price_amount)} ${plan.price_currency} / month`
         : ''
       Alert.alert(
         `Upgrade to ${plan.name}`,
@@ -430,7 +487,7 @@ export default function PlansScreen() {
       })}
 
       <Text style={styles.note}>
-        MVP — billing is simulated. No actual charges are made.
+        Paid plans open a secure checkout. Free plan changes take effect immediately.
       </Text>
     </ScrollView>
   )

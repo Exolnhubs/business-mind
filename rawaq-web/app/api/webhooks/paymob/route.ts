@@ -21,6 +21,7 @@ import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { verifyPaymobHmac, parsePaymobWebhook } from '@/lib/gateways/paymob'
 import { sendNotification } from '@/lib/notifications'
 import { finalizeDonationPayment } from '@/lib/donations'
+import { assignMembershipPlan } from '@/lib/subscriptions'
 
 function getDonationMessage(payload: Record<string, unknown> | null): string | null {
   const message = payload?.message
@@ -65,7 +66,7 @@ export async function POST(req: NextRequest) {
     // ── Find matching transaction by gateway order ID ─────────────────────────
     const { data: tx, error: txErr } = await (admin as any)
       .from('payment_transactions')
-      .select('id, type, booking_id, tip_id, user_id, event_id, organizer_id, status, amount, currency, platform_fee, gateway_payload')
+      .select('id, type, booking_id, tip_id, user_id, event_id, organizer_id, status, amount, currency, platform_fee, gateway_payload, subscription_plan_id')
       .eq('gateway_order_id', event.gatewayOrderId)
       .single()
 
@@ -131,6 +132,26 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Update booking ────────────────────────────────────────────────────────
+    if (tx.type === 'subscription' && tx.subscription_plan_id) {
+      if (event.status === 'succeeded') {
+        const { data: profile } = await admin
+          .from('profiles')
+          .select('role')
+          .eq('id', tx.user_id)
+          .single()
+
+        await assignMembershipPlan({
+          userId: tx.user_id,
+          role: (profile?.role ?? 'user') as 'user' | 'organizer' | 'admin',
+          planId: tx.subscription_plan_id,
+          paymentRef: event.gatewayRef,
+          isSimulated: false,
+        })
+      }
+
+      return new Response('ok', { status: 200 })
+    }
+
     if (tx.booking_id) {
       const newBookingStatus = event.status === 'succeeded' ? 'confirmed' : 'cancelled'
       console.log('[webhooks/paymob] updating booking', tx.booking_id, '→', newBookingStatus)

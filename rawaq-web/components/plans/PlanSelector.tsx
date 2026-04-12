@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import type { ResolvedPlanDefinition, Subscription } from '@/types/plans'
 
 // ── Plan UI metadata (display only) ────────────────────────────────────────
@@ -71,6 +72,7 @@ function formatPlanAmount(amount: number): string {
 // ── Main component ──────────────────────────────────────────────────────────
 
 export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrganizer }: Props) {
+  const searchParams = useSearchParams()
   const [activePlanId, setActivePlanId] = useState(currentPlanId)
   const [loading, setLoading] = useState<string | null>(null)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
@@ -99,10 +101,16 @@ export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrga
       const res = await fetch('/api/subscriptions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan_id: plan.id }),
+        body: JSON.stringify({ plan_id: plan.id, source: 'web' }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error ?? 'Failed to change plan')
+
+      if (json.data?.redirect_url) {
+        window.location.href = json.data.redirect_url as string
+        return
+      }
+
       setActivePlanId(plan.id)
       setMsg({ ok: true, text: `Switched to ${json.data?.plan_name ?? plan.name}` })
     } catch (e) {
@@ -121,6 +129,61 @@ export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrga
   // Separate fill (bar) vs text color — unlimited uses a dimmed bar but still gold text
   const usageColor = usagePct >= 100 ? '#f87171' : usagePct >= 80 ? '#fb923c' : 'var(--c-gold)'
   const usageFill = !eventLimit ? 'oklch(0.78 0.18 72 / 0.35)' : usageColor
+
+  useEffect(() => {
+    const transactionId = searchParams.get('transaction_id')
+    const paymentStatus = searchParams.get('payment')
+    if (!transactionId || !paymentStatus) return
+
+    if (paymentStatus === 'cancelled' || paymentStatus === 'failed') {
+      setMsg({ ok: false, text: 'Membership payment was not completed.' })
+      return
+    }
+
+    let cancelled = false
+
+    async function poll() {
+      setMsg({ ok: true, text: 'Membership payment received. Finalizing your plan…' })
+
+      for (const delay of [1500, 2500, 3500, 5000, 5000]) {
+        await new Promise((resolve) => setTimeout(resolve, delay))
+        if (cancelled) return
+
+        const res = await fetch(`/api/subscriptions/status/${transactionId}`)
+        const json = await res.json().catch(() => null) as {
+          data?: {
+            activated?: boolean
+            active_subscription?: { plan_id?: string | null } | null
+          }
+        } | null
+
+        const activated = json?.data?.activated
+        const activatedPlanId = json?.data?.active_subscription?.plan_id
+        if (activated && activatedPlanId) {
+          setActivePlanId(activatedPlanId)
+          setMsg({ ok: true, text: 'Membership activated successfully.' })
+          window.setTimeout(() => {
+            window.location.replace('/plans')
+          }, 600)
+          return
+        }
+      }
+
+      if (!cancelled) {
+        setMsg({ ok: true, text: 'Payment is processing. Refresh in a moment if your new plan is not visible yet.' })
+      }
+    }
+
+    poll().catch(() => {
+      if (!cancelled) {
+        setMsg({ ok: false, text: 'We could not verify your membership payment yet.' })
+      }
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [searchParams])
 
   return (
     <div className="space-y-8">
@@ -463,7 +526,7 @@ export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrga
 
       {/* ── Footer note ──────────────────────────────────────── */}
       <p className="text-xs text-center text-gray-400 pb-2">
-        MVP — billing is simulated. No actual charges are made. Changes take effect immediately.
+        Paid plans open a secure checkout. Free plan changes take effect immediately.
       </p>
     </div>
   )

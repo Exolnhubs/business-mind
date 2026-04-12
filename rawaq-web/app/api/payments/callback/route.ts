@@ -108,6 +108,12 @@ export async function GET(req: NextRequest) {
         )
       }
 
+      if (tx.type === 'subscription') {
+        return NextResponse.redirect(
+          `rawaq://payment-result?transaction_id=${tx.id as string}&entity=subscription&status=${status}`
+        )
+      }
+
       // Redirect to the app deep link — iOS/Android intercepts rawaq://
       // and brings the user back into the app automatically, closing the browser.
       return NextResponse.redirect(
@@ -117,6 +123,10 @@ export async function GET(req: NextRequest) {
 
     if (tx.type === 'tip') {
       return NextResponse.redirect(`${appUrl}/events/${tx.event_id as string}?donation=${status}`)
+    }
+
+    if (tx.type === 'subscription') {
+      return NextResponse.redirect(`${appUrl}/plans?payment=${status}&transaction_id=${tx.id as string}`)
     }
 
     return NextResponse.redirect(`${appUrl}/bookings/${tx.booking_id as string}?payment=${status}`)

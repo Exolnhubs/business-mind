@@ -50,7 +50,7 @@ export type CommunityAuditAction =
   | 'unban_member'
   | 'revoke_sanction'
 export type OrganizerStatus = 'pending' | 'approved' | 'rejected' | 'suspended'
-export type PaymentType = 'ticket' | 'tip' | 'refund' | 'payout'
+export type PaymentType = 'ticket' | 'tip' | 'refund' | 'payout' | 'subscription'
 export type PaymentStatus = 'pending' | 'succeeded' | 'failed' | 'refunded'
 export type PaymentGateway = 'simulated' | 'moyasar' | 'stripe' | 'hyperpay' | 'paymob' | 'fawry'
 export type PaymentSource = 'web' | 'mobile'
@@ -236,6 +236,7 @@ export interface PaymentTransaction {
   event_id: string | null
   booking_id: string | null
   tip_id: string | null
+  subscription_plan_id: string | null
   type: PaymentType
   status: PaymentStatus
   amount: number
@@ -244,7 +245,10 @@ export interface PaymentTransaction {
   currency: string
   gateway: PaymentGateway
   source: PaymentSource
+  payment_method: string | null
   gateway_ref: string | null
+  gateway_order_id: string | null
+  fawry_reference_number: string | null
   gateway_payload: Record<string, unknown> | null
   is_simulated: boolean
   failure_reason: string | null
