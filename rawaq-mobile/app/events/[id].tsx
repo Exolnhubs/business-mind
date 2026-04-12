@@ -184,7 +184,7 @@ export default function EventDetailScreen() {
       return
     }
     if (basePrice < (promo.min_order_amount ?? 0)) {
-      setPromoResult({ valid: false, reason: `Min order  ${promo.min_order_amount} required` })
+      setPromoResult({ valid: false, reason: `Min order ${formatCurrency(promo.min_order_amount ?? 0, event.currency, locale)} required` })
       setPromoLoading(false)
       return
     }
@@ -808,7 +808,7 @@ export default function EventDetailScreen() {
                     {promoResult && (
                       <Text style={[styles.promoMsg, promoResult.valid ? styles.promoMsgOk : styles.promoMsgErr]}>
                         {promoResult.valid
-                          ? `✓ Discount applied — you pay {event.currency} ${promoResult.final_amount}`
+                          ? `✓ Discount applied — you pay ${formatCurrency(promoResult.final_amount ?? 0, event.currency, locale)}`
                           : `✗ ${promoResult.reason}`}
                       </Text>
                     )}
