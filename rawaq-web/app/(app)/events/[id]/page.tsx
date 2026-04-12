@@ -268,7 +268,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
                 isBooked={isBooked}
                 isFree={ev.is_free}
                 eventPrice={ev.price}
-                currency={ev.currency ?? 'SAR'}
+                currency={ev.currency}
                 ticketTypes={(ticketTypes ?? []) as TicketType[]}
                 isOnWaitlist={isOnWaitlist}
               />
@@ -277,7 +277,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
 
           {/* Tip panel — only show if user has booked */}
           {isBooked && ev.organizer_id && (
-            <TipPanel eventId={id} organizerId={ev.organizer_id} currency={ev.currency ?? 'SAR'} />
+            <TipPanel eventId={id} organizerId={ev.organizer_id} currency={ev.currency} />
           )}
 
           {/* Save button */}
