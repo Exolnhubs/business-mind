@@ -144,7 +144,7 @@ export const EventCard = React.memo(function EventCard({
           </Text>
           <View style={[cardStyles.pricePill, event.is_free && cardStyles.pricePillFree]}>
             <Text style={[cardStyles.priceText, event.is_free && cardStyles.priceTextFree]}>
-              {event.is_free ? 'Free' : formatCurrency(event.price ?? 0, locale)}
+              {event.is_free ? 'Free' : formatCurrency(event.price ?? 0, event.currency, locale)}
             </Text>
           </View>
         </View>
