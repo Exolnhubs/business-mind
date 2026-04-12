@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   ActivityIndicator, RefreshControl, TextInput, Modal, Alert,
 } from 'react-native'
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { supabase } from '@/lib/supabase'
 import { apiPost } from '@/lib/api'
@@ -44,6 +45,7 @@ export default function AttendeesScreen() {
   const router = useRouter()
   const { user } = useAuth()
   const { eventId, title } = useLocalSearchParams<{ eventId: string; title: string }>()
+  const insets = useSafeAreaInsets()
 
   const [attendees, setAttendees]   = useState<Attendee[]>([])
   const [loading, setLoading]       = useState(true)
@@ -98,6 +100,7 @@ export default function AttendeesScreen() {
         (a.ticket_id ?? '').toLowerCase().includes(search.toLowerCase())
       )
     : confirmed
+  const headerTopSpacing = Math.max(Spacing.sm, Math.min(insets.top * 0.18, Spacing.md))
 
   // ── QR scan handler ────────────────────────────────────────────────────────
 
@@ -165,9 +168,9 @@ export default function AttendeesScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView edges={['top']} style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: headerTopSpacing + Spacing.sm }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Text style={styles.backText}>←</Text>
         </TouchableOpacity>
@@ -268,7 +271,7 @@ export default function AttendeesScreen() {
       >
         <View style={styles.scannerContainer}>
           {/* Modal Header */}
-          <View style={styles.scannerHeader}>
+          <View style={[styles.scannerHeader, { paddingTop: Math.max(Spacing.xl, insets.top + Spacing.lg) }]}>
             <TouchableOpacity onPress={() => setScannerOpen(false)} style={styles.scannerClose}>
               <Text style={styles.scannerCloseText}>✕</Text>
             </TouchableOpacity>
@@ -328,7 +331,7 @@ export default function AttendeesScreen() {
           )}
         </View>
       </Modal>
-    </View>
+    </SafeAreaView>
   )
 }
 
@@ -343,7 +346,6 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
     backgroundColor: Colors.white,
     paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.xl,
     paddingBottom: Spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: Colors.gray[100],
@@ -423,7 +425,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.lg,
-    paddingTop: 56,
     paddingBottom: Spacing.lg,
     backgroundColor: 'rgba(0,0,0,0.8)',
   },

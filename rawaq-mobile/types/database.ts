@@ -207,7 +207,6 @@ export interface TicketType {
   name_ar: string | null
   description: string | null
   price: number
-  currency: string
   capacity: number | null
   sold_count: number
   is_free: boolean

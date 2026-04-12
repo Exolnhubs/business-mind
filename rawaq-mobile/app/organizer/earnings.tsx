@@ -4,6 +4,7 @@ import {
   ActivityIndicator, RefreshControl, Alert, TextInput,
   Modal, KeyboardAvoidingView, Platform,
 } from 'react-native'
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { supabase } from '@/lib/supabase'
 import { apiPost } from '@/lib/api'
@@ -66,6 +67,7 @@ type ModalMode = 'payout' | 'bank_account'
 export default function EarningsScreen() {
   const { user } = useAuth()
   const router   = useRouter()
+  const insets   = useSafeAreaInsets()
 
   const [wallet,        setWallet]        = useState<Wallet | null>(null)
   const [ledger,        setLedger]        = useState<LedgerEntry[]>([])
@@ -249,19 +251,22 @@ export default function EarningsScreen() {
 
   if (loading) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={Colors.brand[500]} />
-      </View>
+      <SafeAreaView edges={['top']} style={styles.safeArea}>
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color={Colors.brand[500]} />
+        </View>
+      </SafeAreaView>
     )
   }
 
   const pendingAmount        = pendingPayout?.amount ?? 0
   const availableToWithdraw  = Math.max(0, (wallet?.balance ?? 0) - pendingAmount)
+  const headerTopSpacing = Math.max(Spacing.sm, Math.min(insets.top * 0.18, Spacing.md))
 
   return (
-    <View style={{ flex: 1, backgroundColor: Colors.gray[50] }}>
+    <SafeAreaView edges={['top']} style={styles.safeArea}>
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingTop: headerTopSpacing }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={Colors.brand[500]} />}
       >
         {/* Header */}
@@ -511,14 +516,15 @@ export default function EarningsScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
-    </View>
+    </SafeAreaView>
   )
 }
 
 const styles = StyleSheet.create({
+  safeArea:     { flex: 1, backgroundColor: Colors.gray[50] },
   centered:     { flex: 1, justifyContent: 'center', alignItems: 'center' },
   content:      { paddingBottom: Spacing['4xl'] },
-  header:       { flexDirection: 'row', alignItems: 'center', gap: Spacing.lg, padding: Spacing.lg, paddingTop: Spacing['3xl'] },
+  header:       { flexDirection: 'row', alignItems: 'center', gap: Spacing.lg, padding: Spacing.lg, paddingTop: Spacing.lg },
   backBtn:      {},
   backText:     { fontSize: FontSize.sm, color: Colors.brand[600], fontWeight: FontWeight.medium },
   title:        { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.gray[900] },

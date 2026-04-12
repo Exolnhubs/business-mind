@@ -60,13 +60,16 @@ async function bookingConfirmed(
   if (ticketId) {
     const qrDataUrl = await generateTicketQR(ticketId)
     qrBlock = `
-      <div style="margin:24px 0;text-align:center">
-        <div style="display:inline-block;background:#fff;border:2px solid #f3f4f6;border-radius:16px;padding:12px">
+      <div style="margin:28px 0 8px;border:1px solid #f3f4f6;border-radius:20px;padding:24px;background:#fafaf9;text-align:center">
+        <p style="margin:0 0 14px;font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#92400e">
+          Ticket QR Code
+        </p>
+        <div style="display:inline-block;background:#ffffff;border:2px solid #f3f4f6;border-radius:18px;padding:14px">
           <img src="${qrDataUrl}" alt="Ticket QR Code" width="200" height="200" style="display:block" />
         </div>
-        <p style="margin:12px 0 0;font-size:14px;font-weight:700;color:#111827;letter-spacing:0.12em;font-family:monospace">${ticketId}</p>
-        <p style="margin:4px 0 0;font-size:12px;color:#9ca3af">Present this QR code at the venue entrance</p>
-        ${ticketUrl ? `<div style="margin-top:16px">${btn(ticketUrl, '🎟️ View & Download Ticket')}</div>` : ''}
+        <p style="margin:16px 0 0;font-size:14px;font-weight:700;color:#111827;letter-spacing:0.16em;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">${ticketId}</p>
+        <p style="margin:6px 0 0;font-size:13px;color:#6b7280">Present this QR code at the venue entrance</p>
+        ${ticketUrl ? `<div style="margin-top:16px">${btn(ticketUrl, 'View & Download Ticket')}</div>` : ''}
       </div>`
   }
   return layout(`

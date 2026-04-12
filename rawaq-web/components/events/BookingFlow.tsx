@@ -10,10 +10,12 @@ import type { TicketType } from '@/types/database'
 // ── Ticket type card ────────────────────────────────────────────────────────
 function TicketCard({
   ticket,
+  currency,
   selected,
   onSelect,
 }: {
   ticket: TicketType
+  currency: string
   selected: boolean
   onSelect: () => void
 }) {
@@ -54,7 +56,7 @@ function TicketCard({
         </div>
         <div className="shrink-0 text-right">
           <span className={`text-sm font-bold ${unavailable ? 'text-gray-400' : 'text-brand-700'}`}>
-            {ticket.is_free ? 'Free' : formatCurrency(ticket.price, ticket.currency)}
+            {ticket.is_free ? 'Free' : formatCurrency(ticket.price, currency)}
           </span>
         </div>
       </div>
@@ -190,6 +192,7 @@ export function BookingFlow({
                 <TicketCard
                   key={tt.id}
                   ticket={tt}
+                  currency={currency}
                   selected={selectedTypeId === tt.id}
                   onSelect={() => { setSelectedTypeId(tt.id); setError(null) }}
                 />

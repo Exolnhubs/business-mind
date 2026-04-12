@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   RefreshControl, ActivityIndicator, Alert,
 } from 'react-native'
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { supabase } from '@/lib/supabase'
 import { apiPatch } from '@/lib/api'
@@ -24,6 +25,7 @@ interface OrgEvent {
 export default function OrganizerDashboard() {
   const { user } = useAuth()
   const router  = useRouter()
+  const insets = useSafeAreaInsets()
 
   const [events,       setEvents]       = useState<OrgEvent[]>([])
   const [orgName,      setOrgName]      = useState('')
@@ -112,6 +114,7 @@ export default function OrganizerDashboard() {
 
   const active        = events.filter((e) => e.is_published && !e.is_cancelled).length
   const totalBookings = events.reduce((s, e) => s + e.bookings_count, 0)
+  const headerTopSpacing = Math.max(Spacing.sm, Math.min(insets.top * 0.18, Spacing.md))
 
   if (loading) {
     return (
@@ -168,9 +171,10 @@ export default function OrganizerDashboard() {
   }
 
   return (
+    <SafeAreaView edges={['top']} style={styles.container}>
     <ScrollView
       style={styles.container}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { paddingTop: headerTopSpacing }]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load() }} tintColor={Colors.brand[500]} />}
     >
       {/* Header */}
@@ -320,6 +324,7 @@ export default function OrganizerDashboard() {
         })
       )}
     </ScrollView>
+    </SafeAreaView>
   )
 }
 

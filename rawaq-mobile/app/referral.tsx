@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   Share, ActivityIndicator, Alert, Clipboard,
 } from 'react-native'
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { apiGet } from '@/lib/api'
@@ -20,9 +21,11 @@ interface ReferralData {
 
 export default function ReferralScreen() {
   const router = useRouter()
+  const insets = useSafeAreaInsets()
   const [data, setData]     = useState<ReferralData | null>(null)
   const [loading, setLoading] = useState(true)
   const [copied, setCopied]   = useState(false)
+  const headerTopSpacing = Math.max(Spacing.sm, Math.min(insets.top * 0.18, Spacing.md))
 
   useEffect(() => {
     apiGet<ReferralData>('/api/referral/code').then(({ data }) => {
@@ -54,17 +57,21 @@ export default function ReferralScreen() {
 
   if (loading) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={Colors.brand[500]} />
-      </View>
+      <SafeAreaView edges={['top']} style={styles.safeArea}>
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color={Colors.brand[500]} />
+        </View>
+      </SafeAreaView>
     )
   }
 
   if (!data) {
     return (
-      <View style={styles.centered}>
-        <Text style={styles.errorText}>Could not load referral info.</Text>
-      </View>
+      <SafeAreaView edges={['top']} style={styles.safeArea}>
+        <View style={styles.centered}>
+          <Text style={styles.errorText}>Could not load referral info.</Text>
+        </View>
+      </SafeAreaView>
     )
   }
 
@@ -73,7 +80,8 @@ export default function ReferralScreen() {
   )
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <SafeAreaView edges={['top']} style={styles.safeArea}>
+      <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: headerTopSpacing }]}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
@@ -177,13 +185,15 @@ export default function ReferralScreen() {
           })
         )}
       </View>
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   )
 }
 
 const styles = StyleSheet.create({
+  safeArea:  { flex: 1, backgroundColor: Colors.gray[50] },
   container:  { flex: 1, backgroundColor: Colors.gray[50] },
-  content:    { padding: Spacing.lg, paddingBottom: Spacing['3xl'] },
+  content:    { paddingHorizontal: Spacing.lg, paddingBottom: Spacing['3xl'] },
   centered:   { flex: 1, justifyContent: 'center', alignItems: 'center' },
   errorText:  { color: Colors.gray[400], fontSize: FontSize.sm },
 

@@ -24,6 +24,7 @@ export default function ManageTicketTypesPage() {
   const router  = useRouter()
 
   const [types, setTypes]         = useState<TicketType[]>([])
+  const [eventCurrency, setEventCurrency] = useState('SAR')
   const [loading, setLoading]     = useState(true)
   const [showForm, setShowForm]   = useState(false)
   const [editing, setEditing]     = useState<TicketType | null>(null)
@@ -32,9 +33,15 @@ export default function ManageTicketTypesPage() {
   const [error, setError]         = useState('')
 
   function load() {
-    fetch(`/api/events/${eventId}/ticket-types`)
-      .then((r) => r.json())
-      .then((j) => { setTypes(j.data ?? j ?? []); setLoading(false) })
+    Promise.all([
+      fetch(`/api/events/${eventId}/ticket-types`).then((r) => r.json()),
+      fetch(`/api/events/${eventId}`).then((r) => r.json()).catch(() => null),
+    ])
+      .then(([ticketJson, eventJson]) => {
+        setTypes(ticketJson.data ?? ticketJson ?? [])
+        setEventCurrency(eventJson?.data?.currency ?? 'SAR')
+        setLoading(false)
+      })
       .catch(() => setLoading(false))
   }
 
@@ -128,7 +135,7 @@ export default function ManageTicketTypesPage() {
             </div>
 
             <div>
-              <label className="form-label">Price (SAR)</label>
+              <label className="form-label">Price ({eventCurrency})</label>
               <input className="input" type="number" min={0} step={0.01} value={form.price} onChange={(e) => setForm((f) => ({ ...f, price: Number(e.target.value) }))} disabled={form.is_free} />
             </div>
             <div className="flex items-end pb-0.5">
@@ -186,7 +193,7 @@ export default function ManageTicketTypesPage() {
                     {soldOut && <span className="text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full">Sold out</span>}
                   </div>
                   <div className="flex gap-3 mt-0.5 text-xs text-gray-500">
-                    <span className="font-medium text-brand-700">{t.is_free ? 'Free' : formatCurrency(t.price, t.currency)}</span>
+                    <span className="font-medium text-brand-700">{t.is_free ? 'Free' : formatCurrency(t.price, eventCurrency)}</span>
                     {t.capacity && <span>{t.sold_count}/{t.capacity} sold</span>}
                     {!t.capacity && t.sold_count > 0 && <span>{t.sold_count} sold</span>}
                     {t.sale_ends_at && <span>Ends {new Date(t.sale_ends_at).toLocaleDateString()}</span>}

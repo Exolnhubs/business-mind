@@ -772,7 +772,7 @@ export default function EventDetailScreen() {
                               {notStarted && <Text style={styles.ticketUnavail}>Coming soon</Text>}
                             </View>
                             <Text style={[styles.ticketPrice, unavailable && { color: Colors.gray[400] }]}>
-                              {tt.is_free ? 'Free' : formatCurrency(tt.price, tt.currency, locale)}
+                              {tt.is_free ? 'Free' : formatCurrency(tt.price, event.currency, locale)}
                             </Text>
                           </View>
                           {selectedTypeId === tt.id && (

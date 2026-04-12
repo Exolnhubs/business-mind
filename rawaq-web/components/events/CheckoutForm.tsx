@@ -11,10 +11,12 @@ import type { PaymentOption } from '@/lib/gateways/types'
 // ── Ticket selector ──────────────────────────────────────────────────────────
 function TicketSelector({
   tickets,
+  currency,
   selectedId,
   onSelect,
 }: {
   tickets: TicketType[]
+  currency: string
   selectedId: string | null
   onSelect: (id: string) => void
 }) {
@@ -59,7 +61,7 @@ function TicketSelector({
                 )}
               </div>
               <span className={`text-sm font-bold shrink-0 ${unavailable ? 'text-gray-400' : 'text-brand-700'}`}>
-                {t.is_free ? 'Free' : formatCurrency(t.price, t.currency)}
+                {t.is_free ? 'Free' : formatCurrency(t.price, currency)}
               </span>
             </div>
             {selected && <p className="mt-1.5 text-xs text-brand-600 font-medium">✓ Selected</p>}
@@ -344,6 +346,7 @@ export function CheckoutForm({
       {hasTypes && (
         <TicketSelector
           tickets={ticketTypes}
+          currency={currency}
           selectedId={selectedTypeId}
           onSelect={(id) => { setSelectedTypeId(id); setPromo(null); setError(null) }}
         />

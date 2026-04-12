@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   RefreshControl, ActivityIndicator, Alert,
 } from 'react-native'
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/auth-context'
@@ -77,6 +78,7 @@ async function hydrateFlaggedComments(rows: FlaggedCommentRow[]): Promise<Flagge
 export default function AdminDashboard() {
   const { user }  = useAuth()
   const router    = useRouter()
+  const insets    = useSafeAreaInsets()
 
   const [stats,     setStats]     = useState<Stats | null>(null)
   const [pending,   setPending]   = useState<PendingOrganizer[]>([])
@@ -84,6 +86,7 @@ export default function AdminDashboard() {
   const [loading,   setLoading]   = useState(true)
   const [refreshing,setRefreshing]= useState(false)
   const [actioning, setActioning] = useState<string | null>(null)
+  const headerTopSpacing = Math.max(Spacing.sm, Math.min(insets.top * 0.18, Spacing.md))
 
   const load = useCallback(async () => {
     const [
@@ -222,9 +225,10 @@ export default function AdminDashboard() {
   }
 
   return (
+    <SafeAreaView edges={['top']} style={styles.container}>
     <ScrollView
       style={styles.container}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { paddingTop: headerTopSpacing }]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load() }} tintColor={Colors.brand[500]} />}
     >
       <Text style={styles.screenTitle}>🛡️ Admin Dashboard</Text>
@@ -325,6 +329,7 @@ export default function AdminDashboard() {
         ))
       )}
     </ScrollView>
+    </SafeAreaView>
   )
 }
 

@@ -4,6 +4,7 @@ import {
   TouchableOpacity, RefreshControl, ActivityIndicator,
   Animated,
 } from 'react-native'
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { apiGet, apiPost, apiDelete } from '@/lib/api'
@@ -39,6 +40,7 @@ export default function CommunitiesScreen() {
   const { locale } = useLocale()
   const router     = useRouter()
   const isRTL      = locale === 'ar'
+  const insets     = useSafeAreaInsets()
 
   const [communities, setCommunities] = useState<CommunityWithMembership[]>([])
   const [loading, setLoading]         = useState(true)
@@ -334,76 +336,87 @@ export default function CommunitiesScreen() {
     overflow: 'hidden' as const,
   }
 
+  const headerTopSpacing = Math.max(Spacing.sm, Math.min(insets.top * 0.18, Spacing.md))
+
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.headerEyebrow}>Rawaq Communities</Text>
-          <Text style={styles.headerTitle}>Find your people</Text>
-        </View>
-        {user && (
-          <View style={styles.headerActions}>
-            <TouchableOpacity
-              onPress={() => router.push('/communities/create' as any)}
-              style={styles.addBtn}
-            >
-              <Ionicons name="add" size={18} color="#fff" />
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => setJoinedOnly((v) => !v)}
-              style={[styles.myBtn, joinedOnly && styles.myBtnActive]}
-            >
-              <Ionicons name={joinedOnly ? 'people' : 'people-outline'} size={16} color={joinedOnly ? '#fff' : Colors.brand[600]} />
-              <Text style={[styles.myBtnText, joinedOnly && styles.myBtnTextActive]}>Mine</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
-
-      {/* Search */}
-      <View style={styles.searchWrap}>
-        <Ionicons name="search-outline" size={16} color={Colors.gray[400]} />
-        <TextInput
-          value={search}
-          onChangeText={setSearch}
-          placeholder="Search communities..."
-          placeholderTextColor={Colors.gray[400]}
-          style={styles.searchInput}
-        />
-        {search.length > 0 && (
-          <TouchableOpacity onPress={() => setSearch('')}>
-            <Ionicons name="close-circle" size={16} color={Colors.gray[400]} />
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* Level filter chips */}
-      <FlatList
-        horizontal
-        data={LEVEL_FILTER_OPTIONS}
-        keyExtractor={(f) => f.key}
-        style={styles.filterList}
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.filterRow}
-        renderItem={({ item: f }) => (
-          <TouchableOpacity
-            onPress={() => setLevelFilter(f.key)}
-            style={[styles.filterChip, levelFilter === f.key && styles.filterChipActive]}
-          >
-            {f.key !== 'all' && (
-              <Ionicons
-                name={LEVEL_META[f.key as CommunityLevel].icon}
-                size={13}
-                color={levelFilter === f.key ? '#fff' : Colors.gray[600]}
-              />
+      <SafeAreaView edges={['top']} style={styles.topChrome}>
+        {/* Header */}
+        <View style={[styles.header, { paddingTop: headerTopSpacing }]}>
+          <View style={styles.headerTopRow}>
+            <Text style={styles.headerEyebrow}>Rawaq Communities</Text>
+            {user && (
+              <View style={styles.headerActions}>
+                <TouchableOpacity
+                  onPress={() => router.push('/communities/create' as any)}
+                  style={styles.addBtn}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Ionicons name="add" size={18} color="#fff" />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setJoinedOnly((v) => !v)}
+                  style={[styles.myBtn, joinedOnly && styles.myBtnActive]}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Ionicons name={joinedOnly ? 'people' : 'people-outline'} size={16} color={joinedOnly ? '#fff' : Colors.brand[600]} />
+                  <Text style={[styles.myBtnText, joinedOnly && styles.myBtnTextActive]}>Mine</Text>
+                </TouchableOpacity>
+              </View>
             )}
-            <Text style={[styles.filterChipText, levelFilter === f.key && styles.filterChipTextActive]}>
-              {f.label}
-            </Text>
-          </TouchableOpacity>
-        )}
-      />
+          </View>
+          <Text style={styles.headerTitle}>Find your people</Text>
+          <Text style={styles.headerSubtitle}>
+            Explore local, interest, and city circles without crowding the system area.
+          </Text>
+        </View>
+
+        {/* Search */}
+        <View style={styles.searchSection}>
+          <View style={styles.searchWrap}>
+            <Ionicons name="search-outline" size={16} color={Colors.gray[400]} />
+            <TextInput
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Search communities..."
+              placeholderTextColor={Colors.gray[400]}
+              style={styles.searchInput}
+            />
+            {search.length > 0 && (
+              <TouchableOpacity onPress={() => setSearch('')}>
+                <Ionicons name="close-circle" size={16} color={Colors.gray[400]} />
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        {/* Level filter chips */}
+        <FlatList
+          horizontal
+          data={LEVEL_FILTER_OPTIONS}
+          keyExtractor={(f) => f.key}
+          style={styles.filterList}
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterRow}
+          renderItem={({ item: f }) => (
+            <TouchableOpacity
+              onPress={() => setLevelFilter(f.key)}
+              style={[styles.filterChip, levelFilter === f.key && styles.filterChipActive]}
+            >
+              {f.key !== 'all' && (
+                <Ionicons
+                  name={LEVEL_META[f.key as CommunityLevel].icon}
+                  size={13}
+                  color={levelFilter === f.key ? '#fff' : Colors.gray[600]}
+                />
+              )}
+              <Text style={[styles.filterChipText, levelFilter === f.key && styles.filterChipTextActive]}>
+                {f.label}
+              </Text>
+            </TouchableOpacity>
+          )}
+        />
+      </SafeAreaView>
 
       <Animated.View style={discoveryContainerStyle} pointerEvents={discoveryVisible ? 'auto' : 'none'}>
       {user && !joinedOnly && search.trim().length === 0 && recommended.length > 0 && (
@@ -513,26 +526,32 @@ export default function CommunitiesScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#faf8f5' },
-
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing['2xl'],
-    paddingBottom: Spacing.lg,
+  topChrome: {
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: Colors.gray[100],
   },
+
+  header: {
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.md,
+    gap: Spacing.sm,
+  },
+  headerTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.md,
+  },
   headerEyebrow: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.brand[600], letterSpacing: 1.2, textTransform: 'uppercase' },
-  headerTitle:   { fontSize: FontSize['3xl'], fontWeight: FontWeight.bold, color: Colors.gray[900], marginTop: 2 },
+  headerTitle:   { fontSize: FontSize['3xl'], fontWeight: FontWeight.bold, color: Colors.gray[900], marginTop: 2, maxWidth: '86%' },
+  headerSubtitle: { fontSize: FontSize.xs, color: Colors.gray[500], lineHeight: 18, maxWidth: '92%' },
 
   myBtn:         { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 3, borderRadius: Radius.full, backgroundColor: Colors.brand[50], borderWidth: 1, borderColor: Colors.brand[200], minHeight: 44 },
   myBtnActive:   { backgroundColor: Colors.brand[600], borderColor: Colors.brand[600] },
   myBtnText:     { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.brand[600] },
   myBtnTextActive: { color: '#fff' },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginStart: 'auto' },
   addBtn: {
     width: 44,
     height: 44,
@@ -543,12 +562,13 @@ const styles = StyleSheet.create({
     ...Shadow.card,
   },
 
-  searchWrap:  { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: '#fff', marginHorizontal: Spacing.lg, marginTop: Spacing.md, marginBottom: Spacing.xs, borderRadius: Radius.xl, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2, borderWidth: 1, borderColor: '#e8e3d8', ...Shadow.card },
+  searchSection: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xs },
+  searchWrap:  { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: '#fff', borderRadius: Radius.xl, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2, borderWidth: 1, borderColor: '#e8e3d8', ...Shadow.card },
   searchInput: { flex: 1, fontSize: FontSize.sm, color: Colors.gray[900] },
 
   filterList: { minHeight: 56 },
-  filterRow: { paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, gap: Spacing.sm, alignItems: 'center' },
-  filterChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: Radius.full, backgroundColor: '#fff', borderWidth: 1, borderColor: Colors.gray[200] },
+  filterRow: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm, paddingBottom: Spacing.md, gap: Spacing.sm, alignItems: 'center' },
+  filterChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: Radius.full, backgroundColor: '#f8f6f2', borderWidth: 1, borderColor: Colors.gray[200], minHeight: 40 },
   filterChipActive: { backgroundColor: Colors.brand[600], borderColor: Colors.brand[600] },
   filterChipText:   { fontSize: FontSize.xs, fontWeight: FontWeight.medium, color: Colors.gray[700] },
   filterChipTextActive: { color: '#fff' },
