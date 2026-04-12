@@ -21,10 +21,10 @@ export function formatTime(date: string | Date, locale: string = 'en') {
   })
 }
 
-export function formatCurrency(amount: number, locale: string = 'en') {
+export function formatCurrency(amount: number, currency: string = 'SAR', locale: string = 'en') {
   return new Intl.NumberFormat(locale === 'ar' ? 'ar-SA' : 'en-US', {
     style: 'currency',
-    currency: 'SAR',
+    currency,
     minimumFractionDigits: 0,
   }).format(amount)
 }
