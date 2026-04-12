@@ -14,10 +14,10 @@ export function formatTime(date: string | Date, locale = 'en'): string {
   })
 }
 
-export function formatCurrency(amount: number, locale = 'en'): string {
+export function formatCurrency(amount: number, currency = 'SAR', locale = 'en'): string {
   return new Intl.NumberFormat(locale === 'ar' ? 'ar-SA' : 'en-US', {
     style: 'currency',
-    currency: 'SAR',
+    currency,
     minimumFractionDigits: 0,
   }).format(amount)
 }
