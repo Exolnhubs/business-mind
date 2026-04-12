@@ -184,7 +184,7 @@ export default function EventDetailScreen() {
       return
     }
     if (basePrice < (promo.min_order_amount ?? 0)) {
-      setPromoResult({ valid: false, reason: `Min order SAR ${promo.min_order_amount} required` })
+      setPromoResult({ valid: false, reason: `Min order  ${promo.min_order_amount} required` })
       setPromoLoading(false)
       return
     }
@@ -657,7 +657,7 @@ export default function EventDetailScreen() {
           </InfoBlock>
           <InfoBlock icon="💰" label="Price">
             <Text style={styles.infoValue}>
-              {event.is_free ? 'Free' : formatCurrency(event.price ?? 0, locale)}
+              {event.is_free ? 'Free' : formatCurrency(event.price ?? 0, event.currency, locale)}
             </Text>
           </InfoBlock>
         </View>
@@ -772,7 +772,7 @@ export default function EventDetailScreen() {
                               {notStarted && <Text style={styles.ticketUnavail}>Coming soon</Text>}
                             </View>
                             <Text style={[styles.ticketPrice, unavailable && { color: Colors.gray[400] }]}>
-                              {tt.is_free ? 'Free' : formatCurrency(tt.price, tt.currency)}
+                              {tt.is_free ? 'Free' : formatCurrency(tt.price, tt.currency, locale)}
                             </Text>
                           </View>
                           {selectedTypeId === tt.id && (
@@ -808,7 +808,7 @@ export default function EventDetailScreen() {
                     {promoResult && (
                       <Text style={[styles.promoMsg, promoResult.valid ? styles.promoMsgOk : styles.promoMsgErr]}>
                         {promoResult.valid
-                          ? `✓ Discount applied — you pay SAR ${promoResult.final_amount}`
+                          ? `✓ Discount applied — you pay {event.currency} ${promoResult.final_amount}`
                           : `✗ ${promoResult.reason}`}
                       </Text>
                     )}
@@ -833,7 +833,7 @@ export default function EventDetailScreen() {
                           const free = selectedType ? selectedType.is_free || finalP === 0 : event.is_free || finalP === 0
                           return free
                             ? 'Join Event — Free'
-                            : `Book Now — ${formatCurrency(finalP, event.currency ?? 'SAR')}`
+                            : `Book Now — ${formatCurrency(finalP, event.currency, locale)}`
                         })()}
                       </Text>
                     )
