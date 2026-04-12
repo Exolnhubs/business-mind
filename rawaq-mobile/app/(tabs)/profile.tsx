@@ -51,6 +51,8 @@ export default function ProfileScreen() {
   const router = useRouter()
   const [pushEnabled, setPushEnabled] = useState(false)
   const [pushLoading, setPushLoading] = useState(false)
+  const [smartPicksEnabled, setSmartPicksEnabled] = useState(true)
+  const [smartPicksLoading, setSmartPicksLoading] = useState(false)
   const [signingOut, setSigningOut]   = useState(false)
 
   // Edit form
@@ -88,6 +90,12 @@ export default function ProfileScreen() {
     setBio(profile.bio ?? '')
     setGender(profile.gender === 'male' || profile.gender === 'female' ? profile.gender : '')
     setPhone(profile.phone ?? '')
+    const preferences = (profile.preferences as Record<string, unknown> | null) ?? null
+    setSmartPicksEnabled(
+      typeof preferences?.show_smart_picks_trigger === 'boolean'
+        ? Boolean(preferences.show_smart_picks_trigger)
+        : true,
+    )
   }, [profile])
 
   useEffect(() => {
@@ -246,6 +254,36 @@ export default function ProfileScreen() {
     }
 
     setPushLoading(false)
+  }
+
+  async function toggleSmartPicksTrigger(enabled: boolean) {
+    if (!user || !profile) return
+    setSmartPicksLoading(true)
+    setSmartPicksEnabled(enabled)
+
+    const preferences = (profile.preferences as Record<string, unknown> | null) ?? {}
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        preferences: {
+          ...preferences,
+          show_smart_picks_trigger: enabled,
+        },
+      })
+      .eq('id', user.id)
+
+    if (error) {
+      setSmartPicksEnabled(
+        typeof preferences.show_smart_picks_trigger === 'boolean'
+          ? Boolean(preferences.show_smart_picks_trigger)
+          : true,
+      )
+      Alert.alert('Could not update setting', error.message)
+    } else {
+      await refreshProfile()
+    }
+
+    setSmartPicksLoading(false)
   }
 
   async function detectLocation() {
@@ -618,6 +656,25 @@ export default function ProfileScreen() {
             }
           </View>
 
+          <View style={styles.row}>
+            <View style={styles.rowLeft}>
+              <Text style={styles.rowIcon}>✨</Text>
+              <View style={styles.rowTextWrap}>
+                <Text style={styles.rowLabel}>Show Smart Picks button</Text>
+                <Text style={[styles.rowValue, { fontSize: 11 }]}>Display the AI recommendations shortcut on Home</Text>
+              </View>
+            </View>
+            {smartPicksLoading
+              ? <ActivityIndicator size="small" color={Colors.brand[500]} />
+              : <Switch
+                value={smartPicksEnabled}
+                onValueChange={toggleSmartPicksTrigger}
+                trackColor={{ false: Colors.gray[200], true: Colors.brand[400] }}
+                thumbColor={smartPicksEnabled ? Colors.brand[500] : Colors.gray[400]}
+              />
+            }
+          </View>
+
           {/* Contact Support */}
           <TouchableOpacity style={styles.row} onPress={() => router.push('/support')}>
             <View style={styles.rowLeft}>
@@ -802,10 +859,11 @@ const styles = StyleSheet.create({
   section: { margin: Spacing.lg, backgroundColor: Colors.white, borderRadius: Radius.lg, overflow: 'hidden', ...Shadow.card },
   sectionTitle: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.gray[500], textTransform: 'uppercase', letterSpacing: 0.8, paddingHorizontal: Spacing.lg, paddingTop: Spacing.md, paddingBottom: Spacing.sm },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, borderTopWidth: 1, borderTopColor: Colors.gray[50] },
-  rowLeft: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+  rowLeft: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, flex: 1, minWidth: 0, paddingRight: Spacing.md },
+  rowTextWrap: { flex: 1, minWidth: 0 },
   rowIcon: { fontSize: 20 },
-  rowLabel: { fontSize: FontSize.base, color: Colors.gray[800] },
-  rowValue: { fontSize: FontSize.sm, color: Colors.gray[500] },
+  rowLabel: { fontSize: FontSize.base, color: Colors.gray[800], flexShrink: 1 },
+  rowValue: { fontSize: FontSize.sm, color: Colors.gray[500], flexShrink: 1 },
   rowArrow: { fontSize: 22, color: Colors.gray[400] },
   signOutBtn: { margin: Spacing.lg, backgroundColor: Colors.white, borderRadius: Radius.lg, paddingVertical: Spacing.md, alignItems: 'center', ...Shadow.card },
   signOutText: { fontSize: FontSize.base, color: Colors.red.text, fontWeight: FontWeight.medium },

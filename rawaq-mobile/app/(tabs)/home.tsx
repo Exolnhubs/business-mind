@@ -4,14 +4,20 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import EventsScreen from '@/components/screens/EventsScreen'
 import FeedScreen from './feed'
+import { useAuth } from '@/contexts/auth-context'
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '@/theme'
 
 type Segment = 'explore' | 'foryou'
 
 export default function HomeScreen() {
+  const { profile } = useAuth()
   const [segment, setSegment] = useState<Segment>('explore')
   const insets = useSafeAreaInsets()
   const router = useRouter()
+  const showSmartPicksTrigger =
+    typeof (profile?.preferences as Record<string, unknown> | undefined)?.show_smart_picks_trigger === 'boolean'
+      ? Boolean((profile?.preferences as Record<string, unknown>).show_smart_picks_trigger)
+      : true
 
   return (
     <View style={styles.root}>
@@ -32,9 +38,10 @@ export default function HomeScreen() {
       </View>
 
       {/* ── Smart Picks banner ───────────────────────────────── */}
+      {showSmartPicksTrigger && (
       <TouchableOpacity
-        style={styles.smartBanner}
-        activeOpacity={0.8}
+        style={[styles.smartFab, { bottom: Math.max(insets.bottom + Spacing.sm, Spacing.lg) }]}
+        activeOpacity={0.88}
         onPress={() => router.push('/discover')}
       >
         <Text style={styles.smartBannerIcon}>✨</Text>
@@ -44,6 +51,7 @@ export default function HomeScreen() {
         </View>
         <Text style={styles.smartBannerArrow}>›</Text>
       </TouchableOpacity>
+      )}
 
       {/* ── Content ──────────────────────────────────────────── */}
       {segment === 'explore'
@@ -115,19 +123,25 @@ const styles = StyleSheet.create({
     fontWeight: FontWeight.semibold,
   },
 
-  smartBanner: {
-    flexDirection: 'row',
+  smartFab: {
+    position: 'absolute',
+    right: Spacing.lg,
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: Colors.brand[600],
     alignItems: 'center',
-    gap: Spacing.sm,
-    backgroundColor: Colors.brand[50],
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.brand[100],
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm + 2,
+    justifyContent: 'center',
+    shadowColor: Colors.black,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    elevation: 8,
+    zIndex: 20,
   },
-  smartBannerIcon: { fontSize: 20 },
-  smartBannerBody: { flex: 1 },
-  smartBannerTitle: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.brand[700] },
-  smartBannerSub:   { fontSize: FontSize.xs, color: Colors.brand[500], marginTop: 1 },
-  smartBannerArrow: { fontSize: 20, color: Colors.brand[400], fontWeight: FontWeight.bold },
+  smartBannerIcon: { fontSize: 24, color: Colors.white },
+  smartBannerBody: { display: 'none' },
+  smartBannerTitle: { display: 'none' },
+  smartBannerSub:   { display: 'none' },
+  smartBannerArrow: { display: 'none' },
 })

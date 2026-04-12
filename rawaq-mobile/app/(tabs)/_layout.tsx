@@ -60,15 +60,6 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="saved"
-        options={{
-          title: t('tab.saved'),
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'heart' : 'heart-outline'} size={24} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="bookings"
         options={{
           title: t('tab.bookings'),
@@ -104,6 +95,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="events/index" options={{ href: null }} />
       <Tabs.Screen name="feed"         options={{ href: null }} />
       <Tabs.Screen name="chat"         options={{ href: null }} />
+      <Tabs.Screen name="saved"        options={{ href: null }} />
     </Tabs>
   )
 }

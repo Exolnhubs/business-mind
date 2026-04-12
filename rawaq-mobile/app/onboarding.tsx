@@ -490,6 +490,7 @@ export default function OnboardingScreen() {
             ...(profile?.preferences as Record<string, unknown> ?? {}),
             onboarding_completed: true,
             interests,
+            show_smart_picks_trigger: true,
           },
         } as any)
         .eq('id', user.id)

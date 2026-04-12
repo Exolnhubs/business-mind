@@ -3,12 +3,13 @@ import {
   View, Text, StyleSheet, FlatList,
   ActivityIndicator, RefreshControl, TouchableOpacity,
 } from 'react-native'
+import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/auth-context'
-import { EventCard } from '@/components/events/EventCard'
+import { EventCard, EventCardSkeleton } from '@/components/events/EventCard'
 import { EmptyState } from '@/components/ui/EmptyState'
-import { Colors, Spacing, FontSize, FontWeight } from '@/theme'
+import { Colors, Spacing, FontSize, FontWeight, Radius } from '@/theme'
 import type { Event, EventCategory, EventWithOrganizer, OrganizerProfile, Profile } from '@/types/database'
 
 const PAGE_SIZE = 10
@@ -75,19 +76,58 @@ export default function FeedScreen({ onExplore }: Props = {}) {
   const router   = useRouter()
 
   const [events,      setEvents]      = useState<EventWithOrganizer[]>([])
+  const [savedEvents, setSavedEvents] = useState<EventWithOrganizer[]>([])
   const [savedIds,    setSavedIds]    = useState<Set<string>>(new Set())
   const [following,   setFollowing]   = useState(0)
   const [loading,     setLoading]     = useState(true)
+  const [savedLoading, setSavedLoading] = useState(true)
   const [refreshing,  setRefreshing]  = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [page,        setPage]        = useState(1)
   const [hasMore,     setHasMore]     = useState(true)
+
+  const fetchSavedRail = useCallback(async () => {
+    if (!user) {
+      setSavedEvents([])
+      setSavedLoading(false)
+      return
+    }
+
+    const { data } = await supabase
+      .from('saved_events')
+      .select('event_id')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(6)
+
+    const eventIds = (data ?? []).map((saved) => saved.event_id)
+    if (eventIds.length === 0) {
+      setSavedEvents([])
+      setSavedLoading(false)
+      return
+    }
+
+    const { data: eventRows } = await supabase
+      .from('events')
+      .select('*')
+      .in('id', eventIds)
+
+    const hydratedEvents = await hydrateEvents((eventRows ?? []) as Event[])
+    const eventById = new Map(hydratedEvents.map((event) => [event.id, event]))
+    const railItems = eventIds
+      .map((eventId) => eventById.get(eventId))
+      .filter((event): event is EventWithOrganizer => Boolean(event))
+
+    setSavedEvents(railItems)
+    setSavedLoading(false)
+  }, [user])
 
   const load = useCallback(async (reset = false) => {
     if (!user) {
       setLoading(false)
       setRefreshing(false)
       setLoadingMore(false)
+      setSavedLoading(false)
       return
     }
     const currentPage = reset ? 1 : page
@@ -143,12 +183,15 @@ export default function FeedScreen({ onExplore }: Props = {}) {
     setLoadingMore(false)
   }, [user, page])
 
-  useEffect(() => { load(true) }, [user]) // eslint-disable-line
+  useEffect(() => {
+    void load(true)
+    void fetchSavedRail()
+  }, [user]) // eslint-disable-line
 
   function onRefresh() {
     setRefreshing(true)
     setPage(1)
-    load(true)
+    void Promise.all([load(true), fetchSavedRail()])
   }
 
   function onEndReached() {
@@ -156,6 +199,88 @@ export default function FeedScreen({ onExplore }: Props = {}) {
       setLoadingMore(true)
       load(false)
     }
+  }
+
+  function handleSaveChange(id: string, saved: boolean) {
+    setSavedIds((prev) => {
+      const next = new Set(prev)
+      if (saved) next.add(id)
+      else next.delete(id)
+      return next
+    })
+
+    if (saved) {
+      const event = events.find((item) => item.id === id)
+      if (!event) return
+      setSavedEvents((prev) => prev.some((item) => item.id === id) ? prev : [event, ...prev].slice(0, 6))
+      return
+    }
+
+    setSavedEvents((prev) => prev.filter((item) => item.id !== id))
+  }
+
+  function renderSavedRail() {
+    if (savedLoading) {
+      return (
+        <View style={styles.savedSection}>
+          <View style={styles.savedHeader}>
+            <View>
+              <Text style={styles.savedEyebrow}>Quick access</Text>
+              <Text style={styles.savedTitle}>Saved events</Text>
+            </View>
+          </View>
+          <FlatList
+            data={[1, 2]}
+            horizontal
+            keyExtractor={(item) => String(item)}
+            renderItem={() => (
+              <View style={styles.savedSkeletonWrap}>
+                <EventCardSkeleton />
+              </View>
+            )}
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.savedRail}
+          />
+        </View>
+      )
+    }
+
+    if (savedEvents.length === 0) return null
+
+    return (
+      <View style={styles.savedSection}>
+        <View style={styles.savedHeader}>
+          <View>
+            <Text style={styles.savedEyebrow}>Quick access</Text>
+            <Text style={styles.savedTitle}>Saved events</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.savedLink}
+            activeOpacity={0.8}
+            onPress={() => router.push('/(tabs)/saved')}
+          >
+            <Text style={styles.savedLinkText}>See all</Text>
+            <Ionicons name="arrow-forward" size={14} color={Colors.brand[700]} />
+          </TouchableOpacity>
+        </View>
+        <FlatList
+          data={savedEvents}
+          horizontal
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <EventCard
+              event={item}
+              isSaved
+              variant="rail"
+              onUnsave={(id) => handleSaveChange(id, false)}
+              onSaveChange={handleSaveChange}
+            />
+          )}
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.savedRail}
+        />
+      </View>
+    )
   }
 
   if (loading) {
@@ -177,16 +302,20 @@ export default function FeedScreen({ onExplore }: Props = {}) {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Following</Text>
-        {following > 0 && (
-          <Text style={styles.headerSub}>{following} organizer{following !== 1 ? 's' : ''}</Text>
-        )}
+        <View>
+          <Text style={styles.headerTitle}>Following</Text>
+          {following > 0 && (
+            <Text style={styles.headerSub}>{following} organizer{following !== 1 ? 's' : ''}</Text>
+          )}
+        </View>
       </View>
 
       {events.length === 0 && !loading ? (
         following === 0 ? (
           /* Not following anyone yet → prompt to explore */
-          <View style={styles.centered}>
+          <View style={styles.emptyWrap}>
+            {renderSavedRail()}
+            <View style={styles.centered}>
             <EmptyState
               icon="🔭"
               title="No one followed yet"
@@ -198,20 +327,25 @@ export default function FeedScreen({ onExplore }: Props = {}) {
             >
               <Text style={styles.exploreBtnText}>🌍  Explore events</Text>
             </TouchableOpacity>
+            </View>
           </View>
         ) : (
           /* Following someone but no upcoming events */
-          <EmptyState
+          <View style={styles.emptyWrap}>
+            {renderSavedRail()}
+            <EmptyState
             icon="📅"
             title="Nothing upcoming"
             description="The organizers you follow haven't posted upcoming events yet."
-          />
+            />
+          </View>
         )
       ) : (
         <FlatList
           data={events}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
+          ListHeaderComponent={renderSavedRail()}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.brand[500]} />
           }
@@ -223,7 +357,7 @@ export default function FeedScreen({ onExplore }: Props = {}) {
               : null
           }
           renderItem={({ item }) => (
-            <EventCard event={item} isSaved={savedIds.has(item.id)} />
+            <EventCard event={item} isSaved={savedIds.has(item.id)} onSaveChange={handleSaveChange} />
           )}
         />
       )}
@@ -234,11 +368,9 @@ export default function FeedScreen({ onExplore }: Props = {}) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.gray[50] },
+  emptyWrap: { flex: 1 },
   centered:  { flex: 1, justifyContent: 'center', alignItems: 'center', padding: Spacing['2xl'] },
   header: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: Spacing.sm,
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.xl,
     paddingBottom: Spacing.md,
@@ -248,6 +380,40 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.gray[900] },
   headerSub:   { fontSize: FontSize.sm, color: Colors.gray[400] },
+  savedSection: {
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.sm,
+    backgroundColor: Colors.gray[50],
+  },
+  savedHeader: {
+    paddingHorizontal: Spacing.lg,
+    marginBottom: Spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.md,
+  },
+  savedEyebrow: {
+    fontSize: FontSize.xs,
+    color: Colors.brand[600],
+    fontWeight: FontWeight.semibold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginBottom: 2,
+  },
+  savedTitle: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.gray[900] },
+  savedLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.brand[100],
+  },
+  savedLinkText: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.brand[700] },
+  savedRail: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xs },
+  savedSkeletonWrap: { width: 268, marginRight: Spacing.md },
   list:        { padding: Spacing.md, gap: Spacing.md, paddingBottom: Spacing['4xl'] },
   signInBtn:   { marginTop: Spacing.lg, paddingHorizontal: Spacing['2xl'], paddingVertical: Spacing.md, backgroundColor: Colors.brand[500], borderRadius: 12 },
   signInBtnText: { color: Colors.white, fontSize: FontSize.base, fontWeight: FontWeight.semibold },
