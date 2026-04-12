@@ -53,7 +53,7 @@ export interface InitiatePaymentParams {
   eventTitle: string
   platformFeePct: number  // e.g. 0.10 for 10%
   method: PaymentMethod
-  kind?: 'ticket' | 'donation'
+  kind?: 'ticket' | 'donation' | 'subscription'
   successUrl: string      // where to redirect after successful payment
   cancelUrl: string       // where to redirect if user cancels
 }

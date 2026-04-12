@@ -210,8 +210,13 @@ export async function initiateStripe(
           currency:     currency.toLowerCase(),
           unit_amount:  unitAmount,
           product_data: {
-            name:        `${eventTitle} — ${kind === 'donation' ? 'Donation' : 'Ticket'}`.slice(0, 255),
-            description: kind === 'donation' ? 'Support the organizer via Rawaq' : 'Powered by Rawaq',
+            name:        `${eventTitle} — ${kind === 'donation' ? 'Donation' : kind === 'subscription' ? 'Membership' : 'Ticket'}`.slice(0, 255),
+            description:
+              kind === 'donation'
+                ? 'Support the organizer via Rawaq'
+                : kind === 'subscription'
+                  ? 'Membership subscription via Rawaq'
+                  : 'Powered by Rawaq',
           },
         },
         quantity: 1,

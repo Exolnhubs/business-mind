@@ -227,7 +227,7 @@ export async function POST(req: Request) {
       eventTitle: `Rawaq ${plan.name} membership`,
       platformFeePct: 0,
       method,
-      kind: 'donation',
+      kind: 'subscription',
       successUrl,
       cancelUrl,
     }

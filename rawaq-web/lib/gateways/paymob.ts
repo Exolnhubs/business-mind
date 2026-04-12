@@ -77,7 +77,7 @@ async function createOrder(
   currency: string,
   merchantOrderId: string,
   eventTitle: string,
-  kind: 'ticket' | 'donation',
+  kind: 'ticket' | 'donation' | 'subscription',
 ): Promise<number> {
   const res = await fetch(`${BASE_URL}/ecommerce/orders`, {
     method: 'POST',
@@ -92,7 +92,12 @@ async function createOrder(
         {
           name:        eventTitle.slice(0, 100),
           amount_cents: amountCents,
-          description: kind === 'donation' ? 'Event donation via Rawaq' : 'Event ticket via Rawaq',
+          description:
+            kind === 'donation'
+              ? 'Event donation via Rawaq'
+              : kind === 'subscription'
+                ? 'Membership subscription via Rawaq'
+                : 'Event ticket via Rawaq',
           quantity:    1,
         },
       ],
