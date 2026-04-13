@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useDeferredValue, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/auth-context'
 import { Spinner } from '@/components/ui/Spinner'
@@ -156,7 +156,10 @@ export default function CommunitiesPage() {
   const levelsRef = useRef<HTMLDivElement>(null)
   const [levelFadeLeft,  setLevelFadeLeft]  = useState(false)
   const [levelFadeRight, setLevelFadeRight] = useState(false)
+  const communitiesAbortRef = useRef<AbortController | null>(null)
+  const latestCommunitiesRequestRef = useRef(0)
   const PER_PAGE = 18
+  const deferredSearch = useDeferredValue(search)
   const suggestedCommunities = suggested.filter((community) => !recommended.some((item) => item.id === community.id))
 
   // Drag-to-scroll for level pills (document-level so drag survives leaving the row)
@@ -271,6 +274,11 @@ export default function CommunitiesPage() {
   }
 
   const fetchCommunities = useCallback(async (p: number, lvl: CommunityLevel | 'all', q: string, memberOnly = false) => {
+    const controller = new AbortController()
+    communitiesAbortRef.current?.abort()
+    communitiesAbortRef.current = controller
+    const requestId = latestCommunitiesRequestRef.current + 1
+    latestCommunitiesRequestRef.current = requestId
     setLoading(true)
     const sp = new URLSearchParams({ page: String(p), per_page: String(PER_PAGE) })
     if (lvl !== 'all') sp.set('level', lvl)
@@ -280,8 +288,9 @@ export default function CommunitiesPage() {
     try {
       const json = await clientGetJson<{ data: { data: CommunityWithMembership[]; has_more: boolean } }>(
         `/api/communities?${sp}`,
-        { ttlMs: 45_000, scopeKey: cacheScopeKey },
+        { ttlMs: 45_000, scopeKey: cacheScopeKey, signal: controller.signal },
       )
+      if (latestCommunitiesRequestRef.current !== requestId) return
       if (p === 1) {
         setCommunities(json.data.data)
       } else {
@@ -289,20 +298,31 @@ export default function CommunitiesPage() {
       }
       setHasMore(json.data.has_more)
       setPage(p)
-    } catch {
+    } catch (error) {
+      if (controller.signal.aborted || (error instanceof DOMException && error.name === 'AbortError')) {
+        return
+      }
       if (p === 1) {
         setCommunities([])
         setHasMore(false)
       }
     } finally {
-      setLoading(false)
+      if (latestCommunitiesRequestRef.current === requestId) {
+        setLoading(false)
+      }
     }
   }, [cacheScopeKey])
 
   useEffect(() => {
-    const t = setTimeout(() => fetchCommunities(1, level, search, joinedOnly), search ? 300 : 0)
+    const t = setTimeout(() => fetchCommunities(1, level, deferredSearch, joinedOnly), deferredSearch ? 220 : 0)
     return () => clearTimeout(t)
-  }, [level, search, joinedOnly, fetchCommunities])
+  }, [level, deferredSearch, joinedOnly, fetchCommunities])
+
+  useEffect(() => {
+    return () => {
+      communitiesAbortRef.current?.abort()
+    }
+  }, [])
 
   function handleToggleMembership(slug: string, joined: boolean, memberCount?: number) {
     setCommunities((prev) =>

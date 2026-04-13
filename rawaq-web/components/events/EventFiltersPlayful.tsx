@@ -1,8 +1,9 @@
 'use client'
 
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
 import { useLocale } from '@/contexts/locale-context'
+import { clientGetJson } from '@/lib/client-fetch'
 
 interface Category {
   id: string
@@ -32,8 +33,12 @@ export function EventFiltersPlayful() {
   const router = useRouter()
   const pathname = usePathname()
   const params = useSearchParams()
+  const paramsSnapshot = params.toString()
+  const query = params.get('q') ?? ''
+  const [, startTransition] = useTransition()
   const [geoLoading, setGeoLoading] = useState(false)
   const [categories, setCategories] = useState<Category[]>([])
+  const [searchValue, setSearchValue] = useState(query)
   const [fadeLeft, setFadeLeft]   = useState(false)
   const [fadeRight, setFadeRight] = useState(false)
   const catsRef = useRef<HTMLDivElement>(null)
@@ -99,8 +104,7 @@ export function EventFiltersPlayful() {
 
   // ── Fetch categories + recalculate fades once content is known ──
   useEffect(() => {
-    fetch('/api/categories')
-      .then((r) => r.json())
+    clientGetJson<{ data?: Category[] }>('/api/categories', { ttlMs: 60 * 60 * 1000 })
       .then((json) => {
         setCategories(json.data ?? [])
         // Wait one frame for the DOM to reflect the new pill widths
@@ -113,16 +117,48 @@ export function EventFiltersPlayful() {
       .catch(() => {})
   }, [])
 
+  const replaceWithParams = useCallback(
+    (nextParams: URLSearchParams) => {
+      const qs = nextParams.toString()
+      startTransition(() => {
+        router.replace(`${pathname}${qs ? `?${qs}` : ''}`, { scroll: false })
+      })
+    },
+    [pathname, router, startTransition],
+  )
+
   const setParam = useCallback(
     (key: string, value: string | null) => {
-      const p = new URLSearchParams(params.toString())
+      const currentValue = params.get(key)
+      const normalizedValue = value && value.length > 0 ? value : null
+      if ((currentValue ?? null) === normalizedValue) return
+      const p = new URLSearchParams(paramsSnapshot)
       if (value) p.set(key, value)
       else p.delete(key)
       p.delete('page')
-      router.push(`${pathname}?${p.toString()}`)
+      replaceWithParams(p)
     },
-    [params, pathname, router],
+    [params, paramsSnapshot, replaceWithParams],
   )
+
+  useEffect(() => {
+    setSearchValue(query)
+  }, [query])
+
+  useEffect(() => {
+    const normalizedSearch = searchValue.trim()
+    if (normalizedSearch === query) return
+
+    const timeoutId = window.setTimeout(() => {
+      const nextParams = new URLSearchParams(paramsSnapshot)
+      if (normalizedSearch) nextParams.set('q', normalizedSearch)
+      else nextParams.delete('q')
+      nextParams.delete('page')
+      replaceWithParams(nextParams)
+    }, 320)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [paramsSnapshot, query, replaceWithParams, searchValue])
 
   const toggleBool = (key: string) => {
     const current = params.get(key)
@@ -133,21 +169,21 @@ export function EventFiltersPlayful() {
 
   function useNearMe() {
     if (hasGeo) {
-      const p = new URLSearchParams(params.toString())
+      const p = new URLSearchParams(paramsSnapshot)
       p.delete('lat'); p.delete('lng'); p.delete('radius_km'); p.delete('page')
-      router.push(`${pathname}?${p.toString()}`)
+      replaceWithParams(p)
       return
     }
     if (!navigator.geolocation) return
     setGeoLoading(true)
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        const p = new URLSearchParams(params.toString())
+        const p = new URLSearchParams(paramsSnapshot)
         p.set('lat', String(pos.coords.latitude))
         p.set('lng', String(pos.coords.longitude))
         p.set('radius_km', '25')
         p.delete('page')
-        router.push(`${pathname}?${p.toString()}`)
+        replaceWithParams(p)
         setGeoLoading(false)
       },
       () => setGeoLoading(false),
@@ -159,7 +195,6 @@ export function EventFiltersPlayful() {
   const gender    = params.get('gender')   ?? ''
   const freeOnly  = params.get('free')     === 'true'
   const familyFriendly = params.get('family') === 'true'
-  const query     = params.get('q')        ?? ''
   const hasFilters = !!(category || city || gender || freeOnly || familyFriendly || query || hasGeo)
   const activeCount = [category, city, gender, query, freeOnly ? '1' : '', familyFriendly ? '1' : '', hasGeo ? '1' : ''].filter(Boolean).length
 
@@ -181,7 +216,7 @@ export function EventFiltersPlayful() {
             </span>
             {hasFilters && (
               <button
-                onClick={() => router.push(pathname)}
+                onClick={() => replaceWithParams(new URLSearchParams())}
                 className="ef-clear-btn"
                 aria-label="Clear all filters"
               >
@@ -209,8 +244,8 @@ export function EventFiltersPlayful() {
             <input
               type="search"
               placeholder={t('events.filters.search_placeholder')}
-              defaultValue={query}
-              onChange={(e) => setParam('q', e.target.value || null)}
+              value={searchValue}
+              onChange={(e) => setSearchValue(e.target.value)}
               className="ef-search-input"
             />
           </div>

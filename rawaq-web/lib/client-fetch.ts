@@ -7,6 +7,7 @@ type ClientGetOptions = {
   force?: boolean
   skipCache?: boolean
   scopeKey?: string | null
+  signal?: AbortSignal
 }
 
 type CachedGetEntry = {
@@ -93,6 +94,7 @@ export async function clientGetJson<T>(
       method: 'GET',
       cache: 'no-store',
       credentials: 'same-origin',
+      signal: options.signal,
     })
 
     if (!res.ok) {
