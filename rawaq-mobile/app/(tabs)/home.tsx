@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { useRouter } from 'expo-router'
+import { useLocalSearchParams, useRouter } from 'expo-router'
 import EventsScreen from '@/components/screens/EventsScreen'
 import FeedScreen from './feed'
 import { HappeningComposerSheet } from '@/components/happenings/HappeningComposerSheet'
@@ -13,6 +13,7 @@ type Segment = 'explore' | 'foryou'
 
 export default function HomeScreen() {
   const { profile } = useAuth()
+  const params = useLocalSearchParams<{ community?: string }>()
   const [segment, setSegment] = useState<Segment>('explore')
   const [feedMounted, setFeedMounted] = useState(false)
   const [actionsOpen, setActionsOpen] = useState(false)
@@ -41,6 +42,12 @@ export default function HomeScreen() {
     setActionsOpen(false)
     router.push('/discover')
   }
+
+  useEffect(() => {
+    if (typeof params.community === 'string' && params.community && segment !== 'explore') {
+      setSegment('explore')
+    }
+  }, [params.community, segment])
 
   return (
     <View style={styles.root}>

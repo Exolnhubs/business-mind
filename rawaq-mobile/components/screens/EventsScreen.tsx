@@ -164,8 +164,9 @@ export default function EventsScreen() {
   const { t, locale } = useLocale()
   const { user, profile } = useAuth()
   const router = useRouter()
-  const params = useLocalSearchParams<{ community?: string }>()
+  const params = useLocalSearchParams<{ community?: string; reset?: string }>()
   const routeCommunitySlug = typeof params.community === 'string' ? params.community : null
+  const routeResetToken = typeof params.reset === 'string' ? params.reset : null
   const [events, setEvents] = useState<EventWithOrganizer[]>([])
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set())
   const [savedInspiredEvents, setSavedInspiredEvents] = useState<EventWithOrganizer[]>([])
@@ -202,8 +203,10 @@ export default function EventsScreen() {
 
   // Sync city from profile (runs once profile is loaded)
   useEffect(() => {
-    if (profile?.city) setCity((cur) => cur === 'All' ? profile.city! : cur)
-  }, [profile?.city])
+    if (profile?.city && !routeCommunitySlug) {
+      setCity((cur) => cur === 'All' ? profile.city! : cur)
+    }
+  }, [profile?.city, routeCommunitySlug])
 
   // Fade the pin icon out while the user is typing, back in when cleared
   const pinOpacity = useRef(new Animated.Value(1)).current
@@ -227,7 +230,7 @@ export default function EventsScreen() {
   const loadJoinedCommunities = useCallback(async (force = false) => {
     if (!user) {
       setJoinedCommunities([])
-      setCommunitySlug(null)
+      setCommunitySlug(routeCommunitySlug)
       return
     }
 
@@ -238,20 +241,33 @@ export default function EventsScreen() {
 
     if (error) {
       setJoinedCommunities([])
-      setCommunitySlug(null)
+      setCommunitySlug(routeCommunitySlug)
       return
     }
 
     const nextCommunities = data?.data ?? []
     setJoinedCommunities(nextCommunities)
     setCommunitySlug((current) =>
-      current && !nextCommunities.some((community) => community.slug === current) ? null : current,
+      current && current !== routeCommunitySlug && !nextCommunities.some((community) => community.slug === current)
+        ? null
+        : current,
     )
-  }, [user])
+  }, [routeCommunitySlug, user])
 
   useEffect(() => {
     setCommunitySlug(routeCommunitySlug)
-  }, [routeCommunitySlug])
+    if (!routeCommunitySlug) return
+
+    setSearch('')
+    setCategoryId(null)
+    setFreeOnly(false)
+    setNearMe(false)
+    setGeoCoords(null)
+    setRadiusKm(25)
+    setCity('All')
+    lastDiscoveryLoadRef.current = 0
+    lastEventsLoadRef.current = 0
+  }, [routeCommunitySlug, routeResetToken])
 
   const loadDiscoveryMetadata = useCallback(async (force = false) => {
     const now = Date.now()
@@ -686,6 +702,12 @@ export default function EventsScreen() {
     void refreshEventsIfNeeded(true)
   }, [refreshEventsIfNeeded])
 
+  useEffect(() => {
+    if (!routeCommunitySlug) return
+    void loadDiscoveryMetadata(true)
+    void refreshEventsIfNeeded(true)
+  }, [routeCommunitySlug, routeResetToken, loadDiscoveryMetadata, refreshEventsIfNeeded])
+
   useFocusEffect(
     useCallback(() => {
       void loadDiscoveryMetadata()
@@ -734,11 +756,11 @@ export default function EventsScreen() {
     return {
       communityDiscoveryItems: interleaveDiscoveryItems(myCommunityEvents, communityRail, 8),
       weekendDiscoveryItems: interleaveDiscoveryItems(nearYouWeekendEvents, weekendRail, 8),
-      filteredCommunityItems: interleaveDiscoveryItems([], filteredCommunityRail, 8),
+      filteredCommunityItems: interleaveDiscoveryItems(events.slice(0, 6), filteredCommunityRail, 8),
       activeNowItems: interleaveDiscoveryItems([], activeRail, 8),
       nearbyHappeningItems: interleaveDiscoveryItems([], nearbyRail, 8),
     }
-  }, [filteredCommunityHappenings, nearbyHappenings, nearYouWeekendHappenings, myCommunityHappenings, activeHappenings, myCommunityEvents, nearYouWeekendEvents])
+  }, [events, filteredCommunityHappenings, nearbyHappenings, nearYouWeekendHappenings, myCommunityHappenings, activeHappenings, myCommunityEvents, nearYouWeekendEvents])
   const showDiscoveryHeader = showRecommendationRails || nearMe || !!communitySlug
 
   const keyExtractor = useCallback((e: EventWithOrganizer) => e.id, [])
@@ -928,8 +950,8 @@ export default function EventsScreen() {
                 <View>
                   {communitySlug && (
                     <MixedDiscoveryRail
-                      title="Happenings In This Community"
-                      subtitle="Live and upcoming community activity that complements the events list below."
+                      title="Inside This Community"
+                      subtitle="Community-tagged events and live happenings gathered in one place."
                       items={filteredCommunityItems}
                       savedIds={savedIds}
                       onSaveChange={handleSaveChange}
@@ -937,8 +959,8 @@ export default function EventsScreen() {
                       onToggleHappeningReact={toggleDiscoveryHappeningReact}
                       accent="community"
                       forceShow
-                      emptyTitle="No happenings in this community yet"
-                      emptyDescription="The event list is still filtered to this community. Check back soon for more spontaneous activity."
+                      emptyTitle="No activity in this community yet"
+                      emptyDescription="The feed is still filtered to this community. Check back soon for new events or spontaneous happenings."
                     />
                   )}
 

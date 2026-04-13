@@ -864,13 +864,16 @@ export default function CommunityDetailScreen() {
 
         <View style={styles.section}>
           <View style={styles.sectionCard}>
-            <View style={styles.sectionHeader}>
-              <View>
+            <View style={[styles.sectionHeader, styles.sectionHeaderWrap]}>
+              <View style={styles.sectionHeaderContent}>
                 <Text style={styles.sectionEyebrow}>Main highlight</Text>
                 <Text style={styles.sectionTitle}>Upcoming Events</Text>
                 <Text style={styles.sectionSub}>The clearest way to understand what this community actually does.</Text>
               </View>
-              <TouchableOpacity onPress={() => router.push({ pathname: '/(tabs)/home', params: { community: slug } } as any)}>
+              <TouchableOpacity
+                onPress={() => router.push({ pathname: '/(tabs)/home', params: { community: slug, reset: String(Date.now()) } } as any)}
+                style={styles.sectionLinkButton}
+              >
                 <Text style={styles.sectionLink}>View all</Text>
               </TouchableOpacity>
             </View>
@@ -1529,8 +1532,11 @@ const styles = StyleSheet.create({
   // Sections
   section: { paddingHorizontal: Spacing.lg, marginBottom: Spacing['2xl'] },
   sectionHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: Spacing.md, gap: Spacing.md },
+  sectionHeaderWrap: { flexWrap: 'wrap' },
+  sectionHeaderContent: { flex: 1, minWidth: 0 },
   sectionTitle: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.gray[900], marginBottom: Spacing.md },
   sectionLink: { fontSize: FontSize.sm, color: Colors.brand[600], fontWeight: FontWeight.medium },
+  sectionLinkButton: { alignSelf: 'flex-start' },
   sectionEyebrow: {
     fontSize: 11,
     fontWeight: FontWeight.bold,

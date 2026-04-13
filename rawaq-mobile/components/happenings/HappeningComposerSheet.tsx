@@ -94,12 +94,13 @@ export function HappeningComposerSheet({ visible, onClose, onPosted }: Happening
   }
 
   function handleClose() {
+    setShowLocationPicker(false)
     resetComposer()
     onClose()
   }
 
   function openLocationPicker() {
-    setShowLocationPicker(true)
+    setTimeout(() => setShowLocationPicker(true), 0)
   }
 
   async function submitHappening() {
@@ -131,7 +132,7 @@ export function HappeningComposerSheet({ visible, onClose, onPosted }: Happening
 
   return (
     <>
-      <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
+      <Modal visible={visible && !showLocationPicker} animationType="slide" transparent onRequestClose={handleClose}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.overlay}
