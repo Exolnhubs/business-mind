@@ -158,6 +158,8 @@ function claimUniqueHappenings(
   })
 }
 
+const DATA_REFRESH_STALE_MS = 90_000
+
 export default function EventsScreen() {
   const { t, locale } = useLocale()
   const { user, profile } = useAuth()
@@ -193,6 +195,8 @@ export default function EventsScreen() {
   const [communitySlug, setCommunitySlug] = useState<string | null>(null)
   const [joinedCommunities, setJoinedCommunities] = useState<JoinedCommunity[]>([])
   const [activeCommunities, setActiveCommunities] = useState<ActiveCommunity[]>([])
+  const lastDiscoveryLoadRef = useRef(0)
+  const lastEventsLoadRef = useRef(0)
   const isDefaultFeed = !search && !categoryId && !freeOnly && !nearMe && !communitySlug
   const showRecommendationRails = isDefaultFeed
 
@@ -220,7 +224,7 @@ export default function EventsScreen() {
       .then(({ data }) => setCategories((data ?? []) as Category[]))
   }, [])
 
-  const loadJoinedCommunities = useCallback(async () => {
+  const loadJoinedCommunities = useCallback(async (force = false) => {
     if (!user) {
       setJoinedCommunities([])
       setCommunitySlug(null)
@@ -229,6 +233,7 @@ export default function EventsScreen() {
 
     const { data, error } = await apiGet<{ data: CommunityListItem[] }>(
       '/api/communities?member_only=true&per_page=20',
+      { force },
     )
 
     if (error) {
@@ -245,31 +250,37 @@ export default function EventsScreen() {
   }, [user])
 
   useEffect(() => {
-    loadJoinedCommunities()
-  }, [loadJoinedCommunities])
-
-  useEffect(() => {
     setCommunitySlug(routeCommunitySlug)
   }, [routeCommunitySlug])
 
-  useFocusEffect(
-    useCallback(() => {
-      loadJoinedCommunities()
-      // Refresh active communities rail on every focus
-      apiGet<{ communities: ActiveCommunity[] }>('/api/happenings/active?limit=10')
-        .then(({ data }) => setActiveCommunities(data?.communities ?? []))
-        .catch(() => {})
-      // Fetch suggested communities (micro/interest) for discovery nudge
-      if (user) {
-        apiGet<{ data: { data: CommunityListItem[] } }>('/api/communities?per_page=15')
-          .then(({ data }) => {
-            const unjoined = (data?.data?.data ?? []).filter((c) => !c.is_member && (c.level === 'micro' || c.level === 'interest' || c.level === 'district'))
-            setSuggestedCommunities(unjoined.slice(0, 6))
-          })
-          .catch(() => {})
-      }
-    }, [loadJoinedCommunities, user]),
-  )
+  const loadDiscoveryMetadata = useCallback(async (force = false) => {
+    const now = Date.now()
+    if (!force && now - lastDiscoveryLoadRef.current < DATA_REFRESH_STALE_MS) return
+    lastDiscoveryLoadRef.current = now
+
+    await loadJoinedCommunities(force)
+
+    const [{ data: activeData }, suggestedResponse] = await Promise.all([
+      apiGet<{ communities: ActiveCommunity[] }>('/api/happenings/active?limit=10', { force }),
+      user
+        ? apiGet<{ data: { data: CommunityListItem[] } }>('/api/communities?per_page=15', { force })
+        : Promise.resolve({ data: null, error: null }),
+    ])
+
+    setActiveCommunities(activeData?.communities ?? [])
+
+    if (user) {
+      const unjoined = (suggestedResponse.data?.data?.data ?? []).filter(
+        (community) =>
+          !community.is_member &&
+          (community.level === 'micro' || community.level === 'interest' || community.level === 'district'),
+      )
+      setSuggestedCommunities(unjoined.slice(0, 6))
+    } else {
+      setSuggestedCommunities([])
+    }
+
+  }, [loadJoinedCommunities, user])
 
   // Silently grab coords for "Near You This Weekend" only if permission
   // was already granted. If not, we can later prompt from the rail itself.
@@ -323,14 +334,17 @@ export default function EventsScreen() {
     }
   }
 
-  const fetchDiscoverHappenings = useCallback(async (query: Record<string, string | number | boolean | undefined>) => {
+  const fetchDiscoverHappenings = useCallback(async (
+    query: Record<string, string | number | boolean | undefined>,
+    force = false,
+  ) => {
     const params = new URLSearchParams()
     Object.entries(query).forEach(([key, value]) => {
       if (value !== undefined && value !== null && value !== false) {
         params.set(key, String(value))
       }
     })
-    const { data, error } = await apiGet<HappeningsDiscoverResponse>(`/api/happenings/discover?${params.toString()}`)
+    const { data, error } = await apiGet<HappeningsDiscoverResponse>(`/api/happenings/discover?${params.toString()}`, { force })
     return error ? [] : (data?.happenings ?? [])
   }, [])
 
@@ -392,7 +406,7 @@ export default function EventsScreen() {
     }))
   }
 
-  const fetchEvents = useCallback(async () => {
+  const fetchEvents = useCallback(async (force = false) => {
     const geoActive = nearMe ? geoCoords : null
     setLoading(true)
     const eventSelect = `
@@ -424,6 +438,7 @@ export default function EventsScreen() {
 
     const { data: eventsPayload, error: eventsError } = await apiGet<EventsApiListResponse>(
       `/api/events?${params.toString()}`,
+      { force },
     )
 
     if (eventsError) {
@@ -464,17 +479,17 @@ export default function EventsScreen() {
     const [nearbyHappeningResults, communityHappeningResults] = await Promise.all([
       geoActive
         ? fetchDiscoverHappenings({
-            lat: geoActive.lat,
-            lng: geoActive.lng,
-            radius_km: radiusKm,
-            limit: 8,
-          })
+          lat: geoActive.lat,
+          lng: geoActive.lng,
+          radius_km: radiusKm,
+          limit: 8,
+        }, force)
         : Promise.resolve([]),
       communitySlug
         ? fetchDiscoverHappenings({
-            community: communitySlug,
-            limit: 8,
-          })
+          community: communitySlug,
+          limit: 8,
+        }, force)
         : Promise.resolve([]),
     ])
 
@@ -494,22 +509,24 @@ export default function EventsScreen() {
       return
     }
 
+    const rawUrgencyList = list
+      .filter((event) => !event.is_cancelled && isAlmostSoldOut(event))
+      .sort((a, b) => {
+        const spotsA = getSpotsLeft(a) ?? Number.MAX_SAFE_INTEGER
+        const spotsB = getSpotsLeft(b) ?? Number.MAX_SAFE_INTEGER
+        if (spotsA !== spotsB) return spotsA - spotsB
+        return new Date(a.start_at).getTime() - new Date(b.start_at).getTime()
+      })
+      .slice(0, 6)
+
     const [
-      urgencyRes,
       savedSignalsRes,
       weekendHappeningResults,
       myCommunityHappeningResults,
       activeHappeningResults,
+      weekendGeoRes,
+      communityLinksRes,
     ] = await Promise.all([
-      supabase
-        .from('events')
-        .select(eventSelect)
-        .eq('is_published', true)
-        .eq('is_cancelled', false)
-        .gte('start_at', new Date().toISOString())
-        .not('capacity', 'is', null)
-        .order('start_at', { ascending: true })
-        .limit(40),
       user
         ? supabase
           .from('saved_events')
@@ -523,30 +540,34 @@ export default function EventsScreen() {
         : Promise.resolve({ data: null, error: null }),
       weekendCoords
         ? fetchDiscoverHappenings({
-            lat: weekendCoords.lat,
-            lng: weekendCoords.lng,
-            radius_km: weekendRadiusKm,
-            limit: 6,
-          })
+          lat: weekendCoords.lat,
+          lng: weekendCoords.lng,
+          radius_km: weekendRadiusKm,
+          limit: 6,
+        }, force)
         : Promise.resolve([]),
       joinedCommunities.length > 0
         ? fetchDiscoverHappenings({
-            joined_only: true,
-            limit: 8,
-          })
+          joined_only: true,
+          limit: 8,
+        }, force)
         : Promise.resolve([]),
-      fetchDiscoverHappenings({ limit: 8 }),
+      fetchDiscoverHappenings({ limit: 8 }, force),
+      weekendCoords
+        ? supabase.rpc('events_within_radius', {
+          user_lat: weekendCoords.lat,
+          user_lng: weekendCoords.lng,
+          radius_meters: weekendRadiusKm * 1000,
+        })
+        : Promise.resolve({ data: null }),
+      joinedCommunities.length > 0
+        ? supabase
+          .from('event_communities')
+          .select('event_id')
+          .in('community_id', joinedCommunities.slice(0, 6).map((community) => community.id))
+          .limit(30)
+        : Promise.resolve({ data: null }),
     ])
-
-    const rawUrgencyList = ((urgencyRes.data ?? []) as unknown as EventWithOrganizer[])
-      .filter((event) => !event.is_cancelled && isAlmostSoldOut(event))
-      .sort((a, b) => {
-        const spotsA = getSpotsLeft(a) ?? Number.MAX_SAFE_INTEGER
-        const spotsB = getSpotsLeft(b) ?? Number.MAX_SAFE_INTEGER
-        if (spotsA !== spotsB) return spotsA - spotsB
-        return new Date(a.start_at).getTime() - new Date(b.start_at).getTime()
-      })
-      .slice(0, 6)
     const savedSignals = ((savedSignalsRes.data ?? []) as unknown as Array<{ event_id: string; event: SavedSignalEvent | null }>)
       .map((row) => row.event)
       .filter(Boolean) as SavedSignalEvent[]
@@ -595,65 +616,44 @@ export default function EventsScreen() {
         .map((item) => item.event)
     }
 
-    // ── Near You This Weekend ─────────────────────────────────────────────────
+
     const { start: wStart, end: wEnd } = getThisWeekendRange()
 
-    let weekendCandidates: EventWithOrganizer[] = []
+    const weekendCandidateIds = [...new Set(((weekendGeoRes.data ?? []) as { id: string }[]).map((entry) => entry.id))]
+    const communityEventIds = [...new Set(((communityLinksRes.data ?? []) as { event_id: string }[]).map((entry) => entry.event_id))]
+    const combinedRailIds = [...new Set([...weekendCandidateIds, ...communityEventIds])]
 
-    if (weekendCoords) {
-      // Prefer GPS radius — use same RPC as the Near Me toggle
-      const { data: geoIds } = await supabase.rpc('events_within_radius', {
-        user_lat: weekendCoords.lat,
-        user_lng: weekendCoords.lng,
-        radius_meters: weekendRadiusKm * 1000,
-      })
-      const ids = ((geoIds ?? []) as { id: string }[]).map((e) => e.id)
-      if (ids.length > 0) {
-        const { data: weekendData } = await supabase
-          .from('events')
-          .select(eventSelect)
-          .in('id', ids)
-          .eq('is_published', true)
-          .eq('is_cancelled', false)
-          .gte('start_at', wStart)
-          .lte('start_at', wEnd)
-          .order('start_at', { ascending: true })
-          .limit(8)
-        weekendCandidates = (weekendData ?? []) as unknown as EventWithOrganizer[]
-      }
+    let railEventMap = new Map<string, EventWithOrganizer>()
+    if (combinedRailIds.length > 0) {
+      const { data: railEventRows } = await supabase
+        .from('events')
+        .select(eventSelect)
+        .in('id', combinedRailIds)
+        .eq('is_published', true)
+        .eq('is_cancelled', false)
+        .gte('start_at', new Date().toISOString())
+
+      railEventMap = new Map(
+        ((railEventRows ?? []) as unknown as EventWithOrganizer[]).map((event) => [event.id, event]),
+      )
     }
 
-    const weekendRailEvents = weekendCandidates.slice(0, 6)
+    const weekendRailEvents = weekendCandidateIds
+      .map((id) => railEventMap.get(id))
+      .filter((event): event is EventWithOrganizer => Boolean(event))
+      .filter((event) => event.start_at >= wStart && event.start_at <= wEnd)
+      .sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime())
+      .slice(0, 6)
     const weekendIds = new Set(weekendRailEvents.map((event) => event.id))
     setNearYouWeekendEvents(weekendRailEvents)
     setNearYouWeekendHappenings(weekendHappeningResults)
 
-    // ── My Community Events ───────────────────────────────────────────────────
-    if (joinedCommunities.length > 0) {
-      const communityIds = joinedCommunities.slice(0, 6).map((c) => c.id)
-      const { data: ecLinks } = await supabase
-        .from('event_communities')
-        .select('event_id')
-        .in('community_id', communityIds)
-        .limit(30)
-      const communityEventIds = [...new Set((ecLinks ?? []).map((r) => r.event_id))]
-      if (communityEventIds.length > 0) {
-        const { data: commEventsData } = await supabase
-          .from('events')
-          .select(eventSelect)
-          .in('id', communityEventIds)
-          .eq('is_published', true)
-          .eq('is_cancelled', false)
-          .gte('start_at', new Date().toISOString())
-          .order('start_at', { ascending: true })
-          .limit(8)
-        setMyCommunityEvents((commEventsData ?? []) as unknown as EventWithOrganizer[])
-      } else {
-        setMyCommunityEvents([])
-      }
-    } else {
-      setMyCommunityEvents([])
-    }
+    const nextCommunityEvents = communityEventIds
+      .map((id) => railEventMap.get(id))
+      .filter((event): event is EventWithOrganizer => Boolean(event))
+      .sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime())
+      .slice(0, 8)
+    setMyCommunityEvents(nextCommunityEvents)
     setMyCommunityHappenings(myCommunityHappeningResults)
     setActiveHappenings(activeHappeningResults)
 
@@ -671,12 +671,32 @@ export default function EventsScreen() {
     setRefreshing(false)
   }, [search, categoryId, city, freeOnly, nearMe, geoCoords, radiusKm, communitySlug, showRecommendationRails, user, weekendCoords, weekendRadiusKm, joinedCommunities])
 
-  useEffect(() => { fetchEvents() }, [fetchEvents])
+  const refreshEventsIfNeeded = useCallback(async (force = false) => {
+    const now = Date.now()
+    if (!force && now - lastEventsLoadRef.current < DATA_REFRESH_STALE_MS) return
+    lastEventsLoadRef.current = now
+    await fetchEvents(force)
+  }, [fetchEvents])
+
+  useEffect(() => {
+    void loadDiscoveryMetadata(true)
+  }, [loadDiscoveryMetadata])
+
+  useEffect(() => {
+    void refreshEventsIfNeeded(true)
+  }, [refreshEventsIfNeeded])
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadDiscoveryMetadata()
+      void refreshEventsIfNeeded()
+    }, [loadDiscoveryMetadata, refreshEventsIfNeeded]),
+  )
 
   function onRefresh() {
     setRefreshing(true)
-    loadJoinedCommunities()
-    fetchEvents()
+    void loadDiscoveryMetadata(true)
+    void refreshEventsIfNeeded(true)
   }
 
   const handleSaveChange = useCallback((id: string, saved: boolean) => {
@@ -693,7 +713,7 @@ export default function EventsScreen() {
     const { error } = await apiPost<unknown>(`/api/communities/${slug}/join`, {})
     if (!error) {
       setSuggestedCommunities((prev) => prev.filter((c) => c.slug !== slug))
-      loadJoinedCommunities()
+      void loadJoinedCommunities(true)
     }
     setJoiningSlug(null)
   }
@@ -707,16 +727,16 @@ export default function EventsScreen() {
   } = useMemo(() => {
     const claimedIds = new Set<string>()
     const filteredCommunityRail = claimUniqueHappenings(filteredCommunityHappenings, claimedIds)
-    const nearbyRail           = claimUniqueHappenings(nearbyHappenings, claimedIds)
-    const weekendRail          = claimUniqueHappenings(nearYouWeekendHappenings, claimedIds)
-    const communityRail        = claimUniqueHappenings(myCommunityHappenings, claimedIds)
-    const activeRail           = claimUniqueHappenings(activeHappenings, claimedIds)
+    const nearbyRail = claimUniqueHappenings(nearbyHappenings, claimedIds)
+    const weekendRail = claimUniqueHappenings(nearYouWeekendHappenings, claimedIds)
+    const communityRail = claimUniqueHappenings(myCommunityHappenings, claimedIds)
+    const activeRail = claimUniqueHappenings(activeHappenings, claimedIds)
     return {
       communityDiscoveryItems: interleaveDiscoveryItems(myCommunityEvents, communityRail, 8),
-      weekendDiscoveryItems:   interleaveDiscoveryItems(nearYouWeekendEvents, weekendRail, 8),
-      filteredCommunityItems:  interleaveDiscoveryItems([], filteredCommunityRail, 8),
-      activeNowItems:          interleaveDiscoveryItems([], activeRail, 8),
-      nearbyHappeningItems:    interleaveDiscoveryItems([], nearbyRail, 8),
+      weekendDiscoveryItems: interleaveDiscoveryItems(nearYouWeekendEvents, weekendRail, 8),
+      filteredCommunityItems: interleaveDiscoveryItems([], filteredCommunityRail, 8),
+      activeNowItems: interleaveDiscoveryItems([], activeRail, 8),
+      nearbyHappeningItems: interleaveDiscoveryItems([], nearbyRail, 8),
     }
   }, [filteredCommunityHappenings, nearbyHappenings, nearYouWeekendHappenings, myCommunityHappenings, activeHappenings, myCommunityEvents, nearYouWeekendEvents])
   const showDiscoveryHeader = showRecommendationRails || nearMe || !!communitySlug
@@ -860,12 +880,12 @@ export default function EventsScreen() {
 
 
               {false && (
-              <TouchableOpacity
-                onPress={() => router.push('/communities' as any)}
-                style={styles.communityExploreBtn}
-              >
-                <Text style={styles.communityExploreBtnText}>Explore →</Text>
-              </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => router.push('/communities' as any)}
+                  style={styles.communityExploreBtn}
+                >
+                  <Text style={styles.communityExploreBtnText}>Explore →</Text>
+                </TouchableOpacity>
               )}
             </ScrollView>
             <TouchableOpacity
@@ -1466,18 +1486,18 @@ const styles = StyleSheet.create({
   communityExploreBtnText: { fontSize: FontSize.xs, color: Colors.brand[600], fontWeight: FontWeight.medium },
 
   // Active Now rail
-  activeNowSection:       { paddingBottom: Spacing.lg, borderBottomWidth: 1, borderBottomColor: Colors.gray[100], marginBottom: Spacing.sm },
-  activeNowHeader:        { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md },
-  activeNowDot:           { width: 8, height: 8, borderRadius: 4, backgroundColor: '#22c55e' },
-  activeNowTitle:         { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.gray[900] },
-  activeNowSub:           { fontSize: FontSize.xs, color: Colors.gray[400], flex: 1 },
-  activeNowCard:          { alignItems: 'center', width: 72 },
-  activeNowPulse:         { marginBottom: Spacing.sm },
-  activeNowAvatar:        { width: 52, height: 52, borderRadius: 26, backgroundColor: Colors.brand[100], alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: Colors.gray[200] },
-  activeNowAvatarMember:  { borderColor: '#22c55e', borderWidth: 2.5 },
-  activeNowAvatarText:    { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.brand[700] },
-  activeNowName:          { fontSize: 11, fontWeight: FontWeight.semibold, color: Colors.gray[800], textAlign: 'center' },
-  activeNowCount:         { fontSize: 10, color: Colors.gray[400], textAlign: 'center', marginTop: 1 },
+  activeNowSection: { paddingBottom: Spacing.lg, borderBottomWidth: 1, borderBottomColor: Colors.gray[100], marginBottom: Spacing.sm },
+  activeNowHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md },
+  activeNowDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#22c55e' },
+  activeNowTitle: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.gray[900] },
+  activeNowSub: { fontSize: FontSize.xs, color: Colors.gray[400], flex: 1 },
+  activeNowCard: { alignItems: 'center', width: 72 },
+  activeNowPulse: { marginBottom: Spacing.sm },
+  activeNowAvatar: { width: 52, height: 52, borderRadius: 26, backgroundColor: Colors.brand[100], alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: Colors.gray[200] },
+  activeNowAvatarMember: { borderColor: '#22c55e', borderWidth: 2.5 },
+  activeNowAvatarText: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.brand[700] },
+  activeNowName: { fontSize: 11, fontWeight: FontWeight.semibold, color: Colors.gray[800], textAlign: 'center' },
+  activeNowCount: { fontSize: 10, color: Colors.gray[400], textAlign: 'center', marginTop: 1 },
   activeCommunityBanner: {
     marginHorizontal: Spacing.lg,
     marginTop: Spacing.sm,

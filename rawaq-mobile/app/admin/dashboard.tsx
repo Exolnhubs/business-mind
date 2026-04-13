@@ -11,6 +11,8 @@ import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
 import { formatRelativeTime } from '@/lib/utils'
 import type { Comment, OrganizerProfile, Profile } from '@/types/database'
 
+const DATA_REFRESH_STALE_MS = 90_000
+
 interface PendingOrganizer {
   id: string
   business_name: string
@@ -38,6 +40,15 @@ interface Stats {
 
 type PendingOrganizerRow = Pick<OrganizerProfile, 'id' | 'business_name' | 'created_at' | 'user_id'>
 type FlaggedCommentRow = Pick<Comment, 'id' | 'content' | 'created_at' | 'event_id' | 'user_id'>
+
+type AdminDashboardCache = {
+  updatedAt: number
+  stats: Stats | null
+  pending: PendingOrganizer[]
+  flagged: FlaggedComment[]
+}
+
+let adminDashboardCache: AdminDashboardCache | null = null
 
 async function hydratePendingOrganizers(rows: PendingOrganizerRow[]): Promise<PendingOrganizer[]> {
   const userIds = [...new Set(rows.map((row) => row.user_id))]
@@ -88,7 +99,35 @@ export default function AdminDashboard() {
   const [actioning, setActioning] = useState<string | null>(null)
   const headerTopSpacing = Math.max(Spacing.sm, Math.min(insets.top * 0.18, Spacing.md))
 
-  const load = useCallback(async () => {
+  useEffect(() => {
+    if (!loading) {
+      adminDashboardCache = {
+        updatedAt: adminDashboardCache?.updatedAt ?? Date.now(),
+        stats,
+        pending,
+        flagged,
+      }
+    }
+  }, [flagged, loading, pending, stats])
+
+  const load = useCallback(async (force = false) => {
+    const now = Date.now()
+    const canReuseCache =
+      !force &&
+      adminDashboardCache &&
+      now - adminDashboardCache.updatedAt < DATA_REFRESH_STALE_MS
+
+    if (canReuseCache) {
+      const cache = adminDashboardCache
+      if (!cache) return
+      setStats(cache.stats)
+      setPending(cache.pending)
+      setFlagged(cache.flagged)
+      setLoading(false)
+      setRefreshing(false)
+      return
+    }
+
     const [
       { count: totalUsers },
       { count: totalOrganizers },
@@ -124,16 +163,24 @@ export default function AdminDashboard() {
     const hydratedPending = await hydratePendingOrganizers((pendingOrgs ?? []) as PendingOrganizerRow[])
     const hydratedFlagged = await hydrateFlaggedComments((flaggedCmts ?? []) as FlaggedCommentRow[])
 
-    setStats({
+    const nextStats = {
       totalUsers: totalUsers ?? 0,
       totalOrganizers: totalOrganizers ?? 0,
       activeEvents: activeEvents ?? 0,
       pendingOrganizers: pendingCount ?? 0,
       flaggedComments: flaggedCount ?? 0,
       totalTips,
-    })
+    }
+
+    setStats(nextStats)
     setPending(hydratedPending)
     setFlagged(hydratedFlagged)
+    adminDashboardCache = {
+      updatedAt: now,
+      stats: nextStats,
+      pending: hydratedPending,
+      flagged: hydratedFlagged,
+    }
     setLoading(false)
     setRefreshing(false)
   }, [])
@@ -229,7 +276,7 @@ export default function AdminDashboard() {
     <ScrollView
       style={styles.container}
       contentContainerStyle={[styles.content, { paddingTop: headerTopSpacing }]}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load() }} tintColor={Colors.brand[500]} />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(true) }} tintColor={Colors.brand[500]} />}
     >
       <Text style={styles.screenTitle}>🛡️ Admin Dashboard</Text>
 

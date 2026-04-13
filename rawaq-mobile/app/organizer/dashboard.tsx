@@ -22,6 +22,23 @@ interface OrgEvent {
   tips_total: number
 }
 
+const DATA_REFRESH_STALE_MS = 90_000
+
+type OrganizerDashboardCache = {
+  updatedAt: number
+  events: OrgEvent[]
+  orgName: string
+  orgStatus: string | null
+  suspendReason: string | null
+  isBanned: boolean
+  totalTips: number
+  planId: string
+  eventsUsed: number
+  eventsLimit: number | null
+}
+
+let organizerDashboardCache: OrganizerDashboardCache | null = null
+
 export default function OrganizerDashboard() {
   const { user } = useAuth()
   const router  = useRouter()
@@ -39,8 +56,48 @@ export default function OrganizerDashboard() {
   const [loading,      setLoading]      = useState(true)
   const [refreshing,   setRefreshing]   = useState(false)
 
-  const load = useCallback(async () => {
+  useEffect(() => {
+    if (!loading) {
+      organizerDashboardCache = {
+        updatedAt: organizerDashboardCache?.updatedAt ?? Date.now(),
+        events,
+        orgName,
+        orgStatus,
+        suspendReason,
+        isBanned,
+        totalTips,
+        planId,
+        eventsUsed,
+        eventsLimit,
+      }
+    }
+  }, [events, eventsLimit, eventsUsed, isBanned, loading, orgName, orgStatus, planId, suspendReason, totalTips])
+
+  const load = useCallback(async (force = false) => {
     if (!user) return
+    const now = Date.now()
+    const canReuseCache =
+      !force &&
+      organizerDashboardCache &&
+      now - organizerDashboardCache.updatedAt < DATA_REFRESH_STALE_MS
+
+    if (canReuseCache) {
+      const cache = organizerDashboardCache
+      if (!cache) return
+      setEvents(cache.events)
+      setOrgName(cache.orgName)
+      setOrgStatus(cache.orgStatus)
+      setSuspendReason(cache.suspendReason)
+      setIsBanned(cache.isBanned)
+      setTotalTips(cache.totalTips)
+      setPlanId(cache.planId)
+      setEventsUsed(cache.eventsUsed)
+      setEventsLimit(cache.eventsLimit)
+      setLoading(false)
+      setRefreshing(false)
+      return
+    }
+
     const monthStr = new Date().toISOString().slice(0, 7) + '-01'
     const [evRes, orgRes, profileRes, tipRes, usageRes] = await Promise.all([
       supabase
@@ -71,16 +128,40 @@ export default function OrganizerDashboard() {
         .maybeSingle(),
     ])
 
-    setEvents((evRes.data ?? []) as OrgEvent[])
-    setOrgName(orgRes.data?.business_name ?? '')
-    setOrgStatus(orgRes.data?.status ?? null)
-    setSuspendReason((orgRes.data as { suspend_reason?: string | null })?.suspend_reason ?? null)
-    setIsBanned(profileRes.data?.is_banned ?? false)
-    setTotalTips((tipRes.data ?? []).reduce((s, t) => s + t.amount, 0))
-    setPlanId(orgRes.data?.plan_id ?? 'org_basic')
+    const nextEvents = (evRes.data ?? []) as OrgEvent[]
+    const nextOrgName = orgRes.data?.business_name ?? ''
+    const nextOrgStatus = orgRes.data?.status ?? null
+    const nextSuspendReason = (orgRes.data as { suspend_reason?: string | null })?.suspend_reason ?? null
+    const nextIsBanned = profileRes.data?.is_banned ?? false
+    const nextTotalTips = (tipRes.data ?? []).reduce((s, t) => s + t.amount, 0)
+    const nextPlanId = orgRes.data?.plan_id ?? 'org_basic'
     const planData = orgRes.data?.plan as unknown as { events_per_month: number | null; platform_fee_pct: number } | null
-    setEventsLimit(planData?.events_per_month ?? 3)
-    setEventsUsed(usageRes.data?.events_created ?? 0)
+    const nextEventsLimit = planData?.events_per_month ?? 3
+    const nextEventsUsed = usageRes.data?.events_created ?? 0
+
+    setEvents(nextEvents)
+    setOrgName(nextOrgName)
+    setOrgStatus(nextOrgStatus)
+    setSuspendReason(nextSuspendReason)
+    setIsBanned(nextIsBanned)
+    setTotalTips(nextTotalTips)
+    setPlanId(nextPlanId)
+    setEventsLimit(nextEventsLimit)
+    setEventsUsed(nextEventsUsed)
+
+    organizerDashboardCache = {
+      updatedAt: now,
+      events: nextEvents,
+      orgName: nextOrgName,
+      orgStatus: nextOrgStatus,
+      suspendReason: nextSuspendReason,
+      isBanned: nextIsBanned,
+      totalTips: nextTotalTips,
+      planId: nextPlanId,
+      eventsUsed: nextEventsUsed,
+      eventsLimit: nextEventsLimit,
+    }
+
     setLoading(false)
     setRefreshing(false)
   }, [user])
@@ -175,7 +256,7 @@ export default function OrganizerDashboard() {
     <ScrollView
       style={styles.container}
       contentContainerStyle={[styles.content, { paddingTop: headerTopSpacing }]}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load() }} tintColor={Colors.brand[500]} />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(true) }} tintColor={Colors.brand[500]} />}
     >
       {/* Header */}
       <View style={styles.header}>

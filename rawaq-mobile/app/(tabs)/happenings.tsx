@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { FlatList, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View, Alert } from 'react-native'
-import { useRouter } from 'expo-router'
+import { useFocusEffect, useRouter } from 'expo-router'
 import { apiDelete, apiGet, apiPost } from '@/lib/api'
 import { useAuth } from '@/contexts/auth-context'
 import { HappeningDiscoveryCard, type HappeningDiscoveryItem } from '@/components/happenings/HappeningDiscoveryCard'
@@ -31,14 +31,17 @@ export default function HappeningsTab() {
     setHappenings((prev) => prev.map((item) => (item.id === id ? updater(item) : item)))
   }, [])
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (force = false) => {
     setLoading(true)
     const [{ data: happeningsData }, { data: activeData }] = await Promise.all([
-      apiGet<{ happenings: HappeningDiscoveryItem[] }>('/api/happenings/discover?limit=20'),
-      apiGet<{ communities: ActiveCommunity[] }>('/api/happenings/active?limit=10'),
+      apiGet<{ happenings: HappeningDiscoveryItem[] }>('/api/happenings/discover?limit=20', { force }),
+      apiGet<{ communities: ActiveCommunity[] }>('/api/happenings/active?limit=10', { force }),
     ])
-    setHappenings(happeningsData?.happenings ?? [])
-    setActiveCommunities(activeData?.communities ?? [])
+    const nextHappenings = happeningsData?.happenings ?? []
+    const nextCommunities = activeData?.communities ?? []
+
+    setHappenings(nextHappenings)
+    setActiveCommunities(nextCommunities)
     setLoading(false)
     setRefreshing(false)
   }, [])
@@ -46,6 +49,12 @@ export default function HappeningsTab() {
   useEffect(() => {
     void load()
   }, [load])
+
+  useFocusEffect(
+    useCallback(() => {
+      void load()
+    }, [load]),
+  )
 
   async function toggleRsvp(happening: HappeningDiscoveryItem) {
     if (!user) {
@@ -90,7 +99,7 @@ export default function HappeningsTab() {
               refreshing={refreshing}
               onRefresh={() => {
                 setRefreshing(true)
-                void load()
+                void load(true)
               }}
               tintColor={Colors.brand[500]}
             />

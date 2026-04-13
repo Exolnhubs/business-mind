@@ -35,6 +35,8 @@ const LEVEL_FILTER_OPTIONS: { key: CommunityLevel | 'all'; label: string }[] = [
   { key: 'city',     label: 'City' },
 ]
 
+const DATA_REFRESH_STALE_MS = 90_000
+
 export default function CommunitiesScreen() {
   const { user }   = useAuth()
   const { locale } = useLocale()
@@ -55,6 +57,8 @@ export default function CommunitiesScreen() {
   const [popular, setPopular]         = useState<CommunityWithMembership[]>([])
   const [joining, setJoining]         = useState<string | null>(null)
   const isLoadingPageRef              = useRef(false)
+  const lastListLoadRef               = useRef(0)
+  const lastDiscoveryLoadRef          = useRef(0)
   const discoveryVisibility           = useRef(new Animated.Value(1)).current
   const [discoveryVisible, setDiscoveryVisible] = useState(true)
   const lastScrollYRef                = useRef(0)
@@ -65,44 +69,47 @@ export default function CommunitiesScreen() {
       !trending.some((item) => item.id === community.id),
   )
 
-  const loadTrending = useCallback(async () => {
+  const loadTrending = useCallback(async (force = false) => {
     try {
-      const { data } = await apiGet<{ data: TrendingCommunity[] }>(`/api/communities/trending?per_page=8&page=1`)
+      const { data } = await apiGet<{ data: TrendingCommunity[] }>(`/api/communities/trending?per_page=8&page=1`, { force })
       setTrending(data?.data ?? [])
     } catch {
       setTrending([])
     }
   }, [])
 
-  const loadRecommended = useCallback(async () => {
+  const loadRecommended = useCallback(async (force = false) => {
     if (!user) {
       setRecommended([])
       return
     }
 
-    const { data } = await apiGet<{ data: CommunityWithMembership[] }>('/api/communities?recommended=true&per_page=6&page=1')
+    const { data } = await apiGet<{ data: CommunityWithMembership[] }>('/api/communities?recommended=true&per_page=6&page=1', { force })
     setRecommended((data?.data ?? []).filter((community) => !community.is_member))
   }, [user])
 
-  const loadPopular = useCallback(async () => {
+  const loadPopular = useCallback(async (force = false) => {
     if (!user) {
       setPopular([])
       return
     }
 
-    const { data } = await apiGet<{ data: CommunityWithMembership[] }>('/api/communities?per_page=6&page=1')
+    const { data } = await apiGet<{ data: CommunityWithMembership[] }>('/api/communities?per_page=6&page=1', { force })
     setPopular((data?.data ?? []).filter((community) => !community.is_member))
   }, [user])
 
-  const load = useCallback(async (p: number, q: string, lvl: CommunityLevel | 'all', memberOnly = false, append = false) => {
+  const load = useCallback(async (p: number, q: string, lvl: CommunityLevel | 'all', memberOnly = false, append = false, force = false) => {
     if (isLoadingPageRef.current) return
     isLoadingPageRef.current = true
+    if (p === 1 && !append) {
+      lastListLoadRef.current = Date.now()
+    }
     const params = new URLSearchParams({ page: String(p), per_page: '20' })
     if (q.trim()) params.set('q', q.trim())
     if (lvl !== 'all') params.set('level', lvl)
     if (memberOnly) params.set('member_only', 'true')
     try {
-      const { data } = await apiGet<{ data: CommunityWithMembership[]; has_more: boolean }>(`/api/communities?${params}`)
+      const { data } = await apiGet<{ data: CommunityWithMembership[]; has_more: boolean }>(`/api/communities?${params}`, { force })
       if (data) {
         setCommunities((prev) => {
           const next = append ? [...prev, ...data.data] : data.data
@@ -121,21 +128,31 @@ export default function CommunitiesScreen() {
 
   useEffect(() => {
     setLoading(true)
-    const t = setTimeout(() => load(1, search, levelFilter, joinedOnly, false), search ? 300 : 0)
+    const t = setTimeout(() => {
+      void load(1, search, levelFilter, joinedOnly, false)
+    }, search ? 300 : 0)
     return () => clearTimeout(t)
   }, [search, levelFilter, joinedOnly, load])
 
-  useEffect(() => {
-    void loadTrending()
-  }, [loadTrending])
-  useEffect(() => {
-    void loadRecommended()
-    void loadPopular()
-  }, [loadRecommended, loadPopular])
+  const loadDiscovery = useCallback(async (force = false) => {
+    const now = Date.now()
+    if (!force && now - lastDiscoveryLoadRef.current < DATA_REFRESH_STALE_MS) return
+    lastDiscoveryLoadRef.current = now
+    await Promise.all([loadTrending(force), loadRecommended(force), loadPopular(force)])
+  }, [loadPopular, loadRecommended, loadTrending])
 
-  useFocusEffect(useCallback(() => { load(1, search, levelFilter, joinedOnly, false) }, [load, search, levelFilter, joinedOnly]))
-  useFocusEffect(useCallback(() => { void loadTrending() }, [loadTrending]))
-  useFocusEffect(useCallback(() => { void loadRecommended(); void loadPopular() }, [loadRecommended, loadPopular]))
+  const refreshListIfNeeded = useCallback(async (force = false) => {
+    const now = Date.now()
+    if (!force && now - lastListLoadRef.current < DATA_REFRESH_STALE_MS) return
+    await load(1, search, levelFilter, joinedOnly, false, force)
+  }, [joinedOnly, levelFilter, load, search])
+
+  useEffect(() => {
+    void loadDiscovery(true)
+  }, [loadDiscovery])
+
+  useFocusEffect(useCallback(() => { void refreshListIfNeeded() }, [refreshListIfNeeded]))
+  useFocusEffect(useCallback(() => { void loadDiscovery() }, [loadDiscovery]))
 
   function applyMembershipUpdate(
     communityId: string,
@@ -512,9 +529,9 @@ export default function CommunitiesScreen() {
               onScroll={handleListScroll}
               scrollEventThrottle={16}
               refreshControl={
-                <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(1, search, levelFilter, joinedOnly, false) }} />
+                <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(1, search, levelFilter, joinedOnly, false, true) }} />
               }
-              onEndReached={() => { if (hasMore && !loading && !isLoadingPageRef.current) load(page + 1, search, levelFilter, joinedOnly, true) }}
+              onEndReached={() => { if (hasMore && !loading && !isLoadingPageRef.current) void load(page + 1, search, levelFilter, joinedOnly, true) }}
               onEndReachedThreshold={0.4}
               ListFooterComponent={hasMore ? <View style={styles.center}><Spinner /></View> : null}
             />

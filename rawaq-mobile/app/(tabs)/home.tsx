@@ -12,12 +12,20 @@ type Segment = 'explore' | 'foryou'
 export default function HomeScreen() {
   const { profile } = useAuth()
   const [segment, setSegment] = useState<Segment>('explore')
+  const [feedMounted, setFeedMounted] = useState(false)
   const insets = useSafeAreaInsets()
   const router = useRouter()
   const showSmartPicksTrigger =
     typeof (profile?.preferences as Record<string, unknown> | undefined)?.show_smart_picks_trigger === 'boolean'
       ? Boolean((profile?.preferences as Record<string, unknown>).show_smart_picks_trigger)
       : true
+
+  function handleSegmentChange(nextSegment: Segment) {
+    if (nextSegment === 'foryou') {
+      setFeedMounted(true)
+    }
+    setSegment(nextSegment)
+  }
 
   return (
     <View style={styles.root}>
@@ -27,12 +35,12 @@ export default function HomeScreen() {
           <PillBtn
             label="🌍  Explore"
             active={segment === 'explore'}
-            onPress={() => setSegment('explore')}
+            onPress={() => handleSegmentChange('explore')}
           />
           <PillBtn
             label="✨  For You"
             active={segment === 'foryou'}
-            onPress={() => setSegment('foryou')}
+            onPress={() => handleSegmentChange('foryou')}
           />
         </View>
       </View>
@@ -54,10 +62,23 @@ export default function HomeScreen() {
       )}
 
       {/* ── Content ──────────────────────────────────────────── */}
-      {segment === 'explore'
-        ? <EventsScreen />
-        : <FeedScreen onExplore={() => setSegment('explore')} />
-      }
+      <View style={styles.content}>
+        <View
+          style={[styles.screenPane, segment !== 'explore' && styles.hiddenPane]}
+          pointerEvents={segment === 'explore' ? 'auto' : 'none'}
+        >
+          <EventsScreen />
+        </View>
+
+        {feedMounted && (
+          <View
+            style={[styles.screenPane, segment !== 'foryou' && styles.hiddenPane]}
+            pointerEvents={segment === 'foryou' ? 'auto' : 'none'}
+          >
+            <FeedScreen onExplore={() => handleSegmentChange('explore')} />
+          </View>
+        )}
+      </View>
     </View>
   )
 }
@@ -80,6 +101,9 @@ function PillBtn({
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.gray[50] },
+  content: { flex: 1 },
+  screenPane: { flex: 1 },
+  hiddenPane: { display: 'none' },
 
   header: {
     backgroundColor: Colors.white,

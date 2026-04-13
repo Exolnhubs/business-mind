@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import type { User, Session } from '@supabase/supabase-js'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { supabase } from '@/lib/supabase'
-import { apiPost } from '@/lib/api'
+import { apiInvalidateAll, apiPost } from '@/lib/api'
 import type { Profile } from '@/types/database'
 
 const REFERRAL_STORAGE_KEY = 'rawaq_referral_code'
@@ -38,6 +38,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error) {
         // Invalid or expired refresh token — clear the broken session and
         // let the AuthGate redirect to login.
+        apiInvalidateAll()
         await supabase.auth.signOut().catch(() => {})
         setLoading(false)
         return
@@ -47,14 +48,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (session?.user) fetchProfile(session.user.id)
       setLoading(false)
     }).catch(async () => {
+      apiInvalidateAll()
       await supabase.auth.signOut().catch(() => {})
       setLoading(false)
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'TOKEN_REFRESHED' && !session) {
+        apiInvalidateAll()
         supabase.auth.signOut()
         return
+      }
+      if (event !== 'TOKEN_REFRESHED') {
+        apiInvalidateAll()
       }
       setSession(session)
       setUser(session?.user ?? null)
@@ -80,6 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthContext.Provider value={{
       user, profile, session, loading,
       signOut: async () => {
+        apiInvalidateAll()
         await supabase.auth.signOut()
       },
       refreshProfile,

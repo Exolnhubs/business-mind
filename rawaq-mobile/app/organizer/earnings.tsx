@@ -47,6 +47,19 @@ interface BankAccount {
   is_verified: boolean
 }
 
+const DATA_REFRESH_STALE_MS = 90_000
+
+type EarningsCache = {
+  updatedAt: number
+  wallet: Wallet | null
+  ledger: LedgerEntry[]
+  payouts: Payout[]
+  pendingPayout: Payout | null
+  bankAccount: BankAccount | null
+}
+
+let earningsCache: EarningsCache | null = null
+
 const REASON_LABELS: Record<string, string> = {
   tip:             '💝 Tip',
   ticket_sale:     '🎟️ Ticket sale',
@@ -95,8 +108,40 @@ export default function EarningsScreen() {
     country:             'SA',
   })
 
+  useEffect(() => {
+    if (!loading) {
+      earningsCache = {
+        updatedAt: earningsCache?.updatedAt ?? Date.now(),
+        wallet,
+        ledger,
+        payouts,
+        pendingPayout,
+        bankAccount,
+      }
+    }
+  }, [bankAccount, ledger, loading, payouts, pendingPayout, wallet])
+
   async function load(isRefresh = false) {
     if (!user) return
+    const now = Date.now()
+    const canReuseCache =
+      !isRefresh &&
+      earningsCache &&
+      now - earningsCache.updatedAt < DATA_REFRESH_STALE_MS
+
+    if (canReuseCache) {
+      const cache = earningsCache
+      if (!cache) return
+      setWallet(cache.wallet)
+      setLedger(cache.ledger)
+      setPayouts(cache.payouts)
+      setBankAccount(cache.bankAccount)
+      setPendingPayout(cache.pendingPayout)
+      setLoading(false)
+      setRefreshing(false)
+      return
+    }
+
     if (isRefresh) setRefreshing(true); else setLoading(true)
 
     const [
@@ -138,11 +183,25 @@ export default function EarningsScreen() {
         .maybeSingle(),
     ])
 
-    setWallet(walletData ?? { balance: 0, total_earned: 0, total_withdrawn: 0, currency: 'SAR' })
-    setLedger(ledgerErr ? [] : (ledgerData ?? []))
-    setPayouts(payoutsData ?? [])
-    setBankAccount(bankData ?? null)
-    setPendingPayout((pendingData as any) ?? null)
+    const nextWallet = walletData ?? { balance: 0, total_earned: 0, total_withdrawn: 0, currency: 'SAR' }
+    const nextLedger = ledgerErr ? [] : (ledgerData ?? [])
+    const nextPayouts = payoutsData ?? []
+    const nextBankAccount = bankData ?? null
+    const nextPendingPayout = (pendingData as Payout | null) ?? null
+
+    setWallet(nextWallet)
+    setLedger(nextLedger)
+    setPayouts(nextPayouts)
+    setBankAccount(nextBankAccount)
+    setPendingPayout(nextPendingPayout)
+    earningsCache = {
+      updatedAt: now,
+      wallet: nextWallet,
+      ledger: nextLedger,
+      payouts: nextPayouts,
+      pendingPayout: nextPendingPayout,
+      bankAccount: nextBankAccount,
+    }
 
     if (isRefresh) setRefreshing(false); else setLoading(false)
   }
