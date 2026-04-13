@@ -7,6 +7,7 @@ import { useEffect, useState, useTransition } from 'react'
 import { createSupabaseBrowserClient } from '@/lib/supabase/client'
 import { useAuth } from '@/contexts/auth-context'
 import { useLocale } from '@/contexts/locale-context'
+import { clientFetchInvalidate, clientGetJson } from '@/lib/client-fetch'
 import { formatRelativeTime } from '@/lib/utils'
 import { Spinner } from '@/components/ui/Spinner'
 import type { Notification, NotificationType } from '@/types/database'
@@ -48,7 +49,7 @@ function NotificationBell({ userId }: { userId: string }) {
   const [, startTransition] = useTransition()
 
   useEffect(() => {
-    fetchNotifications()
+    void fetchNotifications()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -77,20 +78,24 @@ function NotificationBell({ userId }: { userId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId])
 
-  async function fetchNotifications() {
+  async function fetchNotifications(force = false) {
     setLoading(true)
-    const res = await fetch('/api/notifications?per_page=5')
-    if (res.ok) {
-      const json = await res.json() as { data: { data: Notification[]; total: number } }
+    try {
+      const json = await clientGetJson<{ data: { data: Notification[]; total: number } }>(
+        '/api/notifications?per_page=5',
+        { ttlMs: 20_000, force, scopeKey: userId },
+      )
       const list = json.data?.data ?? []
       setNotifications(list)
       setUnread(list.filter((n: Notification) => !n.is_read).length)
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   async function markAllRead() {
     await fetch('/api/notifications', { method: 'PATCH' })
+    clientFetchInvalidate('/api/notifications', userId)
     setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })))
     setUnread(0)
   }

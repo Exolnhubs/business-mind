@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/auth-context'
 import { Spinner } from '@/components/ui/Spinner'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { clientFetchInvalidate, clientGetJson } from '@/lib/client-fetch'
 import type { Community, CommunityLevel } from '@/types/database'
 
 type CommunityWithMembership = Community & { is_member: boolean; event_count?: number }
@@ -53,6 +54,7 @@ function CommunityCard({ community, onToggleMembership }: {
       : `/api/communities/${community.slug}/join`
     const res = await fetch(endpoint, { method })
     if (res.ok) {
+      clientFetchInvalidate('/api/communities')
       const json = await res.json() as { data?: MembershipMutationResponse }
       onToggleMembership(
         community.slug,
@@ -139,6 +141,7 @@ function CommunityCard({ community, onToggleMembership }: {
 export default function CommunitiesPage() {
   const { user } = useAuth()
   const router = useRouter()
+  const cacheScopeKey = user?.id ?? null
   const [communities, setCommunities] = useState<CommunityWithMembership[]>([])
   const [loading, setLoading]         = useState(true)
   const [level, setLevel]             = useState<CommunityLevel | 'all'>('all')
@@ -204,12 +207,16 @@ export default function CommunitiesPage() {
   }, [])
 
   const fetchTrending = useCallback(async () => {
-    const res = await fetch('/api/communities/trending?per_page=6&page=1')
-    if (res.ok) {
-      const json = await res.json() as { data: { data: TrendingCommunity[] } }
+    try {
+      const json = await clientGetJson<{ data: { data: TrendingCommunity[] } }>(
+        '/api/communities/trending?per_page=6&page=1',
+        { ttlMs: 60_000, scopeKey: cacheScopeKey },
+      )
       setTrending(json.data.data ?? [])
+    } catch {
+      setTrending([])
     }
-  }, [])
+  }, [cacheScopeKey])
 
   const fetchRecommended = useCallback(async () => {
     if (!user) {
@@ -217,24 +224,32 @@ export default function CommunitiesPage() {
       return
     }
 
-    const res = await fetch('/api/communities?recommended=true&per_page=6&page=1')
-    if (res.ok) {
-      const json = await res.json() as { data: { data: CommunityWithMembership[] } }
+    try {
+      const json = await clientGetJson<{ data: { data: CommunityWithMembership[] } }>(
+        '/api/communities?recommended=true&per_page=6&page=1',
+        { ttlMs: 60_000, scopeKey: cacheScopeKey },
+      )
       setRecommended((json.data.data ?? []).filter((c) => !c.is_member))
+    } catch {
+      setRecommended([])
     }
-  }, [user])
+  }, [cacheScopeKey, user])
 
   const fetchSuggested = useCallback(async () => {
     if (!user) {
       setSuggested([])
       return
     }
-    const res = await fetch('/api/communities?per_page=6&page=1')
-    if (res.ok) {
-      const json = await res.json() as { data: { data: CommunityWithMembership[] } }
+    try {
+      const json = await clientGetJson<{ data: { data: CommunityWithMembership[] } }>(
+        '/api/communities?per_page=6&page=1',
+        { ttlMs: 60_000, scopeKey: cacheScopeKey },
+      )
       setSuggested((json.data.data ?? []).filter((c) => !c.is_member))
+    } catch {
+      setSuggested([])
     }
-  }, [user])
+  }, [cacheScopeKey, user])
 
   useEffect(() => { fetchTrending() }, [fetchTrending])
   useEffect(() => { fetchRecommended() }, [fetchRecommended])
@@ -244,6 +259,7 @@ export default function CommunitiesPage() {
     setSuggestedJoining(community.slug)
     const res = await fetch(`/api/communities/${community.slug}/join`, { method: 'POST' })
     if (res.ok) {
+      clientFetchInvalidate('/api/communities')
       setTrending((prev) => prev.filter((c) => c.slug !== community.slug))
       setRecommended((prev) => prev.filter((c) => c.slug !== community.slug))
       setSuggested((prev) => prev.filter((c) => c.slug !== community.slug))
@@ -261,9 +277,11 @@ export default function CommunitiesPage() {
     if (q.trim()) sp.set('q', q.trim())
     if (memberOnly) sp.set('member_only', 'true')
 
-    const res = await fetch(`/api/communities?${sp}`)
-    if (res.ok) {
-      const json = await res.json() as { data: { data: CommunityWithMembership[]; has_more: boolean } }
+    try {
+      const json = await clientGetJson<{ data: { data: CommunityWithMembership[]; has_more: boolean } }>(
+        `/api/communities?${sp}`,
+        { ttlMs: 45_000, scopeKey: cacheScopeKey },
+      )
       if (p === 1) {
         setCommunities(json.data.data)
       } else {
@@ -271,9 +289,15 @@ export default function CommunitiesPage() {
       }
       setHasMore(json.data.has_more)
       setPage(p)
+    } catch {
+      if (p === 1) {
+        setCommunities([])
+        setHasMore(false)
+      }
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
-  }, [])
+  }, [cacheScopeKey])
 
   useEffect(() => {
     const t = setTimeout(() => fetchCommunities(1, level, search, joinedOnly), search ? 300 : 0)

@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/auth-context'
 import { Spinner } from '@/components/ui/Spinner'
+import { clientFetchInvalidate, clientGetJson } from '@/lib/client-fetch'
 import { formatCurrency } from '@/lib/utils'
 import type { OrganizerWallet, WalletLedgerEntry, Payout } from '@/types/database'
 
@@ -29,6 +30,7 @@ const REASON_LABELS: Record<string, string> = {
 export default function EarningsPage() {
   const { user, profile, loading: authLoading } = useAuth()
   const router = useRouter()
+  const cacheScopeKey = user?.id ?? null
 
   const [wallet,        setWallet]        = useState<OrganizerWallet | null>(null)
   const [ledger,        setLedger]        = useState<WalletLedgerEntry[]>([])
@@ -61,21 +63,38 @@ export default function EarningsPage() {
     if (!authLoading && profile?.role !== 'organizer') router.replace('/organizer')
   }, [authLoading, user, profile, router])
 
-  useEffect(() => {
+  const loadEarnings = useCallback(async (force = false) => {
     if (!user) return
     setLoading(true)
-    Promise.all([
-      fetch('/api/organizer/wallet').then((r) => r.json()),
-      fetch('/api/organizer/payouts?per_page=10').then((r) => r.json()),
-      fetch('/api/organizer/bank-account').then((r) => r.json()),
-    ]).then(([walletData, payoutsData, bankData]) => {
+    try {
+      const [walletData, payoutsData, bankData] = await Promise.all([
+        clientGetJson<{ data?: { wallet?: OrganizerWallet | null; ledger?: WalletLedgerEntry[]; pending_payout?: Payout | null } }>(
+          '/api/organizer/wallet',
+          { ttlMs: 60_000, force, scopeKey: cacheScopeKey },
+        ),
+        clientGetJson<{ data?: { data?: Payout[] } }>(
+          '/api/organizer/payouts?per_page=10',
+          { ttlMs: 60_000, force, scopeKey: cacheScopeKey },
+        ),
+        clientGetJson<{ data?: { bank_account?: BankAccount | null } }>(
+          '/api/organizer/bank-account',
+          { ttlMs: 60_000, force, scopeKey: cacheScopeKey },
+        ),
+      ])
+
       setWallet(walletData.data?.wallet ?? null)
       setLedger(walletData.data?.ledger ?? [])
       setPendingPayout(walletData.data?.pending_payout ?? null)
       setPayouts(payoutsData.data?.data ?? [])
       setBankAccount(bankData.data?.bank_account ?? null)
-    }).finally(() => setLoading(false))
-  }, [user])
+    } finally {
+      setLoading(false)
+    }
+  }, [cacheScopeKey, user])
+
+  useEffect(() => {
+    void loadEarnings()
+  }, [loadEarnings])
 
   function openEditBankForm(account: BankAccount | null) {
     setBankForm({
@@ -113,6 +132,7 @@ export default function EarningsPage() {
     setBankLoading(false)
 
     if (res.ok) {
+      clientFetchInvalidate('/api/organizer', cacheScopeKey)
       setBankAccount(json.data?.bank_account ?? null)
       setBankMsg({ ok: true, text: '✓ Banking details saved.' })
       setShowBankForm(false)
@@ -143,10 +163,8 @@ export default function EarningsPage() {
     }
 
     if (res.ok) {
-      const walletRes = await fetch('/api/organizer/wallet').then((r) => r.json())
-      setWallet(walletRes.data?.wallet ?? null)
-      setLedger(walletRes.data?.ledger ?? [])
-      setPayouts((prev) => [json.data, ...prev])
+      clientFetchInvalidate('/api/organizer', cacheScopeKey)
+      await loadEarnings(true)
       setPayoutMsg({
         ok:   true,
         text: `✓ Withdrawal of ${formatCurrency(parseFloat(payoutAmount))} requested. Processing in 1–3 business days.`,

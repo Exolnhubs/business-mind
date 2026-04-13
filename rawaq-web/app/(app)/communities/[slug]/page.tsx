@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/auth-context'
@@ -9,6 +9,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { HappeningCard } from '@/components/communities/HappeningCard'
 import { PostHappeningForm } from '@/components/communities/PostHappeningForm'
 import { useHappenings } from '@/hooks/useHappenings'
+import { clientFetchInvalidate, clientGetJson } from '@/lib/client-fetch'
 import { formatDate } from '@/lib/utils'
 import type { Community, CommunityLevel, CommunityRole, Event } from '@/types/database'
 
@@ -103,6 +104,7 @@ export default function CommunityDetailPage() {
   const { slug }   = useParams<{ slug: string }>()
   const { user, profile }   = useAuth()
   const router     = useRouter()
+  const cacheScopeKey = user?.id ?? null
 
   const [community, setCommunity] = useState<CommunityDetail | null>(null)
   const [loading, setLoading]     = useState(true)
@@ -163,49 +165,68 @@ export default function CommunityDetailPage() {
   const { happenings, loading: happeningsLoading, posting, post, toggleRsvp, toggleReact, remove, report } =
     useHappenings(slug, isMember)
 
-  useEffect(() => {
-    fetch(`/api/communities/${slug}`)
-      .then((r) => r.ok ? r.json() : Promise.reject())
-      .then((json) => setCommunity(json.data))
-      .catch(() => router.replace('/communities'))
-      .finally(() => setLoading(false))
-  }, [slug, router])
+  const loadCommunity = useCallback(async (force = false) => {
+    setLoading(true)
+    try {
+      const json = await clientGetJson<{ data: CommunityDetail }>(
+        `/api/communities/${slug}`,
+        { ttlMs: 45_000, force, scopeKey: cacheScopeKey },
+      )
+      setCommunity(json.data)
+    } catch {
+      router.replace('/communities')
+    } finally {
+      setLoading(false)
+    }
+  }, [cacheScopeKey, router, slug])
 
-  async function loadEvents(cursor?: string) {
+  useEffect(() => {
+    void loadCommunity()
+  }, [loadCommunity])
+
+  const loadEvents = useCallback(async (cursor?: string, force = false) => {
     setEventsLoading(true)
     const sp = new URLSearchParams({ per_page: '12' })
     if (cursor) sp.set('cursor', cursor)
-    const res = await fetch(`/api/communities/${slug}/events?${sp}`)
-    if (res.ok) {
-      const json = await res.json() as { data: { events: Event[]; next_cursor: string | null } }
+    try {
+      const json = await clientGetJson<{ data: { events: Event[]; next_cursor: string | null } }>(
+        `/api/communities/${slug}/events?${sp}`,
+        { ttlMs: 45_000, force, scopeKey: cacheScopeKey },
+      )
       setEvents((prev) => cursor ? [...prev, ...json.data.events] : json.data.events)
       setNextCursor(json.data.next_cursor)
+    } catch {
+      if (!cursor) {
+        setEvents([])
+        setNextCursor(null)
+      }
+    } finally {
+      setEventsLoading(false)
     }
-    setEventsLoading(false)
-  }
+  }, [cacheScopeKey, slug])
 
   useEffect(() => {
-    if (community) loadEvents()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [community?.id])
+    if (community) void loadEvents()
+  }, [community?.id, loadEvents])
 
-  async function loadChildren() {
+  const loadChildren = useCallback(async (force = false) => {
     setChildrenLoading(true)
     try {
-      const res = await fetch(`/api/communities/${slug}/children`)
-      if (res.ok) {
-        const json = await res.json() as { data: { children: ChildCommunityItem[] } }
-        setChildren(json.data.children ?? [])
-      }
+      const json = await clientGetJson<{ data: { children: ChildCommunityItem[] } }>(
+        `/api/communities/${slug}/children`,
+        { ttlMs: 60_000, force, scopeKey: cacheScopeKey },
+      )
+      setChildren(json.data.children ?? [])
+    } catch {
+      setChildren([])
     } finally {
       setChildrenLoading(false)
     }
-  }
+  }, [cacheScopeKey, slug])
 
   useEffect(() => {
     if (community) void loadChildren()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [community?.id])
+  }, [community?.id, loadChildren])
 
   useEffect(() => {
     if (!community) return
@@ -220,65 +241,68 @@ export default function CommunityDetailPage() {
     })
   }, [community])
 
-  async function loadAdmins() {
+  const loadAdmins = useCallback(async (force = false) => {
     if (!user || !isMember) return
     setAdminsLoading(true)
     try {
-      const res = await fetch(`/api/communities/${slug}/admins`)
-      if (res.ok) {
-        const json = await res.json() as { data: CommunityAdminEntry[] }
-        setAdmins(json.data ?? [])
-      }
+      const json = await clientGetJson<{ data: CommunityAdminEntry[] }>(
+        `/api/communities/${slug}/admins`,
+        { ttlMs: 60_000, force, scopeKey: cacheScopeKey },
+      )
+      setAdmins(json.data ?? [])
+    } catch {
+      setAdmins([])
     } finally {
       setAdminsLoading(false)
     }
-  }
+  }, [cacheScopeKey, isMember, slug, user])
 
-  async function loadReports() {
+  const loadReports = useCallback(async (force = false) => {
     if (!canModerate) return
     setReportsLoading(true)
     try {
-      const res = await fetch(`/api/communities/${slug}/reports/happenings?status=pending`)
-      if (res.ok) {
-        const json = await res.json() as { data: { reports: HappeningReportEntry[] } }
-        setReports(json.data.reports ?? [])
-      }
+      const json = await clientGetJson<{ data: { reports: HappeningReportEntry[] } }>(
+        `/api/communities/${slug}/reports/happenings?status=pending`,
+        { ttlMs: 30_000, force, scopeKey: cacheScopeKey },
+      )
+      setReports(json.data.reports ?? [])
+    } catch {
+      setReports([])
     } finally {
       setReportsLoading(false)
     }
-  }
+  }, [cacheScopeKey, canModerate, slug])
 
-  async function loadAuditLogs() {
+  const loadAuditLogs = useCallback(async (force = false) => {
     if (!canModerate) return
     setAuditLogsLoading(true)
     try {
-      const res = await fetch(`/api/communities/${slug}/audit-logs?limit=20`)
-      if (res.ok) {
-        const json = await res.json() as { data: { logs: CommunityAuditLogEntry[] } }
-        setAuditLogs(json.data.logs ?? [])
-      }
+      const json = await clientGetJson<{ data: { logs: CommunityAuditLogEntry[] } }>(
+        `/api/communities/${slug}/audit-logs?limit=20`,
+        { ttlMs: 30_000, force, scopeKey: cacheScopeKey },
+      )
+      setAuditLogs(json.data.logs ?? [])
+    } catch {
+      setAuditLogs([])
     } finally {
       setAuditLogsLoading(false)
     }
-  }
+  }, [cacheScopeKey, canModerate, slug])
 
   useEffect(() => {
     if (user && isMember) loadAdmins()
     else setAdmins([])
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slug, isMember, user?.id, canModerate])
+  }, [isMember, loadAdmins, user])
 
   useEffect(() => {
     if (canModerate) loadReports()
     else setReports([])
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slug, canModerate])
+  }, [canModerate, loadReports])
 
   useEffect(() => {
     if (canModerate) loadAuditLogs()
     else setAuditLogs([])
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slug, canModerate])
+  }, [canModerate, loadAuditLogs])
 
   async function toggleMembership() {
     if (!user) { router.push('/login'); return }
@@ -290,6 +314,8 @@ export default function CommunityDetailPage() {
       : `/api/communities/${slug}/join`
     const res = await fetch(endpoint, { method })
     if (res.ok) {
+      clientFetchInvalidate(`/api/communities/${slug}`, cacheScopeKey)
+      clientFetchInvalidate('/api/communities')
       const json = await res.json() as { data?: MembershipMutationResponse }
       setCommunity((prev) =>
         prev
@@ -319,6 +345,7 @@ export default function CommunityDetailPage() {
       : `/api/communities/${slug}/follow`
     const res = await fetch(endpoint, { method })
     if (res.ok) {
+      clientFetchInvalidate(`/api/communities/${slug}`, cacheScopeKey)
       const json = await res.json() as { data?: FollowMutationResponse }
       setCommunity((prev) =>
         prev
@@ -338,6 +365,7 @@ export default function CommunityDetailPage() {
         : `/api/communities/${child.slug}/join`
       const res = await fetch(endpoint, { method: child.is_member ? 'DELETE' : 'POST' })
       if (res.ok) {
+        clientFetchInvalidate('/api/communities')
         const json = await res.json() as { data?: MembershipMutationResponse }
         setChildren((prev) => prev.map((entry) =>
           entry.id === child.id
@@ -365,7 +393,10 @@ export default function CommunityDetailPage() {
         body: JSON.stringify({ user_id: userId }),
       })
       if (res.ok) {
-        await loadAdmins()
+        clientFetchInvalidate(`/api/communities/${slug}/admins`, cacheScopeKey)
+        clientFetchInvalidate(`/api/communities/${slug}/audit-logs`, cacheScopeKey)
+        await loadAdmins(true)
+        await loadAuditLogs(true)
       }
     } finally {
       setMemberActionLoading(null)
@@ -377,7 +408,10 @@ export default function CommunityDetailPage() {
     try {
       const res = await fetch(`/api/communities/${slug}/admins/${userId}`, { method: 'DELETE' })
       if (res.ok) {
-        await loadAdmins()
+        clientFetchInvalidate(`/api/communities/${slug}/admins`, cacheScopeKey)
+        clientFetchInvalidate(`/api/communities/${slug}/audit-logs`, cacheScopeKey)
+        await loadAdmins(true)
+        await loadAuditLogs(true)
       }
     } finally {
       setMemberActionLoading(null)
@@ -402,6 +436,7 @@ export default function CommunityDetailPage() {
       })
 
       if (res.ok) {
+        clientFetchInvalidate(`/api/communities/${slug}`, cacheScopeKey)
         const json = await res.json() as { data: Community }
         setCommunity((prev) => (prev ? { ...prev, ...json.data } : prev))
       } else {
@@ -422,6 +457,7 @@ export default function CommunityDetailPage() {
         body: JSON.stringify({ is_verified: !community.is_verified }),
       })
       if (res.ok) {
+        clientFetchInvalidate(`/api/communities/${slug}`, cacheScopeKey)
         const json = await res.json() as { data: Community }
         setCommunity((prev) => (prev ? { ...prev, ...json.data } : prev))
       } else {
@@ -466,12 +502,10 @@ export default function CommunityDetailPage() {
           }),
         })
       }
-      const refreshed = await fetch(`/api/communities/${slug}`)
-      if (refreshed.ok) {
-        const json = await refreshed.json() as { data: CommunityDetail }
-        setCommunity(json.data)
-      }
-      await loadAuditLogs()
+      clientFetchInvalidate(`/api/communities/${slug}`, cacheScopeKey)
+      clientFetchInvalidate(`/api/communities/${slug}/audit-logs`, cacheScopeKey)
+      await loadCommunity(true)
+      await loadAuditLogs(true)
     } finally {
       setMemberActionLoading(null)
     }
@@ -503,9 +537,10 @@ export default function CommunityDetailPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ severity: 'medium', reason: reason.trim() }),
       })
-      await loadAuditLogs()
+      clientFetchInvalidate(`/api/communities/${slug}/audit-logs`, cacheScopeKey)
+      await loadAuditLogs(true)
       if (selectedMemberHistory?.member.id === userId) {
-        await loadMemberHistory(selectedMemberHistory.member)
+        await loadMemberHistory(selectedMemberHistory.member, true)
       }
     } finally {
       setMemberActionLoading(null)
@@ -534,9 +569,11 @@ export default function CommunityDetailPage() {
           ends_at: endsAt,
         }),
       })
-      await loadAuditLogs()
+      clientFetchInvalidate(`/api/communities/${slug}`, cacheScopeKey)
+      clientFetchInvalidate(`/api/communities/${slug}/audit-logs`, cacheScopeKey)
+      await loadAuditLogs(true)
       if (selectedMemberHistory?.member.id === userId) {
-        await loadMemberHistory(selectedMemberHistory.member)
+        await loadMemberHistory(selectedMemberHistory.member, true)
       }
     } finally {
       setMemberActionLoading(null)
@@ -556,28 +593,29 @@ export default function CommunityDetailPage() {
         }),
       })
       if (res.ok) {
+        clientFetchInvalidate(`/api/communities/${slug}/reports/happenings`, cacheScopeKey)
+        clientFetchInvalidate(`/api/communities/${slug}/audit-logs`, cacheScopeKey)
         setReports((prev) => prev.filter((entry) => !(entry.happening_id === reportItem.happening_id && entry.reporter_id === reportItem.reporter_id)))
-        await loadAuditLogs()
+        await loadAuditLogs(true)
       }
     } finally {
       setReportActionLoading(null)
     }
   }
 
-  async function loadMemberHistory(member: CommunityDetail['recent_members'][number]) {
+  async function loadMemberHistory(member: CommunityDetail['recent_members'][number], force = false) {
     setHistoryLoading(true)
     try {
-      const [warningsRes, sanctionsRes] = await Promise.all([
-        fetch(`/api/communities/${slug}/members/${member.id}/warnings`),
-        fetch(`/api/communities/${slug}/members/${member.id}/sanctions`),
+      const [warningsJson, sanctionsJson] = await Promise.all([
+        clientGetJson<{ data: { warnings: CommunityWarningEntry[] } }>(
+          `/api/communities/${slug}/members/${member.id}/warnings`,
+          { ttlMs: 30_000, force, scopeKey: cacheScopeKey },
+        ).catch(() => ({ data: { warnings: [] } })),
+        clientGetJson<{ data: { sanctions: CommunitySanctionEntry[] } }>(
+          `/api/communities/${slug}/members/${member.id}/sanctions`,
+          { ttlMs: 30_000, force, scopeKey: cacheScopeKey },
+        ).catch(() => ({ data: { sanctions: [] } })),
       ])
-
-      const warningsJson = warningsRes.ok
-        ? await warningsRes.json() as { data: { warnings: CommunityWarningEntry[] } }
-        : { data: { warnings: [] } }
-      const sanctionsJson = sanctionsRes.ok
-        ? await sanctionsRes.json() as { data: { sanctions: CommunitySanctionEntry[] } }
-        : { data: { sanctions: [] } }
 
       setSelectedMemberHistory({
         member,
@@ -1205,7 +1243,7 @@ export default function CommunityDetailPage() {
                           <h3 className="text-base font-semibold text-gray-900">Happening Reports</h3>
                           <p className="text-xs text-gray-500 mt-1">Community admins review these directly.</p>
                         </div>
-                        <button onClick={loadReports} disabled={reportsLoading}
+                        <button onClick={() => void loadReports(true)} disabled={reportsLoading}
                           className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 cursor-pointer">
                           Refresh
                         </button>
@@ -1252,7 +1290,7 @@ export default function CommunityDetailPage() {
                       <h3 className="text-base font-semibold text-gray-900">Community Audit Trail</h3>
                       <p className="text-xs text-gray-500 mt-1">Recent governance actions by owners and community admins.</p>
                     </div>
-                    <button onClick={loadAuditLogs} disabled={auditLogsLoading}
+                    <button onClick={() => void loadAuditLogs(true)} disabled={auditLogsLoading}
                       className="rounded-lg border border-indigo-200 bg-white px-3 py-1.5 text-xs font-semibold text-indigo-700 cursor-pointer">
                       Refresh
                     </button>

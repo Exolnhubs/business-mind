@@ -1,8 +1,9 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
+import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react'
 import type { User, Session } from '@supabase/supabase-js'
 import { createSupabaseBrowserClient } from '@/lib/supabase/client'
+import { clientFetchInvalidateAll } from '@/lib/client-fetch'
 import type { Profile } from '@/types/database'
 
 interface AuthContextValue {
@@ -21,6 +22,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
+  const lastUserIdRef = useRef<string | null>(null)
 
   const supabase = createSupabaseBrowserClient()
 
@@ -39,6 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
+      lastUserIdRef.current = session?.user?.id ?? null
       setSession(session)
       setUser(session?.user ?? null)
       if (session?.user) fetchProfile(session.user.id)
@@ -46,6 +49,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      const nextUserId = session?.user?.id ?? null
+      if (lastUserIdRef.current !== nextUserId) {
+        clientFetchInvalidateAll()
+        lastUserIdRef.current = nextUserId
+      }
       setSession(session)
       setUser(session?.user ?? null)
       if (session?.user) {
