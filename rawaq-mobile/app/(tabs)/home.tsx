@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
+import { Ionicons } from '@expo/vector-icons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import EventsScreen from '@/components/screens/EventsScreen'
 import FeedScreen from './feed'
+import { HappeningComposerSheet } from '@/components/happenings/HappeningComposerSheet'
 import { useAuth } from '@/contexts/auth-context'
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '@/theme'
 
@@ -13,55 +15,95 @@ export default function HomeScreen() {
   const { profile } = useAuth()
   const [segment, setSegment] = useState<Segment>('explore')
   const [feedMounted, setFeedMounted] = useState(false)
+  const [actionsOpen, setActionsOpen] = useState(false)
+  const [showHappeningComposer, setShowHappeningComposer] = useState(false)
   const insets = useSafeAreaInsets()
   const router = useRouter()
-  const showSmartPicksTrigger =
+  const showSmartPicksAction =
     typeof (profile?.preferences as Record<string, unknown> | undefined)?.show_smart_picks_trigger === 'boolean'
       ? Boolean((profile?.preferences as Record<string, unknown>).show_smart_picks_trigger)
       : true
 
   function handleSegmentChange(nextSegment: Segment) {
+    setActionsOpen(false)
     if (nextSegment === 'foryou') {
       setFeedMounted(true)
     }
     setSegment(nextSegment)
   }
 
+  function openHappeningComposer() {
+    setActionsOpen(false)
+    setShowHappeningComposer(true)
+  }
+
+  function openSmartPicks() {
+    setActionsOpen(false)
+    router.push('/discover')
+  }
+
   return (
     <View style={styles.root}>
-      {/* ── Header with segment pill ─────────────────────────── */}
       <View style={[styles.header, { paddingTop: insets.top + Spacing.sm }]}>
         <View style={styles.pillTrack}>
           <PillBtn
-            label="🌍  Explore"
+            label="Explore"
             active={segment === 'explore'}
             onPress={() => handleSegmentChange('explore')}
           />
           <PillBtn
-            label="✨  For You"
+            label="For You"
             active={segment === 'foryou'}
             onPress={() => handleSegmentChange('foryou')}
           />
         </View>
       </View>
 
-      {/* ── Smart Picks banner ───────────────────────────────── */}
-      {showSmartPicksTrigger && (
-      <TouchableOpacity
-        style={[styles.smartFab, { bottom: Math.max(insets.bottom + Spacing.sm, Spacing.lg) }]}
-        activeOpacity={0.88}
-        onPress={() => router.push('/discover')}
-      >
-        <Text style={styles.smartBannerIcon}>✨</Text>
-        <View style={styles.smartBannerBody}>
-          <Text style={styles.smartBannerTitle}>Smart Picks for You</Text>
-          <Text style={styles.smartBannerSub}>Let AI find events you'll love</Text>
-        </View>
-        <Text style={styles.smartBannerArrow}>›</Text>
-      </TouchableOpacity>
-      )}
+      <>
+        {actionsOpen && (
+          <TouchableOpacity
+            style={styles.actionsBackdrop}
+            activeOpacity={1}
+            onPress={() => setActionsOpen(false)}
+          />
+        )}
+        <View
+          pointerEvents="box-none"
+          style={[styles.actionsLayer, { bottom: Math.max(insets.bottom + Spacing.sm, Spacing.lg) }]}
+        >
+          {actionsOpen && (
+            <>
+              <QuickAction
+                icon="add"
+                label="New Happening"
+                bottomOffset={showSmartPicksAction ? 132 : 70}
+                onPress={openHappeningComposer}
+              />
+              {showSmartPicksAction && (
+                <QuickAction
+                  icon="sparkles"
+                  label="Smart Picks"
+                  bottomOffset={70}
+                  onPress={openSmartPicks}
+                />
+              )}
+            </>
+          )}
 
-      {/* ── Content ──────────────────────────────────────────── */}
+          <TouchableOpacity
+            style={styles.smartFab}
+            activeOpacity={0.88}
+            onPress={() => setActionsOpen((prev) => !prev)}
+          >
+            <Ionicons
+              name={actionsOpen ? 'close' : 'ellipsis-vertical'}
+              size={22}
+              color={Colors.white}
+            />
+          </TouchableOpacity>
+        </View>
+      </>
+
       <View style={styles.content}>
         <View
           style={[styles.screenPane, segment !== 'explore' && styles.hiddenPane]}
@@ -79,6 +121,11 @@ export default function HomeScreen() {
           </View>
         )}
       </View>
+
+      <HappeningComposerSheet
+        visible={showHappeningComposer}
+        onClose={() => setShowHappeningComposer(false)}
+      />
     </View>
   )
 }
@@ -99,12 +146,46 @@ function PillBtn({
   )
 }
 
+function QuickAction({
+  icon,
+  label,
+  bottomOffset,
+  onPress,
+}: {
+  icon: keyof typeof Ionicons.glyphMap
+  label: string
+  bottomOffset: number
+  onPress: () => void
+}) {
+  return (
+    <View style={[styles.quickActionRow, { bottom: bottomOffset }]}>
+      <View style={styles.quickActionLabel}>
+        <Text style={styles.quickActionLabelText}>{label}</Text>
+      </View>
+      <TouchableOpacity style={styles.quickActionButton} activeOpacity={0.88} onPress={onPress}>
+        <Ionicons name={icon} size={18} color={Colors.white} />
+      </TouchableOpacity>
+    </View>
+  )
+}
+
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.gray[50] },
   content: { flex: 1 },
   screenPane: { flex: 1 },
   hiddenPane: { display: 'none' },
-
+  actionsBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'transparent',
+    zIndex: 18,
+  },
+  actionsLayer: {
+    position: 'absolute',
+    right: Spacing.lg,
+    width: 220,
+    alignItems: 'flex-end',
+    zIndex: 20,
+  },
   header: {
     backgroundColor: Colors.white,
     paddingHorizontal: Spacing.lg,
@@ -113,15 +194,12 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.gray[100],
     alignItems: 'center',
   },
-
-  // Pill track — gray background, two options side by side
   pillTrack: {
     flexDirection: 'row',
     backgroundColor: Colors.gray[100],
     borderRadius: Radius.full,
     padding: 3,
   },
-
   pillBtn: {
     paddingHorizontal: Spacing['2xl'],
     paddingVertical: Spacing.sm - 1,
@@ -129,14 +207,12 @@ const styles = StyleSheet.create({
   },
   pillBtnActive: {
     backgroundColor: Colors.white,
-    // Subtle lift shadow for the active pill
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.08,
     shadowRadius: 3,
     elevation: 2,
   },
-
   pillText: {
     fontSize: FontSize.sm,
     fontWeight: FontWeight.medium,
@@ -146,10 +222,7 @@ const styles = StyleSheet.create({
     color: Colors.gray[900],
     fontWeight: FontWeight.semibold,
   },
-
   smartFab: {
-    position: 'absolute',
-    right: Spacing.lg,
     width: 58,
     height: 58,
     borderRadius: 29,
@@ -161,11 +234,44 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.18,
     shadowRadius: 18,
     elevation: 8,
-    zIndex: 20,
+    zIndex: 22,
   },
-  smartBannerIcon: { fontSize: 24, color: Colors.white },
-  smartBannerBody: { display: 'none' },
-  smartBannerTitle: { display: 'none' },
-  smartBannerSub:   { display: 'none' },
-  smartBannerArrow: { display: 'none' },
+  quickActionRow: {
+    position: 'absolute',
+    right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  quickActionLabel: {
+    borderRadius: Radius.full,
+    backgroundColor: Colors.white,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.gray[200],
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  quickActionLabelText: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.semibold,
+    color: Colors.gray[800],
+  },
+  quickActionButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: Colors.brand[600],
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: Colors.black,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 6,
+  },
 })
