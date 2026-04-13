@@ -24,7 +24,7 @@ interface FlaggedComment {
   id: string
   content: string
   created_at: string
-  event_id: string
+  event_id: string | null
   user_id: string
   author: { display_name: string | null } | null
 }

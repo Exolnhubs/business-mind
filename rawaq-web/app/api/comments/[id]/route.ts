@@ -16,7 +16,7 @@ export async function DELETE(
 
     const { data: comment } = await supabase
       .from('comments')
-      .select('id, user_id, event_id')
+      .select('id, user_id, event_id, happening_id')
       .eq('id', id)
       .single()
 
@@ -24,14 +24,27 @@ export async function DELETE(
 
     // Owner, event organizer, or admin can delete
     if (ctx.role !== 'admin' && comment.user_id !== ctx.userId) {
-      // Check if requester is the event organizer
-      const { data: event } = await supabase
-        .from('events')
-        .select('organizer_id')
-        .eq('id', comment.event_id)
-        .single()
+      if (comment.event_id) {
+        const { data: event } = await supabase
+          .from('events')
+          .select('organizer_id')
+          .eq('id', comment.event_id)
+          .single()
 
-      if (event?.organizer_id !== ctx.userId) {
+        if (event?.organizer_id !== ctx.userId) {
+          throw new ForbiddenException()
+        }
+      } else if (comment.happening_id) {
+        const { data: happening } = await supabase
+          .from('happenings' as any)
+          .select('author_id')
+          .eq('id', comment.happening_id)
+          .single()
+
+        if ((happening as { author_id?: string } | null)?.author_id !== ctx.userId) {
+          throw new ForbiddenException()
+        }
+      } else {
         throw new ForbiddenException()
       }
     }

@@ -4,6 +4,7 @@ import { useFocusEffect, useRouter } from 'expo-router'
 import { apiDelete, apiGet, apiPost } from '@/lib/api'
 import { useAuth } from '@/contexts/auth-context'
 import { HappeningDiscoveryCard, type HappeningDiscoveryItem } from '@/components/happenings/HappeningDiscoveryCard'
+import { HappeningCommentsSheet } from '@/components/happenings/HappeningCommentsSheet'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Spinner } from '@/components/ui/Spinner'
 import { Colors, FontSize, FontWeight, Radius, Shadow, Spacing } from '@/theme'
@@ -26,6 +27,7 @@ export default function HappeningsTab() {
   const [refreshing, setRefreshing] = useState(false)
   const [happenings, setHappenings] = useState<HappeningDiscoveryItem[]>([])
   const [activeCommunities, setActiveCommunities] = useState<ActiveCommunity[]>([])
+  const [selectedHappening, setSelectedHappening] = useState<HappeningDiscoveryItem | null>(null)
 
   const patchHappening = useCallback((id: string, updater: (item: HappeningDiscoveryItem) => HappeningDiscoveryItem) => {
     setHappenings((prev) => prev.map((item) => (item.id === id ? updater(item) : item)))
@@ -147,6 +149,7 @@ export default function HappeningsTab() {
                 happening={item}
                 onToggleRsvp={toggleRsvp}
                 onToggleReact={toggleReact}
+                onOpenComments={setSelectedHappening}
               />
             </View>
           )}
@@ -160,6 +163,13 @@ export default function HappeningsTab() {
           }
         />
       )}
+
+      <HappeningCommentsSheet
+        visible={!!selectedHappening}
+        happening={selectedHappening}
+        currentUserId={user?.id ?? null}
+        onClose={() => setSelectedHappening(null)}
+      />
     </View>
   )
 }

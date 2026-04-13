@@ -1018,7 +1018,7 @@ export default function EventDetailScreen() {
             Comments ({comments.length})
           </Text>
           <CommentThread
-            eventId={event.id}
+            target={{ eventId: event.id }}
             initialComments={comments}
             currentUserId={user?.id ?? null}
           />

@@ -331,7 +331,8 @@ export interface Tip {
 export interface Comment {
   id: string
   user_id: string
-  event_id: string
+  event_id: string | null
+  happening_id: string | null
   parent_id: string | null
   content: string
   content_html: string | null

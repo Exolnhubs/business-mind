@@ -14,6 +14,7 @@ type Props = {
   variant?: 'rail'
   onToggleRsvp?: (happening: HappeningDiscoveryItem) => void
   onToggleReact?: (happening: HappeningDiscoveryItem) => void
+  onOpenComments?: (happening: HappeningDiscoveryItem) => void
 }
 
 const TYPE_META: Record<HappeningType, { label: string; icon: keyof typeof Ionicons.glyphMap; color: string; bg: string }> = {
@@ -36,6 +37,7 @@ export function HappeningDiscoveryCard({
   variant = 'rail',
   onToggleRsvp,
   onToggleReact,
+  onOpenComments,
 }: Props) {
   const router = useRouter()
   const meta = TYPE_META[happening.type]
@@ -86,6 +88,12 @@ export function HappeningDiscoveryCard({
           {happening.author.display_name}
         </Text>
         <View style={styles.actions}>
+          <TouchableOpacity
+            onPress={() => onOpenComments?.(happening)}
+            style={styles.actionBtn}
+          >
+            <Text style={styles.actionText}>Chat</Text>
+          </TouchableOpacity>
           <TouchableOpacity
             onPress={() => onToggleRsvp?.(happening)}
             style={[styles.actionBtn, happening.user_has_rsvp && styles.actionBtnActive]}

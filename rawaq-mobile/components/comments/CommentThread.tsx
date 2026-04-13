@@ -9,24 +9,42 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { Colors, Spacing, FontSize } from '@/theme'
 import type { CommentWithAuthor } from '@/types/database'
 
+type CommentTarget =
+  | { eventId: string; happeningId?: never }
+  | { eventId?: never; happeningId: string }
+
 interface Props {
-  eventId: string
+  target: CommentTarget
   initialComments: CommentWithAuthor[]
   currentUserId: string | null
+  emptyTitle?: string
+  loginPrompt?: string
 }
 
-export function CommentThread({ eventId, initialComments, currentUserId }: Props) {
+export function CommentThread({
+  target,
+  initialComments,
+  currentUserId,
+  emptyTitle = 'No comments yet',
+  loginPrompt = 'Sign in to comment',
+}: Props) {
   const { user, profile } = useAuth()
   const [comments, setComments] = useState<CommentWithAuthor[]>(initialComments)
   // Track IDs we inserted ourselves so the realtime handler doesn't add them again
   const optimisticIds = useRef<Set<string>>(new Set())
+  const targetFilter = target.eventId ? `event_id=eq.${target.eventId}` : `happening_id=eq.${target.happeningId}`
+  const channelName = target.eventId ? `event-comments-${target.eventId}` : `happening-comments-${target.happeningId}`
+
+  useEffect(() => {
+    setComments(initialComments)
+  }, [initialComments, targetFilter])
 
   useEffect(() => {
     const channel = supabase
-      .channel(`event-comments-${eventId}`)
+      .channel(channelName)
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'comments', filter: `event_id=eq.${eventId}` },
+        { event: 'INSERT', schema: 'public', table: 'comments', filter: targetFilter },
         async (payload) => {
           // Skip comments we already added optimistically
           if (optimisticIds.current.has(payload.new.id)) {
@@ -67,13 +85,13 @@ export function CommentThread({ eventId, initialComments, currentUserId }: Props
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
-  }, [eventId])
+  }, [channelName, targetFilter])
 
   async function postComment(content: string, parentId: string | null = null, mediaUrl?: string) {
     if (!user) return
 
     const { data, error } = await apiPost<{ id: string }>('/api/comments', {
-      event_id: eventId,
+      ...(target.eventId ? { event_id: target.eventId } : { happening_id: target.happeningId }),
       content,
       parent_id: parentId ?? undefined,
       media_url: mediaUrl ?? undefined,
@@ -120,10 +138,10 @@ export function CommentThread({ eventId, initialComments, currentUserId }: Props
     <View>
       {user
         ? <CommentForm onSubmit={(content, mediaUrl) => postComment(content, null, mediaUrl)} />
-        : <Text style={styles.loginPrompt}>Sign in to comment</Text>
+        : <Text style={styles.loginPrompt}>{loginPrompt}</Text>
       }
       {comments.length === 0
-        ? <EmptyState icon="💬" title="No comments yet" />
+        ? <EmptyState icon="??" title={emptyTitle} />
         : comments.map((c) => (
           <CommentItem
             key={c.id}
@@ -141,3 +159,5 @@ export function CommentThread({ eventId, initialComments, currentUserId }: Props
 const styles = StyleSheet.create({
   loginPrompt: { fontSize: FontSize.sm, color: Colors.gray[500], textAlign: 'center', paddingVertical: Spacing.lg },
 })
+
+

@@ -12,6 +12,7 @@ import { useLocale } from '@/contexts/locale-context'
 import { Spinner } from '@/components/ui/Spinner'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { LocationPickerModal, type PickedLocation } from '@/components/communities/LocationPickerModal'
+import { HappeningCommentsSheet } from '@/components/happenings/HappeningCommentsSheet'
 import { formatDate } from '@/lib/utils'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
 import type { Community, CommunityLevel, CommunityRole, Event, HappeningType, HappeningWithAuthor } from '@/types/database'
@@ -132,6 +133,7 @@ export default function CommunityDetailScreen() {
   const [historyLoading, setHistoryLoading] = useState(false)
   const [showActivityAccordion, setShowActivityAccordion] = useState(false)
   const [showModeratorAccordion, setShowModeratorAccordion] = useState(false)
+  const [selectedHappeningForComments, setSelectedHappeningForComments] = useState<(HappeningWithAuthor & { community: Pick<Community, 'id' | 'name' | 'name_ar' | 'slug' | 'level'> }) | null>(null)
   const [selectedMemberHistory, setSelectedMemberHistory] = useState<{
     member: CommunityDetail['recent_members'][number]
     warnings: CommunityWarningEntry[]
@@ -835,25 +837,42 @@ export default function CommunityDetailScreen() {
                           <Text style={styles.happeningLocText}>{h.location_label?.trim() || 'View on map'}</Text>
                         </TouchableOpacity>
                       )}
-                      {user && ttlMs > 0 && (
-                        <View style={styles.happeningActions}>
+                      <View style={styles.happeningActions}>
+                        <TouchableOpacity
+                          onPress={() => community && setSelectedHappeningForComments({
+                            ...h,
+                            community: {
+                              id: community.id,
+                              name: community.name,
+                              name_ar: community.name_ar,
+                              slug: community.slug,
+                              level: community.level,
+                            },
+                          })}
+                          style={styles.happeningActionBtn}
+                        >
+                          <Text style={styles.happeningActionText}>Chat</Text>
+                        </TouchableOpacity>
+                        {user && ttlMs > 0 && (
                           <TouchableOpacity onPress={() => toggleHappeningRsvp(h)} style={[styles.happeningActionBtn, h.user_has_rsvp && styles.happeningActionBtnActive]}>
                             <Text style={[styles.happeningActionText, h.user_has_rsvp && styles.happeningActionTextActive]}>
                               {h.user_has_rsvp ? "I'm in" : 'Join'} • {h.rsvp_count}
                             </Text>
                           </TouchableOpacity>
+                        )}
+                        {user && ttlMs > 0 && (
                           <TouchableOpacity onPress={() => toggleHappeningReact(h)} style={[styles.happeningActionBtn, h.user_has_reacted && styles.happeningReactActive]}>
                             <Text style={[styles.happeningActionText, h.user_has_reacted && styles.happeningReactTextActive]}>
                               Like • {h.reaction_count}
                             </Text>
                           </TouchableOpacity>
-                          {h.author_id !== user?.id && (
-                            <TouchableOpacity onPress={() => reportHappening(h.id)} style={styles.happeningReportBtn}>
-                              <Ionicons name="flag-outline" size={14} color={Colors.gray[400]} />
-                            </TouchableOpacity>
-                          )}
-                        </View>
-                      )}
+                        )}
+                        {user && ttlMs > 0 && h.author_id !== user?.id && (
+                          <TouchableOpacity onPress={() => reportHappening(h.id)} style={styles.happeningReportBtn}>
+                            <Ionicons name="flag-outline" size={14} color={Colors.gray[400]} />
+                          </TouchableOpacity>
+                        )}
+                      </View>
                     </View>
                   )
                 })}
@@ -1424,6 +1443,12 @@ export default function CommunityDetailScreen() {
           closeLocationPicker(true)
         }}
       />
+      <HappeningCommentsSheet
+        visible={!!selectedHappeningForComments}
+        happening={selectedHappeningForComments}
+        currentUserId={user?.id ?? null}
+        onClose={() => setSelectedHappeningForComments(null)}
+      />
     </>
   )
 }
@@ -1759,7 +1784,7 @@ const styles = StyleSheet.create({
   happeningTypeBadge: { width: 30, height: 30, borderRadius: 15, backgroundColor: Colors.gray[100], alignItems: 'center', justifyContent: 'center' },
   happeningTypeText: { fontSize: 14 },
   happeningBody: { fontSize: FontSize.sm, color: Colors.gray[800], lineHeight: 21, marginBottom: Spacing.md },
-  happeningActions: { flexDirection: 'row', gap: Spacing.sm },
+  happeningActions: { flexDirection: 'row', gap: Spacing.sm, flexWrap: 'wrap' },
   happeningActionBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2, borderRadius: Radius.lg, backgroundColor: Colors.gray[100], minHeight: 36 },
   happeningActionBtnActive: { backgroundColor: Colors.brand[600] },
   happeningReactActive: { backgroundColor: '#fef9c3' },

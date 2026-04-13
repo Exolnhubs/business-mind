@@ -11,6 +11,7 @@ import { apiDelete, apiGet, apiPost } from '@/lib/api'
 import { useAuth } from '@/contexts/auth-context'
 import { EventCard, EventCardSkeleton } from '@/components/events/EventCard'
 import { HappeningDiscoveryCard, type HappeningDiscoveryItem } from '@/components/happenings/HappeningDiscoveryCard'
+import { HappeningCommentsSheet } from '@/components/happenings/HappeningCommentsSheet'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { useLocale } from '@/contexts/locale-context'
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '@/theme'
@@ -196,6 +197,7 @@ export default function EventsScreen() {
   const [communitySlug, setCommunitySlug] = useState<string | null>(null)
   const [joinedCommunities, setJoinedCommunities] = useState<JoinedCommunity[]>([])
   const [activeCommunities, setActiveCommunities] = useState<ActiveCommunity[]>([])
+  const [selectedHappening, setSelectedHappening] = useState<HappeningDiscoveryItem | null>(null)
   const lastDiscoveryLoadRef = useRef(0)
   const lastEventsLoadRef = useRef(0)
   const isDefaultFeed = !search && !categoryId && !freeOnly && !nearMe && !communitySlug
@@ -957,6 +959,7 @@ export default function EventsScreen() {
                       onSaveChange={handleSaveChange}
                       onToggleHappeningRsvp={toggleDiscoveryHappeningRsvp}
                       onToggleHappeningReact={toggleDiscoveryHappeningReact}
+                      onOpenHappeningComments={setSelectedHappening}
                       accent="community"
                       forceShow
                       emptyTitle="No activity in this community yet"
@@ -973,6 +976,7 @@ export default function EventsScreen() {
                       onSaveChange={handleSaveChange}
                       onToggleHappeningRsvp={toggleDiscoveryHappeningRsvp}
                       onToggleHappeningReact={toggleDiscoveryHappeningReact}
+                      onOpenHappeningComments={setSelectedHappening}
                       accent="active"
                       forceShow
                       emptyTitle="No nearby happenings right now"
@@ -1024,6 +1028,7 @@ export default function EventsScreen() {
                       onSaveChange={handleSaveChange}
                       onToggleHappeningRsvp={toggleDiscoveryHappeningRsvp}
                       onToggleHappeningReact={toggleDiscoveryHappeningReact}
+                      onOpenHappeningComments={setSelectedHappening}
                       accent="community"
                     />
                   )}
@@ -1071,6 +1076,7 @@ export default function EventsScreen() {
                           onSaveChange={handleSaveChange}
                           onToggleHappeningRsvp={toggleDiscoveryHappeningRsvp}
                           onToggleHappeningReact={toggleDiscoveryHappeningReact}
+                          onOpenHappeningComments={setSelectedHappening}
                           accent="active"
                         />
                       )}
@@ -1090,6 +1096,7 @@ export default function EventsScreen() {
                       onSaveChange={handleSaveChange}
                       onToggleHappeningRsvp={toggleDiscoveryHappeningRsvp}
                       onToggleHappeningReact={toggleDiscoveryHappeningReact}
+                      onOpenHappeningComments={setSelectedHappening}
                       accent="weekend"
                       radiusKm={weekendCoords ? weekendRadiusKm : undefined}
                       onRadiusChange={weekendCoords ? setWeekendRadiusKm : undefined}
@@ -1156,6 +1163,13 @@ export default function EventsScreen() {
           }
         />
       )}
+
+      <HappeningCommentsSheet
+        visible={!!selectedHappening}
+        happening={selectedHappening}
+        currentUserId={user?.id ?? null}
+        onClose={() => setSelectedHappening(null)}
+      />
     </View>
   )
 }
@@ -1257,6 +1271,7 @@ function MixedDiscoveryRail({
   onSaveChange,
   onToggleHappeningRsvp,
   onToggleHappeningReact,
+  onOpenHappeningComments,
   accent,
   radiusKm,
   onRadiusChange,
@@ -1273,6 +1288,7 @@ function MixedDiscoveryRail({
   onSaveChange: (id: string, saved: boolean) => void
   onToggleHappeningRsvp: (happening: HappeningDiscoveryItem) => void
   onToggleHappeningReact: (happening: HappeningDiscoveryItem) => void
+  onOpenHappeningComments?: (happening: HappeningDiscoveryItem) => void
   accent?: 'weekend' | 'community' | 'active'
   radiusKm?: number
   onRadiusChange?: (km: number) => void
@@ -1329,6 +1345,7 @@ function MixedDiscoveryRail({
                 variant="rail"
                 onToggleRsvp={onToggleHappeningRsvp}
                 onToggleReact={onToggleHappeningReact}
+                onOpenComments={onOpenHappeningComments}
               />
             )
           ))
