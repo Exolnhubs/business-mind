@@ -1,0 +1,8 @@
+../.agents_backup
+../.claude
+.plugagents
+.claude
+.git
+node_modules
+/android
+/ios
