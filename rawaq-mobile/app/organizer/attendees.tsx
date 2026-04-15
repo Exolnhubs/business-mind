@@ -43,6 +43,11 @@ interface ScanResult {
   scanned_at?: string
 }
 
+type EventScannerMeta = {
+  id: string
+  end_at: string | null
+}
+
 export default function AttendeesScreen() {
   const router = useRouter()
   const { user, profile } = useAuth()
@@ -57,6 +62,7 @@ export default function AttendeesScreen() {
   const [scanning, setScanning] = useState(false)
   const [scanResult, setScanResult] = useState<ScanResult | null>(null)
   const [scannerAvailable, setScannerAvailable] = useState(profile?.role === 'admin')
+  const [eventMeta, setEventMeta] = useState<EventScannerMeta | null>(null)
   const lastScannedRef = useRef<string | null>(null)
   const isAndroidExpoGo = Platform.OS === 'android' && Constants.executionEnvironment === 'storeClient'
 
@@ -68,7 +74,7 @@ export default function AttendeesScreen() {
     const [eventRes, bookingsRes, subscriptionRes] = await Promise.all([
       supabase
         .from('events')
-        .select('id')
+        .select('id, end_at')
         .eq('id', eventId)
         .eq('organizer_id', user.id)
         .single(),
@@ -87,11 +93,18 @@ export default function AttendeesScreen() {
       return
     }
 
+    const hasEnded = Boolean(
+      eventRes.data.end_at &&
+      Number.isFinite(new Date(eventRes.data.end_at).getTime()) &&
+      new Date(eventRes.data.end_at).getTime() < Date.now(),
+    )
+
     const features = subscriptionRes.data?.plan?.features
     const canScan = profile?.role === 'admin'
       || (features && typeof features === 'object' && (features as Record<string, unknown>).ticket_scanner === true)
 
-    setScannerAvailable(Boolean(canScan))
+    setEventMeta(eventRes.data as EventScannerMeta)
+    setScannerAvailable(Boolean(canScan) && !hasEnded)
     setAttendees((bookingsRes.data ?? []) as unknown as Attendee[])
     setLoading(false)
     setRefreshing(false)
@@ -151,6 +164,10 @@ export default function AttendeesScreen() {
   }
 
   async function openScanner() {
+    if (eventMeta?.end_at && new Date(eventMeta.end_at).getTime() < Date.now()) {
+      Alert.alert('Scanner closed', 'This event has already ended, so QR scanning is no longer available.')
+      return
+    }
     if (!scannerAvailable) {
       Alert.alert('Upgrade required', 'QR scanning is available on Pro and Elite organizer plans.')
       return
@@ -197,7 +214,9 @@ export default function AttendeesScreen() {
           onPress={openScanner}
         >
           <Text style={[styles.scanBtnText, !scannerAvailable && styles.scanBtnTextLocked]}>
-            {scannerAvailable ? 'Scan QR' : 'Pro / Elite'}
+            {eventMeta?.end_at && new Date(eventMeta.end_at).getTime() < Date.now()
+              ? 'Event Ended'
+              : scannerAvailable ? 'Scan QR' : 'Pro / Elite'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -205,7 +224,9 @@ export default function AttendeesScreen() {
       {!scannerAvailable && (
         <View style={styles.planNotice}>
           <Text style={styles.planNoticeText}>
-            QR ticket scanning is available on Pro and Elite organizer plans.
+            {eventMeta?.end_at && new Date(eventMeta.end_at).getTime() < Date.now()
+              ? 'QR scanning closes automatically once an event has ended.'
+              : 'QR ticket scanning is available on Pro and Elite organizer plans.'}
           </Text>
         </View>
       )}

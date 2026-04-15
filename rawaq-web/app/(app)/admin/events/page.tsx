@@ -3,14 +3,22 @@ import Link from 'next/link'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { Badge } from '@/components/ui/Badge'
 import { formatDate } from '@/lib/utils'
+import type { EventFrequency } from '@/types/database'
 
 export const metadata: Metadata = { title: 'All Events' }
+
+const EVENT_FREQUENCY_LABELS: Record<EventFrequency, string> = {
+  one_time: 'One Time',
+  weekly: 'Weekly',
+  monthly: 'Monthly',
+}
 
 type AdminEventRow = {
   id: string
   title: string
   city: string
   start_at: string
+  event_frequency: EventFrequency
   is_published: boolean
   is_cancelled: boolean
   bookings_count: number
@@ -23,7 +31,7 @@ export default async function AdminEventsPage() {
   const { data } = await supabase
     .from('events')
     .select(`
-      id, title, city, start_at, is_published, is_cancelled, bookings_count,
+      id, title, city, start_at, event_frequency, is_published, is_cancelled, bookings_count,
       organizer:profiles!organizer_id(display_name)
     `)
     .order('created_at', { ascending: false })
@@ -53,7 +61,12 @@ export default async function AdminEventsPage() {
                 <td className="px-4 py-3 text-gray-500 hidden sm:table-cell text-xs">
                   {(event.organizer as { display_name: string } | null)?.display_name ?? '—'}
                 </td>
-                <td className="px-4 py-3 text-gray-500 hidden md:table-cell text-xs">{formatDate(event.start_at)}</td>
+                <td className="px-4 py-3 text-gray-500 hidden md:table-cell text-xs">
+                  <div className="flex flex-col gap-1">
+                    <span>{formatDate(event.start_at)}</span>
+                    <span className="text-gray-400">{EVENT_FREQUENCY_LABELS[event.event_frequency ?? 'one_time']}</span>
+                  </div>
+                </td>
                 <td className="px-4 py-3">
                   <Badge variant={event.is_cancelled ? 'red' : event.is_published ? 'green' : 'gray'}>
                     {event.is_cancelled ? 'Cancelled' : event.is_published ? 'Live' : 'Draft'}

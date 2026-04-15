@@ -5,6 +5,12 @@ import { handleApiError, ok, NotFoundException, ForbiddenException } from '@/lib
 import { canUseTicketScanner, getOrganizerPlanAccess } from '@/lib/plans'
 import { z } from 'zod'
 
+function hasEventEnded(event: { end_at?: string | null }) {
+  if (!event.end_at) return false
+  const endTime = new Date(event.end_at).getTime()
+  return Number.isFinite(endTime) && endTime < Date.now()
+}
+
 const ScanSchema = z.object({
   ticket_id: z.string().min(1),
 })
@@ -30,7 +36,7 @@ export async function POST(req: NextRequest) {
     // Look up the booking by ticket_id
     const { data: booking, error } = await admin
       .from('bookings')
-      .select('id, status, scanned_at, event_id, user_id, events!inner(id, organizer_id, title, start_at)')
+      .select('id, status, scanned_at, event_id, user_id, events!inner(id, organizer_id, title, start_at, end_at)')
       .eq('ticket_id', ticket_id)
       .single()
 
@@ -40,6 +46,10 @@ export async function POST(req: NextRequest) {
     const event = (booking as any).events
     if (ctx.role !== 'admin' && event.organizer_id !== ctx.userId) {
       throw new ForbiddenException('You do not own this event')
+    }
+
+    if (hasEventEnded(event)) {
+      throw new ForbiddenException('QR scanning is closed because this event has already ended.')
     }
 
     if (booking.status !== 'confirmed') {

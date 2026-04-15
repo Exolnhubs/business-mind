@@ -3,8 +3,15 @@ import type { Metadata } from 'next'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { Badge } from '@/components/ui/Badge'
 import { formatDate, formatCurrency } from '@/lib/utils'
+import type { EventFrequency } from '@/types/database'
 
 export const metadata: Metadata = { title: 'Organizer Dashboard' }
+
+const EVENT_FREQUENCY_LABELS: Record<EventFrequency, string> = {
+  one_time: 'One Time',
+  weekly: 'Weekly',
+  monthly: 'Monthly',
+}
 
 export default async function OrganizerDashboard() {
   const supabase = await createSupabaseServerClient()
@@ -13,7 +20,7 @@ export default async function OrganizerDashboard() {
   const [{ data: events }, { data: orgProfile }, { data: tipsData }] = await Promise.all([
     supabase
       .from('events')
-      .select('id, title, start_at, is_published, is_cancelled, bookings_count, capacity, tips_total')
+      .select('id, title, start_at, event_frequency, is_published, is_cancelled, bookings_count, capacity, tips_total')
       .eq('organizer_id', user!.id)
       .order('start_at', { ascending: false })
       .limit(20),
@@ -103,7 +110,10 @@ export default async function OrganizerDashboard() {
                       {event.title}
                     </td>
                     <td className="px-4 py-3 text-gray-500 hidden sm:table-cell">
-                      {formatDate(event.start_at)}
+                      <div className="flex flex-col gap-1">
+                        <span>{formatDate(event.start_at)}</span>
+                        <span className="text-xs text-gray-400">{EVENT_FREQUENCY_LABELS[(event.event_frequency ?? 'one_time') as EventFrequency]}</span>
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-gray-500 hidden md:table-cell">
                       {event.bookings_count}{event.capacity ? `/${event.capacity}` : ''}

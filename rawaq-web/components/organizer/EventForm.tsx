@@ -7,7 +7,7 @@ import { useAuth } from '@/contexts/auth-context'
 import { Spinner } from '@/components/ui/Spinner'
 import { FileUpload } from '@/components/ui/FileUpload'
 import { LocationPickerModal, type PickedLocation } from '@/components/communities/LocationPickerModal'
-import type { Event, EventCategory, Community, EventVisibility } from '@/types/database'
+import type { Event, EventCategory, Community, EventFrequency, EventVisibility } from '@/types/database'
 
 interface EventFormProps {
   categories: Pick<EventCategory, 'id' | 'name_en' | 'name_ar' | 'icon'>[]
@@ -25,6 +25,11 @@ interface SubscriptionResponse {
 type TicketDraft = { name: string; is_free: boolean; price: string; capacity: string }
 
 const EMPTY_TICKET: TicketDraft = { name: '', is_free: true, price: '', capacity: '' }
+const EVENT_FREQUENCY_OPTIONS: ReadonlyArray<{ value: EventFrequency; label: string }> = [
+  { value: 'one_time', label: 'One Time' },
+  { value: 'weekly', label: 'Weekly' },
+  { value: 'monthly', label: 'Monthly' },
+]
 
 function getCurrencyFromCountryCode(country: string | null | undefined): string {
   const normalized = country?.trim().toUpperCase()
@@ -116,6 +121,7 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
     address:            event?.address ?? '',
     start_at:           event?.start_at ? event.start_at.slice(0, 16) : '',
     end_at:             event?.end_at ? event.end_at.slice(0, 16) : '',
+    event_frequency:    event?.event_frequency ?? 'one_time',
     capacity:           event?.capacity?.toString() ?? '',
     is_free:            event?.is_free ?? true,
     price:              event?.price?.toString() ?? '',
@@ -342,6 +348,7 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
         lng: form.lng,
         start_at: new Date(form.start_at).toISOString(),
         end_at: form.end_at ? new Date(form.end_at).toISOString() : null,
+        event_frequency: form.event_frequency,
         capacity: form.capacity ? Number(form.capacity) : null,
         is_free: form.is_free,
         price: form.is_free ? null : Number(form.price),
@@ -428,6 +435,15 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
             <label className="label">End Date & Time</label>
             <input type="datetime-local" value={form.end_at} min={form.start_at || undefined} onChange={setDateField('end_at')} className="input" />
           </div>
+        </div>
+
+        <div>
+          <label className="label">Frequency</label>
+          <select value={form.event_frequency} onChange={set('event_frequency')} className="input cursor-pointer">
+            {EVENT_FREQUENCY_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -593,6 +609,7 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
       address:            form.address || null,
       start_at:           new Date(form.start_at).toISOString(),
       end_at:             form.end_at ? new Date(form.end_at).toISOString() : null,
+      event_frequency:    form.event_frequency,
       capacity:           form.capacity ? Number(form.capacity) : null,
       is_free:            true,
         currency:           eventCurrency,
@@ -782,6 +799,15 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
             </div>
           </div>
 
+          <div>
+            <label className="label">Frequency</label>
+            <select value={form.event_frequency} onChange={set('event_frequency')} className="input cursor-pointer">
+              {EVENT_FREQUENCY_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="label">Total Capacity</label>
@@ -960,6 +986,12 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
               <div>
                 <dt className="text-gray-500 text-xs font-medium uppercase tracking-wide">Start</dt>
                 <dd className="text-gray-900 font-medium mt-0.5">{new Date(form.start_at).toLocaleString()}</dd>
+              </div>
+              <div>
+                <dt className="text-gray-500 text-xs font-medium uppercase tracking-wide">Frequency</dt>
+                <dd className="text-gray-900 font-medium mt-0.5">
+                  {EVENT_FREQUENCY_OPTIONS.find((option) => option.value === form.event_frequency)?.label ?? 'One Time'}
+                </dd>
               </div>
               {form.venue_name && (
                 <div>

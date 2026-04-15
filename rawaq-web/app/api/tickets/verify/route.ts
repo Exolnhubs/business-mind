@@ -5,6 +5,12 @@ import { handleApiError, ok, NotFoundException, ForbiddenException } from '@/lib
 import { requireAuth } from '@/lib/auth'
 import { canUseTicketScanner, getOrganizerPlanAccess } from '@/lib/plans'
 
+function hasEventEnded(event: { end_at?: string | null }) {
+  if (!event.end_at) return false
+  const endTime = new Date(event.end_at).getTime()
+  return Number.isFinite(endTime) && endTime < Date.now()
+}
+
 type BookingGetShape = {
   id: string; status: string; ticket_id: string | null; seat: string | null; scanned_at: string | null
   event: { id: string; title: string; start_at: string; venue_name: string | null; city: string } | null
@@ -13,7 +19,7 @@ type BookingGetShape = {
 
 type BookingPostShape = {
   id: string; status: string; ticket_id: string | null; seat: string | null; scanned_at: string | null
-  event: { id: string; organizer_id: string; title: string; start_at: string; venue_name: string | null; city: string } | null
+  event: { id: string; organizer_id: string; title: string; start_at: string; end_at: string | null; venue_name: string | null; city: string } | null
   profile: { display_name: string } | null
 }
 
@@ -86,7 +92,7 @@ export async function POST(req: NextRequest) {
       .from('bookings')
       .select(`
         id, status, ticket_id, seat, scanned_at,
-        event:events!event_id(id, organizer_id, title, start_at, venue_name, city),
+        event:events!event_id(id, organizer_id, title, start_at, end_at, venue_name, city),
         profile:profiles!user_id(display_name)
       `)
       .eq('ticket_id', ticket_id)
@@ -108,6 +114,10 @@ export async function POST(req: NextRequest) {
 
     if (callerProfile?.role !== 'admin' && event?.organizer_id !== ctx.userId) {
       throw new ForbiddenException('Only the event organizer can scan tickets')
+    }
+
+    if (event && hasEventEnded(event)) {
+      throw new ForbiddenException('QR scanning is closed because this event has already ended.')
     }
 
     if (booking.status !== 'confirmed') {

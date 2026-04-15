@@ -10,11 +10,14 @@ import { apiPatch } from '@/lib/api'
 import { useAuth } from '@/contexts/auth-context'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
 import { formatDate } from '@/lib/utils'
+import type { EventFrequency } from '@/types/database'
 
 interface OrgEvent {
   id: string
   title: string
   start_at: string
+  end_at: string | null
+  event_frequency: EventFrequency
   is_published: boolean
   is_cancelled: boolean
   bookings_count: number
@@ -38,6 +41,12 @@ type OrganizerDashboardCache = {
 }
 
 let organizerDashboardCache: OrganizerDashboardCache | null = null
+
+const EVENT_FREQUENCY_LABELS: Record<EventFrequency, string> = {
+  one_time: 'One Time',
+  weekly: 'Weekly',
+  monthly: 'Monthly',
+}
 
 export default function OrganizerDashboard() {
   const { user } = useAuth()
@@ -102,7 +111,7 @@ export default function OrganizerDashboard() {
     const [evRes, orgRes, profileRes, tipRes, usageRes] = await Promise.all([
       supabase
         .from('events')
-        .select('id, title, start_at, is_published, is_cancelled, bookings_count, capacity, tips_total')
+        .select('id, title, start_at, end_at, event_frequency, is_published, is_cancelled, bookings_count, capacity, tips_total')
         .eq('organizer_id', user.id)
         .order('start_at', { ascending: false })
         .limit(30),
@@ -353,6 +362,7 @@ export default function OrganizerDashboard() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.eventTitle} numberOfLines={1}>{ev.title}</Text>
                   <Text style={styles.eventMeta}>{formatDate(ev.start_at)}</Text>
+                  <Text style={styles.eventMeta}>{EVENT_FREQUENCY_LABELS[ev.event_frequency ?? 'one_time']}</Text>
                   <Text style={styles.eventMeta}>
                     {ev.bookings_count}{ev.capacity ? `/${ev.capacity}` : ''} booked
                   </Text>

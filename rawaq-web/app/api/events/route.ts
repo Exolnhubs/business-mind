@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
       .from('events')
       .select(
         `id, title, title_ar, description, cover_image_url, start_at, end_at,
-         venue_name, city, country, lat, lng, capacity, is_free, price, currency,
+         event_frequency, venue_name, city, country, lat, lng, capacity, is_free, price, currency,
          gender_restriction, is_family_friendly, bookings_count, views_count,
          organizer_id, category_id, is_published, is_cancelled, visibility_type,
          organizer:profiles!organizer_id(

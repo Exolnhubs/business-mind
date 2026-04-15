@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+const EventFrequencySchema = z.enum(['one_time', 'weekly', 'monthly'])
+
 // Base object — keep as ZodObject so .partial() / .extend() work on it
 const EventBaseSchema = z.object({
   category_id: z.string().uuid().optional(),
@@ -10,6 +12,7 @@ const EventBaseSchema = z.object({
   cover_image_url: z.string().url().optional(),
   start_at: z.string().datetime(),
   end_at: z.string().datetime().optional(),
+  event_frequency: EventFrequencySchema.default('one_time'),
   venue_name: z.string().max(200).optional(),
   venue_name_ar: z.string().max(200).optional(),
   address: z.string().max(500).optional(),
@@ -49,6 +52,7 @@ export const UpdateEventSchema = EventBaseSchema.partial().extend({
   description_ar: z.string().max(5000).nullable().optional(),
   cover_image_url: z.string().url().nullable().optional(),
   end_at: z.string().datetime().nullable().optional(),
+  event_frequency: EventFrequencySchema.optional(),
   venue_name: z.string().max(200).nullable().optional(),
   venue_name_ar: z.string().max(200).nullable().optional(),
   address: z.string().max(500).nullable().optional(),

@@ -15,7 +15,7 @@ import { uploadViaApi } from '@/lib/upload'
 import { useAuth } from '@/contexts/auth-context'
 import { LocationPickerModal, type PickedLocation } from '@/components/communities/LocationPickerModal'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
-import type { Community, EventVisibility } from '@/types/database'
+import type { Community, EventFrequency, EventVisibility } from '@/types/database'
 const TEMPLATES_KEY = 'rawaq_ticket_templates'
 
 interface Category { id: string; name_en: string; icon: string | null }
@@ -36,6 +36,12 @@ const BUILTIN_TEMPLATES: TicketTemplate[] = [
   { id: '_vip',       name: 'VIP',               is_free: false, price: '100', capacity: '' },
   { id: '_earlybird', name: 'Early Bird',         is_free: false, price: '25',  capacity: '50' },
   { id: '_premium',   name: 'Premium',            is_free: false, price: '200', capacity: '' },
+]
+
+const EVENT_FREQUENCY_OPTIONS: ReadonlyArray<{ value: EventFrequency; label: string }> = [
+  { value: 'one_time', label: 'One Time' },
+  { value: 'weekly', label: 'Weekly' },
+  { value: 'monthly', label: 'Monthly' },
 ]
 
 function getCurrencyFromCountryCode(country: string | null | undefined): string {
@@ -94,6 +100,7 @@ export default function EventFormScreen() {
   const [communities, setCommunities] = useState<CommunityOption[]>([])
   const [selectedCommunities, setSelectedCommunities] = useState<string[]>([])
   const [visibilityType, setVisibilityType] = useState<EventVisibility>('city')
+  const [eventFrequency, setEventFrequency] = useState<EventFrequency>('one_time')
 
   // Wizard step (create only): 1 = details, 2 = tickets, 3 = review
   const [step,           setStep]           = useState<1 | 2 | 3>(1)
@@ -237,6 +244,7 @@ export default function EventFormScreen() {
           setIsPublished(ev.is_published)
           setCoverImageUrl(ev.cover_image_url ?? '')
           setVisibilityType(ev.visibility_type ?? 'city')
+          setEventFrequency(ev.event_frequency ?? 'one_time')
           setSelectedCommunities((eventCommunities ?? []).map((row) => row.community_id))
         }
         setLoading(false)
@@ -438,6 +446,7 @@ export default function EventFormScreen() {
       is_free: isFree,
       price: isFree ? null : Number(price),
       currency: eventCurrency,
+      event_frequency: eventFrequency,
       gender_restriction: genderRestriction,
       is_family_friendly: isFamilyFriendly,
       is_published: isPublished,
@@ -485,6 +494,7 @@ export default function EventFormScreen() {
       capacity:           capacity ? Number(capacity) : null,
       is_free:            true,
       currency:           eventCurrency,
+      event_frequency:    eventFrequency,
       gender_restriction: genderRestriction,
       is_family_friendly: isFamilyFriendly,
       is_published:       false,
@@ -721,10 +731,26 @@ export default function EventFormScreen() {
                   ? <TouchableOpacity onPress={() => setEndAt('')}><Text style={styles.dateClear}>✕</Text></TouchableOpacity>
                   : <Text style={styles.datePickerIcon}>📅</Text>
                 }
-              </TouchableOpacity>
+                </TouchableOpacity>
+              </Field>
+
+            <Field label="Frequency">
+              <View style={styles.chipRow}>
+                {EVENT_FREQUENCY_OPTIONS.map((option) => (
+                  <TouchableOpacity
+                    key={option.value}
+                    style={[styles.chip, eventFrequency === option.value && styles.chipActive]}
+                    onPress={() => setEventFrequency(option.value)}
+                  >
+                    <Text style={[styles.chipText, eventFrequency === option.value && styles.chipTextActive]}>
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </Field>
 
-            {pickerTarget !== null && (
+              {pickerTarget !== null && (
               <DateTimePicker
                 value={pickerTempDate}
                 mode={pickerMode}
@@ -921,6 +947,7 @@ export default function EventFormScreen() {
               <ReviewRow label="Title" value={title} />
               <ReviewRow label="Location" value={address || city} />
               <ReviewRow label="Starts" value={startAt} />
+              <ReviewRow label="Frequency" value={EVENT_FREQUENCY_OPTIONS.find((option) => option.value === eventFrequency)?.label ?? 'One Time'} />
               {venueName ? <ReviewRow label="Venue" value={venueName} /> : null}
               <ReviewRow label="Visibility" value={visibilityType} />
               {selectedCommunities.length > 0 ? (

@@ -58,6 +58,7 @@ export type WalletLedgerReason = 'tip' | 'ticket_sale' | 'refund_deducted' | 'pa
 export type WaitlistStatus = 'waiting' | 'promoted' | 'expired' | 'cancelled'
 export type PayoutStatus = 'pending' | 'processing' | 'completed' | 'failed'
 export type RefundStatus = 'pending' | 'approved' | 'rejected' | 'completed'
+export type EventFrequency = 'one_time' | 'weekly' | 'monthly'
 export type CommunityLevel = 'micro' | 'interest' | 'district' | 'city' | 'country'
 export type CommunityType =
   | 'compound' | 'neighborhood' | 'university' | 'company' | 'coworking'
@@ -129,6 +130,7 @@ export interface Event {
   cover_image_url: string | null
   start_at: string
   end_at: string | null
+  event_frequency: EventFrequency
   venue_name: string | null
   venue_name_ar: string | null
   address: string | null
