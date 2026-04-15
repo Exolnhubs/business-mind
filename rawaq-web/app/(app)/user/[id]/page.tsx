@@ -4,6 +4,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { formatDate } from '@/lib/utils'
 import { ReviewSection } from '@/components/social/ReviewSection'
 import type { UserReviewWithReviewer } from '@/types/database'
+import { PlanBadge } from '@/components/ui/PlanBadge'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
@@ -36,7 +37,7 @@ export default async function PublicUserProfilePage({ params }: { params: Promis
   ] = await Promise.all([
     supabase
       .from('profiles')
-      .select('id, display_name, avatar_url, city, bio, role, created_at')
+      .select('id, display_name, avatar_url, city, bio, role, plan_id, created_at')
       .eq('id', id)
       .single(),
 
@@ -103,7 +104,10 @@ export default async function PublicUserProfilePage({ params }: { params: Promis
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="text-xl font-bold text-gray-900">{profile.display_name}</h1>
+            <h1 className="text-xl font-bold text-gray-900 flex items-center gap-1.5">
+              {profile.display_name}
+              <PlanBadge planId={profile.plan_id} size={18} />
+            </h1>
             {profile.role === 'organizer' && (
               <span className="text-xs bg-brand-100 text-brand-700 font-semibold px-2 py-0.5 rounded-full">Organizer</span>
             )}
