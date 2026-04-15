@@ -20,6 +20,8 @@ import { supabase } from '@/lib/supabase'
 import { apiGet, apiPost } from '@/lib/api'
 import { useAuth } from '@/contexts/auth-context'
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '@/theme'
+import { hasResolvedEventEnded } from '@/lib/event-recurrence'
+import type { EventFrequency } from '@/types/database'
 
 interface Attendee {
   id: string
@@ -45,7 +47,9 @@ interface ScanResult {
 
 type EventScannerMeta = {
   id: string
+  start_at: string
   end_at: string | null
+  event_frequency: EventFrequency
 }
 
 export default function AttendeesScreen() {
@@ -74,7 +78,7 @@ export default function AttendeesScreen() {
     const [eventRes, bookingsRes, subscriptionRes] = await Promise.all([
       supabase
         .from('events')
-        .select('id, end_at')
+        .select('id, start_at, end_at, event_frequency')
         .eq('id', eventId)
         .eq('organizer_id', user.id)
         .single(),
@@ -93,11 +97,7 @@ export default function AttendeesScreen() {
       return
     }
 
-    const hasEnded = Boolean(
-      eventRes.data.end_at &&
-      Number.isFinite(new Date(eventRes.data.end_at).getTime()) &&
-      new Date(eventRes.data.end_at).getTime() < Date.now(),
-    )
+    const hasEnded = hasResolvedEventEnded(eventRes.data as EventScannerMeta)
 
     const features = subscriptionRes.data?.plan?.features
     const canScan = profile?.role === 'admin'
@@ -116,6 +116,7 @@ export default function AttendeesScreen() {
 
   const confirmed = attendees.filter((a) => a.status === 'confirmed')
   const scannedCount = confirmed.filter((a) => a.scanned_at).length
+  const eventHasEnded = eventMeta ? hasResolvedEventEnded(eventMeta) : false
   const filtered = search.trim()
     ? confirmed.filter((a) =>
         a.user?.display_name.toLowerCase().includes(search.toLowerCase())
@@ -164,7 +165,7 @@ export default function AttendeesScreen() {
   }
 
   async function openScanner() {
-    if (eventMeta?.end_at && new Date(eventMeta.end_at).getTime() < Date.now()) {
+    if (eventMeta && hasResolvedEventEnded(eventMeta)) {
       Alert.alert('Scanner closed', 'This event has already ended, so QR scanning is no longer available.')
       return
     }
@@ -214,7 +215,7 @@ export default function AttendeesScreen() {
           onPress={openScanner}
         >
           <Text style={[styles.scanBtnText, !scannerAvailable && styles.scanBtnTextLocked]}>
-            {eventMeta?.end_at && new Date(eventMeta.end_at).getTime() < Date.now()
+            {eventHasEnded
               ? 'Event Ended'
               : scannerAvailable ? 'Scan QR' : 'Pro / Elite'}
           </Text>
@@ -224,7 +225,7 @@ export default function AttendeesScreen() {
       {!scannerAvailable && (
         <View style={styles.planNotice}>
           <Text style={styles.planNoticeText}>
-            {eventMeta?.end_at && new Date(eventMeta.end_at).getTime() < Date.now()
+            {eventHasEnded
               ? 'QR scanning closes automatically once an event has ended.'
               : 'QR ticket scanning is available on Pro and Elite organizer plans.'}
           </Text>

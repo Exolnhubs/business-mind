@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { handleApiError, ok, NotFoundException } from '@/lib/errors'
 import { z } from 'zod'
+import { applyResolvedEventWindow, compareEventsByResolvedStartAt } from '@/lib/events/recurrence'
 
 const Schema = z.object({
   cursor:   z.string().datetime().optional(),
@@ -39,12 +40,10 @@ export async function GET(
     }
 
     const eventIds = ecRows.map((r) => r.event_id)
-    const now = new Date().toISOString()
-
     let query = supabase
       .from('events')
       .select(
-        `id, title, title_ar, cover_image_url, start_at, end_at, city,
+        `id, title, title_ar, cover_image_url, start_at, end_at, event_frequency, city,
          is_free, price, currency, bookings_count, capacity, visibility_type,
          organizer:profiles!organizer_id(id, display_name, avatar_url,
            organizer_profile:organizer_profiles!user_id(business_name, logo_url, verified)),
@@ -54,19 +53,23 @@ export async function GET(
       .in('id', eventIds)
       .eq('is_published', true)
       .eq('is_cancelled', false)
-      .limit(p.per_page + 1)  // fetch one extra to determine has_more
-
-    if (p.status === 'upcoming') {
-      query = query.gte('start_at', p.cursor ?? now).order('start_at', { ascending: true })
-    } else {
-      query = query.lt('start_at', p.cursor ?? now).order('start_at', { ascending: false })
-    }
+      .limit(200)
 
     const { data: events, error } = await query
     if (error) throw error
 
-    const hasMore = (events?.length ?? 0) > p.per_page
-    const slice   = (events ?? []).slice(0, p.per_page)
+    const cursorMs = new Date(p.cursor ?? new Date().toISOString()).getTime()
+    const resolved = (events ?? [])
+      .map((event) => applyResolvedEventWindow(event))
+      .filter((event) => {
+        const startMs = new Date(event.start_at).getTime()
+        return p.status === 'upcoming' ? startMs >= cursorMs : startMs < cursorMs
+      })
+      .sort((left, right) => compareEventsByResolvedStartAt(left, right))
+
+    const ordered = p.status === 'upcoming' ? resolved : [...resolved].reverse()
+    const hasMore = ordered.length > p.per_page
+    const slice   = ordered.slice(0, p.per_page)
     const next_cursor = hasMore ? slice[slice.length - 1]?.start_at ?? null : null
 
     return ok({ events: slice, next_cursor })

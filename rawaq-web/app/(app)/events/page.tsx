@@ -8,6 +8,7 @@ import { EventsPageHero } from '@/components/events/EventsPageHero'
 import { EventsPageWeekendRail } from '@/components/events/EventsPageWeekendRail'
 import { EventsGridEmpty, EventsGridError, EventsGridPagination } from '@/components/events/EventsGridFeedback'
 import type { EventWithOrganizer } from '@/types/database'
+import { applyResolvedEventWindow, compareEventsByResolvedStartAt } from '@/lib/events/recurrence'
 
 export const metadata: Metadata = { title: 'Events' }
 
@@ -73,11 +74,11 @@ async function NearYouThisWeekend({
         .in('id', ids)
         .eq('is_published', true)
         .eq('is_cancelled', false)
-        .gte('start_at', start)
-        .lte('start_at', end)
-        .order('start_at', { ascending: true })
-        .limit(8)
-      events = (data ?? []) as unknown as EventWithOrganizer[]
+      events = ((data ?? []) as unknown as EventWithOrganizer[])
+        .map((event) => applyResolvedEventWindow(event))
+        .filter((event) => event.start_at >= start && event.start_at <= end)
+        .sort((left, right) => compareEventsByResolvedStartAt(left, right))
+        .slice(0, 8)
     }
   } else if (city) {
     const { data } = await supabase
@@ -86,11 +87,11 @@ async function NearYouThisWeekend({
       .eq('is_published', true)
       .eq('is_cancelled', false)
       .eq('city', city)
-      .gte('start_at', start)
-      .lte('start_at', end)
-      .order('start_at', { ascending: true })
-      .limit(8)
-    events = (data ?? []) as unknown as EventWithOrganizer[]
+    events = ((data ?? []) as unknown as EventWithOrganizer[])
+      .map((event) => applyResolvedEventWindow(event))
+      .filter((event) => event.start_at >= start && event.start_at <= end)
+      .sort((left, right) => compareEventsByResolvedStartAt(left, right))
+      .slice(0, 8)
   }
 
   if (events.length === 0) return null
@@ -150,8 +151,6 @@ async function EventsGrid({ searchParams }: { searchParams: SearchParams }) {
 
   const page = Math.max(1, Number(searchParams.page ?? 1))
   const from = (page - 1) * PAGE_SIZE
-  const to = from + PAGE_SIZE - 1
-
   const {
     data: { user },
   } = await supabase.auth.getUser()
@@ -178,9 +177,6 @@ async function EventsGrid({ searchParams }: { searchParams: SearchParams }) {
     )
     .eq('is_published', true)
     .eq('is_cancelled', false)
-    .gte('start_at', new Date().toISOString())
-    .order('start_at', { ascending: true })
-    .range(from, to)
 
   if (searchParams.q) {
     const q = searchParams.q.replace(/'/g, "''")
@@ -225,18 +221,25 @@ async function EventsGrid({ searchParams }: { searchParams: SearchParams }) {
     }
   }
 
-  const { data: events, error, count } = await query
+  const { data: events, error } = await query
 
   if (error) {
     console.error('Supabase query error:', error)
     return <EventsGridError message={error.message} />
   }
 
-  if (!events?.length) {
+  const resolvedEvents = ((events ?? []) as unknown as EventWithOrganizer[])
+    .map((event) => applyResolvedEventWindow(event))
+    .filter((event) => new Date(event.start_at).getTime() >= Date.now())
+    .sort((left, right) => compareEventsByResolvedStartAt(left, right))
+
+  if (!resolvedEvents.length) {
     return <EventsGridEmpty />
   }
 
-  const totalPages = Math.ceil((count ?? 0) / PAGE_SIZE)
+  const count = resolvedEvents.length
+  const pagedEvents = resolvedEvents.slice(from, from + PAGE_SIZE)
+  const totalPages = Math.ceil(count / PAGE_SIZE)
 
   function pageUrl(p: number) {
     const sp = new URLSearchParams(Object.entries(searchParams).filter(([, v]) => v != null) as [string, string][])
@@ -249,7 +252,7 @@ async function EventsGrid({ searchParams }: { searchParams: SearchParams }) {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {(events as unknown as EventWithOrganizer[]).map((event) => (
+        {pagedEvents.map((event) => (
           <EventCard key={event.id} event={event} isSaved={savedIds.has(event.id)} showSave={!!user} />
         ))}
       </div>

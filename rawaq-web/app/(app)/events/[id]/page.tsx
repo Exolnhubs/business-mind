@@ -10,6 +10,7 @@ import { ReportEventButton } from '@/components/events/ReportEventButton'
 import { CommentThread } from '@/components/comments/CommentThread'
 import { formatDate, formatTime, formatCurrency } from '@/lib/utils'
 import type { Community, EventWithOrganizer, CommentWithAuthor, TicketType } from '@/types/database'
+import { applyResolvedEventWindow } from '@/lib/events/recurrence'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
@@ -38,7 +39,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
 
   if (!event) notFound()
 
-  const ev = event as unknown as EventWithOrganizer
+  const ev = applyResolvedEventWindow(event as unknown as EventWithOrganizer)
 
   const { data: { user } } = await supabase.auth.getUser()
   let isBooked = false

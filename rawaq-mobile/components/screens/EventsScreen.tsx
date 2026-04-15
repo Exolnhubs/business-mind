@@ -16,6 +16,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { useLocale } from '@/contexts/locale-context'
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '@/theme'
 import type { Community, EventWithOrganizer } from '@/types/database'
+import { applyResolvedEventWindow, compareEventsByResolvedStartAt } from '@/lib/event-recurrence'
 
 type JoinedCommunity = Pick<Community, 'id' | 'name' | 'name_ar' | 'slug' | 'level'>
 type CommunityListItem = JoinedCommunity & { is_member: boolean; member_count: number }
@@ -161,6 +162,13 @@ function claimUniqueHappenings(
 
 const DATA_REFRESH_STALE_MS = 90_000
 const SEARCH_DEBOUNCE_MS = 350
+
+function resolveUpcomingEvents(rows: EventWithOrganizer[]) {
+  return rows
+    .map((event) => applyResolvedEventWindow(event))
+    .filter((event) => new Date(event.start_at).getTime() >= Date.now())
+    .sort((left, right) => compareEventsByResolvedStartAt(left, right))
+}
 
 export default function EventsScreen() {
   const { t, locale } = useLocale()
@@ -398,8 +406,6 @@ export default function EventsScreen() {
       .select(eventSelect)
       .eq('is_published', true)
       .eq('is_cancelled', false)
-      .gte('start_at', new Date().toISOString())
-      .order('start_at', { ascending: true })
       .limit(48)
       .or([
         `title.ilike.%${trimmed}%`,
@@ -445,7 +451,7 @@ export default function EventsScreen() {
     }
 
     const { data } = await queryBuilder
-    return (data ?? []) as unknown as EventWithOrganizer[]
+    return resolveUpcomingEvents((data ?? []) as unknown as EventWithOrganizer[])
   }, [categoryId, city, communitySlug, freeOnly, geoCoords, nearMe, radiusKm])
 
   const patchHappeningAcrossRails = useCallback((
@@ -716,8 +722,6 @@ export default function EventsScreen() {
         .select(eventSelect)
         .eq('is_published', true)
         .eq('is_cancelled', false)
-        .gte('start_at', new Date().toISOString())
-        .order('start_at', { ascending: true })
         .limit(40)
 
       if (savedCategories.length > 0) {
@@ -727,7 +731,7 @@ export default function EventsScreen() {
       }
 
       const { data: candidateData } = await candidateQuery
-      const candidateList = (candidateData ?? []) as unknown as EventWithOrganizer[]
+      const candidateList = resolveUpcomingEvents((candidateData ?? []) as unknown as EventWithOrganizer[])
 
       rankedSavedEvents = candidateList
         .filter((event) => !savedEventIds.has(event.id))
@@ -742,7 +746,7 @@ export default function EventsScreen() {
         .filter((item) => item.score > 0)
         .sort((a, b) => {
           if (b.score !== a.score) return b.score - a.score
-          return new Date(a.event.start_at).getTime() - new Date(b.event.start_at).getTime()
+          return compareEventsByResolvedStartAt(a.event, b.event)
         })
         .slice(0, 6)
         .map((item) => item.event)
@@ -763,10 +767,9 @@ export default function EventsScreen() {
         .in('id', combinedRailIds)
         .eq('is_published', true)
         .eq('is_cancelled', false)
-        .gte('start_at', new Date().toISOString())
 
       railEventMap = new Map(
-        ((railEventRows ?? []) as unknown as EventWithOrganizer[]).map((event) => [event.id, event]),
+        resolveUpcomingEvents((railEventRows ?? []) as unknown as EventWithOrganizer[]).map((event) => [event.id, event]),
       )
     }
 
@@ -774,7 +777,7 @@ export default function EventsScreen() {
       .map((id) => railEventMap.get(id))
       .filter((event): event is EventWithOrganizer => Boolean(event))
       .filter((event) => event.start_at >= wStart && event.start_at <= wEnd)
-      .sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime())
+      .sort((a, b) => compareEventsByResolvedStartAt(a, b))
       .slice(0, 6)
     const weekendIds = new Set(weekendRailEvents.map((event) => event.id))
     setNearYouWeekendEvents(weekendRailEvents)
@@ -783,7 +786,7 @@ export default function EventsScreen() {
     const nextCommunityEvents = communityEventIds
       .map((id) => railEventMap.get(id))
       .filter((event): event is EventWithOrganizer => Boolean(event))
-      .sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime())
+      .sort((a, b) => compareEventsByResolvedStartAt(a, b))
       .slice(0, 8)
     setMyCommunityEvents(nextCommunityEvents)
     setMyCommunityHappenings(myCommunityHappeningResults)

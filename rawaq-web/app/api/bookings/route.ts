@@ -5,6 +5,19 @@ import { requireAuth } from '@/lib/auth'
 import { handleApiError, ok, created, NotFoundException, ForbiddenException } from '@/lib/errors'
 import { CreateBookingSchema } from '@/lib/validations/bookings'
 import { sendNotification } from '@/lib/notifications'
+import { applyResolvedEventWindow, getBookableEventStartAt } from '@/lib/events/recurrence'
+
+type BookingListEventShape = {
+  id: string
+  title: string
+  title_ar: string | null
+  start_at: string
+  end_at: string | null
+  event_frequency?: 'one_time' | 'weekly' | 'monthly'
+  cover_image_url: string | null
+  city: string
+  is_cancelled: boolean
+}
 
 // GET /api/bookings — current user's bookings
 export async function GET(req: NextRequest) {
@@ -21,7 +34,7 @@ export async function GET(req: NextRequest) {
       .from('bookings')
       .select(
         `id, status, created_at, notes,
-         event:events(id, title, title_ar, start_at, cover_image_url, city, is_cancelled)`,
+         event:events(id, title, title_ar, start_at, end_at, event_frequency, cover_image_url, city, is_cancelled)`,
         { count: 'exact' }
       )
       .eq('user_id', ctx.userId)
@@ -33,7 +46,12 @@ export async function GET(req: NextRequest) {
     const { data, count, error } = await query
     if (error) throw error
 
-    return ok({ data, total: count ?? 0, page, per_page: perPage })
+    const resolvedData = (data ?? []).map((booking) => ({
+      ...booking,
+      event: booking.event ? applyResolvedEventWindow(booking.event as unknown as BookingListEventShape) : booking.event,
+    }))
+
+    return ok({ data: resolvedData, total: count ?? 0, page, per_page: perPage })
   } catch (err) {
     return handleApiError(err)
   }
@@ -51,14 +69,14 @@ export async function POST(req: NextRequest) {
     // Verify event exists and is bookable
     const { data: event, error: eventErr } = await supabase
       .from('events')
-      .select('id, title, is_published, is_cancelled, start_at, organizer_id, gender_restriction, is_premium_only, is_free, price, currency, capacity')
+      .select('id, title, is_published, is_cancelled, start_at, end_at, event_frequency, organizer_id, gender_restriction, is_premium_only, is_free, price, currency, capacity')
       .eq('id', input.event_id)
       .single()
 
     if (eventErr || !event) throw new NotFoundException('Event')
     if (!event.is_published) throw new ForbiddenException('Event is not published')
     if (event.is_cancelled) throw new ForbiddenException('Event has been cancelled')
-    if (new Date(event.start_at) < new Date()) {
+    if (new Date(getBookableEventStartAt(event)) < new Date()) {
       throw new ForbiddenException('Event has already started')
     }
 

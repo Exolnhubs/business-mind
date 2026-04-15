@@ -6,6 +6,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { EventCard, EventCardSkeleton } from '@/components/events/EventCard'
 import { EmptyState } from '@/components/ui/EmptyState'
 import type { EventWithOrganizer } from '@/types/database'
+import { applyResolvedEventWindow, compareEventsByResolvedStartAt } from '@/lib/events/recurrence'
 
 export const metadata: Metadata = { title: 'Following Feed' }
 
@@ -14,7 +15,6 @@ const PAGE_SIZE = 12
 async function FeedGrid({ userId, page }: { userId: string; page: number }) {
   const supabase = await createSupabaseServerClient()
   const from = (page - 1) * PAGE_SIZE
-  const to   = from + PAGE_SIZE - 1
 
   // Organizers the user follows
   const { data: follows } = await supabase
@@ -48,18 +48,20 @@ async function FeedGrid({ userId, page }: { userId: string; page: number }) {
       `, { count: 'exact' })
       .in('organizer_id', orgIds)
       .eq('is_published', true)
-      .eq('is_cancelled', false)
-      .gte('start_at', new Date().toISOString())
-      .order('start_at', { ascending: true })
-      .range(from, to),
+      .eq('is_cancelled', false),
     supabase
       .from('saved_events')
       .select('event_id')
       .eq('user_id', userId),
   ])
 
+  const resolvedEvents = ((events ?? []) as unknown as EventWithOrganizer[])
+    .map((event) => applyResolvedEventWindow(event))
+    .filter((event) => new Date(event.start_at).getTime() >= Date.now())
+    .sort((left, right) => compareEventsByResolvedStartAt(left, right))
+  const pagedEvents = resolvedEvents.slice(from, from + PAGE_SIZE)
   const savedIds    = new Set((saves ?? []).map((s) => s.event_id))
-  const totalPages  = Math.ceil((count ?? 0) / PAGE_SIZE)
+  const totalPages  = Math.ceil(resolvedEvents.length / PAGE_SIZE)
 
   return (
     <div className="space-y-6">
@@ -83,7 +85,7 @@ async function FeedGrid({ userId, page }: { userId: string; page: number }) {
         )}
       </div>
 
-      {!events?.length ? (
+      {!pagedEvents.length ? (
         <EmptyState
           icon="📭"
           title="No upcoming events from people you follow"
@@ -92,7 +94,7 @@ async function FeedGrid({ userId, page }: { userId: string; page: number }) {
       ) : (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {(events as unknown as EventWithOrganizer[]).map((event) => (
+            {pagedEvents.map((event) => (
               <EventCard
                 key={event.id}
                 event={event}

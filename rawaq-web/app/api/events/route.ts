@@ -6,6 +6,7 @@ import { handleApiError, ok, created, ForbiddenException } from '@/lib/errors'
 import { getOrganizerPlanAccess } from '@/lib/plans'
 import { CreateEventSchema, ListEventsSchema } from '@/lib/validations/events'
 import { sendNotifications } from '@/lib/notifications'
+import { applyResolvedEventWindow, compareEventsByResolvedStartAt } from '@/lib/events/recurrence'
 
 function buildEventKeywordSearch(search: string) {
   const term = search
@@ -35,8 +36,6 @@ export async function GET(req: NextRequest) {
     const ctx = await optionalAuth()
 
     const from = (params.page - 1) * params.per_page
-    const to = from + params.per_page - 1
-
     let query = supabase
       .from('events')
       .select(
@@ -53,8 +52,6 @@ export async function GET(req: NextRequest) {
       )
       .eq('is_published', true)
       .eq('is_cancelled', false)
-      .order('start_at', { ascending: true })
-      .range(from, to)
 
     // Filters
     if (params.city) query = query.ilike('city', `%${params.city}%`)
@@ -63,8 +60,6 @@ export async function GET(req: NextRequest) {
     if (params.is_family_friendly !== undefined)
       query = query.eq('is_family_friendly', params.is_family_friendly)
     if (params.is_free !== undefined) query = query.eq('is_free', params.is_free)
-    if (params.date_from) query = query.gte('start_at', params.date_from)
-    if (params.date_to) query = query.lte('start_at', params.date_to)
     if (params.organizer_id) query = query.eq('organizer_id', params.organizer_id)
     if (params.organizer_own && ctx?.userId) query = query.eq('organizer_id', ctx.userId)
     if (params.visibility) query = query.eq('visibility_type', params.visibility)
@@ -116,15 +111,32 @@ export async function GET(req: NextRequest) {
       query = query.eq('is_private', false)
     }
 
-    const { data, count, error } = await query
+    const { data, error } = await query
     if (error) throw error
 
+    const now = new Date()
+    const dateFromMs = params.date_from ? new Date(params.date_from).getTime() : null
+    const dateToMs = params.date_to ? new Date(params.date_to).getTime() : null
+
+    const filtered = (data ?? [])
+      .map((event) => applyResolvedEventWindow(event, now))
+      .filter((event) => {
+        const startMs = new Date(event.start_at).getTime()
+        if (dateFromMs !== null && startMs < dateFromMs) return false
+        if (dateToMs !== null && startMs > dateToMs) return false
+        return true
+      })
+      .sort((left, right) => compareEventsByResolvedStartAt(left, right, now))
+
+    const total = filtered.length
+    const pageData = filtered.slice(from, from + params.per_page)
+
     return ok({
-      data,
-      total: count ?? 0,
+      data: pageData,
+      total,
       page: params.page,
       per_page: params.per_page,
-      has_more: (count ?? 0) > to + 1,
+      has_more: total > from + params.per_page,
     })
   } catch (err) {
     return handleApiError(err)

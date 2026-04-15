@@ -11,6 +11,7 @@ import { EventCard, EventCardSkeleton } from '@/components/events/EventCard'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Colors, Spacing, FontSize, FontWeight, Radius } from '@/theme'
 import type { Event, EventCategory, EventWithOrganizer, OrganizerProfile, Profile } from '@/types/database'
+import { applyResolvedEventWindow, compareEventsByResolvedStartAt } from '@/lib/event-recurrence'
 
 const PAGE_SIZE = 10
 
@@ -59,16 +60,18 @@ async function hydrateEvents(rows: Event[]): Promise<EventWithOrganizer[]> {
     (categories ?? []).map((category) => [category.id, category]),
   )
 
-  return rows.map((row) => ({
-    ...row,
-    organizer: organizerById.get(row.organizer_id) ?? {
-      id: row.organizer_id,
-      display_name: '',
-      avatar_url: null,
-      organizer_profile: null,
-    },
-    category: row.category_id ? categoryById.get(row.category_id) ?? null : null,
-  }))
+  return rows
+    .map((row) => ({
+      ...row,
+      organizer: organizerById.get(row.organizer_id) ?? {
+        id: row.organizer_id,
+        display_name: '',
+        avatar_url: null,
+        organizer_profile: null,
+      },
+      category: row.category_id ? categoryById.get(row.category_id) ?? null : null,
+    }))
+    .map((row) => applyResolvedEventWindow(row))
 }
 
 export default function FeedScreen({ onExplore }: Props = {}) {
@@ -156,11 +159,11 @@ export default function FeedScreen({ onExplore }: Props = {}) {
       .in('organizer_id', orgIds)
       .eq('is_published', true)
       .eq('is_cancelled', false)
-      .gte('start_at', new Date().toISOString())
-      .order('start_at', { ascending: true })
       .range(from, to)
 
-    const newEvents = await hydrateEvents((data ?? []) as Event[])
+    const newEvents = (await hydrateEvents((data ?? []) as Event[]))
+      .filter((event) => new Date(event.start_at).getTime() >= Date.now())
+      .sort((left, right) => compareEventsByResolvedStartAt(left, right))
 
     if (newEvents.length > 0) {
       const { data: saves } = await supabase

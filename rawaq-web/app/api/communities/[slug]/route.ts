@@ -6,6 +6,7 @@ import { handleApiError, ok, NotFoundException, ForbiddenException } from '@/lib
 import { requireCommunityOwner } from '@/lib/community-governance'
 import type { Community, CommunityHierarchy } from '@/types/database'
 import { z } from 'zod'
+import { applyResolvedEventWindow, compareEventsByResolvedStartAt } from '@/lib/events/recurrence'
 
 const UpdateCommunitySchema = z.object({
   name: z.string().trim().min(2).max(100).optional(),
@@ -118,14 +119,15 @@ export async function GET(
       const eIds = ecRows.map((r) => r.event_id)
       const { data: events } = await supabase
         .from('events')
-        .select('id, title, title_ar, cover_image_url, start_at, city, is_free, price, currency, bookings_count, created_at')
+        .select('id, title, title_ar, cover_image_url, start_at, end_at, event_frequency, city, is_free, price, currency, bookings_count, created_at')
         .in('id', eIds)
         .eq('is_published', true)
         .eq('is_cancelled', false)
-        .gte('start_at', new Date().toISOString())
-        .order('start_at', { ascending: true })
-        .limit(5)
-      recent_events = events ?? []
+      recent_events = (events ?? [])
+        .map((event) => applyResolvedEventWindow(event))
+        .filter((event) => new Date(event.start_at).getTime() >= Date.now())
+        .sort((left, right) => compareEventsByResolvedStartAt(left, right))
+        .slice(0, 5)
     }
 
     const { data: membershipRows } = await admin

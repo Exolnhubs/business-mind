@@ -16,12 +16,13 @@ import { Spinner } from '@/components/ui/Spinner'
 import { formatDate } from '@/lib/utils'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
 import type { Booking, Event } from '@/types/database'
+import { applyResolvedEventWindow } from '@/lib/event-recurrence'
 
 type BookingListRow = Pick<
   Booking,
   'id' | 'status' | 'ticket_id' | 'seat' | 'scanned_at' | 'created_at' | 'updated_at' | 'user_id' | 'event_id' | 'notes'
 > & {
-  event: Pick<Event, 'id' | 'title' | 'title_ar' | 'start_at' | 'cover_image_url' | 'city' | 'is_free' | 'price' | 'is_cancelled'> | null
+  event: Pick<Event, 'id' | 'title' | 'title_ar' | 'start_at' | 'end_at' | 'event_frequency' | 'cover_image_url' | 'city' | 'is_free' | 'price' | 'is_cancelled'> | null
 }
 
 type BookingListItem =
@@ -46,10 +47,14 @@ export default function BookingsScreen() {
     if (!user) { setLoading(false); return }
     const { data } = await supabase
       .from('bookings')
-      .select(`id, status, ticket_id, seat, scanned_at, created_at, updated_at, user_id, event_id, notes, event:events!event_id(id, title, title_ar, start_at, cover_image_url, city, is_free, price, is_cancelled)`)
+      .select(`id, status, ticket_id, seat, scanned_at, created_at, updated_at, user_id, event_id, notes, event:events!event_id(id, title, title_ar, start_at, end_at, event_frequency, cover_image_url, city, is_free, price, is_cancelled)`)
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
-    setBookings((data ?? []) as unknown as BookingListRow[])
+    const nextBookings = ((data ?? []) as unknown as BookingListRow[]).map((booking) => ({
+      ...booking,
+      event: booking.event ? applyResolvedEventWindow(booking.event) : booking.event,
+    }))
+    setBookings(nextBookings)
     setLoading(false)
     setRefreshing(false)
   }, [user])

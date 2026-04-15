@@ -33,6 +33,7 @@ import { initiatePaymob } from '@/lib/gateways/paymob'
 import { initiateStripe } from '@/lib/gateways/stripe-gw'
 import type { InitiatePaymentParams } from '@/lib/gateways/types'
 import { sendNotification } from '@/lib/notifications'
+import { getBookableEventStartAt } from '@/lib/events/recurrence'
 
 const BodySchema = CreateBookingSchema.extend({
   payment_option_id: z.string().min(1).default('simulated'),
@@ -54,14 +55,14 @@ export async function POST(req: NextRequest) {
     // ── Fetch event ───────────────────────────────────────────────────────────
     const { data: event, error: eventErr } = await admin
       .from('events')
-      .select('id, title, is_published, is_cancelled, start_at, organizer_id, gender_restriction, is_premium_only, is_free, price, currency, capacity')
+      .select('id, title, is_published, is_cancelled, start_at, end_at, event_frequency, organizer_id, gender_restriction, is_premium_only, is_free, price, currency, capacity')
       .eq('id', input.event_id)
       .single()
 
     if (eventErr || !event) throw new NotFoundException('Event')
     if (!event.is_published) throw new ForbiddenException('Event is not published')
     if (event.is_cancelled)  throw new ForbiddenException('Event has been cancelled')
-    if (new Date(event.start_at) < new Date()) throw new ForbiddenException('Event has already started')
+    if (new Date(getBookableEventStartAt(event)) < new Date()) throw new ForbiddenException('Event has already started')
 
     // ── Fetch user profile ────────────────────────────────────────────────────
     const { data: profile } = await admin

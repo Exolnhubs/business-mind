@@ -11,6 +11,7 @@ import { useAuth } from '@/contexts/auth-context'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
 import { formatDate } from '@/lib/utils'
 import type { EventFrequency } from '@/types/database'
+import { applyResolvedEventWindow, compareEventsByResolvedStartAt } from '@/lib/event-recurrence'
 
 interface OrgEvent {
   id: string
@@ -137,7 +138,9 @@ export default function OrganizerDashboard() {
         .maybeSingle(),
     ])
 
-    const nextEvents = (evRes.data ?? []) as OrgEvent[]
+    const nextEvents = ((evRes.data ?? []) as OrgEvent[])
+      .map((event) => applyResolvedEventWindow(event))
+      .sort((left, right) => compareEventsByResolvedStartAt(right, left))
     const nextOrgName = orgRes.data?.business_name ?? ''
     const nextOrgStatus = orgRes.data?.status ?? null
     const nextSuspendReason = (orgRes.data as { suspend_reason?: string | null })?.suspend_reason ?? null

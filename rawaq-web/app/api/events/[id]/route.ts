@@ -6,6 +6,7 @@ import { getOrganizerPlanAccess } from '@/lib/plans'
 import { UpdateEventSchema } from '@/lib/validations/events'
 import { sendNotifications } from '@/lib/notifications'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
+import { applyResolvedEventWindow } from '@/lib/events/recurrence'
 
 // GET /api/events/:id
 export async function GET(
@@ -46,7 +47,7 @@ export async function GET(
       ip_hash: ipHash ? btoa(ipHash).slice(0, 32) : null,
     } as any).then(() => {}, () => {})
 
-    return ok(data)
+    return ok(applyResolvedEventWindow(data))
   } catch (err) {
     return handleApiError(err)
   }

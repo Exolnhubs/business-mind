@@ -15,6 +15,7 @@ import { CommentThread } from '@/components/comments/CommentThread'
 import { formatDate, formatTime, formatCurrency } from '@/lib/utils'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
 import type { Community, EventWithOrganizer, CommentWithAuthor, TicketType, Waitlist, ReportReason } from '@/types/database'
+import { applyResolvedEventWindow } from '@/lib/event-recurrence'
 
 interface PaymentOption {
   id: string
@@ -112,7 +113,7 @@ export default function EventDetailScreen() {
         .eq('event_id', id).eq('is_active', true).order('sort_order'),
       supabase.from('event_communities').select('community_id').eq('event_id', id),
     ]).then(([{ data: ev }, { data: cmts }, { data: booking }, { data: wl }, { data: tts }, { data: eventCommunityRows }]) => {
-      setEvent((ev as unknown as EventWithOrganizer | null) ?? null)
+      setEvent(ev ? applyResolvedEventWindow(ev as unknown as EventWithOrganizer) : null)
       setComments((cmts ?? []) as unknown as CommentWithAuthor[])
       setCurrentBookingId(booking?.id ?? null)
       setIsBooked(booking?.status === 'confirmed')
