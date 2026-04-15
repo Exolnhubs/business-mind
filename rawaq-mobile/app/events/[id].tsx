@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  ActivityIndicator, Alert, TextInput, Image, Modal, Platform, Linking,
+  ActivityIndicator, Alert, TextInput, Image, Modal, Platform, Linking, KeyboardAvoidingView,
 } from 'react-native'
 import * as WebBrowser from 'expo-web-browser'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
@@ -588,7 +588,18 @@ export default function EventDetailScreen() {
   return (
     <>
     <Stack.Screen options={{ headerShown: false }} />
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
+    >
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+    >
       {/* Cover hero */}
       <View style={styles.hero}>
         {event.cover_image_url ? (
@@ -1025,6 +1036,7 @@ export default function EventDetailScreen() {
         </View>
       </View>
     </ScrollView>
+    </KeyboardAvoidingView>
 
     {/* Payment method picker modal */}
     <Modal

@@ -96,6 +96,7 @@ export function HappeningCommentsSheet({ visible, happening, currentUserId, onCl
             style={styles.threadScroll}
             contentContainerStyle={styles.threadContent}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
             showsVerticalScrollIndicator={false}
           >
             {loading || !happening ? (

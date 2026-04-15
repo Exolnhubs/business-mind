@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import {
   Alert,
   ActivityIndicator,
+  InputAccessoryView,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -51,6 +53,7 @@ const LEVEL_LABELS: Record<JoinedCommunity['level'], string> = {
 
 export function HappeningComposerSheet({ visible, onClose, onPosted }: HappeningComposerSheetProps) {
   const router = useRouter()
+  const inputAccessoryViewID = 'happening-composer-accessory'
   const [communities, setCommunities] = useState<JoinedCommunity[]>([])
   const [loadingCommunities, setLoadingCommunities] = useState(false)
   const [selectedCommunity, setSelectedCommunity] = useState<JoinedCommunity | null>(null)
@@ -136,8 +139,9 @@ export function HappeningComposerSheet({ visible, onClose, onPosted }: Happening
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.overlay}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 24 : 0}
         >
-          <View style={styles.sheet}>
+          <View style={[styles.sheet, selectedCommunity && styles.sheetExpanded]}>
             <View style={styles.handle} />
 
             {!selectedCommunity ? (
@@ -209,7 +213,13 @@ export function HappeningComposerSheet({ visible, onClose, onPosted }: Happening
                 </View>
               </>
             ) : (
-              <>
+              <ScrollView
+                style={styles.formScroll}
+                contentContainerStyle={styles.formScrollContent}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+                showsVerticalScrollIndicator={false}
+              >
                 <View style={styles.header}>
                   <TouchableOpacity
                     onPress={() => setSelectedCommunity(null)}
@@ -261,7 +271,18 @@ export function HappeningComposerSheet({ visible, onClose, onPosted }: Happening
                   multiline
                   maxLength={280}
                   style={styles.postInput}
+                  inputAccessoryViewID={Platform.OS === 'ios' ? inputAccessoryViewID : undefined}
+                  textAlignVertical="top"
                 />
+                {Platform.OS === 'ios' && (
+                  <InputAccessoryView nativeID={inputAccessoryViewID}>
+                    <View style={styles.accessoryBar}>
+                      <TouchableOpacity onPress={() => Keyboard.dismiss()} style={styles.accessoryDoneBtn}>
+                        <Text style={styles.accessoryDoneText}>Done</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </InputAccessoryView>
+                )}
                 <Text style={styles.charCount}>{postBody.length}/280</Text>
 
                 <View style={styles.locationRow}>
@@ -301,6 +322,12 @@ export function HappeningComposerSheet({ visible, onClose, onPosted }: Happening
 
                 <View style={styles.actionsRow}>
                   <TouchableOpacity
+                    onPress={() => Keyboard.dismiss()}
+                    style={styles.keyboardBtn}
+                  >
+                    <Text style={styles.keyboardBtnText}>Hide keyboard</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
                     onPress={handleClose}
                     style={styles.secondaryButton}
                     disabled={posting}
@@ -317,7 +344,7 @@ export function HappeningComposerSheet({ visible, onClose, onPosted }: Happening
                       : <Text style={styles.primaryButtonText}>Post Happening</Text>}
                   </TouchableOpacity>
                 </View>
-              </>
+              </ScrollView>
             )}
           </View>
         </KeyboardAvoidingView>
@@ -350,6 +377,9 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.lg,
     paddingBottom: Spacing['3xl'],
     maxHeight: '88%',
+  },
+  sheetExpanded: {
+    height: '88%',
   },
   handle: {
     width: 38,
@@ -412,6 +442,13 @@ const styles = StyleSheet.create({
   },
   communityList: {
     maxHeight: 360,
+  },
+  formScroll: {
+    flex: 1,
+  },
+  formScrollContent: {
+    paddingBottom: Spacing.lg,
+    flexGrow: 1,
   },
   communityListContent: {
     gap: Spacing.sm,
@@ -601,6 +638,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: Spacing.md,
     marginTop: Spacing.sm,
+    alignItems: 'center',
+  },
+  keyboardBtn: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.sm,
+  },
+  keyboardBtnText: {
+    fontSize: FontSize.xs,
+    color: Colors.gray[500],
+    fontWeight: FontWeight.medium,
   },
   secondaryButton: {
     flex: 1,
@@ -630,5 +677,23 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     fontWeight: FontWeight.bold,
     color: Colors.white,
+  },
+  accessoryBar: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    backgroundColor: Colors.white,
+    borderTopWidth: 1,
+    borderTopColor: Colors.gray[200],
+  },
+  accessoryDoneBtn: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+  },
+  accessoryDoneText: {
+    fontSize: FontSize.sm,
+    color: Colors.brand[600],
+    fontWeight: FontWeight.semibold,
   },
 })

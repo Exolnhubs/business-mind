@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { View, TextInput, TouchableOpacity, Text, StyleSheet, ActivityIndicator, Image, Alert, ActionSheetIOS, Platform } from 'react-native'
+import { View, TextInput, TouchableOpacity, Text, StyleSheet, ActivityIndicator, Image, Alert, ActionSheetIOS, Platform, InputAccessoryView, Keyboard } from 'react-native'
 import * as ImagePicker from 'expo-image-picker'
 import { uploadViaApi } from '@/lib/upload'
 import { MediaGalleryPicker } from '@/components/ui/MediaGalleryPicker'
@@ -13,6 +13,7 @@ interface Props {
 }
 
 export function CommentForm({ onSubmit, placeholder = 'Write a comment…', onCancel, autoFocus }: Props) {
+  const inputAccessoryViewID = 'comment-form-accessory'
   const [content, setContent] = useState('')
   const [mediaUri, setMediaUri] = useState<string | null>(null)
   const [mediaUrl, setMediaUrl] = useState<string | null>(null)
@@ -99,7 +100,19 @@ export function CommentForm({ onSubmit, placeholder = 'Write a comment…', onCa
         multiline
         autoFocus={autoFocus}
         maxLength={2000}
+        inputAccessoryViewID={Platform.OS === 'ios' ? inputAccessoryViewID : undefined}
+        textAlignVertical="top"
       />
+
+      {Platform.OS === 'ios' && (
+        <InputAccessoryView nativeID={inputAccessoryViewID}>
+          <View style={styles.accessoryBar}>
+            <TouchableOpacity onPress={() => Keyboard.dismiss()} style={styles.accessoryDoneBtn}>
+              <Text style={styles.accessoryDoneText}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </InputAccessoryView>
+      )}
 
       {mediaUri && (
         <View style={styles.previewWrap}>
@@ -119,6 +132,9 @@ export function CommentForm({ onSubmit, placeholder = 'Write a comment…', onCa
         </TouchableOpacity>
 
         <View style={styles.rightActions}>
+          <TouchableOpacity onPress={() => Keyboard.dismiss()} style={styles.dismissBtn}>
+            <Text style={styles.dismissText}>Hide keyboard</Text>
+          </TouchableOpacity>
           {onCancel && (
             <TouchableOpacity onPress={onCancel} style={styles.cancelBtn}>
               <Text style={styles.cancelText}>Cancel</Text>
@@ -152,9 +168,29 @@ const styles = StyleSheet.create({
   attachBtn: { paddingHorizontal: Spacing.sm, paddingVertical: Spacing.xs },
   attachText: { fontSize: 20 },
   rightActions: { flexDirection: 'row', gap: Spacing.sm },
+  dismissBtn: { paddingHorizontal: Spacing.sm, paddingVertical: Spacing.sm },
+  dismissText: { fontSize: FontSize.xs, color: Colors.gray[500], fontWeight: FontWeight.medium },
   cancelBtn: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm },
   cancelText: { fontSize: FontSize.sm, color: Colors.gray[500] },
   postBtn: { backgroundColor: Colors.brand[500], borderRadius: Radius.md, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm },
   postBtnDisabled: { opacity: 0.5 },
   postText: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.white },
+  accessoryBar: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    backgroundColor: Colors.white,
+    borderTopWidth: 1,
+    borderTopColor: Colors.gray[200],
+  },
+  accessoryDoneBtn: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+  },
+  accessoryDoneText: {
+    fontSize: FontSize.sm,
+    color: Colors.brand[600],
+    fontWeight: FontWeight.semibold,
+  },
 })

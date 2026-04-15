@@ -3,13 +3,14 @@ import {
   ActivityIndicator,
   Modal,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from 'react-native'
-import MapView, { MapPressEvent, Marker, Region } from 'react-native-maps'
+import MapView, { MapPressEvent, Marker, Region, UrlTile } from 'react-native-maps'
 import * as Location from 'expo-location'
 import Constants from 'expo-constants'
 import { Ionicons } from '@expo/vector-icons'
@@ -49,14 +50,14 @@ export function LocationPickerModal({
   onClose: () => void
   onConfirm: (location: PickedLocation | null) => void
 }) {
-  const androidGoogleMapsApiKey =
-    Constants.expoConfig?.android?.config?.googleMaps?.apiKey
-    ?? process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY
-    ?? null
-  const canRenderNativeMap = Platform.OS !== 'android' || Boolean(androidGoogleMapsApiKey)
+  const googleMapsApiKey =
+    Constants.expoConfig?.android?.config?.googleMaps?.apiKey ??
+    process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ??
+    null
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
   const [searching, setSearching] = useState(false)
+  const [searchMessage, setSearchMessage] = useState<string | null>(null)
   const [resolving, setResolving] = useState(false)
   const [selected, setSelected] = useState<PickedLocation | null>(initialLocation)
   const [region, setRegion] = useState<Region>(
@@ -76,6 +77,7 @@ export function LocationPickerModal({
     setSelected(initialLocation)
     setQuery(initialLocation?.label ?? '')
     setResults([])
+    setSearchMessage(null)
     setRegion(
       initialLocation
         ? {
@@ -88,7 +90,7 @@ export function LocationPickerModal({
     )
   }, [initialLocation, visible])
 
-async function reverseLabel(lat: number, lng: number) {
+  async function reverseLabel(lat: number, lng: number) {
     try {
       const parts = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng })
       const first = parts[0]
@@ -139,6 +141,57 @@ async function reverseLabel(lat: number, lng: number) {
     }
   }
 
+  async function searchWithGoogle(queryText: string, apiKey: string): Promise<SearchResult[]> {
+    try {
+      const response = await fetch(
+        `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(queryText)}&key=${apiKey}`,
+      )
+      if (!response.ok) return []
+
+      const payload = await response.json() as {
+        status?: string
+        results?: Array<{
+          formatted_address?: string
+          geometry?: { location?: { lat?: number; lng?: number } }
+        }>
+      }
+
+      if (payload.status !== 'OK' || !payload.results?.length) return []
+
+      return payload.results.slice(0, 5).flatMap((item) => {
+        const lat = item.geometry?.location?.lat
+        const lng = item.geometry?.location?.lng
+        if (typeof lat !== 'number' || typeof lng !== 'number') return []
+        return [{
+          display_name: item.formatted_address || `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
+          lat: String(lat),
+          lon: String(lng),
+        }]
+      })
+    } catch {
+      return []
+    }
+  }
+
+  async function searchWithOpenStreetMap(queryText: string): Promise<SearchResult[]> {
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&q=${encodeURIComponent(queryText)}`,
+        {
+          headers: {
+            Accept: 'application/json',
+            'Accept-Language': 'en',
+          },
+        },
+      )
+      if (!response.ok) return []
+      const payload = await response.json() as SearchResult[]
+      return Array.isArray(payload) ? payload.slice(0, 5) : []
+    } catch {
+      return []
+    }
+  }
+
   async function handleMapPick(lat: number, lng: number) {
     setResolving(true)
     try {
@@ -146,6 +199,7 @@ async function reverseLabel(lat: number, lng: number) {
       setSelected(location)
       setQuery(location.label)
       setResults([])
+      setSearchMessage(null)
       setRegion({
         latitude: lat,
         longitude: lng,
@@ -160,29 +214,44 @@ async function reverseLabel(lat: number, lng: number) {
   async function searchLocation() {
     if (!query.trim()) return
     setSearching(true)
+    setSearchMessage(null)
     try {
-      const geocoded = await Location.geocodeAsync(query.trim())
-      const limited = geocoded.slice(0, 5)
-
-      if (limited.length === 0) {
-        setResults([])
+      const trimmedQuery = query.trim()
+      const googleResults = googleMapsApiKey ? await searchWithGoogle(trimmedQuery, googleMapsApiKey) : []
+      if (googleResults.length > 0) {
+        setResults(googleResults)
         return
       }
 
-      const resolved = await Promise.all(
-        limited.map(async (item) => {
-          const label = await reverseLabel(item.latitude, item.longitude)
-          return {
-            display_name: label.label,
-            lat: String(item.latitude),
-            lon: String(item.longitude),
-          } satisfies SearchResult
-        }),
-      )
+      const geocoded = await Location.geocodeAsync(trimmedQuery)
+      const limited = geocoded.slice(0, 5)
+      if (limited.length > 0) {
+        const resolved = await Promise.all(
+          limited.map(async (item) => {
+            const label = await reverseLabel(item.latitude, item.longitude)
+            return {
+              display_name: label.label,
+              lat: String(item.latitude),
+              lon: String(item.longitude),
+            } satisfies SearchResult
+          }),
+        )
 
-      setResults(resolved)
+        setResults(resolved)
+        return
+      }
+
+      const osmResults = await searchWithOpenStreetMap(trimmedQuery)
+      if (osmResults.length > 0) {
+        setResults(osmResults)
+        return
+      }
+
+      setResults([])
+      setSearchMessage('No places matched that search yet. Try a landmark, district, or street name.')
     } catch {
       setResults([])
+      setSearchMessage('Search is temporarily unavailable. Try dropping a pin or using your current location.')
     } finally {
       setSearching(false)
     }
@@ -228,66 +297,80 @@ async function reverseLabel(lat: number, lng: number) {
             </TouchableOpacity>
           </View>
 
-          {results.length > 0 && (
+          {(results.length > 0 || searchMessage) && (
             <View style={styles.resultsCard}>
-              {results.map((result) => (
-                <TouchableOpacity
-                  key={`${result.lat}-${result.lon}-${result.display_name}`}
-                onPress={() => {
-                  const lat = Number(result.lat)
-                  const lng = Number(result.lon)
-                  setResults([])
-                  setRegion({
-                    latitude: lat,
-                      longitude: lng,
-                    latitudeDelta: 0.02,
-                    longitudeDelta: 0.02,
-                  })
-                  handleMapPick(lat, lng)
-                }}
-                  style={styles.resultItem}
-                >
-                  <Text style={styles.resultTitle}>{result.display_name}</Text>
-                  <Text style={styles.resultMeta}>{Number(result.lat).toFixed(5)}, {Number(result.lon).toFixed(5)}</Text>
-                </TouchableOpacity>
-              ))}
+              {results.length > 0 ? (
+                <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                  {results.map((result) => (
+                    <TouchableOpacity
+                      key={`${result.lat}-${result.lon}-${result.display_name}`}
+                      onPress={() => {
+                        const lat = Number(result.lat)
+                        const lng = Number(result.lon)
+                        setResults([])
+                        setSearchMessage(null)
+                        setRegion({
+                          latitude: lat,
+                          longitude: lng,
+                          latitudeDelta: 0.02,
+                          longitudeDelta: 0.02,
+                        })
+                        handleMapPick(lat, lng)
+                      }}
+                      style={styles.resultItem}
+                    >
+                      <Text style={styles.resultTitle}>{result.display_name}</Text>
+                      <Text style={styles.resultMeta}>
+                        {Number(result.lat).toFixed(5)}, {Number(result.lon).toFixed(5)}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              ) : (
+                <View style={styles.searchMessageWrap}>
+                  <Text style={styles.searchMessageText}>{searchMessage}</Text>
+                </View>
+              )}
             </View>
           )}
 
-          {canRenderNativeMap ? (
-            <MapView
-              style={styles.map}
-              region={region}
-              onRegionChangeComplete={setRegion}
-              showsCompass
-              zoomControlEnabled={Platform.OS === 'android'}
-              toolbarEnabled={Platform.OS === 'android'}
-              showsMyLocationButton={Platform.OS === 'android'}
-              onPress={(event: MapPressEvent) => {
-                const { latitude, longitude } = event.nativeEvent.coordinate
-                handleMapPick(latitude, longitude)
-              }}
-            >
-              {selected && (
-                <Marker
-                  coordinate={{ latitude: selected.lat, longitude: selected.lng }}
-                  draggable
-                  onDragEnd={(event) => {
-                    const { latitude, longitude } = event.nativeEvent.coordinate
-                    handleMapPick(latitude, longitude)
-                  }}
-                />
-              )}
-            </MapView>
-          ) : (
-            <View style={styles.mapFallback}>
-              <Ionicons name="map-outline" size={26} color={Colors.brand[700]} />
-              <Text style={styles.mapFallbackTitle}>Android map preview needs a Google Maps API key</Text>
-              <Text style={styles.mapFallbackText}>
-                Search for a place or use your current location for now. Once
-                `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY` is configured, the interactive map will appear here.
-              </Text>
-            </View>
+          <MapView
+            style={styles.map}
+            region={region}
+            onRegionChangeComplete={setRegion}
+            loadingEnabled
+            showsCompass
+            showsUserLocation
+            moveOnMarkerPress={false}
+            mapType={Platform.OS === 'android' ? 'none' : 'standard'}
+            zoomControlEnabled={Platform.OS === 'android'}
+            toolbarEnabled={Platform.OS === 'android'}
+            showsMyLocationButton={Platform.OS === 'android'}
+            onPress={(event: MapPressEvent) => {
+              const { latitude, longitude } = event.nativeEvent.coordinate
+              handleMapPick(latitude, longitude)
+            }}
+          >
+            {Platform.OS === 'android' && (
+              <UrlTile
+                urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+                maximumZ={19}
+                shouldReplaceMapContent
+              />
+            )}
+            {selected && (
+              <Marker
+                coordinate={{ latitude: selected.lat, longitude: selected.lng }}
+                draggable
+                onDragEnd={(event) => {
+                  const { latitude, longitude } = event.nativeEvent.coordinate
+                  handleMapPick(latitude, longitude)
+                }}
+              />
+            )}
+          </MapView>
+          {Platform.OS === 'android' && (
+            <Text style={styles.mapAttribution}>Map data © OpenStreetMap contributors</Text>
           )}
 
           <View style={styles.infoCard}>
@@ -315,6 +398,7 @@ async function reverseLabel(lat: number, lng: number) {
                 setSelected(null)
                 setQuery('')
                 setResults([])
+                setSearchMessage(null)
               }}
               style={styles.clearBtn}
             >
@@ -396,6 +480,15 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.gray[50],
     marginBottom: Spacing.md,
   },
+  searchMessageWrap: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+  },
+  searchMessageText: {
+    fontSize: FontSize.xs,
+    color: Colors.gray[500],
+    lineHeight: 18,
+  },
   resultItem: {
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm + 1,
@@ -410,29 +503,11 @@ const styles = StyleSheet.create({
     borderRadius: Radius.xl,
     overflow: 'hidden',
   },
-  mapFallback: {
-    width: '100%',
-    height: 280,
-    borderRadius: Radius.xl,
-    borderWidth: 1,
-    borderColor: Colors.brand[100],
-    backgroundColor: Colors.brand[50],
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: Spacing.xl,
-    gap: Spacing.sm,
-  },
-  mapFallbackTitle: {
-    fontSize: FontSize.base,
-    fontWeight: FontWeight.semibold,
-    color: Colors.gray[900],
-    textAlign: 'center',
-  },
-  mapFallbackText: {
-    fontSize: FontSize.xs,
-    lineHeight: 18,
-    color: Colors.gray[600],
-    textAlign: 'center',
+  mapAttribution: {
+    marginTop: 6,
+    fontSize: 10,
+    color: Colors.gray[400],
+    textAlign: 'right',
   },
   infoCard: {
     marginTop: Spacing.md,
