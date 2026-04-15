@@ -240,6 +240,31 @@ export default function ProfilePage() {
     }
   }
 
+  async function submitOrgRequest(e: FormEvent) {
+    e.preventDefault()
+    if (!orgReqForm.business_name.trim()) return
+    setSubmittingOrgReq(true)
+    setOrgReqMsg(null)
+    const res = await fetch('/api/organizer/request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        business_name: orgReqForm.business_name.trim(),
+        description:   orgReqForm.description.trim() || null,
+      }),
+    })
+    if (res.ok) {
+      const { data } = await res.json()
+      setOrgRequest(data)
+      setShowOrgForm(false)
+      setOrgReqMsg(null)
+    } else {
+      const { error } = await res.json().catch(() => ({ error: null }))
+      setOrgReqMsg({ ok: false, text: error ?? 'Failed to submit request.' })
+    }
+    setSubmittingOrgReq(false)
+  }
+
   const setP = (k: keyof ProfileForm) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
       setProfileForm((f) => ({ ...f, [k]: e.target.value }))
