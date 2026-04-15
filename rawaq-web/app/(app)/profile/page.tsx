@@ -557,6 +557,89 @@ export default function ProfilePage() {
       {/* ── My Plan ────────────────────────────────────────── */}
       <PlanStatusCard planId={profile?.plan_id ?? 'user_free'} />
 
+      {/* ── Become an Organizer ───────────────────────────── */}
+      {profile?.role === 'user' && orgRequest !== undefined && (
+        <div className="card p-6">
+          <h2 className="text-base font-semibold text-gray-900 mb-1">🏢 Become an Organizer</h2>
+
+          {orgRequest?.status === 'pending' ? (
+            <div className="bg-amber-50 text-amber-700 border border-amber-200 rounded-xl px-4 py-3 text-sm">
+              ⏳ Application pending — under review. We&apos;ll notify you when approved.
+            </div>
+          ) : (
+            <>
+              <p className="text-sm text-gray-500 mb-4">
+                {orgRequest?.status === 'rejected'
+                  ? 'Your previous application was not approved — you may reapply.'
+                  : 'Host and manage your own events on Rawaq.'}
+              </p>
+
+              {!showOrgForm ? (
+                <button
+                  type="button"
+                  onClick={() => { setShowOrgForm(true); setOrgReqMsg(null) }}
+                  className="btn-primary"
+                >
+                  Apply
+                </button>
+              ) : (
+                <form onSubmit={submitOrgRequest} className="space-y-4">
+                  <div>
+                    <label className="label">Business / Organizer Name *</label>
+                    <input
+                      type="text"
+                      required
+                      minLength={2}
+                      maxLength={120}
+                      value={orgReqForm.business_name}
+                      onChange={(e) => setOrgReqForm((f) => ({ ...f, business_name: e.target.value }))}
+                      className="input"
+                      placeholder="e.g. Riyadh Sports Club"
+                    />
+                  </div>
+                  <div>
+                    <label className="label">About your organization (optional)</label>
+                    <textarea
+                      value={orgReqForm.description}
+                      onChange={(e) => setOrgReqForm((f) => ({ ...f, description: e.target.value }))}
+                      rows={3}
+                      maxLength={500}
+                      className="input resize-none"
+                      placeholder="Describe what kind of events you organize…"
+                    />
+                  </div>
+                  {orgReqMsg && (
+                    <div className={`text-sm rounded-xl px-4 py-3 ${
+                      orgReqMsg.ok
+                        ? 'bg-green-50 text-green-700 border border-green-200'
+                        : 'bg-red-50 text-red-700 border border-red-200'
+                    }`}>
+                      {orgReqMsg.text}
+                    </div>
+                  )}
+                  <div className="flex gap-3">
+                    <button
+                      type="submit"
+                      disabled={submittingOrgReq || !orgReqForm.business_name.trim()}
+                      className="btn-primary flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {submittingOrgReq ? <Spinner size="sm" /> : 'Submit Request'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setShowOrgForm(false); setOrgReqMsg(null) }}
+                      className="text-sm text-gray-500 hover:text-gray-700 px-3"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
       {/* ── Account Security ───────────────────────────────── */}
       <div className="card p-6">
         <h2 className="text-base font-semibold text-gray-900 mb-1">Account Security</h2>
