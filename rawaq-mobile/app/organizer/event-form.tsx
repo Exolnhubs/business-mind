@@ -38,13 +38,51 @@ const BUILTIN_TEMPLATES: TicketTemplate[] = [
   { id: '_premium',   name: 'Premium',            is_free: false, price: '200', capacity: '' },
 ]
 
+function getCurrencyFromCountryCode(country: string | null | undefined): string {
+  const normalized = country?.trim().toUpperCase()
+  if (!normalized) return 'SAR'
+  if (['SAR', 'EGP', 'AED', 'KWD', 'QAR', 'BHD', 'OMR', 'JOD', 'USD', 'GBP', 'EUR'].includes(normalized)) {
+    return normalized
+  }
+  const map: Record<string, string> = {
+    SA: 'SAR',
+    'SAUDI ARABIA': 'SAR',
+    KSA: 'SAR',
+    EG: 'EGP',
+    EGYPT: 'EGP',
+    AE: 'AED',
+    UAE: 'AED',
+    'UNITED ARAB EMIRATES': 'AED',
+    KW: 'KWD',
+    KUWAIT: 'KWD',
+    QA: 'QAR',
+    QATAR: 'QAR',
+    BH: 'BHD',
+    BAHRAIN: 'BHD',
+    OM: 'OMR',
+    OMAN: 'OMR',
+    JO: 'JOD',
+    JORDAN: 'JOD',
+    US: 'USD',
+    USA: 'USD',
+    'UNITED STATES': 'USD',
+    GB: 'GBP',
+    UK: 'GBP',
+    'UNITED KINGDOM': 'GBP',
+    EU: 'EUR',
+    DE: 'EUR',
+    FR: 'EUR',
+  }
+
+  return map[normalized] ?? 'SAR'
+}
+
 export default function EventFormScreen() {
   const { user }   = useAuth()
   const router     = useRouter()
   const { id }     = useLocalSearchParams<{ id?: string }>()
   const insets     = useSafeAreaInsets()
   const isEdit     = !!id
-  const eventCurrency = 'SAR'
   const headerTopSpacing = Math.max(Spacing.sm, Math.min(insets.top * 0.18, Spacing.md))
 
   const [categories, setCategories] = useState<Category[]>([])
@@ -68,6 +106,7 @@ export default function EventFormScreen() {
   const [categoryId,        setCategoryId]        = useState('')
   const [city,              setCity]              = useState('')
   const [country,           setCountry]           = useState('SA')
+  const eventCurrency = getCurrencyFromCountryCode(country)
   const [venueName,         setVenueName]         = useState('')
   const [address,           setAddress]           = useState('')
   const [eventLocation,     setEventLocation]     = useState<PickedLocation | null>(null)
@@ -219,9 +258,20 @@ export default function EventFormScreen() {
     return d.toLocaleString('en-SA-u-ca-gregory', { dateStyle: 'medium', timeStyle: 'short' })
   }
 
+  function validateDateOrder(startValue: string, endValue: string): string | null {
+    if (!startValue || !endValue) return null
+    const parsedStart = parseDate(startValue)
+    const parsedEnd = parseDate(endValue)
+    if (isNaN(parsedStart.getTime()) || isNaN(parsedEnd.getTime())) return null
+    return parsedEnd.getTime() < parsedStart.getTime()
+      ? 'End date cannot be before the start date.'
+      : null
+  }
+
   function openPicker(target: 'start' | 'end') {
     const current = target === 'start' ? startAt : endAt
-    setPickerTempDate(current ? parseDate(current) : new Date())
+    const fallback = target === 'end' && startAt ? parseDate(startAt) : new Date()
+    setPickerTempDate(current ? parseDate(current) : fallback)
     setPickerMode('date')
     setPickerTarget(target)
   }
@@ -232,13 +282,27 @@ export default function EventFormScreen() {
       return
     }
     if (pickerMode === 'date') {
-      setPickerTempDate(selected)
+      const nextDate =
+        pickerTarget === 'end' && startAt && selected.getTime() < parseDate(startAt).getTime()
+          ? parseDate(startAt)
+          : selected
+      setPickerTempDate(nextDate)
       setPickerMode('time')   // advance to time selection
     } else {
       // Both date and time chosen — commit
-      const iso = selected.toISOString().slice(0, 16).replace('T', ' ')
-      if (pickerTarget === 'start') setStartAt(iso)
-      else setEndAt(iso)
+      const nextDate =
+        pickerTarget === 'end' && startAt && selected.getTime() < parseDate(startAt).getTime()
+          ? parseDate(startAt)
+          : selected
+      const iso = nextDate.toISOString().slice(0, 16).replace('T', ' ')
+      if (pickerTarget === 'start') {
+        setStartAt(iso)
+        if (endAt && parseDate(endAt).getTime() < nextDate.getTime()) {
+          setEndAt(iso)
+        }
+      } else {
+        setEndAt(iso)
+      }
       setPickerTarget(null)
     }
   }
@@ -262,6 +326,63 @@ export default function EventFormScreen() {
       return `${attendeePlanName} allows up to ${attendeePlanLimit} attendees per event.`
     }
     return null
+  }
+
+  function getEffectiveTicketCapacityLimit(): number | null {
+    if (capacity.trim()) {
+      const parsed = Number(capacity)
+      return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+    }
+    return attendeePlanLimit
+  }
+
+  function validateTicketCapacities(drafts: TicketDraft[]): string | null {
+    const effectiveLimit = getEffectiveTicketCapacityLimit()
+    let totalTicketCapacity = 0
+
+    for (const draft of drafts) {
+      const ticketLabel = draft.name.trim() || 'Untitled ticket'
+      if (!draft.capacity.trim()) {
+        if (effectiveLimit !== null) {
+          return `Ticket "${ticketLabel}" needs a capacity because this event is capped at ${effectiveLimit} attendees.`
+        }
+        continue
+      }
+
+      const parsedCapacity = Number(draft.capacity)
+      if (!Number.isFinite(parsedCapacity) || parsedCapacity <= 0) {
+        return `Ticket "${ticketLabel}" capacity must be greater than 0.`
+      }
+
+      if (effectiveLimit !== null && parsedCapacity > effectiveLimit) {
+        return `Ticket "${ticketLabel}" cannot exceed ${effectiveLimit} attendees.`
+      }
+
+      totalTicketCapacity += parsedCapacity
+    }
+
+    if (effectiveLimit !== null && totalTicketCapacity > effectiveLimit) {
+      return `Combined ticket capacities cannot exceed ${effectiveLimit} attendees.`
+    }
+
+    return null
+  }
+
+  const ticketCapacityHelperText = (() => {
+    const effectiveLimit = getEffectiveTicketCapacityLimit()
+    if (effectiveLimit !== null) {
+      return `Ticket capacities must stay within ${effectiveLimit} total attendees.`
+    }
+    return 'Leave blank only when the event itself has no attendee cap.'
+  })()
+
+  function getEventRowPriceFromTickets(drafts: TicketDraft[]): number {
+    const paidPrices = drafts
+      .filter((draft) => !draft.is_free)
+      .map((draft) => Number(draft.price))
+      .filter((price) => Number.isFinite(price) && price > 0)
+
+    return paidPrices.length > 0 ? Math.min(...paidPrices) : 0
   }
 
   async function pickCoverImage() {
@@ -294,6 +415,8 @@ export default function EventFormScreen() {
     if (isNaN(parsedStart.getTime())) { setError('Invalid start date.'); return }
     const parsedEnd = endAt ? parseDate(endAt) : null
     if (parsedEnd && isNaN(parsedEnd.getTime())) { setError('Invalid end date.'); return }
+    const dateOrderError = validateDateOrder(startAt, endAt)
+    if (dateOrderError) { setError(dateOrderError); return }
 
     setError(null)
     setSaving(true)
@@ -314,7 +437,7 @@ export default function EventFormScreen() {
       capacity: capacity ? Number(capacity) : null,
       is_free: isFree,
       price: isFree ? null : Number(price),
-      currency: 'SAR',
+      currency: eventCurrency,
       gender_restriction: genderRestriction,
       is_family_friendly: isFamilyFriendly,
       is_published: isPublished,
@@ -339,6 +462,8 @@ export default function EventFormScreen() {
     if (isNaN(parsedStart.getTime())) { setError('Invalid start date. Use YYYY-MM-DD HH:MM'); return }
     const parsedEnd = endAt ? parseDate(endAt) : null
     if (parsedEnd && isNaN(parsedEnd.getTime())) { setError('Invalid end date.'); return }
+    const dateOrderError = validateDateOrder(startAt, endAt)
+    if (dateOrderError) { setError(dateOrderError); return }
 
     setError(null)
     setSaving(true)
@@ -359,7 +484,7 @@ export default function EventFormScreen() {
       end_at:             parsedEnd?.toISOString() ?? null,
       capacity:           capacity ? Number(capacity) : null,
       is_free:            true,
-      currency:           'SAR',
+      currency:           eventCurrency,
       gender_restriction: genderRestriction,
       is_family_friendly: isFamilyFriendly,
       is_published:       false,
@@ -399,11 +524,14 @@ export default function EventFormScreen() {
       if (!t.name.trim()) { setError('All ticket types need a name'); return }
       if (!t.is_free && (!t.price || Number(t.price) <= 0)) { setError('Paid ticket types need a price'); return }
     }
+    const ticketCapacityError = validateTicketCapacities(tickets)
+    if (ticketCapacityError) { setError(ticketCapacityError); return }
     setError(null)
     setSaving(true)
 
     const eventId = createdEventId!
     const allFree = tickets.every((t) => t.is_free)
+    const eventRowPrice = getEventRowPriceFromTickets(tickets)
 
     // Delete any previously saved ticket types (handles "Back → re-submit" case)
     await supabase.from('ticket_types').delete().eq('event_id', eventId)
@@ -427,7 +555,14 @@ export default function EventFormScreen() {
       }
     }
 
-    await supabase.from('events').update({ is_free: allFree }).eq('id', eventId)
+    await supabase
+      .from('events')
+      .update({
+        is_free: allFree,
+        price: allFree ? 0 : eventRowPrice,
+        currency: eventCurrency,
+      })
+      .eq('id', eventId)
 
     setSaving(false)
     setStep(3)
@@ -594,7 +729,11 @@ export default function EventFormScreen() {
                 value={pickerTempDate}
                 mode={pickerMode}
                 display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                minimumDate={new Date()}
+                minimumDate={
+                  pickerTarget === 'end' && startAt
+                    ? parseDate(startAt)
+                    : new Date()
+                }
                 onChange={onPickerChange}
               />
             )}
@@ -612,7 +751,7 @@ export default function EventFormScreen() {
                   <Switch value={isFree} onValueChange={setIsFree} trackColor={{ false: Colors.gray[200], true: Colors.brand[400] }} thumbColor={isFree ? Colors.brand[500] : Colors.gray[400]} />
                 </View>
                 {!isFree && (
-                  <TextInput style={[styles.input, { marginTop: Spacing.sm }]} value={price} onChangeText={setPrice} placeholder="Price in SAR" placeholderTextColor={Colors.gray[400]} keyboardType="decimal-pad" maxLength={8} />
+                  <TextInput style={[styles.input, { marginTop: Spacing.sm }]} value={price} onChangeText={setPrice} placeholder={`Price in ${eventCurrency}`} placeholderTextColor={Colors.gray[400]} keyboardType="decimal-pad" maxLength={8} />
                 )}
               </Field>
             )}
@@ -747,8 +886,9 @@ export default function EventFormScreen() {
                   </Field>
                 )}
 
-                <Field label="Capacity (blank = unlimited)">
-                  <TextInput style={styles.input} value={t.capacity} onChangeText={(v) => updateTicket(i, 'capacity', v)} placeholder="Unlimited" placeholderTextColor={Colors.gray[400]} keyboardType="number-pad" />
+                <Field label="Capacity">
+                  <TextInput style={styles.input} value={t.capacity} onChangeText={(v) => updateTicket(i, 'capacity', v)} placeholder={getEffectiveTicketCapacityLimit() !== null ? 'Required' : 'Unlimited'} placeholderTextColor={Colors.gray[400]} keyboardType="number-pad" />
+                  <Text style={styles.helperText}>{ticketCapacityHelperText}</Text>
                 </Field>
               </View>
             ))}

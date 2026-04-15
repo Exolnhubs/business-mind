@@ -26,6 +26,45 @@ type TicketDraft = { name: string; is_free: boolean; price: string; capacity: st
 
 const EMPTY_TICKET: TicketDraft = { name: '', is_free: true, price: '', capacity: '' }
 
+function getCurrencyFromCountryCode(country: string | null | undefined): string {
+  const normalized = country?.trim().toUpperCase()
+  if (!normalized) return 'SAR'
+  if (['SAR', 'EGP', 'AED', 'KWD', 'QAR', 'BHD', 'OMR', 'JOD', 'USD', 'GBP', 'EUR'].includes(normalized)) {
+    return normalized
+  }
+  const map: Record<string, string> = {
+    SA: 'SAR',
+    'SAUDI ARABIA': 'SAR',
+    KSA: 'SAR',
+    EG: 'EGP',
+    EGYPT: 'EGP',
+    AE: 'AED',
+    UAE: 'AED',
+    'UNITED ARAB EMIRATES': 'AED',
+    KW: 'KWD',
+    KUWAIT: 'KWD',
+    QA: 'QAR',
+    QATAR: 'QAR',
+    BH: 'BHD',
+    BAHRAIN: 'BHD',
+    OM: 'OMR',
+    OMAN: 'OMR',
+    JO: 'JOD',
+    JORDAN: 'JOD',
+    US: 'USD',
+    USA: 'USD',
+    'UNITED STATES': 'USD',
+    GB: 'GBP',
+    UK: 'GBP',
+    'UNITED KINGDOM': 'GBP',
+    EU: 'EUR',
+    DE: 'EUR',
+    FR: 'EUR',
+  }
+
+  return map[normalized] ?? 'SAR'
+}
+
 function StepIndicator({ step }: { step: 1 | 2 | 3 }) {
   const steps = ['Event Details', 'Ticket Types', 'Review & Publish']
   return (
@@ -58,7 +97,6 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
   const router = useRouter()
   const supabase = createSupabaseBrowserClient()
   const isEdit = !!event
-  const eventCurrency = event?.currency ?? 'SAR'
 
   const [step, setStep] = useState<1 | 2 | 3>(1)
   const [createdEventId, setCreatedEventId] = useState<string | null>(null)
@@ -85,6 +123,7 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
     is_family_friendly: event?.is_family_friendly ?? false,
     is_published:       event?.is_published ?? false,
   })
+  const eventCurrency = getCurrencyFromCountryCode(form.country || event?.country || event?.currency)
 
   const [tickets, setTickets]         = useState<TicketDraft[]>([{ ...EMPTY_TICKET, name: 'General Admission' }])
   const [loading, setLoading]         = useState(false)
@@ -138,6 +177,37 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
   const setCheck = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.checked }))
 
+  function validateDateOrder(startValue: string, endValue: string): string | null {
+    if (!startValue || !endValue) return null
+    const parsedStart = new Date(startValue)
+    const parsedEnd = new Date(endValue)
+    if (Number.isNaN(parsedStart.getTime()) || Number.isNaN(parsedEnd.getTime())) return null
+    return parsedEnd.getTime() < parsedStart.getTime()
+      ? 'End date cannot be before the start date.'
+      : null
+  }
+
+  function setDateField(field: 'start_at' | 'end_at') {
+    return (e: React.ChangeEvent<HTMLInputElement>) => {
+      const value = e.target.value
+      setForm((current) => {
+        if (field === 'start_at') {
+          const nextEnd =
+            current.end_at && value && new Date(current.end_at).getTime() < new Date(value).getTime()
+              ? value
+              : current.end_at
+          return { ...current, start_at: value, end_at: nextEnd }
+        }
+
+        const nextEnd =
+          value && current.start_at && new Date(value).getTime() < new Date(current.start_at).getTime()
+            ? current.start_at
+            : value
+        return { ...current, end_at: nextEnd }
+      })
+    }
+  }
+
   function applyPickedLocation(location: PickedLocation | null) {
     setSelectedLocation(location)
     setForm((f) => ({
@@ -178,6 +248,63 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
     return null
   }
 
+  function getEffectiveTicketCapacityLimit(): number | null {
+    if (form.capacity.trim()) {
+      const parsed = Number(form.capacity)
+      return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+    }
+    return attendeePlanLimit
+  }
+
+  function validateTicketCapacities(drafts: TicketDraft[]): string | null {
+    const effectiveLimit = getEffectiveTicketCapacityLimit()
+    let totalTicketCapacity = 0
+
+    for (const draft of drafts) {
+      const ticketLabel = draft.name.trim() || 'Untitled ticket'
+      if (!draft.capacity.trim()) {
+        if (effectiveLimit !== null) {
+          return `Ticket "${ticketLabel}" needs a capacity because this event is capped at ${effectiveLimit} attendees.`
+        }
+        continue
+      }
+
+      const parsedCapacity = Number(draft.capacity)
+      if (!Number.isFinite(parsedCapacity) || parsedCapacity <= 0) {
+        return `Ticket "${ticketLabel}" capacity must be greater than 0.`
+      }
+
+      if (effectiveLimit !== null && parsedCapacity > effectiveLimit) {
+        return `Ticket "${ticketLabel}" cannot exceed ${effectiveLimit} attendees.`
+      }
+
+      totalTicketCapacity += parsedCapacity
+    }
+
+    if (effectiveLimit !== null && totalTicketCapacity > effectiveLimit) {
+      return `Combined ticket capacities cannot exceed ${effectiveLimit} attendees.`
+    }
+
+    return null
+  }
+
+  const ticketCapacityHelperText = (() => {
+    const effectiveLimit = getEffectiveTicketCapacityLimit()
+    if (effectiveLimit !== null) {
+      return `Ticket capacities must stay within ${effectiveLimit} total attendees.`
+    }
+    return 'Leave blank only when the event itself has no attendee cap.'
+  })()
+
+  function getEventRowPriceFromTickets(drafts: TicketDraft[]): number {
+    const paidPrices = drafts
+      .filter((draft) => !draft.is_free)
+      .map((draft) => Number(draft.price))
+      .filter((price) => Number.isFinite(price) && price > 0)
+
+    return paidPrices.length > 0 ? Math.min(...paidPrices) : 0
+  }
+
   // ─── Edit mode: single-form UX (unchanged) ──────────────────────────────────
   async function handleEditSubmit(e: FormEvent) {
     e.preventDefault()
@@ -188,6 +315,11 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
     const capacityError = validateCapacity(form.capacity)
     if (capacityError) {
       setError(capacityError)
+      return
+    }
+    const dateOrderError = validateDateOrder(form.start_at, form.end_at)
+    if (dateOrderError) {
+      setError(dateOrderError)
       return
     }
     setError(null)
@@ -213,7 +345,7 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
         capacity: form.capacity ? Number(form.capacity) : null,
         is_free: form.is_free,
         price: form.is_free ? null : Number(form.price),
-        currency: 'SAR',
+        currency: eventCurrency,
         gender_restriction: form.gender_restriction,
         is_family_friendly: form.is_family_friendly,
         is_published: form.is_published,
@@ -290,11 +422,11 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="label">Start Date & Time *</label>
-            <input type="datetime-local" required value={form.start_at} onChange={set('start_at')} className="input" />
+            <input type="datetime-local" required value={form.start_at} onChange={setDateField('start_at')} className="input" />
           </div>
           <div>
             <label className="label">End Date & Time</label>
-            <input type="datetime-local" value={form.end_at} onChange={set('end_at')} className="input" />
+            <input type="datetime-local" value={form.end_at} min={form.start_at || undefined} onChange={setDateField('end_at')} className="input" />
           </div>
         </div>
 
@@ -313,7 +445,7 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
               </label>
               {!form.is_free && (
                 <div className="relative">
-                  <span className="absolute start-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">SAR</span>
+                  <span className="absolute start-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">{eventCurrency}</span>
                   <input type="number" min={0} value={form.price} onChange={set('price')} className="input ps-12" placeholder="0" />
                 </div>
               )}
@@ -437,6 +569,11 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
       setError(capacityError)
       return
     }
+    const dateOrderError = validateDateOrder(form.start_at, form.end_at)
+    if (dateOrderError) {
+      setError(dateOrderError)
+      return
+    }
     setError(null)
     setLoading(true)
 
@@ -458,7 +595,7 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
       end_at:             form.end_at ? new Date(form.end_at).toISOString() : null,
       capacity:           form.capacity ? Number(form.capacity) : null,
       is_free:            true,
-      currency:           'SAR',
+        currency:           eventCurrency,
       gender_restriction: form.gender_restriction as 'mixed' | 'male' | 'female',
       is_family_friendly: form.is_family_friendly,
       is_published:       false,
@@ -496,11 +633,14 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
       if (!t.name.trim()) { setError('All ticket types need a name'); return }
       if (!t.is_free && (!t.price || Number(t.price) <= 0)) { setError('Paid ticket types need a price'); return }
     }
+    const ticketCapacityError = validateTicketCapacities(tickets)
+    if (ticketCapacityError) { setError(ticketCapacityError); return }
     setError(null)
     setLoading(true)
 
     const allFree = tickets.every((t) => t.is_free)
     const eventId = createdEventId!
+    const eventRowPrice = getEventRowPriceFromTickets(tickets)
 
     // Delete any previously saved ticket types (handles "Back → re-submit" case)
     await supabase.from('ticket_types').delete().eq('event_id', eventId)
@@ -525,7 +665,14 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
     }
 
     // Update event is_free to match ticket types
-    await supabase.from('events').update({ is_free: allFree }).eq('id', eventId)
+    await supabase
+      .from('events')
+      .update({
+        is_free: allFree,
+        price: allFree ? 0 : eventRowPrice,
+        currency: eventCurrency,
+      })
+      .eq('id', eventId)
 
     setLoading(false)
     setStep(3)
@@ -627,11 +774,11 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="label">Start Date & Time *</label>
-              <input type="datetime-local" required value={form.start_at} onChange={set('start_at')} className="input" />
+              <input type="datetime-local" required value={form.start_at} onChange={setDateField('start_at')} className="input" />
             </div>
             <div>
               <label className="label">End Date & Time</label>
-              <input type="datetime-local" value={form.end_at} onChange={set('end_at')} className="input" />
+              <input type="datetime-local" value={form.end_at} min={form.start_at || undefined} onChange={setDateField('end_at')} className="input" />
             </div>
           </div>
 
@@ -772,7 +919,8 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
                     <label className="label">Capacity</label>
                     <input type="number" min={1} value={t.capacity}
                       onChange={(e) => updateTicket(i, 'capacity', e.target.value)}
-                      className="input" placeholder="Unlimited" />
+                      className="input" placeholder={getEffectiveTicketCapacityLimit() !== null ? 'Required' : 'Unlimited'} />
+                    <p className="mt-1 text-xs text-gray-400">{ticketCapacityHelperText}</p>
                   </div>
                 </div>
               </div>
