@@ -167,7 +167,9 @@ export async function ensureEventOccurrences(
     }))
 
   if (inserts.length > 0) {
-    const { error } = await admin.from('event_occurrences').insert(inserts as never)
+    const { error } = await admin
+      .from('event_occurrences')
+      .upsert(inserts as never, { onConflict: 'event_id,starts_at', ignoreDuplicates: true })
     if (error) throw error
   }
 
