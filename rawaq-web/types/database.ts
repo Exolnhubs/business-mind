@@ -163,6 +163,7 @@ export interface Event {
   start_at: string
   end_at: string | null
   event_frequency: EventFrequency
+  recurrence_until: string | null
   venue_name: string | null
   venue_name_ar: string | null
   address: string | null
@@ -192,11 +193,13 @@ export interface Event {
 export interface EventOccurrence {
   id: string
   event_id: string
+  series_starts_at: string
   starts_at: string
   ends_at: string | null
   status: EventOccurrenceStatus
   capacity: number | null
   bookings_count: number
+  is_exception: boolean
   created_at: string
   updated_at: string
 }

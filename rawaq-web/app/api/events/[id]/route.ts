@@ -7,6 +7,7 @@ import { UpdateEventSchema } from '@/lib/validations/events'
 import { sendNotifications } from '@/lib/notifications'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { applyResolvedEventWindow } from '@/lib/events/recurrence'
+import { ensureEventOccurrences } from '@/lib/events/occurrences'
 
 // GET /api/events/:id
 export async function GET(
@@ -71,7 +72,7 @@ export async function PATCH(
     // Fetch current event state before updating (for change detection)
     const { data: before } = await adminClient
       .from('events')
-      .select('title, start_at, end_at, venue_name, address, city, is_published, is_cancelled, organizer_id, capacity')
+      .select('title, start_at, end_at, event_frequency, recurrence_until, venue_name, address, city, is_published, is_cancelled, organizer_id, capacity')
       .eq('id', id)
       .single()
 
@@ -117,6 +118,10 @@ export async function PATCH(
       .single()
 
     if (error) throw error
+
+    if (data) {
+      await ensureEventOccurrences(adminClient, data)
+    }
 
     // Sync community tags if provided
     if (community_ids !== undefined) {

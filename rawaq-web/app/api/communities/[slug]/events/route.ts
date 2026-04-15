@@ -43,7 +43,7 @@ export async function GET(
     let query = supabase
       .from('events')
       .select(
-        `id, title, title_ar, cover_image_url, start_at, end_at, event_frequency, city,
+        `id, title, title_ar, cover_image_url, start_at, end_at, event_frequency, recurrence_until, city,
          is_free, price, currency, bookings_count, capacity, visibility_type,
          organizer:profiles!organizer_id(id, display_name, avatar_url,
            organizer_profile:organizer_profiles!user_id(business_name, logo_url, verified)),

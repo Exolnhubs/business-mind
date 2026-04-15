@@ -7,6 +7,7 @@ import { getOrganizerPlanAccess } from '@/lib/plans'
 import { CreateEventSchema, ListEventsSchema } from '@/lib/validations/events'
 import { sendNotifications } from '@/lib/notifications'
 import { applyResolvedEventWindow, compareEventsByResolvedStartAt } from '@/lib/events/recurrence'
+import { ensureEventOccurrences } from '@/lib/events/occurrences'
 
 function buildEventKeywordSearch(search: string) {
   const term = search
@@ -40,7 +41,7 @@ export async function GET(req: NextRequest) {
       .from('events')
       .select(
         `id, title, title_ar, description, cover_image_url, start_at, end_at,
-         event_frequency, venue_name, city, country, lat, lng, capacity, is_free, price, currency,
+         event_frequency, recurrence_until, venue_name, city, country, lat, lng, capacity, is_free, price, currency,
          gender_restriction, is_family_friendly, bookings_count, views_count,
          organizer_id, category_id, is_published, is_cancelled, visibility_type,
          organizer:profiles!organizer_id(
@@ -196,6 +197,10 @@ export async function POST(req: NextRequest) {
       .single()
 
     if (error) throw error
+
+    if (data) {
+      await ensureEventOccurrences(createSupabaseAdminClient(), data)
+    }
 
     // ── Tag communities ───────────────────────────────────────
     if (community_ids?.length && data) {

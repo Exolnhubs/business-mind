@@ -14,6 +14,7 @@ import { apiGet, apiPatch } from '@/lib/api'
 import { uploadViaApi } from '@/lib/upload'
 import { useAuth } from '@/contexts/auth-context'
 import { LocationPickerModal, type PickedLocation } from '@/components/communities/LocationPickerModal'
+import { OccurrenceManager } from '@/components/organizer/OccurrenceManager'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
 import type { Community, EventFrequency, EventVisibility } from '@/types/database'
 const TEMPLATES_KEY = 'rawaq_ticket_templates'
@@ -120,8 +121,9 @@ export default function EventFormScreen() {
   const [showLocationPicker, setShowLocationPicker] = useState(false)
   const [startAt,           setStartAt]           = useState('')
   const [endAt,             setEndAt]             = useState('')
+  const [recurrenceUntil,   setRecurrenceUntil]   = useState('')
   // Date picker state
-  const [pickerTarget,  setPickerTarget]  = useState<'start' | 'end' | null>(null)
+  const [pickerTarget,  setPickerTarget]  = useState<'start' | 'end' | 'recurrence_until' | null>(null)
   const [pickerMode,    setPickerMode]    = useState<'date' | 'time'>('date')
   const [pickerTempDate, setPickerTempDate] = useState<Date>(new Date())
   const [capacity,          setCapacity]          = useState('')
@@ -236,6 +238,7 @@ export default function EventFormScreen() {
           )
           setStartAt(ev.start_at ? new Date(ev.start_at).toISOString().slice(0, 16).replace('T', ' ') : '')
           setEndAt(ev.end_at ? new Date(ev.end_at).toISOString().slice(0, 16).replace('T', ' ') : '')
+          setRecurrenceUntil(ev.recurrence_until ? new Date(ev.recurrence_until).toISOString().slice(0, 16).replace('T', ' ') : '')
           setCapacity(ev.capacity?.toString() ?? '')
           setIsFree(ev.is_free)
           setPrice(ev.price?.toString() ?? '')
@@ -276,9 +279,9 @@ export default function EventFormScreen() {
       : null
   }
 
-  function openPicker(target: 'start' | 'end') {
-    const current = target === 'start' ? startAt : endAt
-    const fallback = target === 'end' && startAt ? parseDate(startAt) : new Date()
+  function openPicker(target: 'start' | 'end' | 'recurrence_until') {
+    const current = target === 'start' ? startAt : target === 'end' ? endAt : recurrenceUntil
+    const fallback = target !== 'start' && startAt ? parseDate(startAt) : new Date()
     setPickerTempDate(current ? parseDate(current) : fallback)
     setPickerMode('date')
     setPickerTarget(target)
@@ -291,7 +294,7 @@ export default function EventFormScreen() {
     }
     if (pickerMode === 'date') {
       const nextDate =
-        pickerTarget === 'end' && startAt && selected.getTime() < parseDate(startAt).getTime()
+        (pickerTarget === 'end' || pickerTarget === 'recurrence_until') && startAt && selected.getTime() < parseDate(startAt).getTime()
           ? parseDate(startAt)
           : selected
       setPickerTempDate(nextDate)
@@ -299,7 +302,7 @@ export default function EventFormScreen() {
     } else {
       // Both date and time chosen — commit
       const nextDate =
-        pickerTarget === 'end' && startAt && selected.getTime() < parseDate(startAt).getTime()
+        (pickerTarget === 'end' || pickerTarget === 'recurrence_until') && startAt && selected.getTime() < parseDate(startAt).getTime()
           ? parseDate(startAt)
           : selected
       const iso = nextDate.toISOString().slice(0, 16).replace('T', ' ')
@@ -308,6 +311,11 @@ export default function EventFormScreen() {
         if (endAt && parseDate(endAt).getTime() < nextDate.getTime()) {
           setEndAt(iso)
         }
+        if (recurrenceUntil && parseDate(recurrenceUntil).getTime() < nextDate.getTime()) {
+          setRecurrenceUntil(iso)
+        }
+      } else if (pickerTarget === 'recurrence_until') {
+        setRecurrenceUntil(iso)
       } else {
         setEndAt(iso)
       }
@@ -442,6 +450,7 @@ export default function EventFormScreen() {
       lng: eventLocation.lng,
       start_at: parsedStart.toISOString(),
       end_at: parsedEnd?.toISOString() ?? null,
+      recurrence_until: eventFrequency !== 'one_time' && recurrenceUntil ? parseDate(recurrenceUntil).toISOString() : null,
       capacity: capacity ? Number(capacity) : null,
       is_free: isFree,
       price: isFree ? null : Number(price),
@@ -491,6 +500,7 @@ export default function EventFormScreen() {
       address:            address.trim() || null,
       start_at:           parsedStart.toISOString(),
       end_at:             parsedEnd?.toISOString() ?? null,
+      recurrence_until:   eventFrequency !== 'one_time' && recurrenceUntil ? parseDate(recurrenceUntil).toISOString() : null,
       capacity:           capacity ? Number(capacity) : null,
       is_free:            true,
       currency:           eventCurrency,
@@ -750,13 +760,28 @@ export default function EventFormScreen() {
               </View>
             </Field>
 
+            {eventFrequency !== 'one_time' && (
+              <Field label="Repeat Until">
+                <TouchableOpacity style={styles.datePicker} onPress={() => openPicker('recurrence_until')}>
+                  <Text style={[styles.datePickerText, !recurrenceUntil && styles.datePickerPlaceholder]}>
+                    {recurrenceUntil ? formatDisplay(recurrenceUntil) : 'Select repeat-until date & time'}
+                  </Text>
+                  {recurrenceUntil
+                    ? <TouchableOpacity onPress={() => setRecurrenceUntil('')}><Text style={styles.dateClear}>×</Text></TouchableOpacity>
+                    : <Text style={styles.datePickerIcon}>📅</Text>
+                  }
+                </TouchableOpacity>
+                <Text style={styles.helperText}>Future sessions will be generated up to this date.</Text>
+              </Field>
+            )}
+
               {pickerTarget !== null && (
               <DateTimePicker
                 value={pickerTempDate}
                 mode={pickerMode}
                 display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                 minimumDate={
-                  pickerTarget === 'end' && startAt
+                  (pickerTarget === 'end' || pickerTarget === 'recurrence_until') && startAt
                     ? parseDate(startAt)
                     : new Date()
                 }
@@ -856,6 +881,10 @@ export default function EventFormScreen() {
               </Field>
             )}
 
+            {isEdit && (
+              <OccurrenceManager eventId={String(id)} enabled={eventFrequency !== 'one_time'} />
+            )}
+
             {error && <View style={styles.errorBox}><Text style={styles.errorText}>{error}</Text></View>}
 
             <TouchableOpacity
@@ -948,6 +977,7 @@ export default function EventFormScreen() {
               <ReviewRow label="Location" value={address || city} />
               <ReviewRow label="Starts" value={startAt} />
               <ReviewRow label="Frequency" value={EVENT_FREQUENCY_OPTIONS.find((option) => option.value === eventFrequency)?.label ?? 'One Time'} />
+              {eventFrequency !== 'one_time' && recurrenceUntil ? <ReviewRow label="Repeat Until" value={recurrenceUntil} /> : null}
               {venueName ? <ReviewRow label="Venue" value={venueName} /> : null}
               <ReviewRow label="Visibility" value={visibilityType} />
               {selectedCommunities.length > 0 ? (

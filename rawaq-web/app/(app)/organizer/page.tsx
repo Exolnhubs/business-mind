@@ -149,6 +149,14 @@ export default async function OrganizerDashboard() {
                         >
                           Edit
                         </Link>
+                        {event.event_frequency !== 'one_time' ? (
+                          <Link
+                            href={`/organizer/events/${event.id}/edit#occurrences`}
+                            className="text-xs text-gray-500 font-medium hover:underline"
+                          >
+                            Sessions
+                          </Link>
+                        ) : null}
                       </div>
                     </td>
                   </tr>

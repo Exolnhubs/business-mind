@@ -7,6 +7,13 @@ type AdminClient = SupabaseClient<Database>
 type EventOccurrenceSource = Pick<
   Event,
   'id' | 'start_at' | 'end_at' | 'event_frequency' | 'capacity' | 'is_cancelled'
+> & {
+  recurrence_until?: string | null
+}
+
+type EventOccurrenceWindow = Pick<
+  EventOccurrence,
+  'series_starts_at' | 'starts_at' | 'ends_at' | 'capacity' | 'status'
 >
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -80,13 +87,15 @@ function buildOccurrenceWindows(
   if (!anchor) return []
 
   const anchorEnd = parseDate(event.end_at ?? null)
+  const recurrenceUntil = parseDate(event.recurrence_until ?? null)
   const durationMs = getDurationMs(anchor, anchorEnd)
   const horizon = new Date(now.getTime() + horizonDays * DAY_MS)
-  const windows: Array<Pick<EventOccurrence, 'starts_at' | 'ends_at' | 'capacity' | 'status'>> = []
   const status: EventOccurrence['status'] = event.is_cancelled ? 'cancelled' : 'scheduled'
+  const windows: EventOccurrenceWindow[] = []
 
   if (event.event_frequency === 'one_time') {
     windows.push({
+      series_starts_at: anchor.toISOString(),
       starts_at: anchor.toISOString(),
       ends_at: durationMs !== null ? new Date(anchor.getTime() + durationMs).toISOString() : null,
       capacity: event.capacity,
@@ -101,7 +110,10 @@ function buildOccurrenceWindows(
       : getCurrentOrNextMonthly(anchor, durationMs, now)
 
   while (cursor.getTime() <= horizon.getTime()) {
+    if (recurrenceUntil && cursor.getTime() > recurrenceUntil.getTime()) break
+
     windows.push({
+      series_starts_at: cursor.toISOString(),
       starts_at: cursor.toISOString(),
       ends_at: durationMs !== null ? new Date(cursor.getTime() + durationMs).toISOString() : null,
       capacity: event.capacity,
@@ -117,6 +129,15 @@ function buildOccurrenceWindows(
   return windows
 }
 
+function shouldUpdateOccurrence(existing: EventOccurrence, next: EventOccurrenceWindow) {
+  return (
+    existing.starts_at !== next.starts_at
+    || (existing.ends_at ?? null) !== (next.ends_at ?? null)
+    || existing.capacity !== next.capacity
+    || existing.status !== next.status
+  )
+}
+
 export async function ensureEventOccurrences(
   admin: AdminClient,
   event: EventOccurrenceSource,
@@ -124,26 +145,75 @@ export async function ensureEventOccurrences(
   horizonDays = 180,
 ) {
   const windows = buildOccurrenceWindows(event, now, horizonDays)
-  if (windows.length === 0) return []
 
-  const { error: upsertError } = await admin
+  const { data: existingRows, error: existingError } = await admin
     .from('event_occurrences')
-    .upsert(
-      windows.map((window) => ({
-        event_id: event.id,
-        ...window,
-      })),
-      { onConflict: 'event_id,starts_at' },
+    .select('*')
+    .eq('event_id', event.id)
+    .order('starts_at', { ascending: true })
+
+  if (existingError) throw existingError
+
+  const existing = (existingRows ?? []) as EventOccurrence[]
+  const existingBySeriesStart = new Map(existing.map((row) => [row.series_starts_at, row]))
+  const desiredSeriesStarts = new Set(windows.map((window) => window.series_starts_at))
+
+  const inserts = windows
+    .filter((window) => !existingBySeriesStart.has(window.series_starts_at))
+    .map((window) => ({
+      event_id: event.id,
+      ...window,
+      is_exception: false,
+    }))
+
+  if (inserts.length > 0) {
+    const { error } = await admin.from('event_occurrences').insert(inserts as never)
+    if (error) throw error
+  }
+
+  const updates = windows
+    .map((window) => ({ window, existing: existingBySeriesStart.get(window.series_starts_at) }))
+    .filter(
+      (entry): entry is { window: EventOccurrenceWindow; existing: EventOccurrence } =>
+        Boolean(entry.existing) && !entry.existing!.is_exception && shouldUpdateOccurrence(entry.existing!, entry.window),
     )
 
-  if (upsertError) throw upsertError
+  for (const { existing: row, window } of updates) {
+    const { error } = await admin
+      .from('event_occurrences')
+      .update({
+        starts_at: window.starts_at,
+        ends_at: window.ends_at,
+        capacity: window.capacity,
+        status: window.status,
+      } as never)
+      .eq('id', row.id)
 
-  const earliestStart = windows[0]?.starts_at ?? event.start_at
+    if (error) throw error
+  }
+
+  const obsoleteFutureIds = existing
+    .filter((row) =>
+      !row.is_exception
+      && row.bookings_count === 0
+      && !desiredSeriesStarts.has(row.series_starts_at)
+      && new Date(row.starts_at).getTime() > now.getTime(),
+    )
+    .map((row) => row.id)
+
+  if (obsoleteFutureIds.length > 0) {
+    const { error } = await admin
+      .from('event_occurrences')
+      .delete()
+      .in('id', obsoleteFutureIds)
+
+    if (error) throw error
+  }
+
   const { data, error } = await admin
     .from('event_occurrences')
     .select('*')
     .eq('event_id', event.id)
-    .gte('starts_at', earliestStart)
     .order('starts_at', { ascending: true })
 
   if (error) throw error
@@ -215,4 +285,3 @@ export async function resolveAttendanceOccurrence(
 
   return activeOrUpcoming[0] ?? occurrences[0] ?? null
 }
-

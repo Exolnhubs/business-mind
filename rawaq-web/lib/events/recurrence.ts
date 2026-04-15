@@ -4,6 +4,7 @@ type RecurringEventShape = {
   start_at: string
   end_at?: string | null
   event_frequency?: EventFrequency | null
+  recurrence_until?: string | null
 }
 
 type ResolutionMode = 'display' | 'next_upcoming'
@@ -45,7 +46,24 @@ function addMonthlyOccurrence(anchor: Date, current: Date, stepMonths = 1) {
   return buildMonthlyOccurrence(anchor, nextYear, normalizedMonth)
 }
 
-function resolveWeeklyWindow(anchor: Date, durationMs: number | null, now: Date, mode: ResolutionMode) {
+function getLastValidWeeklyStart(anchor: Date, recurrenceUntil: Date) {
+  if (anchor.getTime() > recurrenceUntil.getTime()) return anchor
+  const elapsed = recurrenceUntil.getTime() - anchor.getTime()
+  return new Date(anchor.getTime() + Math.floor(elapsed / WEEK_MS) * WEEK_MS)
+}
+
+function getLastValidMonthlyStart(anchor: Date, recurrenceUntil: Date) {
+  let candidate = buildMonthlyOccurrence(anchor, recurrenceUntil.getUTCFullYear(), recurrenceUntil.getUTCMonth())
+  while (candidate.getTime() > recurrenceUntil.getTime()) {
+    candidate = addMonthlyOccurrence(anchor, candidate, -1)
+  }
+  while (candidate.getTime() < anchor.getTime()) {
+    candidate = addMonthlyOccurrence(anchor, candidate)
+  }
+  return candidate
+}
+
+function resolveWeeklyWindow(anchor: Date, durationMs: number | null, now: Date, mode: ResolutionMode, recurrenceUntil: Date | null) {
   const nowMs = now.getTime()
   const anchorMs = anchor.getTime()
 
@@ -65,13 +83,18 @@ function resolveWeeklyWindow(anchor: Date, durationMs: number | null, now: Date,
     candidateEndMs = durationMs !== null ? candidateMs + durationMs : null
   }
 
+  if (recurrenceUntil && candidateMs > recurrenceUntil.getTime()) {
+    candidateMs = getLastValidWeeklyStart(anchor, recurrenceUntil).getTime()
+    candidateEndMs = durationMs !== null ? candidateMs + durationMs : null
+  }
+
   return {
     start_at: new Date(candidateMs).toISOString(),
     end_at: candidateEndMs !== null ? new Date(candidateEndMs).toISOString() : null,
   }
 }
 
-function resolveMonthlyWindow(anchor: Date, durationMs: number | null, now: Date, mode: ResolutionMode) {
+function resolveMonthlyWindow(anchor: Date, durationMs: number | null, now: Date, mode: ResolutionMode, recurrenceUntil: Date | null) {
   const nowMs = now.getTime()
   const anchorMs = anchor.getTime()
 
@@ -99,6 +122,11 @@ function resolveMonthlyWindow(anchor: Date, durationMs: number | null, now: Date
     candidateEndMs = durationMs !== null ? candidate.getTime() + durationMs : null
   }
 
+  if (recurrenceUntil && candidate.getTime() > recurrenceUntil.getTime()) {
+    candidate = getLastValidMonthlyStart(anchor, recurrenceUntil)
+    candidateEndMs = durationMs !== null ? candidate.getTime() + durationMs : null
+  }
+
   return {
     start_at: candidate.toISOString(),
     end_at: candidateEndMs !== null ? new Date(candidateEndMs).toISOString() : null,
@@ -119,11 +147,12 @@ export function getResolvedEventWindow(
   }
 
   const end = parseDate(event.end_at ?? null)
+  const recurrenceUntil = parseDate(event.recurrence_until ?? null)
   const durationMs = getDurationMs(start, end)
   const frequency = event.event_frequency ?? 'one_time'
 
-  if (frequency === 'weekly') return resolveWeeklyWindow(start, durationMs, now, mode)
-  if (frequency === 'monthly') return resolveMonthlyWindow(start, durationMs, now, mode)
+  if (frequency === 'weekly') return resolveWeeklyWindow(start, durationMs, now, mode, recurrenceUntil)
+  if (frequency === 'monthly') return resolveMonthlyWindow(start, durationMs, now, mode, recurrenceUntil)
 
   return {
     start_at: start.toISOString(),

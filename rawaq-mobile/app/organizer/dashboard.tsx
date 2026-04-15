@@ -19,6 +19,7 @@ interface OrgEvent {
   start_at: string
   end_at: string | null
   event_frequency: EventFrequency
+  recurrence_until?: string | null
   is_published: boolean
   is_cancelled: boolean
   bookings_count: number
@@ -112,7 +113,7 @@ export default function OrganizerDashboard() {
     const [evRes, orgRes, profileRes, tipRes, usageRes] = await Promise.all([
       supabase
         .from('events')
-        .select('id, title, start_at, end_at, event_frequency, is_published, is_cancelled, bookings_count, capacity, tips_total')
+        .select('id, title, start_at, end_at, event_frequency, recurrence_until, is_published, is_cancelled, bookings_count, capacity, tips_total')
         .eq('organizer_id', user.id)
         .order('start_at', { ascending: false })
         .limit(30),
@@ -404,6 +405,14 @@ export default function OrganizerDashboard() {
                     >
                       <Text style={[styles.actionBtnText, { color: Colors.gray[700] }]}>Edit</Text>
                     </TouchableOpacity>
+                    {ev.event_frequency !== 'one_time' && (
+                      <TouchableOpacity
+                        style={[styles.actionBtn, { backgroundColor: Colors.gray[100] }]}
+                        onPress={() => router.push(`/organizer/event-form?id=${ev.id}`)}
+                      >
+                        <Text style={[styles.actionBtnText, { color: Colors.gray[700] }]}>Sessions</Text>
+                      </TouchableOpacity>
+                    )}
                     <TouchableOpacity
                       style={[styles.actionBtn, { backgroundColor: Colors.red.light }]}
                       onPress={() => cancelEvent(ev)}

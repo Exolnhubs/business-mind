@@ -13,6 +13,7 @@ const EventBaseSchema = z.object({
   start_at: z.string().datetime(),
   end_at: z.string().datetime().optional(),
   event_frequency: EventFrequencySchema.default('one_time'),
+  recurrence_until: z.string().datetime().optional(),
   venue_name: z.string().max(200).optional(),
   venue_name_ar: z.string().max(200).optional(),
   address: z.string().max(500).optional(),
@@ -43,6 +44,9 @@ export const CreateEventSchema = EventBaseSchema.extend(EventCommunityFields).re
 ).refine(
   (d) => !d.end_at || new Date(d.end_at) > new Date(d.start_at),
   { message: 'end_at must be after start_at', path: ['end_at'] }
+).refine(
+  (d) => !d.recurrence_until || new Date(d.recurrence_until) >= new Date(d.start_at),
+  { message: 'recurrence_until must be on or after start_at', path: ['recurrence_until'] }
 )
 
 export const UpdateEventSchema = EventBaseSchema.partial().extend({
@@ -53,6 +57,7 @@ export const UpdateEventSchema = EventBaseSchema.partial().extend({
   cover_image_url: z.string().url().nullable().optional(),
   end_at: z.string().datetime().nullable().optional(),
   event_frequency: EventFrequencySchema.optional(),
+  recurrence_until: z.string().datetime().nullable().optional(),
   venue_name: z.string().max(200).nullable().optional(),
   venue_name_ar: z.string().max(200).nullable().optional(),
   address: z.string().max(500).nullable().optional(),

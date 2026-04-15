@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/auth-context'
 import { Spinner } from '@/components/ui/Spinner'
 import { FileUpload } from '@/components/ui/FileUpload'
 import { LocationPickerModal, type PickedLocation } from '@/components/communities/LocationPickerModal'
+import { EventOccurrencesManager } from '@/components/organizer/EventOccurrencesManager'
 import type { Event, EventCategory, Community, EventFrequency, EventVisibility } from '@/types/database'
 
 interface EventFormProps {
@@ -122,6 +123,7 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
     start_at:           event?.start_at ? event.start_at.slice(0, 16) : '',
     end_at:             event?.end_at ? event.end_at.slice(0, 16) : '',
     event_frequency:    event?.event_frequency ?? 'one_time',
+    recurrence_until:   event?.recurrence_until ? event.recurrence_until.slice(0, 16) : '',
     capacity:           event?.capacity?.toString() ?? '',
     is_free:            event?.is_free ?? true,
     price:              event?.price?.toString() ?? '',
@@ -130,6 +132,7 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
     is_published:       event?.is_published ?? false,
   })
   const eventCurrency = getCurrencyFromCountryCode(form.country || event?.country || event?.currency)
+  const shouldShowRecurrenceUntil = form.event_frequency !== 'one_time'
 
   const [tickets, setTickets]         = useState<TicketDraft[]>([{ ...EMPTY_TICKET, name: 'General Admission' }])
   const [loading, setLoading]         = useState(false)
@@ -349,6 +352,9 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
         start_at: new Date(form.start_at).toISOString(),
         end_at: form.end_at ? new Date(form.end_at).toISOString() : null,
         event_frequency: form.event_frequency,
+        recurrence_until: shouldShowRecurrenceUntil && form.recurrence_until
+          ? new Date(form.recurrence_until).toISOString()
+          : null,
         capacity: form.capacity ? Number(form.capacity) : null,
         is_free: form.is_free,
         price: form.is_free ? null : Number(form.price),
@@ -445,6 +451,20 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
             ))}
           </select>
         </div>
+
+        {shouldShowRecurrenceUntil ? (
+          <div>
+            <label className="label">Repeat Until</label>
+            <input
+              type="datetime-local"
+              value={form.recurrence_until}
+              min={form.start_at || undefined}
+              onChange={set('recurrence_until')}
+              className="input"
+            />
+            <p className="mt-1 text-xs text-gray-400">Future sessions will be generated up to this date.</p>
+          </div>
+        ) : null}
 
         <div className="grid grid-cols-2 gap-4">
           <div>
@@ -549,6 +569,8 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
           )}
         </div>
 
+        <EventOccurrencesManager eventId={event!.id} enabled={shouldShowRecurrenceUntil} />
+
         {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">{error}</div>}
 
         <div className="flex items-center gap-3 pt-2">
@@ -610,6 +632,9 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
       start_at:           new Date(form.start_at).toISOString(),
       end_at:             form.end_at ? new Date(form.end_at).toISOString() : null,
       event_frequency:    form.event_frequency,
+      recurrence_until:   shouldShowRecurrenceUntil && form.recurrence_until
+        ? new Date(form.recurrence_until).toISOString()
+        : null,
       capacity:           form.capacity ? Number(form.capacity) : null,
       is_free:            true,
         currency:           eventCurrency,
@@ -808,6 +833,20 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
             </select>
           </div>
 
+          {shouldShowRecurrenceUntil ? (
+            <div>
+              <label className="label">Repeat Until</label>
+              <input
+                type="datetime-local"
+                value={form.recurrence_until}
+                min={form.start_at || undefined}
+                onChange={set('recurrence_until')}
+                className="input"
+              />
+              <p className="mt-1 text-xs text-gray-400">Future sessions will be generated up to this date.</p>
+            </div>
+          ) : null}
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="label">Total Capacity</label>
@@ -993,6 +1032,12 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
                   {EVENT_FREQUENCY_OPTIONS.find((option) => option.value === form.event_frequency)?.label ?? 'One Time'}
                 </dd>
               </div>
+              {shouldShowRecurrenceUntil && form.recurrence_until ? (
+                <div>
+                  <dt className="text-gray-500 text-xs font-medium uppercase tracking-wide">Repeat Until</dt>
+                  <dd className="text-gray-900 font-medium mt-0.5">{new Date(form.recurrence_until).toLocaleString()}</dd>
+                </div>
+              ) : null}
               {form.venue_name && (
                 <div>
                   <dt className="text-gray-500 text-xs font-medium uppercase tracking-wide">Venue</dt>

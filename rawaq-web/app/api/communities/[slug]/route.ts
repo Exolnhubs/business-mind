@@ -119,7 +119,7 @@ export async function GET(
       const eIds = ecRows.map((r) => r.event_id)
       const { data: events } = await supabase
         .from('events')
-        .select('id, title, title_ar, cover_image_url, start_at, end_at, event_frequency, city, is_free, price, currency, bookings_count, created_at')
+        .select('id, title, title_ar, cover_image_url, start_at, end_at, event_frequency, recurrence_until, city, is_free, price, currency, bookings_count, created_at')
         .in('id', eIds)
         .eq('is_published', true)
         .eq('is_cancelled', false)
