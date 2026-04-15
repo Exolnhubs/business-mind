@@ -5,6 +5,7 @@ import { formatRelativeTime } from '@/lib/utils'
 import { CommentForm } from './CommentForm'
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '@/theme'
 import type { CommentWithAuthor } from '@/types/database'
+import { PlanBadge } from '@/components/ui/PlanBadge'
 
 interface Props {
   comment: CommentWithAuthor
@@ -40,8 +41,9 @@ export function CommentItem({ comment, currentUserId, onReply, onDelete, isReply
 
       <View style={styles.content}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={goToProfile}>
+          <TouchableOpacity onPress={goToProfile} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
             <Text style={styles.name}>{comment.author?.display_name ?? 'Unknown'}</Text>
+            <PlanBadge planId={comment.author?.plan_id} size={14} />
           </TouchableOpacity>
           <Text style={styles.time}>{formatRelativeTime(comment.created_at)}</Text>
         </View>

@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { Colors, FontSize, FontWeight, Radius, Shadow, Spacing } from '@/theme'
 import type { Community, HappeningType, HappeningWithAuthor } from '@/types/database'
+import { PlanBadge } from '@/components/ui/PlanBadge'
 
 export type HappeningDiscoveryItem = HappeningWithAuthor & {
   community: Pick<Community, 'id' | 'name' | 'name_ar' | 'slug' | 'level' | 'cover_url'> & { is_member?: boolean }
@@ -84,9 +85,12 @@ export function HappeningDiscoveryCard({
       ) : null}
 
       <View style={styles.footer}>
-        <Text style={styles.authorText} numberOfLines={1}>
-          {happening.author.display_name}
-        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: Spacing.sm }}>
+          <Text style={[styles.authorText, { marginBottom: 0 }]} numberOfLines={1}>
+            {happening.author.display_name}
+          </Text>
+          <PlanBadge planId={happening.author.plan_id} size={13} />
+        </View>
         <View style={styles.actions}>
           <TouchableOpacity
             onPress={() => onOpenComments?.(happening)}

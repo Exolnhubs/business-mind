@@ -27,6 +27,7 @@ import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
 import { apiGet, apiPost } from '@/lib/api'
 import * as Location from 'expo-location'
 import type { DeviceToken, Profile } from '@/types/database'
+import { PlanBadge } from '@/components/ui/PlanBadge'
 
 if (Notifications) {
   Notifications.setNotificationHandler({
@@ -398,7 +399,10 @@ export default function ProfileScreen() {
               : <Text style={styles.avatarEditHint}>📷</Text>
             }
           </TouchableOpacity>
-          <Text style={styles.displayName}>{profile?.display_name ?? t('profile.title')}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Text style={styles.displayName}>{profile?.display_name ?? t('profile.title')}</Text>
+            <PlanBadge planId={profile?.plan_id} size={18} />
+          </View>
           <Text style={styles.email}>{user.email}</Text>
           <TouchableOpacity onPress={detectLocation} disabled={locating} style={styles.cityRow}>
             {locating
