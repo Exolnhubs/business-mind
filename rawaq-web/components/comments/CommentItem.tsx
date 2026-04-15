@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { formatRelativeTime } from '@/lib/utils'
 import { CommentForm } from './CommentForm'
+import { PlanBadge } from '@/components/ui/PlanBadge'
 import type { CommentWithAuthor } from '@/types/database'
 
 interface CommentItemProps {
@@ -47,13 +48,16 @@ export function CommentItem({ comment, currentUserId, onReply, onDelete, isReply
 
       <div className="flex-1 min-w-0">
         {/* Header */}
-        <div className="flex items-baseline gap-2 mb-0.5">
-          <Link
-            href={comment.author?.id ? `/user/${comment.author.id}` : '#'}
-            className="text-sm font-semibold text-gray-900 hover:text-brand-600 transition-colors"
-          >
-            {comment.author?.display_name ?? 'Unknown'}
-          </Link>
+        <div className="flex items-center gap-2 mb-0.5">
+          <span className="inline-flex items-center gap-1">
+            <Link
+              href={comment.author?.id ? `/user/${comment.author.id}` : '#'}
+              className="text-sm font-semibold text-gray-900 hover:text-brand-600 transition-colors"
+            >
+              {comment.author?.display_name ?? 'Unknown'}
+            </Link>
+            <PlanBadge planId={comment.author?.plan_id} size={14} />
+          </span>
           <span className="text-xs text-gray-400">
             {formatRelativeTime(comment.created_at)}
           </span>

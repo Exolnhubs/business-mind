@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import type { HappeningWithAuthor, HappeningType } from '@/types/database'
 import { useAuth } from '@/contexts/auth-context'
+import { PlanBadge } from '@/components/ui/PlanBadge'
 
 const TYPE_META: Record<HappeningType, { label: string; icon: string; bg: string; text: string }> = {
   open_invite: { label: 'Open invite', icon: '🎉', bg: 'bg-brand-50', text: 'text-brand-700' },
@@ -46,7 +47,10 @@ export function HappeningCard({ happening: h, onRsvp, onReact, onDelete, onRepor
               : avatarChar}
           </div>
           <div>
-            <p className="leading-tight text-sm font-semibold text-gray-900">{h.author.display_name}</p>
+            <p className="leading-tight text-sm font-semibold text-gray-900 flex items-center gap-1">
+              {h.author.display_name}
+              <PlanBadge planId={h.author.plan_id} size={14} />
+            </p>
             <p className="text-xs text-gray-400">{ttl}</p>
           </div>
         </div>
