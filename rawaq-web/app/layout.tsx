@@ -6,7 +6,7 @@ import { CustomCursor } from '@/components/ui/CustomCursor'
 
 export const metadata: Metadata = {
   title: { default: 'Rawaq — Discover Local Events', template: '%s | Rawaq' },
-  description: 'Find and join local events in Saudi Arabia',
+  description: 'Find and join local events in your local area. Explore a wide range of activities and connect with your community.',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
