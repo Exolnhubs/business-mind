@@ -7,6 +7,23 @@ import { getOrganizerPlanAccess } from '@/lib/plans'
 import { CreateEventSchema, ListEventsSchema } from '@/lib/validations/events'
 import { sendNotifications } from '@/lib/notifications'
 
+function buildEventKeywordSearch(search: string) {
+  const term = search
+    .trim()
+    .replace(/[%*,()]/g, ' ')
+    .replace(/\s+/g, ' ')
+
+  if (!term) return null
+
+  return [
+    `title.ilike.%${term}%`,
+    `title_ar.ilike.%${term}%`,
+    `description.ilike.%${term}%`,
+    `venue_name.ilike.%${term}%`,
+    `city.ilike.%${term}%`,
+  ].join(',')
+}
+
 // GET /api/events — public browsable event list with filters
 export async function GET(req: NextRequest) {
   try {
@@ -73,13 +90,12 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Full-text search
+    // Keyword search
     if (params.search) {
-      query = query.textSearch(
-        'fts',
-        params.search,
-        { type: 'websearch', config: 'simple' }
-      )
+      const searchFilter = buildEventKeywordSearch(params.search)
+      if (searchFilter) {
+        query = query.or(searchFilter)
+      }
     }
 
     // Geo filter (radius_km requires PostGIS RPC)

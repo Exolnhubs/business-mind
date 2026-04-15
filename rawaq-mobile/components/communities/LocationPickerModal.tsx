@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import {
   ActivityIndicator,
   Modal,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -10,6 +11,7 @@ import {
 } from 'react-native'
 import MapView, { MapPressEvent, Marker, Region } from 'react-native-maps'
 import * as Location from 'expo-location'
+import Constants from 'expo-constants'
 import { Ionicons } from '@expo/vector-icons'
 import { Colors, FontSize, FontWeight, Radius, Shadow, Spacing } from '@/theme'
 
@@ -47,6 +49,11 @@ export function LocationPickerModal({
   onClose: () => void
   onConfirm: (location: PickedLocation | null) => void
 }) {
+  const androidGoogleMapsApiKey =
+    Constants.expoConfig?.android?.config?.googleMaps?.apiKey
+    ?? process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY
+    ?? null
+  const canRenderNativeMap = Platform.OS !== 'android' || Boolean(androidGoogleMapsApiKey)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
   const [searching, setSearching] = useState(false)
@@ -230,26 +237,37 @@ async function reverseLabel(lat: number, lng: number) {
             </View>
           )}
 
-          <MapView
-            style={styles.map}
-            region={region}
-            onRegionChangeComplete={setRegion}
-            onPress={(event: MapPressEvent) => {
-              const { latitude, longitude } = event.nativeEvent.coordinate
-              handleMapPick(latitude, longitude)
-            }}
-          >
-            {selected && (
-              <Marker
-                coordinate={{ latitude: selected.lat, longitude: selected.lng }}
-                draggable
-                onDragEnd={(event) => {
-                  const { latitude, longitude } = event.nativeEvent.coordinate
-                  handleMapPick(latitude, longitude)
-                }}
-              />
-            )}
-          </MapView>
+          {canRenderNativeMap ? (
+            <MapView
+              style={styles.map}
+              region={region}
+              onRegionChangeComplete={setRegion}
+              onPress={(event: MapPressEvent) => {
+                const { latitude, longitude } = event.nativeEvent.coordinate
+                handleMapPick(latitude, longitude)
+              }}
+            >
+              {selected && (
+                <Marker
+                  coordinate={{ latitude: selected.lat, longitude: selected.lng }}
+                  draggable
+                  onDragEnd={(event) => {
+                    const { latitude, longitude } = event.nativeEvent.coordinate
+                    handleMapPick(latitude, longitude)
+                  }}
+                />
+              )}
+            </MapView>
+          ) : (
+            <View style={styles.mapFallback}>
+              <Ionicons name="map-outline" size={26} color={Colors.brand[700]} />
+              <Text style={styles.mapFallbackTitle}>Android map preview needs a Google Maps API key</Text>
+              <Text style={styles.mapFallbackText}>
+                Search for a place or use your current location for now. Once
+                `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY` is configured, the interactive map will appear here.
+              </Text>
+            </View>
+          )}
 
           <View style={styles.infoCard}>
             <View style={styles.infoHeader}>
@@ -370,6 +388,30 @@ const styles = StyleSheet.create({
     height: 280,
     borderRadius: Radius.xl,
     overflow: 'hidden',
+  },
+  mapFallback: {
+    width: '100%',
+    height: 280,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: Colors.brand[100],
+    backgroundColor: Colors.brand[50],
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.xl,
+    gap: Spacing.sm,
+  },
+  mapFallbackTitle: {
+    fontSize: FontSize.base,
+    fontWeight: FontWeight.semibold,
+    color: Colors.gray[900],
+    textAlign: 'center',
+  },
+  mapFallbackText: {
+    fontSize: FontSize.xs,
+    lineHeight: 18,
+    color: Colors.gray[600],
+    textAlign: 'center',
   },
   infoCard: {
     marginTop: Spacing.md,

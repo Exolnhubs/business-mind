@@ -160,6 +160,7 @@ function claimUniqueHappenings(
 }
 
 const DATA_REFRESH_STALE_MS = 90_000
+const SEARCH_DEBOUNCE_MS = 350
 
 export default function EventsScreen() {
   const { t, locale } = useLocale()
@@ -186,6 +187,7 @@ export default function EventsScreen() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [categories, setCategories] = useState<Category[]>([])
   const [categoryId, setCategoryId] = useState<string | null>(null)
   const [city, setCity] = useState('All')
@@ -200,7 +202,8 @@ export default function EventsScreen() {
   const [selectedHappening, setSelectedHappening] = useState<HappeningDiscoveryItem | null>(null)
   const lastDiscoveryLoadRef = useRef(0)
   const lastEventsLoadRef = useRef(0)
-  const isDefaultFeed = !search && !categoryId && !freeOnly && !nearMe && !communitySlug
+  const latestEventsRequestRef = useRef(0)
+  const isDefaultFeed = !debouncedSearch && !categoryId && !freeOnly && !nearMe && !communitySlug
   const showRecommendationRails = isDefaultFeed
 
   // Sync city from profile (runs once profile is loaded)
@@ -218,6 +221,14 @@ export default function EventsScreen() {
       duration: 180,
       useNativeDriver: true,
     }).start()
+  }, [search])
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setDebouncedSearch(search.trim())
+    }, SEARCH_DEBOUNCE_MS)
+
+    return () => clearTimeout(timeout)
   }, [search])
 
   useEffect(() => {
@@ -366,6 +377,77 @@ export default function EventsScreen() {
     return error ? [] : (data?.happenings ?? [])
   }, [])
 
+  const fallbackSearchEvents = useCallback(async (queryText: string) => {
+    const trimmed = queryText.trim()
+    if (!trimmed) return [] as EventWithOrganizer[]
+
+    const eventSelect = `
+      id, title, title_ar, description, cover_image_url, start_at, end_at,
+      venue_name, city, country, lat, lng, capacity, is_free, price, currency,
+      gender_restriction, is_family_friendly, bookings_count, views_count,
+      organizer_id, category_id, is_published, is_cancelled, visibility_type,
+      organizer:profiles!organizer_id(
+        id, display_name, avatar_url,
+        organizer_profile:organizer_profiles!user_id(business_name, business_name_ar, logo_url, verified)
+      ),
+      category:event_categories(id, name_en, name_ar, icon)
+    `
+
+    let queryBuilder = supabase
+      .from('events')
+      .select(eventSelect)
+      .eq('is_published', true)
+      .eq('is_cancelled', false)
+      .gte('start_at', new Date().toISOString())
+      .order('start_at', { ascending: true })
+      .limit(48)
+      .or([
+        `title.ilike.%${trimmed}%`,
+        `title_ar.ilike.%${trimmed}%`,
+        `description.ilike.%${trimmed}%`,
+        `venue_name.ilike.%${trimmed}%`,
+        `city.ilike.%${trimmed}%`,
+      ].join(','))
+
+    if (city !== 'All') queryBuilder = queryBuilder.ilike('city', `%${city}%`)
+    if (freeOnly) queryBuilder = queryBuilder.eq('is_free', true)
+    if (categoryId) queryBuilder = queryBuilder.eq('category_id', categoryId)
+
+    if (communitySlug) {
+      const { data: communityRow } = await supabase
+        .from('communities')
+        .select('id')
+        .eq('slug', communitySlug)
+        .maybeSingle()
+
+      if (!communityRow?.id) return [] as EventWithOrganizer[]
+
+      const { data: eventCommunityRows } = await supabase
+        .from('event_communities')
+        .select('event_id')
+        .eq('community_id', communityRow.id)
+
+      const communityEventIds = [...new Set((eventCommunityRows ?? []).map((row) => row.event_id))]
+      if (communityEventIds.length === 0) return [] as EventWithOrganizer[]
+      queryBuilder = queryBuilder.in('id', communityEventIds)
+    }
+
+    const geoActive = nearMe ? geoCoords : null
+    if (geoActive) {
+      const { data: geoEvents } = await supabase.rpc('events_within_radius', {
+        user_lat: geoActive.lat,
+        user_lng: geoActive.lng,
+        radius_meters: radiusKm * 1000,
+      })
+      const nearbyIds = [...new Set(((geoEvents ?? []) as { id: string }[]).map((item) => item.id))]
+      if (nearbyIds.length === 0) return [] as EventWithOrganizer[]
+      queryBuilder = queryBuilder.in('id', nearbyIds)
+    }
+
+    const { data } = await queryBuilder
+    return (data ?? []) as unknown as EventWithOrganizer[]
+  }, [categoryId, city, communitySlug, freeOnly, geoCoords, nearMe, radiusKm])
+
   const patchHappeningAcrossRails = useCallback((
     happeningId: string,
     updater: (happening: HappeningDiscoveryItem) => HappeningDiscoveryItem,
@@ -425,6 +507,7 @@ export default function EventsScreen() {
   }
 
   const fetchEvents = useCallback(async (force = false) => {
+    const requestId = ++latestEventsRequestRef.current
     const geoActive = nearMe ? geoCoords : null
     setLoading(true)
     const eventSelect = `
@@ -440,7 +523,7 @@ export default function EventsScreen() {
       date_from: new Date().toISOString(),
     })
 
-    if (search) params.set('search', search)
+    if (debouncedSearch) params.set('search', debouncedSearch)
     if (city !== 'All') params.set('city', city)
     if (freeOnly) params.set('is_free', 'true')
     if (categoryId) params.set('category_id', categoryId)
@@ -459,7 +542,39 @@ export default function EventsScreen() {
       { force },
     )
 
+    if (requestId !== latestEventsRequestRef.current) return
+
+    let list = eventsPayload?.data ?? []
+
     if (eventsError) {
+      const canFallbackSearch =
+        debouncedSearch.length > 0
+        && (eventsError.includes('events.fts') || eventsError.includes('column fts does not exist'))
+
+      if (canFallbackSearch) {
+        list = await fallbackSearchEvents(debouncedSearch)
+      } else {
+        setEvents([])
+        setSavedIds(new Set())
+        setAlmostSoldOutEvents([])
+        setSavedInspiredEvents([])
+        setNearYouWeekendEvents([])
+        setNearYouWeekendHappenings([])
+        setMyCommunityEvents([])
+        setMyCommunityHappenings([])
+        setActiveHappenings([])
+        setNearbyHappenings([])
+        setFilteredCommunityHappenings([])
+        setLoading(false)
+        setRefreshing(false)
+        Alert.alert('Events unavailable', eventsError)
+        return
+      }
+    }
+
+    if (requestId !== latestEventsRequestRef.current) return
+
+    if (eventsError && list.length === 0 && debouncedSearch.length > 0) {
       setEvents([])
       setSavedIds(new Set())
       setAlmostSoldOutEvents([])
@@ -473,11 +588,10 @@ export default function EventsScreen() {
       setFilteredCommunityHappenings([])
       setLoading(false)
       setRefreshing(false)
-      Alert.alert('Events unavailable', eventsError)
+      setLoading(false)
+      setRefreshing(false)
       return
     }
-
-    const list = eventsPayload?.data ?? []
     setEvents(list)
 
     let nextSavedIds = new Set<string>()
@@ -687,7 +801,7 @@ export default function EventsScreen() {
 
     setLoading(false)
     setRefreshing(false)
-  }, [search, categoryId, city, freeOnly, nearMe, geoCoords, radiusKm, communitySlug, showRecommendationRails, user, weekendCoords, weekendRadiusKm, joinedCommunities])
+  }, [debouncedSearch, categoryId, city, freeOnly, nearMe, geoCoords, radiusKm, communitySlug, showRecommendationRails, user, weekendCoords, weekendRadiusKm, joinedCommunities, fallbackSearchEvents])
 
   const refreshEventsIfNeeded = useCallback(async (force = false) => {
     const now = Date.now()

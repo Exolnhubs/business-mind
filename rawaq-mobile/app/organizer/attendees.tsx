@@ -10,21 +10,16 @@ import {
   TextInput,
   Modal,
   Alert,
+  Platform,
 } from 'react-native'
+import Constants from 'expo-constants'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter, useLocalSearchParams } from 'expo-router'
+import { CameraView, useCameraPermissions } from 'expo-camera'
 import { supabase } from '@/lib/supabase'
 import { apiGet, apiPost } from '@/lib/api'
 import { useAuth } from '@/contexts/auth-context'
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '@/theme'
-
-let CameraView: any = null
-let useCameraPermissions: any = null
-try {
-  const cam = require('expo-camera')
-  CameraView = cam.CameraView
-  useCameraPermissions = cam.useCameraPermissions
-} catch {}
 
 interface Attendee {
   id: string
@@ -63,9 +58,9 @@ export default function AttendeesScreen() {
   const [scanResult, setScanResult] = useState<ScanResult | null>(null)
   const [scannerAvailable, setScannerAvailable] = useState(profile?.role === 'admin')
   const lastScannedRef = useRef<string | null>(null)
+  const isAndroidExpoGo = Platform.OS === 'android' && Constants.executionEnvironment === 'storeClient'
 
-  const permHook = useCameraPermissions ? useCameraPermissions() : [null, null]
-  const [permission, requestPermission] = permHook as [{ granted: boolean } | null, (() => Promise<any>) | null]
+  const [permission, requestPermission] = useCameraPermissions()
 
   const load = useCallback(async () => {
     if (!eventId || !user) return
@@ -160,8 +155,8 @@ export default function AttendeesScreen() {
       Alert.alert('Upgrade required', 'QR scanning is available on Pro and Elite organizer plans.')
       return
     }
-    if (!CameraView) {
-      Alert.alert('Not available', 'QR scanning requires a standalone build (not Expo Go on Android).')
+    if (isAndroidExpoGo) {
+      Alert.alert('Not available', 'QR scanning is unavailable in Android Expo Go. Use your installed preview build or a development build.')
       return
     }
     if (!permission?.granted) {
@@ -308,6 +303,10 @@ export default function AttendeesScreen() {
               facing="back"
               barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
               onBarcodeScanned={scanning ? undefined : handleBarcodeScanned}
+              onMountError={() => {
+                setScannerOpen(false)
+                Alert.alert('Scanner unavailable', 'Could not start the camera scanner on this device. Please restart the app and try again.')
+              }}
             />
           ) : null}
 
