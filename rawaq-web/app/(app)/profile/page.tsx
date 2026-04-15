@@ -57,6 +57,17 @@ export default function ProfilePage() {
   const [orgMsg, setOrgMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [loadingOrg, setLoadingOrg] = useState(false)
 
+  // Organizer request (for role === 'user')
+  const [orgRequest, setOrgRequest] = useState<{
+    id: string
+    status: string
+    business_name: string
+  } | null | undefined>(undefined) // undefined = still loading
+  const [showOrgForm, setShowOrgForm]           = useState(false)
+  const [orgReqForm, setOrgReqForm]             = useState({ business_name: '', description: '' })
+  const [submittingOrgReq, setSubmittingOrgReq] = useState(false)
+  const [orgReqMsg, setOrgReqMsg]               = useState<{ ok: boolean; text: string } | null>(null)
+
   // Redirect if not logged in
   useEffect(() => {
     if (!authLoading && !user) router.replace('/login')
@@ -73,6 +84,14 @@ export default function ProfilePage() {
       phone: profile.phone ?? '',
     })
   }, [profile])
+
+  // Fetch organizer request status for regular users
+  useEffect(() => {
+    if (profile?.role !== 'user') return
+    fetch('/api/organizer/request')
+      .then((r) => r.json())
+      .then(({ data }) => setOrgRequest(data ?? null))
+  }, [profile?.role])
 
   // Load organizer profile if applicable
   useEffect(() => {
