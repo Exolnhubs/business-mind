@@ -4,7 +4,6 @@ import { requireOrganizer } from '@/lib/auth'
 import { handleApiError, ok, NotFoundException, ForbiddenException } from '@/lib/errors'
 import { canUseTicketScanner, getOrganizerPlanAccess } from '@/lib/plans'
 import { z } from 'zod'
-import { hasResolvedEventEnded } from '@/lib/events/recurrence'
 
 const ScanSchema = z.object({
   ticket_id: z.string().min(1),
@@ -31,7 +30,7 @@ export async function POST(req: NextRequest) {
     // Look up the booking by ticket_id
     const { data: booking, error } = await admin
       .from('bookings')
-      .select('id, status, scanned_at, event_id, user_id, events!inner(id, organizer_id, title, start_at, end_at, event_frequency)')
+      .select('id, status, scanned_at, event_id, occurrence_id, user_id, events!inner(id, organizer_id, title), occurrence:event_occurrences!occurrence_id(id, starts_at, ends_at, status)')
       .eq('ticket_id', ticket_id)
       .single()
 
@@ -39,11 +38,16 @@ export async function POST(req: NextRequest) {
 
     // Verify organizer owns the event (admins bypass)
     const event = (booking as any).events
+    const occurrence = (booking as any).occurrence
     if (ctx.role !== 'admin' && event.organizer_id !== ctx.userId) {
       throw new ForbiddenException('You do not own this event')
     }
 
-    if (hasResolvedEventEnded(event)) {
+    if (!occurrence || occurrence.status !== 'scheduled') {
+      throw new ForbiddenException('QR scanning is not available for this event occurrence.')
+    }
+
+    if (occurrence.ends_at && new Date(occurrence.ends_at).getTime() < Date.now()) {
       throw new ForbiddenException('QR scanning is closed because this event has already ended.')
     }
 
@@ -53,6 +57,7 @@ export async function POST(req: NextRequest) {
         reason: 'booking_not_confirmed',
         message: `Booking status is "${booking.status}" — not valid for entry`,
         booking_id: booking.id,
+        occurrence_id: occurrence.id,
         event_title: event.title,
       })
     }
@@ -65,6 +70,7 @@ export async function POST(req: NextRequest) {
         message: 'Ticket was already scanned',
         scanned_at: booking.scanned_at,
         booking_id: booking.id,
+        occurrence_id: occurrence.id,
         event_title: event.title,
       })
     }
@@ -79,6 +85,7 @@ export async function POST(req: NextRequest) {
       valid: true,
       booking_id: booking.id,
       event_id: event.id,
+      occurrence_id: occurrence.id,
       event_title: event.title,
       scanned_at: new Date().toISOString(),
     })

@@ -4,17 +4,18 @@ import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { handleApiError, ok, NotFoundException, ForbiddenException } from '@/lib/errors'
 import { requireAuth } from '@/lib/auth'
 import { canUseTicketScanner, getOrganizerPlanAccess } from '@/lib/plans'
-import { hasResolvedEventEnded } from '@/lib/events/recurrence'
 
 type BookingGetShape = {
   id: string; status: string; ticket_id: string | null; seat: string | null; scanned_at: string | null
   event: { id: string; title: string; start_at: string; venue_name: string | null; city: string } | null
+  occurrence: { id: string; starts_at: string; ends_at: string | null; status: string } | null
   profile: { display_name: string; avatar_url: string | null } | null
 }
 
 type BookingPostShape = {
   id: string; status: string; ticket_id: string | null; seat: string | null; scanned_at: string | null
-  event: { id: string; organizer_id: string; title: string; start_at: string; end_at: string | null; event_frequency?: 'one_time' | 'weekly' | 'monthly'; venue_name: string | null; city: string } | null
+  event: { id: string; organizer_id: string; title: string; venue_name: string | null; city: string } | null
+  occurrence: { id: string; starts_at: string; ends_at: string | null; status: string } | null
   profile: { display_name: string } | null
 }
 
@@ -36,6 +37,7 @@ export async function GET(req: NextRequest) {
       .select(`
         id, status, ticket_id, seat, scanned_at,
         event:events!event_id(id, title, start_at, venue_name, city),
+        occurrence:event_occurrences!occurrence_id(id, starts_at, ends_at, status),
         profile:profiles!user_id(display_name, avatar_url)
       `)
       .eq('ticket_id', ticketId)
@@ -52,7 +54,10 @@ export async function GET(req: NextRequest) {
       status: booking.status,
       scanned_at: booking.scanned_at,
       seat: booking.seat,
-      event: booking.event,
+      event: booking.occurrence && booking.event
+        ? { ...booking.event, start_at: booking.occurrence.starts_at }
+        : booking.event,
+      occurrence: booking.occurrence,
       attendee: booking.profile,
     })
   } catch (err) {
@@ -87,7 +92,8 @@ export async function POST(req: NextRequest) {
       .from('bookings')
       .select(`
         id, status, ticket_id, seat, scanned_at,
-        event:events!event_id(id, organizer_id, title, start_at, end_at, event_frequency, venue_name, city),
+        event:events!event_id(id, organizer_id, title, venue_name, city),
+        occurrence:event_occurrences!occurrence_id(id, starts_at, ends_at, status),
         profile:profiles!user_id(display_name)
       `)
       .eq('ticket_id', ticket_id)
@@ -97,6 +103,7 @@ export async function POST(req: NextRequest) {
     if (error || !booking) throw new NotFoundException('Ticket')
 
     const event = booking.event
+    const occurrence = booking.occurrence
 
     // Check caller is the event organizer or an admin
     const { data: callerRaw } = await admin
@@ -111,7 +118,11 @@ export async function POST(req: NextRequest) {
       throw new ForbiddenException('Only the event organizer can scan tickets')
     }
 
-    if (event && hasResolvedEventEnded(event)) {
+    if (!occurrence || occurrence.status !== 'scheduled') {
+      throw new ForbiddenException('QR scanning is not available for this event occurrence.')
+    }
+
+    if (occurrence.ends_at && new Date(occurrence.ends_at).getTime() < Date.now()) {
       throw new ForbiddenException('QR scanning is closed because this event has already ended.')
     }
 
@@ -128,6 +139,7 @@ export async function POST(req: NextRequest) {
         seat: booking.seat,
         attendee: booking.profile,
         event,
+        occurrence,
       })
     }
 
@@ -147,6 +159,7 @@ export async function POST(req: NextRequest) {
       seat: booking.seat,
       attendee: booking.profile,
       event,
+      occurrence,
     })
   } catch (err) {
     return handleApiError(err)

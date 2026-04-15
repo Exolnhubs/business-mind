@@ -7,14 +7,14 @@ import * as WebBrowser from 'expo-web-browser'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '@/lib/supabase'
-import { apiPost, apiGet } from '@/lib/api'
+import { apiPost, apiGet, apiDelete } from '@/lib/api'
 import { useAuth } from '@/contexts/auth-context'
 import { useLocale } from '@/contexts/locale-context'
 import { Badge } from '@/components/ui/Badge'
 import { CommentThread } from '@/components/comments/CommentThread'
 import { formatDate, formatTime, formatCurrency } from '@/lib/utils'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
-import type { Community, EventWithOrganizer, CommentWithAuthor, TicketType, Waitlist, ReportReason } from '@/types/database'
+import type { Community, EventWithOrganizer, CommentWithAuthor, TicketType, ReportReason } from '@/types/database'
 import { applyResolvedEventWindow } from '@/lib/event-recurrence'
 
 interface PaymentOption {
@@ -40,6 +40,7 @@ export default function EventDetailScreen() {
   const [ticketTypes, setTicketTypes] = useState<TicketType[]>([])
   const [loading, setLoading]         = useState(true)
   const [isBooked, setIsBooked]       = useState(false)
+  const [hasConfirmedBooking, setHasConfirmedBooking] = useState(false)
   const [currentBookingId, setCurrentBookingId] = useState<string | null>(null)
   const [bookingPending, setBookingPending] = useState(false)
   const [onWaitlist, setOnWaitlist]   = useState(false)
@@ -103,22 +104,28 @@ export default function EventDetailScreen() {
             .in('status', ['confirmed', 'pending'])
             .order('created_at', { ascending: false })
             .limit(1)
-            .single()
+            .maybeSingle()
         : Promise.resolve({ data: null }),
       user
         ? supabase.from('waitlist').select('id')
-            .eq('event_id', id).eq('user_id', user.id).eq('status', 'waiting').single()
+            .eq('event_id', id).eq('user_id', user.id).eq('status', 'waiting')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle()
         : Promise.resolve({ data: null }),
       supabase.from('ticket_types').select('*')
         .eq('event_id', id).eq('is_active', true).order('sort_order'),
       supabase.from('event_communities').select('community_id').eq('event_id', id),
     ]).then(([{ data: ev }, { data: cmts }, { data: booking }, { data: wl }, { data: tts }, { data: eventCommunityRows }]) => {
-      setEvent(ev ? applyResolvedEventWindow(ev as unknown as EventWithOrganizer) : null)
+      const resolvedEvent = ev ? applyResolvedEventWindow(ev as unknown as EventWithOrganizer) : null
+      const isRecurring = resolvedEvent?.event_frequency !== 'one_time'
+      setEvent(resolvedEvent)
       setComments((cmts ?? []) as unknown as CommentWithAuthor[])
       setCurrentBookingId(booking?.id ?? null)
-      setIsBooked(booking?.status === 'confirmed')
-      setBookingPending(booking?.status === 'pending')
-      setOnWaitlist(!!wl)
+      setHasConfirmedBooking(booking?.status === 'confirmed')
+      setIsBooked(!isRecurring && booking?.status === 'confirmed')
+      setBookingPending(!isRecurring && booking?.status === 'pending')
+      setOnWaitlist(!isRecurring && !!wl)
       setTicketTypes((tts ?? []) as TicketType[])
       const communityIds = (eventCommunityRows ?? []).map((row) => row.community_id)
       if (communityIds.length > 0) {
@@ -249,7 +256,8 @@ export default function EventDetailScreen() {
 
     // Free or simulated — confirmed immediately, no redirect needed
     if (data.free || !data.redirect_url) {
-      setIsBooked(true)
+      setHasConfirmedBooking(true)
+      setIsBooked(event?.event_frequency === 'one_time')
       setNewBookingId(data.booking_id ?? null)
       setCurrentBookingId(data.booking_id ?? null)
       setShowBookingSuccess(true)
@@ -294,7 +302,8 @@ export default function EventDetailScreen() {
     // the webhook confirms booking status server-side independently.
     if (deepLinkStatus === 'success') {
       setBL(false)
-      setIsBooked(true)
+      setHasConfirmedBooking(true)
+      setIsBooked(event?.event_frequency === 'one_time')
       setShowBookingSuccess(true)
       return
     }
@@ -339,7 +348,8 @@ export default function EventDetailScreen() {
     setBL(false)
 
     if (confirmed) {
-      setIsBooked(true)
+      setHasConfirmedBooking(true)
+      setIsBooked(event?.event_frequency === 'one_time')
       setShowBookingSuccess(true)
     } else if (actualFailed) {
       // Webhook confirmed the charge failed — safe to prompt a retry
@@ -393,18 +403,9 @@ export default function EventDetailScreen() {
   async function handleJoinWaitlist() {
     if (!user) { router.push('/(auth)/login'); return }
     setBL(true)
-    const waitlistInsert: Omit<Waitlist, 'id' | 'created_at'> = {
-      user_id: user.id,
-      event_id: id as string,
-      position: 0,
-      notified_at: null,
-      expires_at: null,
-      status: 'waiting',
-    }
-    const { error } = await supabase.from('waitlist')
-      .insert(waitlistInsert)
+    const { error } = await apiPost('/api/waitlist', { event_id: id as string })
     if (error) {
-      Alert.alert('Error', error.message)
+      Alert.alert('Error', error)
     } else {
       setOnWaitlist(true)
     }
@@ -414,8 +415,12 @@ export default function EventDetailScreen() {
   async function handleLeaveWaitlist() {
     if (!user) return
     setBL(true)
-    await supabase.from('waitlist')
-      .delete().eq('user_id', user.id).eq('event_id', id as string)
+    const { error } = await apiDelete(`/api/waitlist?event_id=${id as string}`)
+    if (error) {
+      Alert.alert('Error', error)
+      setBL(false)
+      return
+    }
     setOnWaitlist(false)
     setBL(false)
   }
@@ -895,7 +900,7 @@ export default function EventDetailScreen() {
         )}
 
         {/* Tip organizer */}
-        {isBooked && !tipDone && (
+        {hasConfirmedBooking && !tipDone && (
           <TouchableOpacity style={styles.tipToggle} onPress={() => setShowTip((v) => !v)}>
             <Text style={styles.tipToggleText}>💝 {showTip ? 'Hide' : 'Donate to Organizer'}</Text>
           </TouchableOpacity>

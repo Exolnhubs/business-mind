@@ -1,7 +1,9 @@
 import { NextRequest } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { requireAuth, requireEventOwnership } from '@/lib/auth'
-import { handleApiError, ok } from '@/lib/errors'
+import { handleApiError, ok, NotFoundException } from '@/lib/errors'
+import { createSupabaseAdminClient } from '@/lib/supabase/admin'
+import { resolveAttendanceOccurrence } from '@/lib/events/occurrences'
 
 // GET /api/events/:id/attendees — organizer or admin only
 export async function GET(
@@ -16,8 +18,25 @@ export async function GET(
     const page = Number(req.nextUrl.searchParams.get('page') ?? 1)
     const perPage = Number(req.nextUrl.searchParams.get('per_page') ?? 50)
     const from = (page - 1) * perPage
+    const requestedOccurrenceId = req.nextUrl.searchParams.get('occurrence_id')
 
     const supabase = await createSupabaseServerClient()
+    const admin = createSupabaseAdminClient()
+
+    const { data: event } = await supabase
+      .from('events')
+      .select('id, start_at, end_at, event_frequency, capacity, is_cancelled')
+      .eq('id', id)
+      .single()
+
+    if (!event) throw new NotFoundException('Event')
+
+    const occurrence = requestedOccurrenceId
+      ? await admin.from('event_occurrences').select('*').eq('id', requestedOccurrenceId).eq('event_id', id).single().then(({ data, error }) => {
+          if (error || !data) throw new NotFoundException('Event occurrence')
+          return data
+        })
+      : await resolveAttendanceOccurrence(admin, event)
 
     const { data, count, error } = await supabase
       .from('bookings')
@@ -26,13 +45,13 @@ export async function GET(
          user:profiles!user_id(id, display_name, avatar_url, city)`,
         { count: 'exact' }
       )
-      .eq('event_id', id)
+      .eq('occurrence_id', occurrence?.id ?? '')
       .order('created_at', { ascending: true })
       .range(from, from + perPage - 1)
 
     if (error) throw error
 
-    return ok({ data, total: count ?? 0, page, per_page: perPage })
+    return ok({ data, total: count ?? 0, page, per_page: perPage, occurrence })
   } catch (err) {
     return handleApiError(err)
   }

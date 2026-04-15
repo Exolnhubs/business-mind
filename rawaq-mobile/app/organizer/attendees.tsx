@@ -16,12 +16,9 @@ import Constants from 'expo-constants'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { CameraView, useCameraPermissions } from 'expo-camera'
-import { supabase } from '@/lib/supabase'
 import { apiGet, apiPost } from '@/lib/api'
 import { useAuth } from '@/contexts/auth-context'
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '@/theme'
-import { hasResolvedEventEnded } from '@/lib/event-recurrence'
-import type { EventFrequency } from '@/types/database'
 
 interface Attendee {
   id: string
@@ -47,9 +44,19 @@ interface ScanResult {
 
 type EventScannerMeta = {
   id: string
-  start_at: string
-  end_at: string | null
-  event_frequency: EventFrequency
+  starts_at: string
+  ends_at: string | null
+  status: 'scheduled' | 'cancelled' | 'completed'
+}
+
+type AttendeesResponse = {
+  data: Attendee[]
+  occurrence: EventScannerMeta | null
+}
+
+function hasOccurrenceEnded(occurrence: EventScannerMeta | null) {
+  if (!occurrence?.ends_at) return false
+  return new Date(occurrence.ends_at).getTime() < Date.now()
 }
 
 export default function AttendeesScreen() {
@@ -75,40 +82,30 @@ export default function AttendeesScreen() {
   const load = useCallback(async () => {
     if (!eventId || !user) return
 
-    const [eventRes, bookingsRes, subscriptionRes] = await Promise.all([
-      supabase
-        .from('events')
-        .select('id, start_at, end_at, event_frequency')
-        .eq('id', eventId)
-        .eq('organizer_id', user.id)
-        .single(),
-      supabase
-        .from('bookings')
-        .select('id, status, created_at, scanned_at, ticket_id, user:profiles!user_id(display_name, avatar_url, city)')
-        .eq('event_id', eventId)
-        .order('created_at', { ascending: true }),
+    const [attendeesRes, subscriptionRes] = await Promise.all([
+      apiGet<AttendeesResponse>(`/api/events/${eventId}/attendees`, { force: refreshing }),
       profile?.role === 'admin'
         ? Promise.resolve({ data: { plan: { features: { ticket_scanner: true } } }, error: null })
         : apiGet<{ plan: { features?: Record<string, unknown> | null } | null }>('/api/subscriptions'),
     ])
 
-    if (!eventRes.data) {
+    if (!attendeesRes.data?.occurrence) {
       router.back()
       return
     }
 
-    const hasEnded = hasResolvedEventEnded(eventRes.data as EventScannerMeta)
+    const hasEnded = hasOccurrenceEnded(attendeesRes.data.occurrence)
 
     const features = subscriptionRes.data?.plan?.features
     const canScan = profile?.role === 'admin'
       || (features && typeof features === 'object' && (features as Record<string, unknown>).ticket_scanner === true)
 
-    setEventMeta(eventRes.data as EventScannerMeta)
+    setEventMeta(attendeesRes.data.occurrence)
     setScannerAvailable(Boolean(canScan) && !hasEnded)
-    setAttendees((bookingsRes.data ?? []) as unknown as Attendee[])
+    setAttendees((attendeesRes.data.data ?? []) as Attendee[])
     setLoading(false)
     setRefreshing(false)
-  }, [eventId, user, router, profile?.role])
+  }, [eventId, user, router, profile?.role, refreshing])
 
   useEffect(() => {
     load()
@@ -116,7 +113,7 @@ export default function AttendeesScreen() {
 
   const confirmed = attendees.filter((a) => a.status === 'confirmed')
   const scannedCount = confirmed.filter((a) => a.scanned_at).length
-  const eventHasEnded = eventMeta ? hasResolvedEventEnded(eventMeta) : false
+  const eventHasEnded = hasOccurrenceEnded(eventMeta)
   const filtered = search.trim()
     ? confirmed.filter((a) =>
         a.user?.display_name.toLowerCase().includes(search.toLowerCase())
@@ -165,7 +162,7 @@ export default function AttendeesScreen() {
   }
 
   async function openScanner() {
-    if (eventMeta && hasResolvedEventEnded(eventMeta)) {
+    if (hasOccurrenceEnded(eventMeta)) {
       Alert.alert('Scanner closed', 'This event has already ended, so QR scanning is no longer available.')
       return
     }

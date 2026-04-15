@@ -27,6 +27,8 @@ import { createHmac, randomUUID } from 'crypto'
 import type { InitiatePaymentParams, InitiatePaymentResult, WebhookEvent, PaymentMethod } from './types'
 
 const BASE_URL = 'https://accept.paymob.com/api'
+const PAYMOB_TIMEOUT_MS = Number(process.env.PAYMOB_TIMEOUT_MS ?? '20000')
+const PAYMOB_MAX_RETRIES = Number(process.env.PAYMOB_MAX_RETRIES ?? '1')
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -39,6 +41,78 @@ function requireEnv(name: string): string {
 function amountInCents(amount: number): number {
   // Paymob expects amount in smallest currency unit (piastres for EGP)
   return Math.round(amount * 100)
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function isRetriablePaymobError(error: unknown): boolean {
+  const cause = error instanceof Error ? (error as Error & { cause?: { code?: string } }).cause : undefined
+  const code = cause?.code
+  return code === 'UND_ERR_CONNECT_TIMEOUT'
+    || code === 'UND_ERR_HEADERS_TIMEOUT'
+    || code === 'UND_ERR_BODY_TIMEOUT'
+    || code === 'ETIMEDOUT'
+    || code === 'ECONNRESET'
+    || code === 'EAI_AGAIN'
+    || code === 'ENOTFOUND'
+}
+
+function createGatewayError(step: string, error: unknown): Error {
+  const cause = error instanceof Error ? (error as Error & { cause?: { code?: string } }).cause : undefined
+  const code = cause?.code
+
+  if (code === 'UND_ERR_CONNECT_TIMEOUT' || code === 'ETIMEDOUT') {
+    return new Error(`Paymob ${step} timed out while connecting to the gateway. Please try again in a moment.`, { cause: error })
+  }
+
+  if (code === 'ENOTFOUND' || code === 'EAI_AGAIN') {
+    return new Error(`Paymob ${step} failed because the gateway host could not be reached from this server.`, { cause: error })
+  }
+
+  return new Error(`Paymob ${step} failed: ${error instanceof Error ? error.message : 'Unknown gateway error'}`, { cause: error })
+}
+
+async function fetchPaymob(step: string, path: string, init: RequestInit): Promise<Response> {
+  const url = `${BASE_URL}${path}`
+  const maxAttempts = Math.max(1, PAYMOB_MAX_RETRIES + 1)
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), PAYMOB_TIMEOUT_MS)
+
+    try {
+      const res = await fetch(url, { ...init, signal: controller.signal })
+
+      if (res.status >= 500 && attempt < maxAttempts) {
+        await sleep(500 * attempt)
+        continue
+      }
+
+      return res
+    } catch (error) {
+      if (attempt < maxAttempts && isRetriablePaymobError(error)) {
+        await sleep(500 * attempt)
+        continue
+      }
+
+      throw createGatewayError(step, error)
+    } finally {
+      clearTimeout(timeout)
+    }
+  }
+
+  throw new Error(`Paymob ${step} failed after multiple attempts.`)
+}
+
+async function readErrorBody(res: Response): Promise<string> {
+  try {
+    const text = await res.text()
+    return text.trim().slice(0, 300)
+  } catch {
+    return ''
+  }
 }
 
 function getIntegrationId(method: PaymentMethod): string {
@@ -59,12 +133,15 @@ function getIntegrationId(method: PaymentMethod): string {
 // ── Step 1: Authenticate ─────────────────────────────────────────────────────
 
 async function authenticate(): Promise<string> {
-  const res = await fetch(`${BASE_URL}/auth/tokens`, {
+  const res = await fetchPaymob('authentication', '/auth/tokens', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ api_key: requireEnv('PAYMOB_API_KEY') }),
   })
-  if (!res.ok) throw new Error(`Paymob auth failed: ${res.status}`)
+  if (!res.ok) {
+    const details = await readErrorBody(res)
+    throw new Error(`Paymob auth failed: ${res.status}${details ? ` ${details}` : ''}`)
+  }
   const data = await res.json()
   return data.token as string
 }
@@ -79,7 +156,7 @@ async function createOrder(
   eventTitle: string,
   kind: 'ticket' | 'donation' | 'subscription',
 ): Promise<number> {
-  const res = await fetch(`${BASE_URL}/ecommerce/orders`, {
+  const res = await fetchPaymob('order creation', '/ecommerce/orders', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -103,7 +180,10 @@ async function createOrder(
       ],
     }),
   })
-  if (!res.ok) throw new Error(`Paymob create order failed: ${res.status}`)
+  if (!res.ok) {
+    const details = await readErrorBody(res)
+    throw new Error(`Paymob create order failed: ${res.status}${details ? ` ${details}` : ''}`)
+  }
   const data = await res.json()
   return data.id as number
 }
@@ -118,7 +198,7 @@ async function getPaymentKey(
   integrationId: string,
   billingData: PaymobBillingData,
 ): Promise<string> {
-  const res = await fetch(`${BASE_URL}/acceptance/payment_keys`, {
+  const res = await fetchPaymob('payment key creation', '/acceptance/payment_keys', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -132,7 +212,10 @@ async function getPaymentKey(
       lock_order_when_paid: true,
     }),
   })
-  if (!res.ok) throw new Error(`Paymob payment key failed: ${res.status}`)
+  if (!res.ok) {
+    const details = await readErrorBody(res)
+    throw new Error(`Paymob payment key failed: ${res.status}${details ? ` ${details}` : ''}`)
+  }
   const data = await res.json()
   return data.token as string
 }
@@ -176,12 +259,13 @@ export async function getPaymobTransaction(
   try {
     const authToken = await authenticate()
 
-    const res = await fetch(`${BASE_URL}/acceptance/transactions/${transactionId}`, {
+    const res = await fetchPaymob('transaction lookup', `/acceptance/transactions/${transactionId}`, {
       headers: { 'Authorization': `Bearer ${authToken}` },
     })
 
     if (!res.ok) {
-      return { data: null, error: `Paymob lookup failed: ${res.status}` }
+      const details = await readErrorBody(res)
+      return { data: null, error: `Paymob lookup failed: ${res.status}${details ? ` ${details}` : ''}` }
     }
 
     const obj = await res.json()
@@ -218,7 +302,7 @@ export async function refundPaymob(
   try {
     const authToken = await authenticate()
 
-    const res = await fetch(`${BASE_URL}/acceptance/void_refund/refund`, {
+    const res = await fetchPaymob('refund', '/acceptance/void_refund/refund', {
       method:  'POST',
       headers: {
         'Content-Type':  'application/json',

@@ -5,7 +5,8 @@ import { requireAuth } from '@/lib/auth'
 import { handleApiError, ok, created, NotFoundException, ForbiddenException } from '@/lib/errors'
 import { CreateBookingSchema } from '@/lib/validations/bookings'
 import { sendNotification } from '@/lib/notifications'
-import { applyResolvedEventWindow, getBookableEventStartAt } from '@/lib/events/recurrence'
+import { applyResolvedEventWindow } from '@/lib/events/recurrence'
+import { resolveTargetOccurrence } from '@/lib/events/occurrences'
 
 type BookingListEventShape = {
   id: string
@@ -17,6 +18,12 @@ type BookingListEventShape = {
   cover_image_url: string | null
   city: string
   is_cancelled: boolean
+}
+
+type BookingListOccurrenceShape = {
+  id: string
+  starts_at: string
+  ends_at: string | null
 }
 
 // GET /api/bookings — current user's bookings
@@ -34,7 +41,8 @@ export async function GET(req: NextRequest) {
       .from('bookings')
       .select(
         `id, status, created_at, notes,
-         event:events(id, title, title_ar, start_at, end_at, event_frequency, cover_image_url, city, is_cancelled)`,
+         event:events(id, title, title_ar, start_at, end_at, event_frequency, cover_image_url, city, is_cancelled),
+         occurrence:event_occurrences!occurrence_id(id, starts_at, ends_at)`,
         { count: 'exact' }
       )
       .eq('user_id', ctx.userId)
@@ -46,10 +54,23 @@ export async function GET(req: NextRequest) {
     const { data, count, error } = await query
     if (error) throw error
 
-    const resolvedData = (data ?? []).map((booking) => ({
-      ...booking,
-      event: booking.event ? applyResolvedEventWindow(booking.event as unknown as BookingListEventShape) : booking.event,
-    }))
+    const resolvedData = (data ?? []).map((booking) => {
+      const occurrence = booking.occurrence as unknown as BookingListOccurrenceShape | null
+      const event = booking.event as unknown as BookingListEventShape | null
+
+      return {
+        ...booking,
+        event: occurrence && event
+          ? {
+              ...event,
+              start_at: occurrence.starts_at,
+              end_at: occurrence.ends_at,
+            }
+          : event
+            ? applyResolvedEventWindow(event)
+            : booking.event,
+      }
+    })
 
     return ok({ data: resolvedData, total: count ?? 0, page, per_page: perPage })
   } catch (err) {
@@ -76,9 +97,8 @@ export async function POST(req: NextRequest) {
     if (eventErr || !event) throw new NotFoundException('Event')
     if (!event.is_published) throw new ForbiddenException('Event is not published')
     if (event.is_cancelled) throw new ForbiddenException('Event has been cancelled')
-    if (new Date(getBookableEventStartAt(event)) < new Date()) {
-      throw new ForbiddenException('Event has already started')
-    }
+
+    const occurrence = await resolveTargetOccurrence(supabase, event, ctx.userId, input.occurrence_id ?? null)
 
     // Fetch user profile — required for completion check, gender restriction, and plan check
     const { data: profile } = await supabase
@@ -129,7 +149,14 @@ export async function POST(req: NextRequest) {
       if (tt.sale_ends_at && new Date(tt.sale_ends_at) < now) {
         throw new ForbiddenException('Ticket sales have ended')
       }
-      if (tt.capacity !== null && tt.sold_count >= tt.capacity) {
+      const { data: occurrenceSale } = await supabase
+        .from('event_occurrence_ticket_sales')
+        .select('sold_count')
+        .eq('occurrence_id', occurrence.id)
+        .eq('ticket_type_id', input.ticket_type_id)
+        .maybeSingle()
+
+      if (tt.capacity !== null && (occurrenceSale?.sold_count ?? 0) >= tt.capacity) {
         throw new ForbiddenException('This ticket type is sold out')
       }
       ticketType = tt
@@ -201,7 +228,7 @@ export async function POST(req: NextRequest) {
       .from('bookings')
       .select('id, status')
       .eq('user_id', ctx.userId)
-      .eq('event_id', input.event_id)
+      .eq('occurrence_id', occurrence.id)
       .maybeSingle()
 
     const existingStatus: string | null = anyExisting ? (anyExisting as any).status : null
@@ -229,7 +256,7 @@ export async function POST(req: NextRequest) {
     } else {
       const { data, error } = await supabase
         .from('bookings')
-        .insert({ user_id: ctx.userId, event_id: input.event_id, ...bookingFields } as any)
+        .insert({ user_id: ctx.userId, event_id: input.event_id, occurrence_id: occurrence.id, ...bookingFields } as any)
         .select().single()
       if (error) throw error
       booking = data
@@ -245,6 +272,7 @@ export async function POST(req: NextRequest) {
       type: 'booking_confirmed',
       payload: {
         event_id:   event.id,
+        occurrence_id: occurrence.id,
         event_title: event.title,
         booking_id: booking.id,
         ticket_id:  booking.ticket_id ?? undefined,
@@ -257,6 +285,7 @@ export async function POST(req: NextRequest) {
       type:    'new_attendee',
       payload: {
         event_id:    event.id,
+        occurrence_id: occurrence.id,
         event_title: event.title,
         booking_id:  booking.id,
         actor_id:    ctx.userId,
@@ -265,18 +294,18 @@ export async function POST(req: NextRequest) {
     }).catch(() => {})
 
     // Notify organizer if event just sold out (fire-and-forget)
-    if (event.capacity) {
+    if (occurrence.capacity) {
       const { count: confirmedCount } = await supabase
         .from('bookings')
         .select('id', { count: 'exact', head: true })
-        .eq('event_id', event.id)
+        .eq('occurrence_id', occurrence.id)
         .eq('status', 'confirmed')
 
-      if (confirmedCount !== null && confirmedCount >= event.capacity) {
+      if (confirmedCount !== null && confirmedCount >= occurrence.capacity) {
         sendNotification({
           userId:  event.organizer_id,
           type:    'event_sold_out',
-          payload: { event_id: event.id, event_title: event.title },
+          payload: { event_id: event.id, occurrence_id: occurrence.id, event_title: event.title },
         }).catch(() => {})
       }
     }

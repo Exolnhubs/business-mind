@@ -62,6 +62,7 @@ export type WaitlistStatus = 'waiting' | 'promoted' | 'expired' | 'cancelled'
 export type PayoutStatus = 'pending' | 'processing' | 'completed' | 'failed'
 export type RefundStatus = 'pending' | 'approved' | 'rejected' | 'completed'
 export type EventFrequency = 'one_time' | 'weekly' | 'monthly'
+export type EventOccurrenceStatus = 'scheduled' | 'cancelled' | 'completed'
 
 export interface Profile {
   id: string
@@ -188,10 +189,31 @@ export interface Event {
   updated_at: string
 }
 
+export interface EventOccurrence {
+  id: string
+  event_id: string
+  starts_at: string
+  ends_at: string | null
+  status: EventOccurrenceStatus
+  capacity: number | null
+  bookings_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface EventOccurrenceTicketSale {
+  occurrence_id: string
+  ticket_type_id: string
+  sold_count: number
+  created_at: string
+  updated_at: string
+}
+
 export interface Booking {
   id: string
   user_id: string
   event_id: string
+  occurrence_id: string
   ticket_type_id: string | null
   promo_code_id: string | null
   discount_amount: number
@@ -254,6 +276,7 @@ export interface TicketType {
 export interface Waitlist {
   id: string
   event_id: string
+  occurrence_id: string
   user_id: string
   position: number
   notified_at: string | null
@@ -267,6 +290,7 @@ export interface PaymentTransaction {
   user_id: string
   organizer_id: string
   event_id: string | null
+  occurrence_id: string | null
   booking_id: string | null
   tip_id: string | null
   subscription_plan_id: string | null
@@ -692,6 +716,8 @@ export type Database = {
       organizer_profiles: { Row: R<OrganizerProfile>; Insert: R<Omit<OrganizerProfile, 'id' | 'created_at' | 'updated_at'>>; Update: R<Partial<OrganizerProfile>>; Relationships: [] }
       event_categories: { Row: R<EventCategory>; Insert: R<Omit<EventCategory, 'id'>>; Update: R<Partial<EventCategory>>; Relationships: [] }
       events: { Row: R<Event>; Insert: R<Omit<Event, 'id' | 'bookings_count' | 'views_count' | 'tips_total' | 'created_at' | 'updated_at'>>; Update: R<Partial<Event>>; Relationships: [] }
+      event_occurrences: { Row: R<EventOccurrence>; Insert: R<Omit<EventOccurrence, 'id' | 'bookings_count' | 'created_at' | 'updated_at'>>; Update: R<Partial<EventOccurrence>>; Relationships: [] }
+      event_occurrence_ticket_sales: { Row: R<EventOccurrenceTicketSale>; Insert: R<Omit<EventOccurrenceTicketSale, 'created_at' | 'updated_at'>>; Update: R<Partial<EventOccurrenceTicketSale>>; Relationships: [] }
       bookings: { Row: R<Booking>; Insert: R<Omit<Booking, 'id' | 'created_at' | 'updated_at'>>; Update: R<Partial<Booking>>; Relationships: [] }
       tips: { Row: R<Tip>; Insert: R<Omit<Tip, 'id' | 'created_at'>>; Update: R<Partial<Tip>>; Relationships: [] }
       comments: { Row: R<Comment>; Insert: R<Omit<Comment, 'id' | 'created_at' | 'updated_at'>>; Update: R<Partial<Comment>>; Relationships: [] }

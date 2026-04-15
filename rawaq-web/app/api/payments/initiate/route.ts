@@ -25,7 +25,7 @@
 import { NextRequest } from 'next/server'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireAuth } from '@/lib/auth'
-import { handleApiError, ok, created, NotFoundException, ForbiddenException, ConflictException } from '@/lib/errors'
+import { ApiException, handleApiError, ok, created, NotFoundException, ForbiddenException, ConflictException } from '@/lib/errors'
 import { CreateBookingSchema } from '@/lib/validations/bookings'
 import { z } from 'zod'
 import { getPaymentOptions, resolveGateway } from '@/lib/gateways/selector'
@@ -33,7 +33,7 @@ import { initiatePaymob } from '@/lib/gateways/paymob'
 import { initiateStripe } from '@/lib/gateways/stripe-gw'
 import type { InitiatePaymentParams } from '@/lib/gateways/types'
 import { sendNotification } from '@/lib/notifications'
-import { getBookableEventStartAt } from '@/lib/events/recurrence'
+import { resolveTargetOccurrence } from '@/lib/events/occurrences'
 
 const BodySchema = CreateBookingSchema.extend({
   payment_option_id: z.string().min(1).default('simulated'),
@@ -62,7 +62,8 @@ export async function POST(req: NextRequest) {
     if (eventErr || !event) throw new NotFoundException('Event')
     if (!event.is_published) throw new ForbiddenException('Event is not published')
     if (event.is_cancelled)  throw new ForbiddenException('Event has been cancelled')
-    if (new Date(getBookableEventStartAt(event)) < new Date()) throw new ForbiddenException('Event has already started')
+
+    const occurrence = await resolveTargetOccurrence(admin, event, ctx.userId, input.occurrence_id ?? null)
 
     // ── Fetch user profile ────────────────────────────────────────────────────
     const { data: profile } = await admin
@@ -94,7 +95,16 @@ export async function POST(req: NextRequest) {
       const now = new Date()
       if (tt.sale_starts_at && new Date(tt.sale_starts_at) > now) throw new ForbiddenException('Ticket sales not started')
       if (tt.sale_ends_at   && new Date(tt.sale_ends_at)   < now) throw new ForbiddenException('Ticket sales ended')
-      if (tt.capacity !== null && tt.sold_count >= tt.capacity)    throw new ForbiddenException('Ticket sold out')
+      const { data: occurrenceSale } = await admin
+        .from('event_occurrence_ticket_sales')
+        .select('sold_count')
+        .eq('occurrence_id', occurrence.id)
+        .eq('ticket_type_id', input.ticket_type_id)
+        .maybeSingle()
+
+      if (tt.capacity !== null && (occurrenceSale?.sold_count ?? 0) >= tt.capacity) {
+        throw new ForbiddenException('Ticket sold out')
+      }
       ticketType = tt
     }
 
@@ -155,7 +165,7 @@ export async function POST(req: NextRequest) {
       .from('bookings')
       .select('id, status')
       .eq('user_id', ctx.userId)
-      .eq('event_id', input.event_id)
+      .eq('occurrence_id', occurrence.id)
       .maybeSingle()
 
     const existingStatus: string | null = anyExisting ? (anyExisting as any).status : null
@@ -199,7 +209,7 @@ export async function POST(req: NextRequest) {
       if (error) throw error
       booking = data as Record<string, unknown>
     } else {
-      const { data, error } = await admin.from('bookings').insert({ user_id: ctx.userId, event_id: input.event_id, ...bookingFields } as any).select().single()
+      const { data, error } = await admin.from('bookings').insert({ user_id: ctx.userId, event_id: input.event_id, occurrence_id: occurrence.id, ...bookingFields } as any).select().single()
       if (error) throw error
       booking = data as Record<string, unknown>
     }
@@ -225,6 +235,7 @@ export async function POST(req: NextRequest) {
         user_id:          ctx.userId,
         organizer_id:     event.organizer_id,
         event_id:         event.id,
+        occurrence_id:    occurrence.id,
         booking_id:       booking.id,
         type:             'ticket',
         status:           'pending',
@@ -291,10 +302,25 @@ export async function POST(req: NextRequest) {
     }
 
     let gatewayResult
-    if (gateway === 'paymob') {
-      gatewayResult = await initiatePaymob(initParams)
-    } else {
-      gatewayResult = await initiateStripe(initParams)
+    try {
+      if (gateway === 'paymob') {
+        gatewayResult = await initiatePaymob(initParams)
+      } else {
+        gatewayResult = await initiateStripe(initParams)
+      }
+    } catch (gatewayError) {
+      if (gateway === 'paymob') {
+        const message = gatewayError instanceof Error
+          ? gatewayError.message
+          : 'Paymob is temporarily unavailable. Please try again in a moment.'
+        const timedOut = /timed out|could not be reached/i.test(message)
+        throw new ApiException(
+          message,
+          timedOut ? 504 : 502,
+          timedOut ? 'PAYMENT_GATEWAY_TIMEOUT' : 'PAYMENT_GATEWAY_ERROR',
+        )
+      }
+      throw gatewayError
     }
 
     // Store gateway order ID for webhook correlation
