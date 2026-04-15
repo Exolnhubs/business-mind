@@ -54,13 +54,13 @@ export function CommentThread({
 
           const { data: author } = await supabase
             .from('profiles')
-            .select('id, display_name, avatar_url')
+            .select('id, display_name, avatar_url, plan_id')
             .eq('id', payload.new.user_id)
             .single()
 
           const newComment: CommentWithAuthor = {
             ...(payload.new as CommentWithAuthor),
-            author: author ?? { id: payload.new.user_id, display_name: 'Unknown', avatar_url: null },
+            author: author ?? { id: payload.new.user_id, display_name: 'Unknown', avatar_url: null, plan_id: 'user_free' },
             replies: [],
           }
 
@@ -106,7 +106,7 @@ export function CommentThread({
     optimisticIds.current.add(data.id)
     const newComment: CommentWithAuthor = {
       ...(data as unknown as Omit<CommentWithAuthor, 'author' | 'replies'>),
-      author: { id: user.id, display_name: profile?.display_name ?? 'You', avatar_url: profile?.avatar_url ?? null },
+      author: { id: user.id, display_name: profile?.display_name ?? 'You', avatar_url: profile?.avatar_url ?? null, plan_id: profile?.plan_id ?? 'user_free' },
       replies: [],
     }
     setComments((prev) => {
