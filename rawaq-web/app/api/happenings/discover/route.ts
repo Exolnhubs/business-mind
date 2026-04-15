@@ -36,7 +36,7 @@ type DiscoverCommunity = Pick<Community, 'id' | 'name' | 'name_ar' | 'slug' | 'l
 type DiscoverHappening = HappeningWithAuthor & {
   community: DiscoverCommunity
   distance_km: number | null
-  author: Pick<Profile, 'id' | 'display_name' | 'avatar_url'>
+  author: Pick<Profile, 'id' | 'display_name' | 'avatar_url' | 'plan_id'>
 }
 
 export async function GET(req: NextRequest) {
@@ -95,7 +95,7 @@ export async function GET(req: NextRequest) {
       .from('happenings')
       .select(`
         id, community_id, author_id, type, body, lat, lng, location_label, expires_at, rsvp_count, reaction_count, is_pinned, created_at,
-        author:profiles!author_id(id, display_name, avatar_url),
+        author:profiles!author_id(id, display_name, avatar_url, plan_id),
         community:communities!community_id(id, name, name_ar, slug, level, type, cover_url, is_private)
       `)
       .gt('expires_at', now)
@@ -134,7 +134,7 @@ export async function GET(req: NextRequest) {
 
         return {
           ...(happening as HappeningWithAuthor),
-          author: happening.author as Pick<Profile, 'id' | 'display_name' | 'avatar_url'>,
+          author: happening.author as Pick<Profile, 'id' | 'display_name' | 'avatar_url' | 'plan_id'>,
           community: {
             ...(happening.community as Pick<Community, 'id' | 'name' | 'name_ar' | 'slug' | 'level' | 'type' | 'cover_url' | 'is_private'>),
             is_member: readableCommunityIds.has((happening.community as { id: string }).id),

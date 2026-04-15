@@ -56,7 +56,7 @@ export async function GET(
       .from('happenings')
       .select(`
         id, type, body, lat, lng, location_label, expires_at, rsvp_count, reaction_count, is_pinned, created_at,
-        author:profiles!author_id(id, display_name, avatar_url)
+        author:profiles!author_id(id, display_name, avatar_url, plan_id)
       `)
       .eq('community_id', community.id)
       .gt('expires_at', new Date().toISOString())
@@ -151,7 +151,7 @@ export async function POST(
       })
       .select(`
         id, type, body, lat, lng, location_label, expires_at, rsvp_count, reaction_count, is_pinned, created_at,
-        author:profiles!author_id(id, display_name, avatar_url)
+        author:profiles!author_id(id, display_name, avatar_url, plan_id)
       `)
       .single()
 
