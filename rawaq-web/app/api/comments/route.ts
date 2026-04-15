@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
       .from('comments')
       .select(
         `id, content, media_url, created_at, updated_at, parent_id, mentions, is_flagged,
-         author:profiles!user_id(id, display_name, avatar_url)`,
+         author:profiles!user_id(id, display_name, avatar_url, plan_id)`,
         { count: 'exact' }
       )
       .eq('is_deleted', false)
@@ -165,7 +165,7 @@ export async function POST(req: NextRequest) {
         media_url: input.media_url ?? null,
       } as any)
       .select(`id, content, media_url, created_at, updated_at, parent_id, mentions, event_id, happening_id,
-               author:profiles!user_id(id, display_name, avatar_url)`)
+               author:profiles!user_id(id, display_name, avatar_url, plan_id)`)
       .single()
 
     if (error) throw error
