@@ -33,6 +33,12 @@ export async function assignMembershipPlan(args: {
       .update({ plan_id: planId })
       .eq('user_id', userId)
     if (error) throw error
+    // Mirror to profiles so badge queries and mobile plan display reflect the correct tier.
+    // profiles.plan_id is the denormalized source used by all author-shape queries.
+    await admin
+      .from('profiles')
+      .update({ plan_id: planId })
+      .eq('id', userId)
   } else {
     const { error } = await admin
       .from('profiles')
