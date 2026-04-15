@@ -37,13 +37,13 @@ export function CommentThread({ eventId, initialComments, currentUserId }: Comme
           // Fetch author for the new comment
           const { data: author } = await supabase
             .from('profiles')
-            .select('id, display_name, avatar_url')
+            .select('id, display_name, avatar_url, plan_id')
             .eq('id', payload.new.user_id)
             .single()
 
           const newComment: CommentWithAuthor = {
             ...(payload.new as CommentWithAuthor),
-            author: author ?? { id: payload.new.user_id, display_name: 'Unknown', avatar_url: null },
+            author: author ?? { id: payload.new.user_id, display_name: 'Unknown', avatar_url: null, plan_id: 'user_free' },
             replies: [],
           }
 
