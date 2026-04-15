@@ -639,7 +639,7 @@ export interface Happening {
 }
 
 export interface HappeningWithAuthor extends Happening {
-  author: Pick<Profile, 'id' | 'display_name' | 'avatar_url'>
+  author: Pick<Profile, 'id' | 'display_name' | 'avatar_url' | 'plan_id'>
   user_has_rsvp?:    boolean
   user_has_reacted?: boolean
 }
@@ -654,7 +654,7 @@ export interface EventWithOrganizer extends Event {
 }
 
 export interface CommentWithAuthor extends Comment {
-  author: Pick<Profile, 'id' | 'display_name' | 'avatar_url'>
+  author: Pick<Profile, 'id' | 'display_name' | 'avatar_url' | 'plan_id'>
   replies?: CommentWithAuthor[]
 }
 
