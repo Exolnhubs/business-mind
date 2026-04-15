@@ -4,8 +4,8 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Spinner } from '@/components/ui/Spinner'
 import { useAuth } from '@/contexts/auth-context'
-import { formatCurrency } from '@/lib/utils'
-import type { TicketType } from '@/types/database'
+import { formatCurrency, formatDate, formatTime } from '@/lib/utils'
+import type { EventOccurrence, TicketType } from '@/types/database'
 
 // ── Ticket type card ────────────────────────────────────────────────────────
 function TicketCard({
@@ -75,6 +75,11 @@ interface BookingFlowProps {
   currency: string
   ticketTypes: TicketType[]
   isOnWaitlist?: boolean
+  occurrences?: EventOccurrence[]
+  initialOccurrenceId?: string | null
+  confirmedOccurrenceIds?: string[]
+  pendingOccurrenceIds?: string[]
+  waitlistedOccurrenceIds?: string[]
 }
 
 export function BookingFlow({
@@ -86,18 +91,34 @@ export function BookingFlow({
   currency,
   ticketTypes,
   isOnWaitlist: initialWaitlist = false,
+  occurrences = [],
+  initialOccurrenceId = null,
+  confirmedOccurrenceIds = [],
+  pendingOccurrenceIds = [],
+  waitlistedOccurrenceIds = [],
 }: BookingFlowProps) {
   const { user }  = useAuth()
   const router    = useRouter()
 
-  const [booked]                   = useState(initialBooked)
-  const [onWaitlist,  setOnWaitlist]  = useState(initialWaitlist)
+  const [waitlistedIds, setWaitlistedIds] = useState(waitlistedOccurrenceIds)
   const [loading,     setLoading]     = useState(false)
   const [error,       setError]       = useState<string | null>(null)
 
   const hasTypes      = ticketTypes.length > 0
+  const hasOccurrences = occurrences.length > 0
+  const [selectedOccurrenceId, setSelectedOccurrenceId] = useState<string | null>(initialOccurrenceId ?? occurrences[0]?.id ?? null)
   const [selectedTypeId, setSelectedTypeId] = useState<string | null>(null)
   const selectedType  = ticketTypes.find((t) => t.id === selectedTypeId) ?? null
+  const selectedOccurrence = occurrences.find((occurrence) => occurrence.id === selectedOccurrenceId) ?? null
+  const booked = selectedOccurrenceId ? confirmedOccurrenceIds.includes(selectedOccurrenceId) : initialBooked
+  const bookingPending = selectedOccurrenceId ? pendingOccurrenceIds.includes(selectedOccurrenceId) : false
+  const onWaitlist = selectedOccurrenceId ? waitlistedIds.includes(selectedOccurrenceId) : initialWaitlist
+  const occurrenceIsFull = selectedOccurrence
+    ? selectedOccurrence.capacity !== null && selectedOccurrence.bookings_count >= selectedOccurrence.capacity
+    : isFull
+  const spotsLeft = selectedOccurrence && selectedOccurrence.capacity !== null
+    ? selectedOccurrence.capacity - selectedOccurrence.bookings_count
+    : null
 
   // Price preview for the CTA button label
   const basePrice     = selectedType ? selectedType.price : (eventPrice ?? 0)
@@ -111,9 +132,15 @@ export function BookingFlow({
 
     const { createSupabaseBrowserClient } = await import('@/lib/supabase/client')
     const supabase = createSupabaseBrowserClient()
-    const { data: booking } = await supabase
+    let query = supabase
       .from('bookings').select('id')
-      .eq('event_id', eventId).eq('user_id', user.id).eq('status', 'confirmed').single()
+      .eq('event_id', eventId)
+      .eq('user_id', user.id)
+      .eq('status', 'confirmed')
+
+    query = selectedOccurrenceId ? query.eq('occurrence_id', selectedOccurrenceId) : query
+
+    const { data: booking } = await query.single()
 
     if (!booking) {
       setError('Booking not found.')
@@ -133,31 +160,98 @@ export function BookingFlow({
     const res = await fetch('/api/waitlist', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ event_id: eventId }),
+      body: JSON.stringify({ event_id: eventId, occurrence_id: selectedOccurrenceId }),
     })
-    if (res.ok) { setOnWaitlist(true); router.refresh() }
+    if (res.ok) {
+      if (selectedOccurrenceId) {
+        setWaitlistedIds((current) => current.includes(selectedOccurrenceId) ? current : [...current, selectedOccurrenceId])
+      }
+      router.refresh()
+    }
     else { const j = await res.json().catch(() => ({})); setError(j.error ?? j.message ?? 'Failed to join waitlist') }
     setLoading(false)
   }
 
   async function handleLeaveWaitlist() {
     setLoading(true)
-    const res = await fetch(`/api/waitlist?event_id=${eventId}`, { method: 'DELETE' })
-    if (res.ok) { setOnWaitlist(false); router.refresh() }
+    const query = new URLSearchParams({ event_id: eventId })
+    if (selectedOccurrenceId) query.set('occurrence_id', selectedOccurrenceId)
+    const res = await fetch(`/api/waitlist?${query.toString()}`, { method: 'DELETE' })
+    if (res.ok) {
+      if (selectedOccurrenceId) {
+        setWaitlistedIds((current) => current.filter((id) => id !== selectedOccurrenceId))
+      }
+      router.refresh()
+    }
     setLoading(false)
   }
 
   // ── Proceed to checkout ─────────────────────────────────────────────────
   function goToCheckout() {
     if (!user) { router.push('/login'); return }
+    if (hasOccurrences && !selectedOccurrenceId) { setError('Please choose a session'); return }
     if (hasTypes && !selectedTypeId) { setError('Please select a ticket type'); return }
-    const qs = selectedTypeId ? `?ticket_type_id=${selectedTypeId}` : ''
-    router.push(`/events/${eventId}/checkout${qs}`)
+    const query = new URLSearchParams()
+    if (selectedTypeId) query.set('ticket_type_id', selectedTypeId)
+    if (selectedOccurrenceId) query.set('occurrence_id', selectedOccurrenceId)
+    router.push(`/events/${eventId}/checkout${query.size ? `?${query.toString()}` : ''}`)
   }
 
   // ── Render ──────────────────────────────────────────────────────────────
   return (
     <div className="space-y-3">
+      {hasOccurrences && (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Choose session</p>
+          <div className="space-y-2">
+            {occurrences.slice(0, 8).map((occurrence) => {
+              const selected = selectedOccurrenceId === occurrence.id
+              const full = occurrence.capacity !== null && occurrence.bookings_count >= occurrence.capacity
+              const occurrenceSpotsLeft = occurrence.capacity !== null ? occurrence.capacity - occurrence.bookings_count : null
+
+              return (
+                <button
+                  key={occurrence.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedOccurrenceId(occurrence.id)
+                    setError(null)
+                  }}
+                  className={`w-full rounded-xl border px-3 py-3 text-left transition-colors ${
+                    selected
+                      ? 'border-brand-500 bg-brand-50'
+                      : 'border-gray-200 hover:border-brand-300 hover:bg-gray-50'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">{formatDate(occurrence.starts_at)}</p>
+                      <p className="text-xs text-gray-500">
+                        {formatTime(occurrence.starts_at)}
+                        {occurrence.ends_at ? ` – ${formatTime(occurrence.ends_at)}` : ''}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      {selected && <p className="text-xs font-medium text-brand-600">Selected</p>}
+                      {occurrenceSpotsLeft !== null && (
+                        <p className={`text-xs ${full ? 'text-red-500' : 'text-gray-500'}`}>
+                          {full ? 'Sold out' : `${occurrenceSpotsLeft} left`}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+          {selectedOccurrence && (
+            <p className="text-xs text-gray-500">
+              Booking this event will reserve the selected session only.
+            </p>
+          )}
+        </div>
+      )}
+
       {booked ? (
         <div className="space-y-2">
           <button onClick={handleManageBooking} disabled={loading} className="btn-secondary w-full">
@@ -167,7 +261,11 @@ export function BookingFlow({
             Cancellations and refunds are handled from My Bookings.
           </p>
         </div>
-      ) : isFull ? (
+      ) : bookingPending ? (
+        <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-center text-sm font-medium text-blue-700">
+          Your payment is still processing for this session.
+        </div>
+      ) : occurrenceIsFull ? (
         onWaitlist ? (
           <div className="space-y-2">
             <div className="text-center text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 font-medium">
@@ -203,8 +301,8 @@ export function BookingFlow({
           {/* CTA */}
           <button
             onClick={goToCheckout}
-            disabled={loading || (hasTypes && !selectedTypeId)}
-            className={`w-full btn-primary ${hasTypes && !selectedTypeId ? 'opacity-60 cursor-not-allowed' : ''}`}
+            disabled={loading || (hasOccurrences && !selectedOccurrenceId) || (hasTypes && !selectedTypeId)}
+            className={`w-full btn-primary ${(hasOccurrences && !selectedOccurrenceId) || (hasTypes && !selectedTypeId) ? 'opacity-60 cursor-not-allowed' : ''}`}
           >
             {loading ? (
               <Spinner size="sm" />
@@ -220,6 +318,7 @@ export function BookingFlow({
       )}
 
       {error && <p className="text-xs text-red-600">{error}</p>}
+      {hasOccurrences && !selectedOccurrenceId && <p className="text-xs text-red-600">Please choose a session before continuing.</p>}
     </div>
   )
 }

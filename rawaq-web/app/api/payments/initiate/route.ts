@@ -172,7 +172,7 @@ export async function POST(req: NextRequest) {
 
     // Block if already confirmed — the booking was paid and is active.
     if (existingStatus === 'confirmed') {
-      throw new ConflictException('You already have an active booking for this event')
+      throw new ConflictException('You already have an active booking for this session')
     }
 
     // If a pending row exists, void any orphaned pending payment transactions

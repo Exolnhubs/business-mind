@@ -14,7 +14,7 @@ import { Badge } from '@/components/ui/Badge'
 import { CommentThread } from '@/components/comments/CommentThread'
 import { formatDate, formatTime, formatCurrency } from '@/lib/utils'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
-import type { Community, EventWithOrganizer, CommentWithAuthor, TicketType, ReportReason } from '@/types/database'
+import type { Community, EventOccurrence, EventWithOrganizer, CommentWithAuthor, TicketType, ReportReason } from '@/types/database'
 import { applyResolvedEventWindow } from '@/lib/event-recurrence'
 
 interface PaymentOption {
@@ -38,12 +38,18 @@ export default function EventDetailScreen() {
   const [event, setEvent]             = useState<EventWithOrganizer | null>(null)
   const [comments, setComments]       = useState<CommentWithAuthor[]>([])
   const [ticketTypes, setTicketTypes] = useState<TicketType[]>([])
+  const [occurrences, setOccurrences] = useState<EventOccurrence[]>([])
+  const [selectedOccurrenceId, setSelectedOccurrenceId] = useState<string | null>(null)
   const [loading, setLoading]         = useState(true)
   const [isBooked, setIsBooked]       = useState(false)
   const [hasConfirmedBooking, setHasConfirmedBooking] = useState(false)
   const [currentBookingId, setCurrentBookingId] = useState<string | null>(null)
   const [bookingPending, setBookingPending] = useState(false)
   const [onWaitlist, setOnWaitlist]   = useState(false)
+  const [confirmedOccurrenceIds, setConfirmedOccurrenceIds] = useState<string[]>([])
+  const [pendingOccurrenceIds, setPendingOccurrenceIds] = useState<string[]>([])
+  const [waitlistedOccurrenceIds, setWaitlistedOccurrenceIds] = useState<string[]>([])
+  const [bookingIdByOccurrence, setBookingIdByOccurrence] = useState<Record<string, string>>({})
   const [bookingLoading, setBL]       = useState(false)
   const [newBookingId, setNewBookingId] = useState<string | null>(null)
   const [showBookingSuccess, setShowBookingSuccess] = useState(false)
@@ -99,34 +105,52 @@ export default function EventDetailScreen() {
         .order('created_at', { ascending: false })
         .limit(30),
       user
-        ? supabase.from('bookings').select('id, status')
+        ? supabase.from('bookings').select('id, status, occurrence_id')
             .eq('event_id', id).eq('user_id', user.id)
             .in('status', ['confirmed', 'pending'])
             .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle()
-        : Promise.resolve({ data: null }),
+        : Promise.resolve({ data: [] }),
       user
-        ? supabase.from('waitlist').select('id')
+        ? supabase.from('waitlist').select('occurrence_id')
             .eq('event_id', id).eq('user_id', user.id).eq('status', 'waiting')
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle()
-        : Promise.resolve({ data: null }),
+        : Promise.resolve({ data: [] }),
       supabase.from('ticket_types').select('*')
         .eq('event_id', id).eq('is_active', true).order('sort_order'),
       supabase.from('event_communities').select('community_id').eq('event_id', id),
-    ]).then(([{ data: ev }, { data: cmts }, { data: booking }, { data: wl }, { data: tts }, { data: eventCommunityRows }]) => {
+    ]).then(async ([{ data: ev }, { data: cmts }, { data: bookingRows }, { data: waitlistRows }, { data: tts }, { data: eventCommunityRows }]) => {
       const resolvedEvent = ev ? applyResolvedEventWindow(ev as unknown as EventWithOrganizer) : null
       const isRecurring = resolvedEvent?.event_frequency !== 'one_time'
       setEvent(resolvedEvent)
       setComments((cmts ?? []) as unknown as CommentWithAuthor[])
-      setCurrentBookingId(booking?.id ?? null)
-      setHasConfirmedBooking(booking?.status === 'confirmed')
-      setIsBooked(!isRecurring && booking?.status === 'confirmed')
-      setBookingPending(!isRecurring && booking?.status === 'pending')
-      setOnWaitlist(!isRecurring && !!wl)
+      const confirmedBookings = ((bookingRows ?? []) as Array<{ id: string; status: string; occurrence_id: string | null }>).filter((booking) => booking.status === 'confirmed')
+      const pendingBookings = ((bookingRows ?? []) as Array<{ id: string; status: string; occurrence_id: string | null }>).filter((booking) => booking.status === 'pending')
+      const confirmedIds = confirmedBookings.map((booking) => booking.occurrence_id).filter((value): value is string => Boolean(value))
+      const pendingIds = pendingBookings.map((booking) => booking.occurrence_id).filter((value): value is string => Boolean(value))
+      const waitlistedIds = ((waitlistRows ?? []) as Array<{ occurrence_id: string | null }>).map((row) => row.occurrence_id).filter((value): value is string => Boolean(value))
+      setConfirmedOccurrenceIds(confirmedIds)
+      setPendingOccurrenceIds(pendingIds)
+      setWaitlistedOccurrenceIds(waitlistedIds)
+      setBookingIdByOccurrence(
+        confirmedBookings.reduce<Record<string, string>>((acc, booking) => {
+          if (booking.occurrence_id) acc[booking.occurrence_id] = booking.id
+          return acc
+        }, {}),
+      )
+      setCurrentBookingId(confirmedBookings[0]?.id ?? null)
+      setHasConfirmedBooking(confirmedBookings.length > 0)
+      setIsBooked(!isRecurring && confirmedBookings.length > 0)
+      setBookingPending(!isRecurring && pendingBookings.length > 0)
+      setOnWaitlist(!isRecurring && waitlistedIds.length > 0)
       setTicketTypes((tts ?? []) as TicketType[])
+      if (resolvedEvent?.event_frequency !== 'one_time') {
+        const { data: occurrenceRows } = await apiGet<EventOccurrence[]>(`/api/events/${id}/occurrences`)
+        const nextOccurrences = occurrenceRows ?? []
+        setOccurrences(nextOccurrences)
+        setSelectedOccurrenceId(nextOccurrences[0]?.id ?? null)
+      } else {
+        setOccurrences([])
+        setSelectedOccurrenceId(null)
+      }
       const communityIds = (eventCommunityRows ?? []).map((row) => row.community_id)
       if (communityIds.length > 0) {
         supabase
@@ -214,6 +238,11 @@ export default function EventDetailScreen() {
   }
 
   const selectedType = ticketTypes.find((t) => t.id === selectedTypeId) ?? null
+  const selectedOccurrence = occurrences.find((occurrence) => occurrence.id === selectedOccurrenceId) ?? null
+  const effectiveIsBooked = selectedOccurrenceId ? confirmedOccurrenceIds.includes(selectedOccurrenceId) : isBooked
+  const effectiveBookingPending = selectedOccurrenceId ? pendingOccurrenceIds.includes(selectedOccurrenceId) : bookingPending
+  const effectiveOnWaitlist = selectedOccurrenceId ? waitlistedOccurrenceIds.includes(selectedOccurrenceId) : onWaitlist
+  const activeBookingId = selectedOccurrenceId ? bookingIdByOccurrence[selectedOccurrenceId] ?? null : currentBookingId
 
   // Compute whether the current selection results in a paid booking
   const computeIsPaid = useCallback((): boolean => {
@@ -239,6 +268,7 @@ export default function EventDetailScreen() {
       free?: boolean
     }>('/api/payments/initiate', {
       event_id:          id as string,
+      occurrence_id:     selectedOccurrenceId ?? null,
       ticket_type_id:    selectedTypeId ?? null,
       promo_code:        promoCodeVal,
       payment_option_id: paymentOptionId,
@@ -257,7 +287,14 @@ export default function EventDetailScreen() {
     // Free or simulated — confirmed immediately, no redirect needed
     if (data.free || !data.redirect_url) {
       setHasConfirmedBooking(true)
-      setIsBooked(event?.event_frequency === 'one_time')
+      if (selectedOccurrenceId) {
+        setConfirmedOccurrenceIds((current) => current.includes(selectedOccurrenceId) ? current : [...current, selectedOccurrenceId])
+        if (data.booking_id) {
+          setBookingIdByOccurrence((current) => ({ ...current, [selectedOccurrenceId]: data.booking_id! }))
+        }
+      } else {
+        setIsBooked(event?.event_frequency === 'one_time')
+      }
       setNewBookingId(data.booking_id ?? null)
       setCurrentBookingId(data.booking_id ?? null)
       setShowBookingSuccess(true)
@@ -303,7 +340,14 @@ export default function EventDetailScreen() {
     if (deepLinkStatus === 'success') {
       setBL(false)
       setHasConfirmedBooking(true)
-      setIsBooked(event?.event_frequency === 'one_time')
+      if (selectedOccurrenceId) {
+        setConfirmedOccurrenceIds((current) => current.includes(selectedOccurrenceId) ? current : [...current, selectedOccurrenceId])
+        if (bookingId) {
+          setBookingIdByOccurrence((current) => ({ ...current, [selectedOccurrenceId]: bookingId }))
+        }
+      } else {
+        setIsBooked(event?.event_frequency === 'one_time')
+      }
       setShowBookingSuccess(true)
       return
     }
@@ -349,7 +393,12 @@ export default function EventDetailScreen() {
 
     if (confirmed) {
       setHasConfirmedBooking(true)
-      setIsBooked(event?.event_frequency === 'one_time')
+      if (selectedOccurrenceId && bookingId) {
+        setConfirmedOccurrenceIds((current) => current.includes(selectedOccurrenceId) ? current : [...current, selectedOccurrenceId])
+        setBookingIdByOccurrence((current) => ({ ...current, [selectedOccurrenceId]: bookingId }))
+      } else {
+        setIsBooked(event?.event_frequency === 'one_time')
+      }
       setShowBookingSuccess(true)
     } else if (actualFailed) {
       // Webhook confirmed the charge failed — safe to prompt a retry
@@ -370,16 +419,20 @@ export default function EventDetailScreen() {
 
   async function handleBooking() {
     if (!user) { router.push('/(auth)/login'); return }
-    if (!isBooked && ticketTypes.length > 0 && !selectedTypeId) {
+    if (occurrences.length > 0 && !selectedOccurrenceId) {
+      Alert.alert('Select a session', 'Please choose which session you want to attend first.')
+      return
+    }
+    if (!effectiveIsBooked && ticketTypes.length > 0 && !selectedTypeId) {
       Alert.alert('Select a ticket', 'Please select a ticket type to continue.')
       return
     }
     setBL(true)
 
-    if (isBooked) {
+    if (effectiveIsBooked) {
       setBL(false)
-      if (currentBookingId) {
-        router.push({ pathname: '/(tabs)/bookings', params: { refundBookingId: currentBookingId } } as any)
+      if (activeBookingId) {
+        router.push({ pathname: '/(tabs)/bookings', params: { refundBookingId: activeBookingId } } as any)
       } else {
         router.push('/(tabs)/bookings' as any)
       }
@@ -403,11 +456,15 @@ export default function EventDetailScreen() {
   async function handleJoinWaitlist() {
     if (!user) { router.push('/(auth)/login'); return }
     setBL(true)
-    const { error } = await apiPost('/api/waitlist', { event_id: id as string })
+    const { error } = await apiPost('/api/waitlist', { event_id: id as string, occurrence_id: selectedOccurrenceId ?? null })
     if (error) {
       Alert.alert('Error', error)
     } else {
-      setOnWaitlist(true)
+      if (selectedOccurrenceId) {
+        setWaitlistedOccurrenceIds((current) => current.includes(selectedOccurrenceId) ? current : [...current, selectedOccurrenceId])
+      } else {
+        setOnWaitlist(true)
+      }
     }
     setBL(false)
   }
@@ -415,13 +472,19 @@ export default function EventDetailScreen() {
   async function handleLeaveWaitlist() {
     if (!user) return
     setBL(true)
-    const { error } = await apiDelete(`/api/waitlist?event_id=${id as string}`)
+    const params = new URLSearchParams({ event_id: id as string })
+    if (selectedOccurrenceId) params.set('occurrence_id', selectedOccurrenceId)
+    const { error } = await apiDelete(`/api/waitlist?${params.toString()}`)
     if (error) {
       Alert.alert('Error', error)
       setBL(false)
       return
     }
-    setOnWaitlist(false)
+    if (selectedOccurrenceId) {
+      setWaitlistedOccurrenceIds((current) => current.filter((occurrenceId) => occurrenceId !== selectedOccurrenceId))
+    } else {
+      setOnWaitlist(false)
+    }
     setBL(false)
   }
 
@@ -587,7 +650,11 @@ export default function EventDetailScreen() {
     )
   }
 
-  const spotsLeft = event.capacity ? event.capacity - event.bookings_count : null
+  const displayStartAt = selectedOccurrence?.starts_at ?? event.start_at
+  const displayEndAt = selectedOccurrence?.ends_at ?? event.end_at
+  const displayBookingsCount = selectedOccurrence?.bookings_count ?? event.bookings_count
+  const displayCapacity = selectedOccurrence?.capacity ?? event.capacity
+  const spotsLeft = displayCapacity ? displayCapacity - displayBookingsCount : null
   const isFull = spotsLeft !== null && spotsLeft <= 0
   const title = locale === 'ar' && event.title_ar ? event.title_ar : event.title
 
@@ -655,11 +722,48 @@ export default function EventDetailScreen() {
           </View>
         )}
 
+        {occurrences.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Choose Session</Text>
+            <View style={styles.sessionList}>
+              {occurrences.slice(0, 8).map((occurrence) => {
+                const selected = selectedOccurrenceId === occurrence.id
+                const occurrenceSpotsLeft = occurrence.capacity !== null ? occurrence.capacity - occurrence.bookings_count : null
+                const soldOut = occurrenceSpotsLeft !== null && occurrenceSpotsLeft <= 0
+
+                return (
+                  <TouchableOpacity
+                    key={occurrence.id}
+                    style={[styles.sessionCard, selected && styles.sessionCardSelected]}
+                    onPress={() => setSelectedOccurrenceId(occurrence.id)}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.sessionTitle}>{formatDate(occurrence.starts_at, locale)}</Text>
+                      <Text style={styles.sessionMeta}>
+                        {formatTime(occurrence.starts_at)}
+                        {occurrence.ends_at ? ` – ${formatTime(occurrence.ends_at)}` : ''}
+                      </Text>
+                    </View>
+                    <View style={{ alignItems: 'flex-end' }}>
+                      {selected && <Text style={styles.sessionSelected}>Selected</Text>}
+                      {occurrenceSpotsLeft !== null && (
+                        <Text style={[styles.sessionMeta, soldOut && { color: '#dc2626' }]}>
+                          {soldOut ? 'Sold out' : `${occurrenceSpotsLeft} left`}
+                        </Text>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                )
+              })}
+            </View>
+          </View>
+        )}
+
         {/* Info cards */}
         <View style={styles.infoGrid}>
           <InfoBlock icon="📅" label="Date & Time">
-            <Text style={styles.infoValue}>{formatDate(event.start_at, locale)}</Text>
-            <Text style={styles.infoSub}>{formatTime(event.start_at)}{event.end_at ? ` – ${formatTime(event.end_at)}` : ''}</Text>
+            <Text style={styles.infoValue}>{formatDate(displayStartAt, locale)}</Text>
+            <Text style={styles.infoSub}>{formatTime(displayStartAt)}{displayEndAt ? ` – ${formatTime(displayEndAt)}` : ''}</Text>
           </InfoBlock>
           <InfoBlock icon="📍" label="Location" onPress={openVenueInMaps}>
             <Text style={styles.infoValue}>{event.venue_name ?? 'TBA'}</Text>
@@ -667,7 +771,7 @@ export default function EventDetailScreen() {
             <Text style={styles.infoLink}>Open in Google Maps</Text>
           </InfoBlock>
           <InfoBlock icon="👥" label="Attendees">
-            <Text style={styles.infoValue}>{event.bookings_count} attending</Text>
+            <Text style={styles.infoValue}>{displayBookingsCount} attending</Text>
             {spotsLeft !== null && (
               <Text style={styles.infoSub}>{isFull ? 'Fully booked' : `${spotsLeft} spots left`}</Text>
             )}
@@ -712,7 +816,7 @@ export default function EventDetailScreen() {
         {/* Booking CTA */}
         {!event.is_cancelled && (
           <View style={styles.bookingSection}>
-            {isBooked ? (
+            {effectiveIsBooked ? (
               <View style={styles.manageBookingBlock}>
                 <TouchableOpacity
                   style={[styles.bookBtn, styles.bookBtnOutline]}
@@ -726,7 +830,7 @@ export default function EventDetailScreen() {
                   Cancellations and refunds are handled from My Bookings.
                 </Text>
               </View>
-            ) : bookingPending ? (
+            ) : effectiveBookingPending ? (
               <View style={styles.waitlistBadge}>
                 <Text style={styles.waitlistBadgeText}>⏳ Payment is being processed</Text>
                 <Text style={[styles.waitlistBadgeText, { fontWeight: '400', marginTop: 2, opacity: 0.8 }]}>
@@ -734,7 +838,7 @@ export default function EventDetailScreen() {
                 </Text>
               </View>
             ) : isFull ? (
-              onWaitlist ? (
+              effectiveOnWaitlist ? (
                 <View style={styles.waitlistRow}>
                   <View style={styles.waitlistBadge}>
                     <Text style={styles.waitlistBadgeText}>⏳ You're on the waitlist</Text>
@@ -834,9 +938,9 @@ export default function EventDetailScreen() {
 
                 {/* Book button */}
                 <TouchableOpacity
-                  style={[styles.bookBtn, (bookingLoading || (ticketTypes.length > 0 && !selectedTypeId)) && styles.bookBtnGray]}
+                  style={[styles.bookBtn, (bookingLoading || (occurrences.length > 0 && !selectedOccurrenceId) || (ticketTypes.length > 0 && !selectedTypeId)) && styles.bookBtnGray]}
                   onPress={handleBooking}
-                  disabled={bookingLoading || (ticketTypes.length > 0 && !selectedTypeId)}
+                  disabled={bookingLoading || (occurrences.length > 0 && !selectedOccurrenceId) || (ticketTypes.length > 0 && !selectedTypeId)}
                   activeOpacity={0.85}
                 >
                   {bookingLoading
@@ -848,6 +952,7 @@ export default function EventDetailScreen() {
                           const disc = promoResult?.valid ? (promoResult.discount_amount ?? 0) : 0
                           const finalP = Math.max(0, basePrice - disc)
                           const free = selectedType ? selectedType.is_free || finalP === 0 : event.is_free || finalP === 0
+                          if (occurrences.length > 0 && !selectedOccurrenceId) return 'Select a session first'
                           return free
                             ? 'Join Event — Free'
                             : `Book Now — ${formatCurrency(finalP, event.currency, locale)}`
@@ -1162,6 +1267,12 @@ const styles = StyleSheet.create({
   communityPills: { gap: Spacing.sm },
   communityPill: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs + 2, borderRadius: Radius.full, backgroundColor: Colors.brand[50], borderWidth: 1, borderColor: Colors.brand[100], marginRight: Spacing.sm },
   communityPillText: { fontSize: FontSize.xs, color: Colors.brand[700], fontWeight: FontWeight.semibold },
+  sessionList: { gap: Spacing.sm },
+  sessionCard: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.gray[200], backgroundColor: Colors.white, padding: Spacing.md },
+  sessionCardSelected: { borderColor: Colors.brand[500], backgroundColor: Colors.brand[50] },
+  sessionTitle: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[900] },
+  sessionMeta: { fontSize: FontSize.xs, color: Colors.gray[500], marginTop: 2 },
+  sessionSelected: { fontSize: FontSize.xs, color: Colors.brand[600], fontWeight: FontWeight.semibold, marginBottom: 2 },
   infoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginBottom: Spacing.xl },
   infoValue: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[900] },
   infoSub: { fontSize: FontSize.xs, color: Colors.gray[500], marginTop: 2 },

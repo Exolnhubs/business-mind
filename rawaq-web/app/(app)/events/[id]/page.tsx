@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { Badge } from '@/components/ui/Badge'
 import { BookingFlow } from '@/components/events/BookingFlow'
@@ -9,8 +10,9 @@ import { TipPanel } from '@/components/events/TipPanel'
 import { ReportEventButton } from '@/components/events/ReportEventButton'
 import { CommentThread } from '@/components/comments/CommentThread'
 import { formatDate, formatTime, formatCurrency } from '@/lib/utils'
-import type { Community, EventWithOrganizer, CommentWithAuthor, TicketType } from '@/types/database'
+import type { Community, EventOccurrence, EventWithOrganizer, CommentWithAuthor, TicketType } from '@/types/database'
 import { applyResolvedEventWindow } from '@/lib/events/recurrence'
+import { ensureEventOccurrences } from '@/lib/events/occurrences'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
@@ -41,34 +43,47 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
 
   const ev = applyResolvedEventWindow(event as unknown as EventWithOrganizer)
   const isRecurring = ev.event_frequency !== 'one_time'
+  const admin = createSupabaseAdminClient()
+
+  const occurrences = isRecurring
+    ? await ensureEventOccurrences(admin, {
+        id: ev.id,
+        start_at: ev.start_at,
+        end_at: ev.end_at,
+        event_frequency: ev.event_frequency,
+        capacity: ev.capacity,
+        is_cancelled: ev.is_cancelled,
+      })
+    : []
 
   const { data: { user } } = await supabase.auth.getUser()
   let isBooked = false
   let hasConfirmedBooking = false
   let isSaved = false
   let isOnWaitlist = false
+  let confirmedOccurrenceIds: string[] = []
+  let pendingOccurrenceIds: string[] = []
+  let waitlistedOccurrenceIds: string[] = []
   if (user) {
-    const [{ data: booking }, { data: save }, { data: waitlist }] = await Promise.all([
+    const [{ data: bookingRows }, { data: save }, { data: waitlistRows }] = await Promise.all([
       supabase
-        .from('bookings').select('id')
-        .eq('event_id', id).eq('user_id', user.id).eq('status', 'confirmed')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle(),
+        .from('bookings').select('id, occurrence_id, status')
+        .eq('event_id', id).eq('user_id', user.id).in('status', ['confirmed', 'pending']),
       supabase
         .from('saved_events').select('event_id')
         .eq('user_id', user.id).eq('event_id', id).single(),
       supabase
-        .from('waitlist').select('id')
-        .eq('event_id', id).eq('user_id', user.id).eq('status', 'waiting')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle(),
+        .from('waitlist').select('occurrence_id')
+        .eq('event_id', id).eq('user_id', user.id).eq('status', 'waiting'),
     ])
-    hasConfirmedBooking = !!booking
-    isBooked = isRecurring ? false : !!booking
+    const confirmedBookings = (bookingRows ?? []).filter((booking) => booking.status === 'confirmed')
+    confirmedOccurrenceIds = confirmedBookings.map((booking) => booking.occurrence_id).filter(Boolean)
+    pendingOccurrenceIds = (bookingRows ?? []).filter((booking) => booking.status === 'pending').map((booking) => booking.occurrence_id).filter(Boolean)
+    waitlistedOccurrenceIds = (waitlistRows ?? []).map((row) => row.occurrence_id).filter(Boolean)
+    hasConfirmedBooking = confirmedBookings.length > 0
+    isBooked = isRecurring ? false : confirmedBookings.length > 0
     isSaved = !!save
-    isOnWaitlist = isRecurring ? false : !!waitlist
+    isOnWaitlist = isRecurring ? false : waitlistedOccurrenceIds.length > 0
   }
 
   // Fetch ticket types for this event
@@ -281,6 +296,11 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
                 currency={ev.currency}
                 ticketTypes={(ticketTypes ?? []) as TicketType[]}
                 isOnWaitlist={isOnWaitlist}
+                occurrences={occurrences as EventOccurrence[]}
+                initialOccurrenceId={(occurrences[0] as EventOccurrence | undefined)?.id ?? null}
+                confirmedOccurrenceIds={confirmedOccurrenceIds}
+                pendingOccurrenceIds={pendingOccurrenceIds}
+                waitlistedOccurrenceIds={waitlistedOccurrenceIds}
               />
             </div>
           )}

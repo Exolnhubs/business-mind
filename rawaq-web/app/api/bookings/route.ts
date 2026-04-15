@@ -234,7 +234,7 @@ export async function POST(req: NextRequest) {
     const existingStatus: string | null = anyExisting ? (anyExisting as any).status : null
 
     if (existingStatus === 'confirmed') {
-      throw new ForbiddenException('You already have an active booking for this event')
+        throw new ForbiddenException('You already have an active booking for this session')
     }
 
     const bookingFields = {

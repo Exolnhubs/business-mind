@@ -46,7 +46,7 @@ export class BadRequestException extends ApiException {
 function mapDbError(error: { code?: string; message?: string }): { message: string; status: number } {
   switch (error.code) {
     case 'P0001': return { message: 'Event is fully booked', status: 409 }
-    case 'P0002': return { message: 'You already have an active booking for this event', status: 409 }
+    case 'P0002': return { message: 'You already have an active booking for this session', status: 409 }
     case 'P0003': return { message: 'This ticket type is sold out', status: 409 }
     case '23505': return { message: 'Duplicate entry', status: 409 }
     case '23503': return { message: 'Referenced record not found', status: 404 }

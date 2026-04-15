@@ -207,6 +207,7 @@ function FawryReferenceCard({ reference }: { reference: string }) {
 interface CheckoutFormProps {
   eventId: string
   eventTitle: string
+  occurrenceId: string | null
   currency: string
   ticketTypes: TicketType[]
   preSelectedTypeId: string | null
@@ -218,6 +219,7 @@ interface CheckoutFormProps {
 export function CheckoutForm({
   eventId,
   eventTitle,
+  occurrenceId,
   currency,
   ticketTypes,
   preSelectedTypeId,
@@ -272,6 +274,7 @@ export function CheckoutForm({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           event_id:          eventId,
+          occurrence_id:     occurrenceId,
           ticket_type_id:    selectedTypeId ?? null,
           promo_code:        promo?.valid ? promo.code : null,
           payment_option_id: selectedOptionId ?? 'simulated',
