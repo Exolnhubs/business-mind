@@ -89,8 +89,8 @@ export default function EventDetailScreen() {
         .single(),
       supabase
         .from('comments')
-        .select(`*, author:profiles!user_id(id, display_name, avatar_url),
-          replies:comments!parent_id(*, author:profiles!user_id(id, display_name, avatar_url))
+        .select(`*, author:profiles!user_id(id, display_name, avatar_url, plan_id),
+          replies:comments!parent_id(*, author:profiles!user_id(id, display_name, avatar_url, plan_id))
         `)
         .eq('event_id', id)
         .is('parent_id', null)

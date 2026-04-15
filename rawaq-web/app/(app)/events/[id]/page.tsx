@@ -90,10 +90,10 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
     .from('comments')
     .select(`
       *,
-      author:profiles!user_id(id, display_name, avatar_url),
+      author:profiles!user_id(id, display_name, avatar_url, plan_id),
       replies:comments!parent_id(
         *,
-        author:profiles!user_id(id, display_name, avatar_url)
+        author:profiles!user_id(id, display_name, avatar_url, plan_id)
       )
     `)
     .eq('event_id', id)

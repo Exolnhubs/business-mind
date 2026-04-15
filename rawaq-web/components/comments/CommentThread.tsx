@@ -129,6 +129,7 @@ export function CommentThread({ eventId, initialComments, currentUserId }: Comme
         id: user.id,
         display_name: profile?.display_name ?? 'You',
         avatar_url: profile?.avatar_url ?? null,
+        plan_id: profile?.plan_id ?? 'user_free',
       },
       replies: [],
     }
