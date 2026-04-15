@@ -66,7 +66,7 @@ function getWeekendLabel(): string {
   const sat = new Date(now); sat.setDate(now.getDate() + daysToSat)
   const sun = new Date(sat); sun.setDate(sat.getDate() + 1)
   const fmt = (d: Date) => d.toLocaleDateString('en', { month: 'short', day: 'numeric' })
-  return `${fmt(sat)} – ${fmt(sun)}`
+  return `${fmt(sat)} - ${fmt(sun)}`
 }
 
 const CITIES = [

@@ -19,6 +19,10 @@ interface TicketData {
   seat: string | null
   scanned_at: string | null
   status: string
+  occurrence: {
+    starts_at: string
+    ends_at: string | null
+  } | null
   event: {
     id: string
     title: string
@@ -47,6 +51,7 @@ export default function TicketScreen() {
       .from('bookings')
       .select(`
         id, ticket_id, seat, scanned_at, status,
+        occurrence:event_occurrences!occurrence_id(starts_at, ends_at),
         event:events!event_id(id, title, title_ar, start_at, end_at, venue_name, address, city),
         profile:profiles!user_id(display_name)
       `)
@@ -88,6 +93,8 @@ export default function TicketScreen() {
   }
 
   const event = ticket.event
+  const displayStartAt = ticket.occurrence?.starts_at ?? event.start_at
+  const displayEndAt = ticket.occurrence?.ends_at ?? event.end_at
   const displayTitle = locale === 'ar' && event.title_ar ? event.title_ar : event.title
   const verifyUrl = `${APP_URL}/api/tickets/verify?t=${ticket.ticket_id}`
   const isScanned = !!ticket.scanned_at
@@ -113,11 +120,11 @@ export default function TicketScreen() {
         )}
 
         <View style={styles.infoList}>
-          <InfoRow icon="📅" label={t('ticket.date')} value={formatDate(event.start_at, locale)} />
+          <InfoRow icon="📅" label={t('ticket.date')} value={formatDate(displayStartAt, locale)} />
           <InfoRow
             icon="🕐"
             label={t('ticket.time')}
-            value={formatTime(event.start_at, locale) + (event.end_at ? ` – ${formatTime(event.end_at, locale)}` : '')}
+            value={formatTime(displayStartAt, locale) + (displayEndAt ? ` - ${formatTime(displayEndAt, locale)}` : '')}
           />
           <InfoRow icon="📍" label={t('ticket.venue')} value={event.venue_name ?? event.city} />
           {event.address && <InfoRow icon="🗺️" label={t('ticket.address')} value={event.address} />}

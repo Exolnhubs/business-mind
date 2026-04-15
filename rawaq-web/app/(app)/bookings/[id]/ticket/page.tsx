@@ -25,6 +25,7 @@ export default async function TicketPage({ params }: Props) {
   }
   type BookingShape = {
     id: string; status: string; ticket_id: string | null; seat: string | null; created_at: string
+    occurrence: { starts_at: string; ends_at: string | null } | null
     event: EventShape | null
   }
 
@@ -32,6 +33,7 @@ export default async function TicketPage({ params }: Props) {
     .from('bookings')
     .select(`
       id, status, ticket_id, seat, created_at,
+      occurrence:event_occurrences!occurrence_id(starts_at, ends_at),
       event:events!event_id(
         id, title, title_ar, start_at, end_at,
         venue_name, venue_name_ar, address, city, cover_image_url,
@@ -47,6 +49,8 @@ export default async function TicketPage({ params }: Props) {
   if (!booking || !booking.ticket_id) notFound()
 
   const event = booking.event!
+  const displayStartAt = booking.occurrence?.starts_at ?? event.start_at
+  const displayEndAt = booking.occurrence?.ends_at ?? event.end_at
 
   const { data: profile } = await supabase
     .from('profiles')
@@ -99,8 +103,8 @@ export default async function TicketPage({ params }: Props) {
           )}
 
           <div className="mt-5 space-y-3 text-sm">
-            <InfoRow icon="📅" label="Date" value={formatDate(event.start_at)} />
-            <InfoRow icon="🕐" label="Time" value={formatTime(event.start_at) + (event.end_at ? ` – ${formatTime(event.end_at)}` : '')} />
+            <InfoRow icon="📅" label="Date" value={formatDate(displayStartAt)} />
+            <InfoRow icon="🕐" label="Time" value={formatTime(displayStartAt) + (displayEndAt ? ` - ${formatTime(displayEndAt)}` : '')} />
             <InfoRow icon="📍" label="Venue" value={event.venue_name ?? event.city} />
             {event.address && <InfoRow icon="🗺️" label="Address" value={event.address} />}
             <InfoRow icon="👤" label="Attendee" value={profileData?.display_name ?? user.email ?? ''} />

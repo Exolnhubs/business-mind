@@ -19,25 +19,24 @@ function TicketCard({
   selected: boolean
   onSelect: () => void
 }) {
-  const now          = new Date()
-  const saleStarted  = !ticket.sale_starts_at || new Date(ticket.sale_starts_at) <= now
-  const saleEnded    = ticket.sale_ends_at ? new Date(ticket.sale_ends_at) < now : false
-  const soldOut      = ticket.capacity !== null && ticket.sold_count >= ticket.capacity
-  const spotsLeft    = ticket.capacity !== null ? ticket.capacity - ticket.sold_count : null
-  const unavailable  = saleEnded || soldOut || !saleStarted
+  const now = new Date()
+  const saleStarted = !ticket.sale_starts_at || new Date(ticket.sale_starts_at) <= now
+  const saleEnded = ticket.sale_ends_at ? new Date(ticket.sale_ends_at) < now : false
+  const soldOut = ticket.capacity !== null && ticket.sold_count >= ticket.capacity
+  const spotsLeft = ticket.capacity !== null ? ticket.capacity - ticket.sold_count : null
+  const unavailable = saleEnded || soldOut || !saleStarted
 
   return (
     <button
       type="button"
       disabled={unavailable}
       onClick={onSelect}
-      className={`w-full text-left rounded-xl border-2 px-4 py-3 transition-all ${
-        unavailable
+      className={`w-full text-left rounded-xl border-2 px-4 py-3 transition-all ${unavailable
           ? 'border-gray-100 bg-gray-50 opacity-60 cursor-not-allowed'
           : selected
             ? 'border-brand-500 bg-brand-50'
             : 'border-gray-200 hover:border-brand-300 hover:bg-gray-50'
-      }`}
+        }`}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
@@ -46,8 +45,8 @@ function TicketCard({
               {ticket.name}
             </span>
             {!saleStarted && <span className="text-xs bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-full">Coming soon</span>}
-            {saleEnded    && <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">Sales ended</span>}
-            {soldOut      && <span className="text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full">Sold out</span>}
+            {saleEnded && <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">Sales ended</span>}
+            {soldOut && <span className="text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full">Sold out</span>}
           </div>
           {ticket.description && <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{ticket.description}</p>}
           {spotsLeft !== null && spotsLeft <= 10 && !soldOut && (
@@ -97,18 +96,18 @@ export function BookingFlow({
   pendingOccurrenceIds = [],
   waitlistedOccurrenceIds = [],
 }: BookingFlowProps) {
-  const { user }  = useAuth()
-  const router    = useRouter()
+  const { user } = useAuth()
+  const router = useRouter()
 
   const [waitlistedIds, setWaitlistedIds] = useState(waitlistedOccurrenceIds)
-  const [loading,     setLoading]     = useState(false)
-  const [error,       setError]       = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const hasTypes      = ticketTypes.length > 0
+  const hasTypes = ticketTypes.length > 0
   const hasOccurrences = occurrences.length > 0
   const [selectedOccurrenceId, setSelectedOccurrenceId] = useState<string | null>(initialOccurrenceId ?? occurrences[0]?.id ?? null)
   const [selectedTypeId, setSelectedTypeId] = useState<string | null>(null)
-  const selectedType  = ticketTypes.find((t) => t.id === selectedTypeId) ?? null
+  const selectedType = ticketTypes.find((t) => t.id === selectedTypeId) ?? null
   const selectedOccurrence = occurrences.find((occurrence) => occurrence.id === selectedOccurrenceId) ?? null
   const booked = selectedOccurrenceId ? confirmedOccurrenceIds.includes(selectedOccurrenceId) : initialBooked
   const bookingPending = selectedOccurrenceId ? pendingOccurrenceIds.includes(selectedOccurrenceId) : false
@@ -121,7 +120,7 @@ export function BookingFlow({
     : null
 
   // Price preview for the CTA button label
-  const basePrice     = selectedType ? selectedType.price : (eventPrice ?? 0)
+  const basePrice = selectedType ? selectedType.price : (eventPrice ?? 0)
   const effectiveFree = selectedType ? selectedType.is_free : isFree
 
   // ── Cancel booking ──────────────────────────────────────────────────────
@@ -217,18 +216,17 @@ export function BookingFlow({
                     setSelectedOccurrenceId(occurrence.id)
                     setError(null)
                   }}
-                  className={`w-full rounded-xl border px-3 py-3 text-left transition-colors ${
-                    selected
+                  className={`w-full rounded-xl border px-3 py-3 text-left transition-colors ${selected
                       ? 'border-brand-500 bg-brand-50'
                       : 'border-gray-200 hover:border-brand-300 hover:bg-gray-50'
-                  }`}
+                    }`}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-sm font-semibold text-gray-900">{formatDate(occurrence.starts_at)}</p>
                       <p className="text-xs text-gray-500">
                         {formatTime(occurrence.starts_at)}
-                        {occurrence.ends_at ? ` – ${formatTime(occurrence.ends_at)}` : ''}
+                        {occurrence.ends_at ? ` - ${formatTime(occurrence.ends_at)}` : ''}
                       </p>
                     </div>
                     <div className="text-right">

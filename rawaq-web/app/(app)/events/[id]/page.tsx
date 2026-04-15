@@ -47,13 +47,13 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
 
   const occurrences = isRecurring
     ? await ensureEventOccurrences(admin, {
-        id: ev.id,
-        start_at: ev.start_at,
-        end_at: ev.end_at,
-        event_frequency: ev.event_frequency,
-        capacity: ev.capacity,
-        is_cancelled: ev.is_cancelled,
-      })
+      id: ev.id,
+      start_at: ev.start_at,
+      end_at: ev.end_at,
+      event_frequency: ev.event_frequency,
+      capacity: ev.capacity,
+      is_cancelled: ev.is_cancelled,
+    })
     : []
 
   const { data: { user } } = await supabase.auth.getUser()
@@ -184,7 +184,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <InfoBlock icon="📅" label="Date & Time">
               <p className="text-sm font-medium">{formatDate(ev.start_at)}</p>
-              <p className="text-xs text-gray-500">{formatTime(ev.start_at)}{ev.end_at ? ` – ${formatTime(ev.end_at)}` : ''}</p>
+              <p className="text-xs text-gray-500">{formatTime(ev.start_at)}{ev.end_at ? ` - ${formatTime(ev.end_at)}` : ''}</p>
             </InfoBlock>
 
             <InfoBlock icon="📍" label="Location">
@@ -273,7 +273,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
                         <div>
                           <span className="text-xs text-gray-400 font-medium uppercase tracking-wide block">from</span>
                           <span className="text-2xl font-bold text-gray-900">{formatCurrency(min, ev.currency)}</span>
-                          {max !== min && <span className="text-sm text-gray-500 ml-1">– {formatCurrency(max, ev.currency)}</span>}
+                          {max !== min && <span className="text-sm text-gray-500 ml-1">- {formatCurrency(max, ev.currency)}</span>}
                         </div>
                       )
                     })()}

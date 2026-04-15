@@ -35,50 +35,50 @@ export default function EventDetailScreen() {
   const { t, locale } = useLocale()
   const router = useRouter()
 
-  const [event, setEvent]             = useState<EventWithOrganizer | null>(null)
-  const [comments, setComments]       = useState<CommentWithAuthor[]>([])
+  const [event, setEvent] = useState<EventWithOrganizer | null>(null)
+  const [comments, setComments] = useState<CommentWithAuthor[]>([])
   const [ticketTypes, setTicketTypes] = useState<TicketType[]>([])
   const [occurrences, setOccurrences] = useState<EventOccurrence[]>([])
   const [selectedOccurrenceId, setSelectedOccurrenceId] = useState<string | null>(null)
-  const [loading, setLoading]         = useState(true)
-  const [isBooked, setIsBooked]       = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [isBooked, setIsBooked] = useState(false)
   const [hasConfirmedBooking, setHasConfirmedBooking] = useState(false)
   const [currentBookingId, setCurrentBookingId] = useState<string | null>(null)
   const [bookingPending, setBookingPending] = useState(false)
-  const [onWaitlist, setOnWaitlist]   = useState(false)
+  const [onWaitlist, setOnWaitlist] = useState(false)
   const [confirmedOccurrenceIds, setConfirmedOccurrenceIds] = useState<string[]>([])
   const [pendingOccurrenceIds, setPendingOccurrenceIds] = useState<string[]>([])
   const [waitlistedOccurrenceIds, setWaitlistedOccurrenceIds] = useState<string[]>([])
   const [bookingIdByOccurrence, setBookingIdByOccurrence] = useState<Record<string, string>>({})
-  const [bookingLoading, setBL]       = useState(false)
+  const [bookingLoading, setBL] = useState(false)
   const [newBookingId, setNewBookingId] = useState<string | null>(null)
   const [showBookingSuccess, setShowBookingSuccess] = useState(false)
   // Ticket type selection
   const [selectedTypeId, setSelectedTypeId] = useState<string | null>(null)
   // Promo code
-  const [promoCode, setPromoCode]     = useState('')
+  const [promoCode, setPromoCode] = useState('')
   const [promoResult, setPromoResult] = useState<{ valid: boolean; discount_amount?: number; final_amount?: number; promo_code_id?: string; reason?: string } | null>(null)
   const [promoLoading, setPromoLoading] = useState(false)
   // Tip
-  const [tipAmount, setTipAmount]   = useState<number | null>(null)
-  const [tipMsg, setTipMsg]         = useState('')
+  const [tipAmount, setTipAmount] = useState<number | null>(null)
+  const [tipMsg, setTipMsg] = useState('')
   const [tipLoading, setTipLoading] = useState(false)
-  const [tipDone, setTipDone]       = useState(false)
-  const [showTip, setShowTip]       = useState(false)
+  const [tipDone, setTipDone] = useState(false)
+  const [showTip, setShowTip] = useState(false)
   // Report event
-  const [showReport, setShowReport]   = useState(false)
+  const [showReport, setShowReport] = useState(false)
   const [reportReason, setReportReason] = useState<ReportReason>('spam')
   const [reportDetails, setReportDetails] = useState('')
   const [reportLoading, setReportLoading] = useState(false)
-  const [reportDone, setReportDone]   = useState(false)
+  const [reportDone, setReportDone] = useState(false)
   // Payment
-  const [paymentOptions,         setPaymentOptions]         = useState<PaymentOption[]>([])
+  const [paymentOptions, setPaymentOptions] = useState<PaymentOption[]>([])
   const [selectedPaymentOptionId, setSelectedPaymentOptionId] = useState<string | null>(null)
-  const [showPaymentPicker,      setShowPaymentPicker]      = useState(false)
-  const [fawryRef,               setFawryRef]               = useState<string | null>(null)
-  const [fawryContext,           setFawryContext]           = useState<'ticket' | 'donation'>('ticket')
-  const [paymentIntent,          setPaymentIntent]          = useState<PaymentIntent>(null)
-  const [eventCommunities,       setEventCommunities]       = useState<Array<Pick<Community, 'id' | 'name' | 'name_ar' | 'slug' | 'level'>>>([])
+  const [showPaymentPicker, setShowPaymentPicker] = useState(false)
+  const [fawryRef, setFawryRef] = useState<string | null>(null)
+  const [fawryContext, setFawryContext] = useState<'ticket' | 'donation'>('ticket')
+  const [paymentIntent, setPaymentIntent] = useState<PaymentIntent>(null)
+  const [eventCommunities, setEventCommunities] = useState<Array<Pick<Community, 'id' | 'name' | 'name_ar' | 'slug' | 'level'>>>([])
 
   useEffect(() => {
     if (!id) return
@@ -106,13 +106,13 @@ export default function EventDetailScreen() {
         .limit(30),
       user
         ? supabase.from('bookings').select('id, status, occurrence_id')
-            .eq('event_id', id).eq('user_id', user.id)
-            .in('status', ['confirmed', 'pending'])
-            .order('created_at', { ascending: false })
+          .eq('event_id', id).eq('user_id', user.id)
+          .in('status', ['confirmed', 'pending'])
+          .order('created_at', { ascending: false })
         : Promise.resolve({ data: [] }),
       user
         ? supabase.from('waitlist').select('occurrence_id')
-            .eq('event_id', id).eq('user_id', user.id).eq('status', 'waiting')
+          .eq('event_id', id).eq('user_id', user.id).eq('status', 'waiting')
         : Promise.resolve({ data: [] }),
       supabase.from('ticket_types').select('*')
         .eq('event_id', id).eq('is_active', true).order('sort_order'),
@@ -178,7 +178,7 @@ export default function EventDetailScreen() {
           setSelectedPaymentOptionId(data[0].id)
         }
       })
-      .catch(() => {})
+      .catch(() => { })
   }, [event?.currency])
 
   async function validatePromo() {
@@ -186,7 +186,7 @@ export default function EventDetailScreen() {
     setPromoLoading(true)
 
     const basePrice = selectedType ? selectedType.price : (event.price ?? 0)
-    const code      = promoCode.toUpperCase().trim()
+    const code = promoCode.toUpperCase().trim()
 
     const { data: codes } = await supabase
       .from('promo_codes')
@@ -198,7 +198,7 @@ export default function EventDetailScreen() {
       .limit(2)
 
     const promo = codes?.find((c: { event_id: string | null }) => c.event_id === event.id)
-                ?? codes?.find((c: { event_id: string | null }) => !c.event_id)
+      ?? codes?.find((c: { event_id: string | null }) => !c.event_id)
 
     if (!promo) {
       setPromoResult({ valid: false, reason: 'Code not found or inactive' })
@@ -229,10 +229,10 @@ export default function EventDetailScreen() {
     }
 
     setPromoResult({
-      valid:           true,
+      valid: true,
       discount_amount: discountAmount,
-      final_amount:    Math.max(0, basePrice - discountAmount),
-      promo_code_id:   promo.id,
+      final_amount: Math.max(0, basePrice - discountAmount),
+      promo_code_id: promo.id,
     })
     setPromoLoading(false)
   }
@@ -248,9 +248,9 @@ export default function EventDetailScreen() {
   const computeIsPaid = useCallback((): boolean => {
     if (!event) return false
     const basePrice = selectedType ? selectedType.price : (event.price ?? 0)
-    const disc      = promoResult?.valid ? (promoResult.discount_amount ?? 0) : 0
-    const finalP    = Math.max(0, basePrice - disc)
-    const isFree    = selectedType ? selectedType.is_free || finalP === 0 : event.is_free || finalP === 0
+    const disc = promoResult?.valid ? (promoResult.discount_amount ?? 0) : 0
+    const finalP = Math.max(0, basePrice - disc)
+    const isFree = selectedType ? selectedType.is_free || finalP === 0 : event.is_free || finalP === 0
     return !isFree && finalP > 0
   }, [event, selectedType, promoResult])
 
@@ -267,12 +267,12 @@ export default function EventDetailScreen() {
       fawry_reference_number?: string
       free?: boolean
     }>('/api/payments/initiate', {
-      event_id:          id as string,
-      occurrence_id:     selectedOccurrenceId ?? null,
-      ticket_type_id:    selectedTypeId ?? null,
-      promo_code:        promoCodeVal,
+      event_id: id as string,
+      occurrence_id: selectedOccurrenceId ?? null,
+      ticket_type_id: selectedTypeId ?? null,
+      promo_code: promoCodeVal,
       payment_option_id: paymentOptionId,
-      source:            'mobile',
+      source: 'mobile',
     })
 
     setBL(false)
@@ -319,10 +319,10 @@ export default function EventDetailScreen() {
       'rawaq://',
     )
 
-    const deepLinkUrl    = browserResult.type === 'success' ? browserResult.url : null
+    const deepLinkUrl = browserResult.type === 'success' ? browserResult.url : null
     const deepLinkParams = deepLinkUrl ? new URL(deepLinkUrl).searchParams : null
     const deepLinkStatus = deepLinkParams?.get('status') ?? null   // 'success' | 'failed' | 'pending' | null
-    const bookingId      = deepLinkParams?.get('booking_id') ?? data.booking_id ?? null
+    const bookingId = deepLinkParams?.get('booking_id') ?? data.booking_id ?? null
 
     if (!bookingId) {
       setBL(false)
@@ -357,7 +357,7 @@ export default function EventDetailScreen() {
     //   1. Browser was dismissed manually (no deep link) — payment may have
     //      succeeded but the redirect was missed.
     //   2. 3DS payment: Paymob sends multiple intermediate webhooks before the
-    //      final success one. The success webhook can arrive 30–90 s after the
+    //      final success one. The success webhook can arrive 30-90 s after the
     //      browser redirects, so deep link status may say 'pending' even though
     //      the payment will eventually confirm.
     setBL(true)
@@ -366,7 +366,7 @@ export default function EventDetailScreen() {
     // browser redirects — 17 s was often too short.
     // Pattern: fast at first, then back off to 5 s intervals.
     const DELAYS = [2000, 3000, 3000, 5000, 5000]
-    let confirmed    = false
+    let confirmed = false
     let actualFailed = false
     for (const delay of DELAYS) {
       await new Promise(r => setTimeout(r, delay))
@@ -488,7 +488,7 @@ export default function EventDetailScreen() {
     setBL(false)
   }
 
-  
+
 
   async function sendDonation(optionId?: string) {
     if (!user || !tipAmount || !event) return
@@ -632,7 +632,7 @@ export default function EventDetailScreen() {
       Alert.alert('Maps unavailable', 'Could not open Google Maps right now. Please try again.')
     }
   }
-  
+
 
   if (loading) {
     return (
@@ -660,545 +660,545 @@ export default function EventDetailScreen() {
 
   return (
     <>
-    <Stack.Screen options={{ headerShown: false }} />
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
-    >
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      showsVerticalScrollIndicator={false}
-      keyboardShouldPersistTaps="handled"
-      keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
-    >
-      {/* Cover hero */}
-      <View style={styles.hero}>
-        {event.cover_image_url ? (
-          <Image source={{ uri: event.cover_image_url }} style={styles.heroImage} resizeMode="cover" />
-        ) : (
-          <Text style={styles.heroEmoji}>{event.category?.icon ?? '📅'}</Text>
-        )}
-        {/* Floating back button — sits on top of the hero image */}
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={styles.heroBack}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      <Stack.Screen options={{ headerShown: false }} />
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
+      >
+        <ScrollView
+          style={styles.container}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
         >
-          <Ionicons name="chevron-back" size={22} color="#fff" />
-        </TouchableOpacity>
-        <View style={styles.heroBadges}>
-          {event.is_free && <Badge label="Free" variant="green" />}
-          {event.is_family_friendly && <Badge label="Family" variant="blue" />}
-          {event.is_cancelled && <Badge label="Cancelled" variant="red" />}
-        </View>
-      </View>
-
-      <View style={styles.body}>
-        {/* Title */}
-        <Text style={styles.title}>{title}</Text>
-        {event.category && (
-          <Text style={styles.categoryLabel}>
-            {event.category.icon} {locale === 'ar' ? event.category.name_ar : event.category.name_en}
-          </Text>
-        )}
-        {eventCommunities.length > 0 && (
-          <View style={styles.communitySection}>
-            <Text style={styles.communitySectionLabel}>Inside communities</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.communityPills}>
-              {eventCommunities.map((community) => (
-                <TouchableOpacity
-                  key={community.id}
-                  style={styles.communityPill}
-                  onPress={() => router.push(`/communities/${community.slug}` as any)}
-                >
-                  <Text style={styles.communityPillText}>
-                    {locale === 'ar' && community.name_ar ? community.name_ar : community.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        )}
-
-        {occurrences.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Choose Session</Text>
-            <View style={styles.sessionList}>
-              {occurrences.slice(0, 8).map((occurrence) => {
-                const selected = selectedOccurrenceId === occurrence.id
-                const occurrenceSpotsLeft = occurrence.capacity !== null ? occurrence.capacity - occurrence.bookings_count : null
-                const soldOut = occurrenceSpotsLeft !== null && occurrenceSpotsLeft <= 0
-
-                return (
-                  <TouchableOpacity
-                    key={occurrence.id}
-                    style={[styles.sessionCard, selected && styles.sessionCardSelected]}
-                    onPress={() => setSelectedOccurrenceId(occurrence.id)}
-                  >
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.sessionTitle}>{formatDate(occurrence.starts_at, locale)}</Text>
-                      <Text style={styles.sessionMeta}>
-                        {formatTime(occurrence.starts_at)}
-                        {occurrence.ends_at ? ` – ${formatTime(occurrence.ends_at)}` : ''}
-                      </Text>
-                    </View>
-                    <View style={{ alignItems: 'flex-end' }}>
-                      {selected && <Text style={styles.sessionSelected}>Selected</Text>}
-                      {occurrenceSpotsLeft !== null && (
-                        <Text style={[styles.sessionMeta, soldOut && { color: '#dc2626' }]}>
-                          {soldOut ? 'Sold out' : `${occurrenceSpotsLeft} left`}
-                        </Text>
-                      )}
-                    </View>
-                  </TouchableOpacity>
-                )
-              })}
-            </View>
-          </View>
-        )}
-
-        {/* Info cards */}
-        <View style={styles.infoGrid}>
-          <InfoBlock icon="📅" label="Date & Time">
-            <Text style={styles.infoValue}>{formatDate(displayStartAt, locale)}</Text>
-            <Text style={styles.infoSub}>{formatTime(displayStartAt)}{displayEndAt ? ` – ${formatTime(displayEndAt)}` : ''}</Text>
-          </InfoBlock>
-          <InfoBlock icon="📍" label="Location" onPress={openVenueInMaps}>
-            <Text style={styles.infoValue}>{event.venue_name ?? 'TBA'}</Text>
-            <Text style={styles.infoSub}>{event.city}, {event.country}</Text>
-            <Text style={styles.infoLink}>Open in Google Maps</Text>
-          </InfoBlock>
-          <InfoBlock icon="👥" label="Attendees">
-            <Text style={styles.infoValue}>{displayBookingsCount} attending</Text>
-            {spotsLeft !== null && (
-              <Text style={styles.infoSub}>{isFull ? 'Fully booked' : `${spotsLeft} spots left`}</Text>
-            )}
-          </InfoBlock>
-          <InfoBlock icon="💰" label="Price">
-            <Text style={styles.infoValue}>
-              {event.is_free ? 'Free' : formatCurrency(event.price ?? 0, event.currency, locale)}
-            </Text>
-          </InfoBlock>
-        </View>
-
-        {/* Description */}
-        {event.description && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>About</Text>
-            <Text style={styles.description}>{event.description}</Text>
-          </View>
-        )}
-
-        {/* Organizer */}
-        <TouchableOpacity
-          style={[styles.section, styles.orgCard]}
-          activeOpacity={0.7}
-          onPress={() => router.push(`/organizer/${event.organizer_id}`)}
-        >
-          <View style={styles.orgAvatar}>
-            <Text style={{ fontSize: 22, fontWeight: FontWeight.bold, color: Colors.brand[700] }}>
-              {(event.organizer?.organizer_profile?.business_name ?? event.organizer?.display_name ?? '?')[0].toUpperCase()}
-            </Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-              <Text style={styles.orgName}>
-                {event.organizer?.organizer_profile?.business_name ?? event.organizer?.display_name}
-              </Text>
-              {event.organizer?.organizer_profile?.verified && <Text>✅</Text>}
-            </View>
-            <Text style={styles.orgSub}>Event Organizer · View profile →</Text>
-          </View>
-        </TouchableOpacity>
-
-        {/* Booking CTA */}
-        {!event.is_cancelled && (
-          <View style={styles.bookingSection}>
-            {effectiveIsBooked ? (
-              <View style={styles.manageBookingBlock}>
-                <TouchableOpacity
-                  style={[styles.bookBtn, styles.bookBtnOutline]}
-                  onPress={handleBooking} disabled={bookingLoading}
-                >
-                  {bookingLoading
-                    ? <ActivityIndicator color={Colors.brand[500]} />
-                    : <Text style={[styles.bookBtnText, { color: Colors.gray[700] }]}>Open in My Bookings</Text>}
-                </TouchableOpacity>
-                <Text style={styles.manageBookingHint}>
-                  Cancellations and refunds are handled from My Bookings.
-                </Text>
-              </View>
-            ) : effectiveBookingPending ? (
-              <View style={styles.waitlistBadge}>
-                <Text style={styles.waitlistBadgeText}>⏳ Payment is being processed</Text>
-                <Text style={[styles.waitlistBadgeText, { fontWeight: '400', marginTop: 2, opacity: 0.8 }]}>
-                  Your booking will be confirmed shortly. Check the Bookings tab.
-                </Text>
-              </View>
-            ) : isFull ? (
-              effectiveOnWaitlist ? (
-                <View style={styles.waitlistRow}>
-                  <View style={styles.waitlistBadge}>
-                    <Text style={styles.waitlistBadgeText}>⏳ You're on the waitlist</Text>
-                  </View>
-                  <TouchableOpacity onPress={handleLeaveWaitlist} disabled={bookingLoading} style={styles.leaveWlBtn}>
-                    <Text style={styles.leaveWlText}>{bookingLoading ? '…' : 'Leave'}</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                <TouchableOpacity
-                  style={[styles.bookBtn, styles.bookBtnAmber]}
-                  onPress={handleJoinWaitlist} disabled={bookingLoading}
-                >
-                  {bookingLoading
-                    ? <ActivityIndicator color={Colors.white} />
-                    : <Text style={styles.bookBtnText}>⏳ Join Waitlist</Text>}
-                </TouchableOpacity>
-              )
+          {/* Cover hero */}
+          <View style={styles.hero}>
+            {event.cover_image_url ? (
+              <Image source={{ uri: event.cover_image_url }} style={styles.heroImage} resizeMode="cover" />
             ) : (
-              <>
-                {/* Ticket type selector */}
-                {ticketTypes.length > 0 && (
-                  <View style={styles.ticketSection}>
-                    <Text style={styles.ticketSectionLabel}>Select ticket</Text>
-                    {ticketTypes.map((tt) => {
-                      const now = new Date()
-                      const soldOut = tt.capacity !== null && tt.sold_count >= tt.capacity
-                      const saleEnded = tt.sale_ends_at ? new Date(tt.sale_ends_at) < now : false
-                      const notStarted = tt.sale_starts_at ? new Date(tt.sale_starts_at) > now : false
-                      const unavailable = soldOut || saleEnded || notStarted
-                      const spotsLeft2 = tt.capacity !== null ? tt.capacity - tt.sold_count : null
-                      return (
-                        <TouchableOpacity
-                          key={tt.id}
-                          disabled={unavailable}
-                          onPress={() => { setSelectedTypeId(tt.id); setPromoResult(null); setPromoCode('') }}
-                          style={[
-                            styles.ticketCard,
-                            selectedTypeId === tt.id && styles.ticketCardSelected,
-                            unavailable && styles.ticketCardDisabled,
-                          ]}
-                        >
-                          <View style={styles.ticketCardRow}>
-                            <View style={{ flex: 1 }}>
-                              <Text style={[styles.ticketName, unavailable && { color: Colors.gray[400] }]}>{tt.name}</Text>
-                              {tt.description ? <Text style={styles.ticketDesc} numberOfLines={1}>{tt.description}</Text> : null}
-                              {spotsLeft2 !== null && spotsLeft2 <= 10 && !soldOut && (
-                                <Text style={styles.ticketLow}>Only {spotsLeft2} left!</Text>
-                              )}
-                              {soldOut && <Text style={styles.ticketUnavail}>Sold out</Text>}
-                              {saleEnded && <Text style={styles.ticketUnavail}>Sales ended</Text>}
-                              {notStarted && <Text style={styles.ticketUnavail}>Coming soon</Text>}
-                            </View>
-                            <Text style={[styles.ticketPrice, unavailable && { color: Colors.gray[400] }]}>
-                              {tt.is_free ? 'Free' : formatCurrency(tt.price, event.currency, locale)}
-                            </Text>
-                          </View>
-                          {selectedTypeId === tt.id && (
-                            <Text style={styles.ticketSelected}>✓ Selected</Text>
-                          )}
-                        </TouchableOpacity>
-                      )
-                    })}
-                  </View>
-                )}
+              <Text style={styles.heroEmoji}>{event.category?.icon ?? '📅'}</Text>
+            )}
+            {/* Floating back button — sits on top of the hero image */}
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={styles.heroBack}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="chevron-back" size={22} color="#fff" />
+            </TouchableOpacity>
+            <View style={styles.heroBadges}>
+              {event.is_free && <Badge label="Free" variant="green" />}
+              {event.is_family_friendly && <Badge label="Family" variant="blue" />}
+              {event.is_cancelled && <Badge label="Cancelled" variant="red" />}
+            </View>
+          </View>
 
-                {/* Promo code */}
-                {(selectedType ? !selectedType.is_free && selectedType.price > 0 : !event.is_free && (event.price ?? 0) > 0) && (
-                  <View style={styles.promoSection}>
-                    <View style={styles.promoRow}>
-                      <TextInput
-                        value={promoCode}
-                        onChangeText={(v) => { setPromoCode(v.toUpperCase()); setPromoResult(null) }}
-                        placeholder="Promo code"
-                        placeholderTextColor={Colors.gray[400]}
-                        autoCapitalize="characters"
-                        maxLength={32}
-                        style={styles.promoInput}
-                      />
+          <View style={styles.body}>
+            {/* Title */}
+            <Text style={styles.title}>{title}</Text>
+            {event.category && (
+              <Text style={styles.categoryLabel}>
+                {event.category.icon} {locale === 'ar' ? event.category.name_ar : event.category.name_en}
+              </Text>
+            )}
+            {eventCommunities.length > 0 && (
+              <View style={styles.communitySection}>
+                <Text style={styles.communitySectionLabel}>Inside communities</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.communityPills}>
+                  {eventCommunities.map((community) => (
+                    <TouchableOpacity
+                      key={community.id}
+                      style={styles.communityPill}
+                      onPress={() => router.push(`/communities/${community.slug}` as any)}
+                    >
+                      <Text style={styles.communityPillText}>
+                        {locale === 'ar' && community.name_ar ? community.name_ar : community.name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+
+            {occurrences.length > 0 && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Choose Session</Text>
+                <View style={styles.sessionList}>
+                  {occurrences.slice(0, 8).map((occurrence) => {
+                    const selected = selectedOccurrenceId === occurrence.id
+                    const occurrenceSpotsLeft = occurrence.capacity !== null ? occurrence.capacity - occurrence.bookings_count : null
+                    const soldOut = occurrenceSpotsLeft !== null && occurrenceSpotsLeft <= 0
+
+                    return (
                       <TouchableOpacity
-                        onPress={promoResult?.valid ? () => { setPromoCode(''); setPromoResult(null) } : validatePromo}
-                        disabled={promoLoading || (!promoResult?.valid && !promoCode.trim())}
-                        style={[styles.promoBtn, (promoLoading || (!promoResult?.valid && !promoCode.trim())) && styles.promoBtnDisabled]}
+                        key={occurrence.id}
+                        style={[styles.sessionCard, selected && styles.sessionCardSelected]}
+                        onPress={() => setSelectedOccurrenceId(occurrence.id)}
                       >
-                        <Text style={styles.promoBtnText}>{promoLoading ? '…' : promoResult?.valid ? 'Clear' : 'Apply'}</Text>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.sessionTitle}>{formatDate(occurrence.starts_at, locale)}</Text>
+                          <Text style={styles.sessionMeta}>
+                            {formatTime(occurrence.starts_at)}
+                            {occurrence.ends_at ? ` - ${formatTime(occurrence.ends_at)}` : ''}
+                          </Text>
+                        </View>
+                        <View style={{ alignItems: 'flex-end' }}>
+                          {selected && <Text style={styles.sessionSelected}>Selected</Text>}
+                          {occurrenceSpotsLeft !== null && (
+                            <Text style={[styles.sessionMeta, soldOut && { color: '#dc2626' }]}>
+                              {soldOut ? 'Sold out' : `${occurrenceSpotsLeft} left`}
+                            </Text>
+                          )}
+                        </View>
+                      </TouchableOpacity>
+                    )
+                  })}
+                </View>
+              </View>
+            )}
+
+            {/* Info cards */}
+            <View style={styles.infoGrid}>
+              <InfoBlock icon="📅" label="Date & Time">
+                <Text style={styles.infoValue}>{formatDate(displayStartAt, locale)}</Text>
+                <Text style={styles.infoSub}>{formatTime(displayStartAt)}{displayEndAt ? ` - ${formatTime(displayEndAt)}` : ''}</Text>
+              </InfoBlock>
+              <InfoBlock icon="📍" label="Location" onPress={openVenueInMaps}>
+                <Text style={styles.infoValue}>{event.venue_name ?? 'TBA'}</Text>
+                <Text style={styles.infoSub}>{event.city}, {event.country}</Text>
+                <Text style={styles.infoLink}>Open in Google Maps</Text>
+              </InfoBlock>
+              <InfoBlock icon="👥" label="Attendees">
+                <Text style={styles.infoValue}>{displayBookingsCount} attending</Text>
+                {spotsLeft !== null && (
+                  <Text style={styles.infoSub}>{isFull ? 'Fully booked' : `${spotsLeft} spots left`}</Text>
+                )}
+              </InfoBlock>
+              <InfoBlock icon="💰" label="Price">
+                <Text style={styles.infoValue}>
+                  {event.is_free ? 'Free' : formatCurrency(event.price ?? 0, event.currency, locale)}
+                </Text>
+              </InfoBlock>
+            </View>
+
+            {/* Description */}
+            {event.description && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>About</Text>
+                <Text style={styles.description}>{event.description}</Text>
+              </View>
+            )}
+
+            {/* Organizer */}
+            <TouchableOpacity
+              style={[styles.section, styles.orgCard]}
+              activeOpacity={0.7}
+              onPress={() => router.push(`/organizer/${event.organizer_id}`)}
+            >
+              <View style={styles.orgAvatar}>
+                <Text style={{ fontSize: 22, fontWeight: FontWeight.bold, color: Colors.brand[700] }}>
+                  {(event.organizer?.organizer_profile?.business_name ?? event.organizer?.display_name ?? '?')[0].toUpperCase()}
+                </Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <Text style={styles.orgName}>
+                    {event.organizer?.organizer_profile?.business_name ?? event.organizer?.display_name}
+                  </Text>
+                  {event.organizer?.organizer_profile?.verified && <Text>✅</Text>}
+                </View>
+                <Text style={styles.orgSub}>Event Organizer · View profile →</Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* Booking CTA */}
+            {!event.is_cancelled && (
+              <View style={styles.bookingSection}>
+                {effectiveIsBooked ? (
+                  <View style={styles.manageBookingBlock}>
+                    <TouchableOpacity
+                      style={[styles.bookBtn, styles.bookBtnOutline]}
+                      onPress={handleBooking} disabled={bookingLoading}
+                    >
+                      {bookingLoading
+                        ? <ActivityIndicator color={Colors.brand[500]} />
+                        : <Text style={[styles.bookBtnText, { color: Colors.gray[700] }]}>Open in My Bookings</Text>}
+                    </TouchableOpacity>
+                    <Text style={styles.manageBookingHint}>
+                      Cancellations and refunds are handled from My Bookings.
+                    </Text>
+                  </View>
+                ) : effectiveBookingPending ? (
+                  <View style={styles.waitlistBadge}>
+                    <Text style={styles.waitlistBadgeText}>⏳ Payment is being processed</Text>
+                    <Text style={[styles.waitlistBadgeText, { fontWeight: '400', marginTop: 2, opacity: 0.8 }]}>
+                      Your booking will be confirmed shortly. Check the Bookings tab.
+                    </Text>
+                  </View>
+                ) : isFull ? (
+                  effectiveOnWaitlist ? (
+                    <View style={styles.waitlistRow}>
+                      <View style={styles.waitlistBadge}>
+                        <Text style={styles.waitlistBadgeText}>⏳ You're on the waitlist</Text>
+                      </View>
+                      <TouchableOpacity onPress={handleLeaveWaitlist} disabled={bookingLoading} style={styles.leaveWlBtn}>
+                        <Text style={styles.leaveWlText}>{bookingLoading ? '…' : 'Leave'}</Text>
                       </TouchableOpacity>
                     </View>
-                    {promoResult && (
-                      <Text style={[styles.promoMsg, promoResult.valid ? styles.promoMsgOk : styles.promoMsgErr]}>
-                        {promoResult.valid
-                          ? `✓ Discount applied — you pay ${formatCurrency(promoResult.final_amount ?? 0, event.currency, locale)}`
-                          : `✗ ${promoResult.reason}`}
-                      </Text>
+                  ) : (
+                    <TouchableOpacity
+                      style={[styles.bookBtn, styles.bookBtnAmber]}
+                      onPress={handleJoinWaitlist} disabled={bookingLoading}
+                    >
+                      {bookingLoading
+                        ? <ActivityIndicator color={Colors.white} />
+                        : <Text style={styles.bookBtnText}>⏳ Join Waitlist</Text>}
+                    </TouchableOpacity>
+                  )
+                ) : (
+                  <>
+                    {/* Ticket type selector */}
+                    {ticketTypes.length > 0 && (
+                      <View style={styles.ticketSection}>
+                        <Text style={styles.ticketSectionLabel}>Select ticket</Text>
+                        {ticketTypes.map((tt) => {
+                          const now = new Date()
+                          const soldOut = tt.capacity !== null && tt.sold_count >= tt.capacity
+                          const saleEnded = tt.sale_ends_at ? new Date(tt.sale_ends_at) < now : false
+                          const notStarted = tt.sale_starts_at ? new Date(tt.sale_starts_at) > now : false
+                          const unavailable = soldOut || saleEnded || notStarted
+                          const spotsLeft2 = tt.capacity !== null ? tt.capacity - tt.sold_count : null
+                          return (
+                            <TouchableOpacity
+                              key={tt.id}
+                              disabled={unavailable}
+                              onPress={() => { setSelectedTypeId(tt.id); setPromoResult(null); setPromoCode('') }}
+                              style={[
+                                styles.ticketCard,
+                                selectedTypeId === tt.id && styles.ticketCardSelected,
+                                unavailable && styles.ticketCardDisabled,
+                              ]}
+                            >
+                              <View style={styles.ticketCardRow}>
+                                <View style={{ flex: 1 }}>
+                                  <Text style={[styles.ticketName, unavailable && { color: Colors.gray[400] }]}>{tt.name}</Text>
+                                  {tt.description ? <Text style={styles.ticketDesc} numberOfLines={1}>{tt.description}</Text> : null}
+                                  {spotsLeft2 !== null && spotsLeft2 <= 10 && !soldOut && (
+                                    <Text style={styles.ticketLow}>Only {spotsLeft2} left!</Text>
+                                  )}
+                                  {soldOut && <Text style={styles.ticketUnavail}>Sold out</Text>}
+                                  {saleEnded && <Text style={styles.ticketUnavail}>Sales ended</Text>}
+                                  {notStarted && <Text style={styles.ticketUnavail}>Coming soon</Text>}
+                                </View>
+                                <Text style={[styles.ticketPrice, unavailable && { color: Colors.gray[400] }]}>
+                                  {tt.is_free ? 'Free' : formatCurrency(tt.price, event.currency, locale)}
+                                </Text>
+                              </View>
+                              {selectedTypeId === tt.id && (
+                                <Text style={styles.ticketSelected}>✓ Selected</Text>
+                              )}
+                            </TouchableOpacity>
+                          )
+                        })}
+                      </View>
                     )}
-                  </View>
-                )}
 
-                {/* Book button */}
-                <TouchableOpacity
-                  style={[styles.bookBtn, (bookingLoading || (occurrences.length > 0 && !selectedOccurrenceId) || (ticketTypes.length > 0 && !selectedTypeId)) && styles.bookBtnGray]}
-                  onPress={handleBooking}
-                  disabled={bookingLoading || (occurrences.length > 0 && !selectedOccurrenceId) || (ticketTypes.length > 0 && !selectedTypeId)}
-                  activeOpacity={0.85}
-                >
-                  {bookingLoading
-                    ? <ActivityIndicator color={Colors.white} />
-                    : (
-                      <Text style={styles.bookBtnText}>
-                        {(() => {
-                          const basePrice = selectedType ? selectedType.price : (event.price ?? 0)
-                          const disc = promoResult?.valid ? (promoResult.discount_amount ?? 0) : 0
-                          const finalP = Math.max(0, basePrice - disc)
-                          const free = selectedType ? selectedType.is_free || finalP === 0 : event.is_free || finalP === 0
-                          if (occurrences.length > 0 && !selectedOccurrenceId) return 'Select a session first'
-                          return free
-                            ? 'Join Event — Free'
-                            : `Book Now — ${formatCurrency(finalP, event.currency, locale)}`
-                        })()}
-                      </Text>
-                    )
-                  }
-                </TouchableOpacity>
-              </>
-            )}
-          </View>
-        )}
+                    {/* Promo code */}
+                    {(selectedType ? !selectedType.is_free && selectedType.price > 0 : !event.is_free && (event.price ?? 0) > 0) && (
+                      <View style={styles.promoSection}>
+                        <View style={styles.promoRow}>
+                          <TextInput
+                            value={promoCode}
+                            onChangeText={(v) => { setPromoCode(v.toUpperCase()); setPromoResult(null) }}
+                            placeholder="Promo code"
+                            placeholderTextColor={Colors.gray[400]}
+                            autoCapitalize="characters"
+                            maxLength={32}
+                            style={styles.promoInput}
+                          />
+                          <TouchableOpacity
+                            onPress={promoResult?.valid ? () => { setPromoCode(''); setPromoResult(null) } : validatePromo}
+                            disabled={promoLoading || (!promoResult?.valid && !promoCode.trim())}
+                            style={[styles.promoBtn, (promoLoading || (!promoResult?.valid && !promoCode.trim())) && styles.promoBtnDisabled]}
+                          >
+                            <Text style={styles.promoBtnText}>{promoLoading ? '…' : promoResult?.valid ? 'Clear' : 'Apply'}</Text>
+                          </TouchableOpacity>
+                        </View>
+                        {promoResult && (
+                          <Text style={[styles.promoMsg, promoResult.valid ? styles.promoMsgOk : styles.promoMsgErr]}>
+                            {promoResult.valid
+                              ? `✓ Discount applied — you pay ${formatCurrency(promoResult.final_amount ?? 0, event.currency, locale)}`
+                              : `✗ ${promoResult.reason}`}
+                          </Text>
+                        )}
+                      </View>
+                    )}
 
-        {/* Booking success banner */}
-        {showBookingSuccess && newBookingId && (
-          <View style={styles.successBanner}>
-            <Text style={styles.successTitle}>✅ Booking confirmed!</Text>
-            <Text style={styles.successSub}>Your spot is reserved for {event.title}.</Text>
-            <View style={styles.successActions}>
-              <TouchableOpacity
-                style={styles.successBtn}
-                onPress={() => router.push(`/bookings/${newBookingId}/ticket` as any)}
-              >
-                <Text style={styles.successBtnText}>🎟️ View Ticket</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.successDismiss}
-                onPress={() => setShowBookingSuccess(false)}
-              >
-                <Text style={styles.successDismissText}>Got it</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-
-        {/* Fawry payment reference */}
-        {fawryRef && (
-          <View style={styles.fawryCard}>
-            <Text style={styles.fawryTitle}>🏪 Pay with Fawry</Text>
-            <Text style={styles.fawryRef}>{fawryRef}</Text>
-            <Text style={styles.fawryDesc}>
-              {fawryContext === 'donation'
-                ? 'Use this reference at any Fawry outlet, ATM, or kiosk. Your donation will be recorded after payment.'
-                : 'Use this reference at any Fawry outlet, ATM, or kiosk. Your ticket will be confirmed after payment.'}
-            </Text>
-            <TouchableOpacity onPress={() => setFawryRef(null)} style={styles.fawryDismiss}>
-              <Text style={styles.fawryDismissText}>Got it</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* Tip organizer */}
-        {hasConfirmedBooking && !tipDone && (
-          <TouchableOpacity style={styles.tipToggle} onPress={() => setShowTip((v) => !v)}>
-            <Text style={styles.tipToggleText}>💝 {showTip ? 'Hide' : 'Donate to Organizer'}</Text>
-          </TouchableOpacity>
-        )}
-
-        {showTip && !tipDone && (
-          <View style={styles.tipPanel}>
-            <Text style={styles.sectionTitle}>Donation Amount ({event.currency ?? 'SAR'})</Text>
-            <View style={styles.quickTips}>
-              {QUICK_TIPS.map((a) => (
-                <TouchableOpacity
-                  key={a}
-                  onPress={() => setTipAmount(a)}
-                  style={[styles.tipChip, tipAmount === a && styles.tipChipActive]}
-                >
-                  <Text style={[styles.tipChipText, tipAmount === a && styles.tipChipTextActive]}>{a}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <TextInput
-              style={styles.tipInput}
-              placeholder="Custom amount"
-              placeholderTextColor={Colors.gray[400]}
-              keyboardType="numeric"
-              value={tipAmount?.toString() ?? ''}
-              onChangeText={(v) => setTipAmount(v ? Number(v) : null)}
-            />
-            <TextInput
-              style={styles.tipInput}
-              placeholder="Message (optional)"
-              placeholderTextColor={Colors.gray[400]}
-              value={tipMsg}
-              onChangeText={setTipMsg}
-              maxLength={200}
-            />
-            <TouchableOpacity
-              style={[styles.bookBtn, (!tipAmount || tipLoading) && styles.bookBtnGray]}
-              onPress={() => {
-                void sendDonation()
-              }}
-              disabled={!tipAmount || tipLoading}
-            >
-              {tipLoading
-                ? <ActivityIndicator color={Colors.white} />
-                : <Text style={styles.bookBtnText}>Send {tipAmount ? `${event.currency ?? 'SAR'} ${tipAmount}` : ''} Donation</Text>
-              }
-            </TouchableOpacity>
-            <Text style={styles.tipDisclaimer}>Your donation will be processed through the selected payment method</Text>
-          </View>
-        )}
-
-        {/* Report event */}
-        {user && user.id !== event.organizer_id && (
-          <View style={styles.reportSection}>
-            {reportDone ? (
-              <Text style={styles.reportDone}>✅ Report submitted. Thank you.</Text>
-            ) : !showReport ? (
-              <TouchableOpacity onPress={() => setShowReport(true)}>
-                <Text style={styles.reportLink}>🚩 Report this event</Text>
-              </TouchableOpacity>
-            ) : (
-              <View style={styles.reportPanel}>
-                <Text style={styles.reportTitle}>Report Event</Text>
-                {([
-                  { value: 'spam',           label: 'Spam or misleading' },
-                  { value: 'inappropriate',  label: 'Inappropriate content' },
-                  { value: 'harassment',     label: 'Harassment or hate' },
-                  { value: 'misinformation', label: 'False information' },
-                  { value: 'other',          label: 'Other' },
-                ] as Array<{ value: ReportReason; label: string }>).map((r) => (
-                  <TouchableOpacity
-                    key={r.value}
-                    style={styles.reportOption}
-                    onPress={() => setReportReason(r.value)}
-                  >  
-                    <View style={[styles.reportRadio, reportReason === r.value && styles.reportRadioSelected]} />
-                    <Text style={styles.reportOptionLabel}>{r.label}</Text>
-                  </TouchableOpacity>
-                ))}
-                <TextInput
-                  value={reportDetails}
-                  onChangeText={setReportDetails}
-                  placeholder="Additional details (optional)"
-                  placeholderTextColor={Colors.gray[400]}
-                  multiline
-                  numberOfLines={2}
-                  maxLength={500}
-                  style={styles.reportInput}
-                />
-                <View style={styles.reportBtnRow}>
-                  <TouchableOpacity
-                    disabled={reportLoading}
-                    style={[styles.reportSubmitBtn, reportLoading && { opacity: 0.5 }]}
-                    onPress={async () => {
-                      setReportLoading(true)
-                      const { error } = await supabase.from('event_reports').insert({
-                        event_id:    event.id,
-                        reporter_id: user.id,
-                        reason:      reportReason,
-                        details:     reportDetails.trim() || null,
-                        status:      'pending',
-                        resolved_by: null,
-                        resolved_at: null,
-                        resolution_note: null,
-                      })
-                      if (error && error.code !== '23505') {
-                        Alert.alert('Error', error.message)
-                      } else {
-                        setReportDone(true)
-                        setShowReport(false)
+                    {/* Book button */}
+                    <TouchableOpacity
+                      style={[styles.bookBtn, (bookingLoading || (occurrences.length > 0 && !selectedOccurrenceId) || (ticketTypes.length > 0 && !selectedTypeId)) && styles.bookBtnGray]}
+                      onPress={handleBooking}
+                      disabled={bookingLoading || (occurrences.length > 0 && !selectedOccurrenceId) || (ticketTypes.length > 0 && !selectedTypeId)}
+                      activeOpacity={0.85}
+                    >
+                      {bookingLoading
+                        ? <ActivityIndicator color={Colors.white} />
+                        : (
+                          <Text style={styles.bookBtnText}>
+                            {(() => {
+                              const basePrice = selectedType ? selectedType.price : (event.price ?? 0)
+                              const disc = promoResult?.valid ? (promoResult.discount_amount ?? 0) : 0
+                              const finalP = Math.max(0, basePrice - disc)
+                              const free = selectedType ? selectedType.is_free || finalP === 0 : event.is_free || finalP === 0
+                              if (occurrences.length > 0 && !selectedOccurrenceId) return 'Select a session first'
+                              return free
+                                ? 'Join Event — Free'
+                                : `Book Now — ${formatCurrency(finalP, event.currency, locale)}`
+                            })()}
+                          </Text>
+                        )
                       }
-                      setReportLoading(false)
-                    }}
+                    </TouchableOpacity>
+                  </>
+                )}
+              </View>
+            )}
+
+            {/* Booking success banner */}
+            {showBookingSuccess && newBookingId && (
+              <View style={styles.successBanner}>
+                <Text style={styles.successTitle}>✅ Booking confirmed!</Text>
+                <Text style={styles.successSub}>Your spot is reserved for {event.title}.</Text>
+                <View style={styles.successActions}>
+                  <TouchableOpacity
+                    style={styles.successBtn}
+                    onPress={() => router.push(`/bookings/${newBookingId}/ticket` as any)}
                   >
-                    <Text style={styles.reportSubmitText}>{reportLoading ? 'Submitting…' : 'Submit Report'}</Text>
+                    <Text style={styles.successBtnText}>🎟️ View Ticket</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={styles.reportCancelBtn}
-                    onPress={() => setShowReport(false)}
+                    style={styles.successDismiss}
+                    onPress={() => setShowBookingSuccess(false)}
                   >
-                    <Text style={styles.reportCancelText}>Cancel</Text>
+                    <Text style={styles.successDismissText}>Got it</Text>
                   </TouchableOpacity>
                 </View>
               </View>
             )}
-          </View>
-        )}
 
-        {/* Comments */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            Comments ({comments.length})
-          </Text>
-          <CommentThread
-            target={{ eventId: event.id }}
-            initialComments={comments}
-            currentUserId={user?.id ?? null}
-          />
-        </View>
-      </View>
-    </ScrollView>
-    </KeyboardAvoidingView>
-
-    {/* Payment method picker modal */}
-    <Modal
-      visible={showPaymentPicker}
-      transparent
-      animationType="slide"
-      onRequestClose={() => setShowPaymentPicker(false)}
-    >
-      <TouchableOpacity
-        style={styles.modalOverlay}
-        activeOpacity={1}
-        onPress={() => setShowPaymentPicker(false)}
-      >
-        <View style={styles.paymentSheet}>
-          <View style={styles.paymentSheetHandle} />
-          <Text style={styles.paymentSheetTitle}>
-            {paymentIntent === 'donation' ? 'How would you like to donate?' : 'How would you like to pay?'}
-          </Text>
-          {paymentOptions.map((opt) => (
-            <TouchableOpacity
-              key={opt.id}
-              style={[
-                styles.paymentOption,
-                selectedPaymentOptionId === opt.id && styles.paymentOptionSelected,
-              ]}
-              onPress={() => {
-                setSelectedPaymentOptionId(opt.id)
-                if (paymentIntent === 'donation') {
-                  setShowPaymentPicker(false)
-                  sendDonation(opt.id)
-                } else {
-                  initiateBooking(opt.id)
-                }
-              }}
-            >
-              <Text style={styles.paymentOptionIcon}>{opt.icon}</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.paymentOptionLabel}>{opt.label}</Text>
-                <Text style={styles.paymentOptionDesc} numberOfLines={1}>{opt.description}</Text>
+            {/* Fawry payment reference */}
+            {fawryRef && (
+              <View style={styles.fawryCard}>
+                <Text style={styles.fawryTitle}>🏪 Pay with Fawry</Text>
+                <Text style={styles.fawryRef}>{fawryRef}</Text>
+                <Text style={styles.fawryDesc}>
+                  {fawryContext === 'donation'
+                    ? 'Use this reference at any Fawry outlet, ATM, or kiosk. Your donation will be recorded after payment.'
+                    : 'Use this reference at any Fawry outlet, ATM, or kiosk. Your ticket will be confirmed after payment.'}
+                </Text>
+                <TouchableOpacity onPress={() => setFawryRef(null)} style={styles.fawryDismiss}>
+                  <Text style={styles.fawryDismissText}>Got it</Text>
+                </TouchableOpacity>
               </View>
-              {selectedPaymentOptionId === opt.id && (
-                <Ionicons name="checkmark-circle" size={20} color={Colors.brand[500]} />
-              )}
+            )}
+
+            {/* Tip organizer */}
+            {hasConfirmedBooking && !tipDone && (
+              <TouchableOpacity style={styles.tipToggle} onPress={() => setShowTip((v) => !v)}>
+                <Text style={styles.tipToggleText}>💝 {showTip ? 'Hide' : 'Donate to Organizer'}</Text>
+              </TouchableOpacity>
+            )}
+
+            {showTip && !tipDone && (
+              <View style={styles.tipPanel}>
+                <Text style={styles.sectionTitle}>Donation Amount ({event.currency ?? 'SAR'})</Text>
+                <View style={styles.quickTips}>
+                  {QUICK_TIPS.map((a) => (
+                    <TouchableOpacity
+                      key={a}
+                      onPress={() => setTipAmount(a)}
+                      style={[styles.tipChip, tipAmount === a && styles.tipChipActive]}
+                    >
+                      <Text style={[styles.tipChipText, tipAmount === a && styles.tipChipTextActive]}>{a}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <TextInput
+                  style={styles.tipInput}
+                  placeholder="Custom amount"
+                  placeholderTextColor={Colors.gray[400]}
+                  keyboardType="numeric"
+                  value={tipAmount?.toString() ?? ''}
+                  onChangeText={(v) => setTipAmount(v ? Number(v) : null)}
+                />
+                <TextInput
+                  style={styles.tipInput}
+                  placeholder="Message (optional)"
+                  placeholderTextColor={Colors.gray[400]}
+                  value={tipMsg}
+                  onChangeText={setTipMsg}
+                  maxLength={200}
+                />
+                <TouchableOpacity
+                  style={[styles.bookBtn, (!tipAmount || tipLoading) && styles.bookBtnGray]}
+                  onPress={() => {
+                    void sendDonation()
+                  }}
+                  disabled={!tipAmount || tipLoading}
+                >
+                  {tipLoading
+                    ? <ActivityIndicator color={Colors.white} />
+                    : <Text style={styles.bookBtnText}>Send {tipAmount ? `${event.currency ?? 'SAR'} ${tipAmount}` : ''} Donation</Text>
+                  }
+                </TouchableOpacity>
+                <Text style={styles.tipDisclaimer}>Your donation will be processed through the selected payment method</Text>
+              </View>
+            )}
+
+            {/* Report event */}
+            {user && user.id !== event.organizer_id && (
+              <View style={styles.reportSection}>
+                {reportDone ? (
+                  <Text style={styles.reportDone}>✅ Report submitted. Thank you.</Text>
+                ) : !showReport ? (
+                  <TouchableOpacity onPress={() => setShowReport(true)}>
+                    <Text style={styles.reportLink}>🚩 Report this event</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <View style={styles.reportPanel}>
+                    <Text style={styles.reportTitle}>Report Event</Text>
+                    {([
+                      { value: 'spam', label: 'Spam or misleading' },
+                      { value: 'inappropriate', label: 'Inappropriate content' },
+                      { value: 'harassment', label: 'Harassment or hate' },
+                      { value: 'misinformation', label: 'False information' },
+                      { value: 'other', label: 'Other' },
+                    ] as Array<{ value: ReportReason; label: string }>).map((r) => (
+                      <TouchableOpacity
+                        key={r.value}
+                        style={styles.reportOption}
+                        onPress={() => setReportReason(r.value)}
+                      >
+                        <View style={[styles.reportRadio, reportReason === r.value && styles.reportRadioSelected]} />
+                        <Text style={styles.reportOptionLabel}>{r.label}</Text>
+                      </TouchableOpacity>
+                    ))}
+                    <TextInput
+                      value={reportDetails}
+                      onChangeText={setReportDetails}
+                      placeholder="Additional details (optional)"
+                      placeholderTextColor={Colors.gray[400]}
+                      multiline
+                      numberOfLines={2}
+                      maxLength={500}
+                      style={styles.reportInput}
+                    />
+                    <View style={styles.reportBtnRow}>
+                      <TouchableOpacity
+                        disabled={reportLoading}
+                        style={[styles.reportSubmitBtn, reportLoading && { opacity: 0.5 }]}
+                        onPress={async () => {
+                          setReportLoading(true)
+                          const { error } = await supabase.from('event_reports').insert({
+                            event_id: event.id,
+                            reporter_id: user.id,
+                            reason: reportReason,
+                            details: reportDetails.trim() || null,
+                            status: 'pending',
+                            resolved_by: null,
+                            resolved_at: null,
+                            resolution_note: null,
+                          })
+                          if (error && error.code !== '23505') {
+                            Alert.alert('Error', error.message)
+                          } else {
+                            setReportDone(true)
+                            setShowReport(false)
+                          }
+                          setReportLoading(false)
+                        }}
+                      >
+                        <Text style={styles.reportSubmitText}>{reportLoading ? 'Submitting…' : 'Submit Report'}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.reportCancelBtn}
+                        onPress={() => setShowReport(false)}
+                      >
+                        <Text style={styles.reportCancelText}>Cancel</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* Comments */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>
+                Comments ({comments.length})
+              </Text>
+              <CommentThread
+                target={{ eventId: event.id }}
+                initialComments={comments}
+                currentUserId={user?.id ?? null}
+              />
+            </View>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+
+      {/* Payment method picker modal */}
+      <Modal
+        visible={showPaymentPicker}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowPaymentPicker(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowPaymentPicker(false)}
+        >
+          <View style={styles.paymentSheet}>
+            <View style={styles.paymentSheetHandle} />
+            <Text style={styles.paymentSheetTitle}>
+              {paymentIntent === 'donation' ? 'How would you like to donate?' : 'How would you like to pay?'}
+            </Text>
+            {paymentOptions.map((opt) => (
+              <TouchableOpacity
+                key={opt.id}
+                style={[
+                  styles.paymentOption,
+                  selectedPaymentOptionId === opt.id && styles.paymentOptionSelected,
+                ]}
+                onPress={() => {
+                  setSelectedPaymentOptionId(opt.id)
+                  if (paymentIntent === 'donation') {
+                    setShowPaymentPicker(false)
+                    sendDonation(opt.id)
+                  } else {
+                    initiateBooking(opt.id)
+                  }
+                }}
+              >
+                <Text style={styles.paymentOptionIcon}>{opt.icon}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.paymentOptionLabel}>{opt.label}</Text>
+                  <Text style={styles.paymentOptionDesc} numberOfLines={1}>{opt.description}</Text>
+                </View>
+                {selectedPaymentOptionId === opt.id && (
+                  <Ionicons name="checkmark-circle" size={20} color={Colors.brand[500]} />
+                )}
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity style={styles.paymentCancelBtn} onPress={() => setShowPaymentPicker(false)}>
+              <Text style={styles.paymentCancelText}>Cancel</Text>
             </TouchableOpacity>
-          ))}
-          <TouchableOpacity style={styles.paymentCancelBtn} onPress={() => setShowPaymentPicker(false)}>
-            <Text style={styles.paymentCancelText}>Cancel</Text>
-          </TouchableOpacity>
-        </View>
-      </TouchableOpacity>
-    </Modal>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </>
   )
 }

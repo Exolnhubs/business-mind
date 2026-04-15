@@ -8,16 +8,20 @@ import { Spinner } from '@/components/ui/Spinner'
 import { formatDate } from '@/lib/utils'
 import type { BookingRow } from './page'
 
+function getBookingStartAt(booking: BookingRow) {
+  return booking.occurrence?.starts_at ?? booking.event?.start_at ?? null
+}
+
 export default function BookingsClient({ initialBookings }: { initialBookings: BookingRow[] }) {
-  const router   = useRouter()
+  const router = useRouter()
   const searchParams = useSearchParams()
   const [bookings, setBookings] = useState(initialBookings)
 
   // Refund modal state
   const [refundTarget, setRefundTarget] = useState<BookingRow | null>(null)
-  const [userNote,     setUserNote]     = useState('')
-  const [submitting,   setSubmitting]   = useState(false)
-  const [refundMsg,    setRefundMsg]    = useState<{ ok: boolean; text: string } | null>(null)
+  const [userNote, setUserNote] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [refundMsg, setRefundMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
   useEffect(() => {
     const refundBookingId = searchParams.get('refund')
@@ -42,10 +46,10 @@ export default function BookingsClient({ initialBookings }: { initialBookings: B
     setSubmitting(true)
     setRefundMsg(null)
 
-    const res  = await fetch(`/api/bookings/${refundTarget.id}/refund`, {
-      method:  'POST',
+    const res = await fetch(`/api/bookings/${refundTarget.id}/refund`, {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ user_note: userNote.trim() || undefined }),
+      body: JSON.stringify({ user_note: userNote.trim() || undefined }),
     })
     const json = await res.json()
     setSubmitting(false)
@@ -60,20 +64,22 @@ export default function BookingsClient({ initialBookings }: { initialBookings: B
       setRefundMsg({
         ok: true,
         text: autoRefunded
-          ? '✓ Ticket cancelled. Your refund has been sent to your original payment method — allow 3–5 business days to appear.'
-          : '✓ Ticket cancelled. Your refund is queued for review and will be processed within 1–3 business days.',
+          ? '✓ Ticket cancelled. Your refund has been sent to your original payment method — allow 3-5 business days to appear.'
+          : '✓ Ticket cancelled. Your refund is queued for review and will be processed within 1-3 business days.',
       })
     } else {
       setRefundMsg({ ok: false, text: json.error ?? 'Refund request failed.' })
     }
   }
 
-  const upcoming = bookings.filter(
-    (b) => b.status === 'confirmed' && b.event && new Date(b.event.start_at) > new Date(),
-  )
-  const past = bookings.filter(
-    (b) => b.event && new Date(b.event.start_at) <= new Date(),
-  )
+  const upcoming = bookings.filter((b) => {
+    const startAt = getBookingStartAt(b)
+    return b.status === 'confirmed' && !!b.event && !!startAt && new Date(startAt) > new Date()
+  })
+  const past = bookings.filter((b) => {
+    const startAt = getBookingStartAt(b)
+    return !!b.event && !!startAt && new Date(startAt) <= new Date()
+  })
   const cancelled = bookings.filter((b) => b.status === 'cancelled')
 
   return (
@@ -81,11 +87,10 @@ export default function BookingsClient({ initialBookings }: { initialBookings: B
       <h1 className="text-2xl font-bold text-gray-900">My Bookings</h1>
 
       {refundMsg && (
-        <div className={`text-sm rounded-xl px-4 py-3 ${
-          refundMsg.ok
+        <div className={`text-sm rounded-xl px-4 py-3 ${refundMsg.ok
             ? 'bg-green-50 border border-green-200 text-green-700'
             : 'bg-red-50 border border-red-200 text-red-700'
-        }`}>{refundMsg.text}</div>
+          }`}>{refundMsg.text}</div>
       )}
 
       <BookingSection
@@ -129,7 +134,7 @@ export default function BookingsClient({ initialBookings }: { initialBookings: B
             </div>
 
             <p className="text-xs text-gray-400 bg-gray-50 rounded-xl px-4 py-3">
-              ℹ️ Refunds are reviewed within 1–3 business days. Your ticket will be released immediately for others.
+              Refunds are reviewed within 1-3 business days. Your ticket will be released immediately for others.
             </p>
 
             {refundMsg && !refundMsg.ok && (
@@ -161,7 +166,8 @@ export default function BookingsClient({ initialBookings }: { initialBookings: B
 }
 
 function canRefundBooking(booking: BookingRow) {
-  const isUpcoming = booking.event ? new Date(booking.event.start_at) > new Date() : false
+  const startAt = getBookingStartAt(booking)
+  const isUpcoming = !!startAt && new Date(startAt) > new Date()
   const isPaid = !booking.event?.is_free && (booking.event?.price ?? 0) > 0
   return booking.status === 'confirmed' && !booking.event?.is_cancelled && isPaid && isUpcoming
 }
@@ -190,7 +196,8 @@ function BookingSection({
       ) : (
         <div className="space-y-3">
           {bookings.map((booking) => {
-            const canRefund   = canRefundBooking(booking)
+            const canRefund = canRefundBooking(booking)
+            const startAt = getBookingStartAt(booking)
 
             return (
               <div
@@ -210,15 +217,15 @@ function BookingSection({
                     </p>
                   </Link>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    {booking.event ? `${formatDate(booking.event.start_at)} · ${booking.event.city}` : ''}
+                    {booking.event && startAt ? `${formatDate(startAt)} · ${booking.event.city}` : ''}
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
                   <Badge
                     variant={
                       booking.status === 'cancelled' ? 'red' :
-                      booking.event?.is_cancelled    ? 'red' :
-                      'green'
+                        booking.event?.is_cancelled ? 'red' :
+                          'green'
                     }
                   >
                     {booking.event?.is_cancelled ? 'Event Cancelled' : booking.status}

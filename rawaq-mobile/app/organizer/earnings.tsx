@@ -61,38 +61,38 @@ type EarningsCache = {
 let earningsCache: EarningsCache | null = null
 
 const REASON_LABELS: Record<string, string> = {
-  tip:             '💝 Tip',
-  ticket_sale:     '🎟️ Ticket sale',
+  tip: '💝 Tip',
+  ticket_sale: '🎟️ Ticket sale',
   refund_deducted: '↩️ Refund',
-  payout:          '🏦 Payout',
-  adjustment:      '⚙️ Adjustment',
+  payout: '🏦 Payout',
+  adjustment: '⚙️ Adjustment',
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  completed:  '#15803d',
-  pending:    '#d97706',
+  completed: '#15803d',
+  pending: '#d97706',
   processing: '#2563eb',
-  failed:     '#dc2626',
+  failed: '#dc2626',
 }
 
 type ModalMode = 'payout' | 'bank_account'
 
 export default function EarningsScreen() {
   const { user } = useAuth()
-  const router   = useRouter()
-  const insets   = useSafeAreaInsets()
+  const router = useRouter()
+  const insets = useSafeAreaInsets()
 
-  const [wallet,        setWallet]        = useState<Wallet | null>(null)
-  const [ledger,        setLedger]        = useState<LedgerEntry[]>([])
-  const [payouts,       setPayouts]       = useState<Payout[]>([])
+  const [wallet, setWallet] = useState<Wallet | null>(null)
+  const [ledger, setLedger] = useState<LedgerEntry[]>([])
+  const [payouts, setPayouts] = useState<Payout[]>([])
   const [pendingPayout, setPendingPayout] = useState<Payout | null>(null)
-  const [bankAccount,   setBankAccount]   = useState<BankAccount | null>(null)
-  const [loading,       setLoading]       = useState(true)
-  const [refreshing,    setRefreshing]    = useState(false)
+  const [bankAccount, setBankAccount] = useState<BankAccount | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
 
   // Modal state
-  const [modalMode,  setModalMode]  = useState<ModalMode>('payout')
-  const [showModal,  setShowModal]  = useState(false)
+  const [modalMode, setModalMode] = useState<ModalMode>('payout')
+  const [showModal, setShowModal] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
   // Payout form
@@ -100,12 +100,12 @@ export default function EarningsScreen() {
 
   // Bank account form
   const [bankForm, setBankForm] = useState({
-    bank_name:           '',
-    bank_name_ar:        '',
+    bank_name: '',
+    bank_name_ar: '',
     account_holder_name: '',
-    iban:                '',
-    swift_code:          '',
-    country:             'SA',
+    iban: '',
+    swift_code: '',
+    country: 'SA',
   })
 
   useEffect(() => {
@@ -211,12 +211,12 @@ export default function EarningsScreen() {
   function openWithdrawModal() {
     if (!bankAccount) {
       setBankForm({
-        bank_name:           '',
-        bank_name_ar:        '',
+        bank_name: '',
+        bank_name_ar: '',
         account_holder_name: '',
-        iban:                '',
-        swift_code:          '',
-        country:             'SA',
+        iban: '',
+        swift_code: '',
+        country: 'SA',
       })
       setModalMode('bank_account')
     } else {
@@ -228,12 +228,12 @@ export default function EarningsScreen() {
 
   function openEditBankAccount() {
     setBankForm({
-      bank_name:           bankAccount?.bank_name           ?? '',
-      bank_name_ar:        bankAccount?.bank_name_ar        ?? '',
+      bank_name: bankAccount?.bank_name ?? '',
+      bank_name_ar: bankAccount?.bank_name_ar ?? '',
       account_holder_name: bankAccount?.account_holder_name ?? '',
-      iban:                bankAccount?.iban                 ?? '',
-      swift_code:          bankAccount?.swift_code          ?? '',
-      country:             bankAccount?.country             ?? 'SA',
+      iban: bankAccount?.iban ?? '',
+      swift_code: bankAccount?.swift_code ?? '',
+      country: bankAccount?.country ?? 'SA',
     })
     setModalMode('bank_account')
     setShowModal(true)
@@ -247,12 +247,12 @@ export default function EarningsScreen() {
 
     setSubmitting(true)
     const { data, error } = await apiPost<{ bank_account: BankAccount }>('/api/organizer/bank-account', {
-      bank_name:           bankForm.bank_name.trim(),
-      bank_name_ar:        bankForm.bank_name_ar.trim() || null,
+      bank_name: bankForm.bank_name.trim(),
+      bank_name_ar: bankForm.bank_name_ar.trim() || null,
       account_holder_name: bankForm.account_holder_name.trim(),
-      iban:                bankForm.iban.trim(),
-      swift_code:          bankForm.swift_code.trim() || null,
-      country:             bankForm.country.trim()    || 'SA',
+      iban: bankForm.iban.trim(),
+      swift_code: bankForm.swift_code.trim() || null,
+      country: bankForm.country.trim() || 'SA',
     })
     setSubmitting(false)
 
@@ -300,7 +300,7 @@ export default function EarningsScreen() {
 
     Alert.alert(
       'Withdrawal requested',
-      'Your payout request has been submitted and will be processed within 1–3 business days.',
+      'Your payout request has been submitted and will be processed within 1-3 business days.',
     )
     load(true)
   }
@@ -318,8 +318,8 @@ export default function EarningsScreen() {
     )
   }
 
-  const pendingAmount        = pendingPayout?.amount ?? 0
-  const availableToWithdraw  = Math.max(0, (wallet?.balance ?? 0) - pendingAmount)
+  const pendingAmount = pendingPayout?.amount ?? 0
+  const availableToWithdraw = Math.max(0, (wallet?.balance ?? 0) - pendingAmount)
   const headerTopSpacing = Math.max(Spacing.sm, Math.min(insets.top * 0.18, Spacing.md))
 
   return (
@@ -480,7 +480,7 @@ export default function EarningsScreen() {
                 />
 
                 <Text style={styles.payoutNote}>
-                  ℹ️ Payouts are processed within 1–3 business days.
+                  ℹ️ Payouts are processed within 1-3 business days.
                 </Text>
 
                 <View style={styles.modalActions}>
@@ -580,59 +580,59 @@ export default function EarningsScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea:     { flex: 1, backgroundColor: Colors.gray[50] },
-  centered:     { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  content:      { paddingBottom: Spacing['4xl'] },
-  header:       { flexDirection: 'row', alignItems: 'center', gap: Spacing.lg, padding: Spacing.lg, paddingTop: Spacing.lg },
-  backBtn:      {},
-  backText:     { fontSize: FontSize.sm, color: Colors.brand[600], fontWeight: FontWeight.medium },
-  title:        { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.gray[900] },
-  statsRow:     { flexDirection: 'row', gap: Spacing.sm, paddingHorizontal: Spacing.lg, marginBottom: Spacing.md },
-  statCard:     { flex: 1, backgroundColor: Colors.white, borderRadius: Radius.lg, padding: Spacing.md, alignItems: 'center', ...Shadow.card },
-  statHighlight:{ borderWidth: 1.5, borderColor: Colors.brand[300], backgroundColor: Colors.brand[50] },
-  statIcon:     { fontSize: 20, marginBottom: 2 },
-  statValue:    { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.gray[900], textAlign: 'center' },
-  statLabel:    { fontSize: 10, color: Colors.gray[500], marginTop: 2, textAlign: 'center' },
-  pendingLock:  { fontSize: 9, color: '#d97706', marginTop: 3, textAlign: 'center' },
-  bankBanner:      { flexDirection: 'row', alignItems: 'center', marginHorizontal: Spacing.lg, marginBottom: Spacing.md, backgroundColor: '#fef3c7', borderRadius: Radius.lg, padding: Spacing.md, borderWidth: 1, borderColor: '#fcd34d' },
+  safeArea: { flex: 1, backgroundColor: Colors.gray[50] },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  content: { paddingBottom: Spacing['4xl'] },
+  header: { flexDirection: 'row', alignItems: 'center', gap: Spacing.lg, padding: Spacing.lg, paddingTop: Spacing.lg },
+  backBtn: {},
+  backText: { fontSize: FontSize.sm, color: Colors.brand[600], fontWeight: FontWeight.medium },
+  title: { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.gray[900] },
+  statsRow: { flexDirection: 'row', gap: Spacing.sm, paddingHorizontal: Spacing.lg, marginBottom: Spacing.md },
+  statCard: { flex: 1, backgroundColor: Colors.white, borderRadius: Radius.lg, padding: Spacing.md, alignItems: 'center', ...Shadow.card },
+  statHighlight: { borderWidth: 1.5, borderColor: Colors.brand[300], backgroundColor: Colors.brand[50] },
+  statIcon: { fontSize: 20, marginBottom: 2 },
+  statValue: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.gray[900], textAlign: 'center' },
+  statLabel: { fontSize: 10, color: Colors.gray[500], marginTop: 2, textAlign: 'center' },
+  pendingLock: { fontSize: 9, color: '#d97706', marginTop: 3, textAlign: 'center' },
+  bankBanner: { flexDirection: 'row', alignItems: 'center', marginHorizontal: Spacing.lg, marginBottom: Spacing.md, backgroundColor: '#fef3c7', borderRadius: Radius.lg, padding: Spacing.md, borderWidth: 1, borderColor: '#fcd34d' },
   bankBannerTitle: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: '#92400e' },
-  bankBannerSub:   { fontSize: FontSize.xs, color: '#b45309', marginTop: 2 },
+  bankBannerSub: { fontSize: FontSize.xs, color: '#b45309', marginTop: 2 },
   bankBannerArrow: { fontSize: FontSize.lg, color: '#92400e', marginLeft: Spacing.sm },
-  bankCard:        { flexDirection: 'row', alignItems: 'center', marginHorizontal: Spacing.lg, marginBottom: Spacing.md, backgroundColor: Colors.white, borderRadius: Radius.lg, padding: Spacing.md, ...Shadow.card },
-  bankCardTitle:   { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[900] },
-  bankCardIban:    { fontSize: FontSize.xs, color: Colors.gray[500], marginTop: 2, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
-  bankCardHolder:  { fontSize: FontSize.xs, color: Colors.gray[500], marginTop: 2 },
-  verifiedBadge:   { color: '#15803d', fontSize: FontSize.xs, fontWeight: FontWeight.semibold },
-  editLink:        { fontSize: FontSize.sm, color: Colors.brand[600], fontWeight: FontWeight.medium },
-  payoutBtn:    { marginHorizontal: Spacing.lg, backgroundColor: Colors.brand[500], borderRadius: Radius.lg, paddingVertical: Spacing.md, alignItems: 'center', marginBottom: Spacing.xl },
+  bankCard: { flexDirection: 'row', alignItems: 'center', marginHorizontal: Spacing.lg, marginBottom: Spacing.md, backgroundColor: Colors.white, borderRadius: Radius.lg, padding: Spacing.md, ...Shadow.card },
+  bankCardTitle: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[900] },
+  bankCardIban: { fontSize: FontSize.xs, color: Colors.gray[500], marginTop: 2, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
+  bankCardHolder: { fontSize: FontSize.xs, color: Colors.gray[500], marginTop: 2 },
+  verifiedBadge: { color: '#15803d', fontSize: FontSize.xs, fontWeight: FontWeight.semibold },
+  editLink: { fontSize: FontSize.sm, color: Colors.brand[600], fontWeight: FontWeight.medium },
+  payoutBtn: { marginHorizontal: Spacing.lg, backgroundColor: Colors.brand[500], borderRadius: Radius.lg, paddingVertical: Spacing.md, alignItems: 'center', marginBottom: Spacing.xl },
   payoutBtnDisabled: { opacity: 0.4 },
-  payoutBtnText:{ color: Colors.white, fontWeight: FontWeight.semibold, fontSize: FontSize.base },
+  payoutBtnText: { color: Colors.white, fontWeight: FontWeight.semibold, fontSize: FontSize.base },
   sectionTitle: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.gray[500], textTransform: 'uppercase', letterSpacing: 0.8, paddingHorizontal: Spacing.lg, marginBottom: Spacing.sm },
-  card:         { marginHorizontal: Spacing.lg, backgroundColor: Colors.white, borderRadius: Radius.lg, overflow: 'hidden', marginBottom: Spacing.xl, ...Shadow.card },
-  emptyBox:     { marginHorizontal: Spacing.lg, alignItems: 'center', padding: Spacing['3xl'], backgroundColor: Colors.white, borderRadius: Radius.lg, marginBottom: Spacing.xl },
-  emptyText:    { fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.gray[700], marginTop: Spacing.sm },
+  card: { marginHorizontal: Spacing.lg, backgroundColor: Colors.white, borderRadius: Radius.lg, overflow: 'hidden', marginBottom: Spacing.xl, ...Shadow.card },
+  emptyBox: { marginHorizontal: Spacing.lg, alignItems: 'center', padding: Spacing['3xl'], backgroundColor: Colors.white, borderRadius: Radius.lg, marginBottom: Spacing.xl },
+  emptyText: { fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.gray[700], marginTop: Spacing.sm },
   emptySubText: { fontSize: FontSize.sm, color: Colors.gray[400], textAlign: 'center', marginTop: Spacing.xs },
-  ledgerRow:    { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md },
-  borderTop:    { borderTopWidth: 1, borderTopColor: Colors.gray[50] },
+  ledgerRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md },
+  borderTop: { borderTopWidth: 1, borderTopColor: Colors.gray[50] },
   ledgerReason: { fontSize: FontSize.sm, color: Colors.gray[800], fontWeight: FontWeight.medium },
-  ledgerNote:   { fontSize: FontSize.xs, color: Colors.gray[400], marginTop: 2 },
-  ledgerDate:   { fontSize: FontSize.xs, color: Colors.gray[400], marginTop: 2 },
+  ledgerNote: { fontSize: FontSize.xs, color: Colors.gray[400], marginTop: 2 },
+  ledgerDate: { fontSize: FontSize.xs, color: Colors.gray[400], marginTop: 2 },
   ledgerAmount: { fontSize: FontSize.sm, fontWeight: FontWeight.bold },
-  statusBadge:  { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, textTransform: 'capitalize' },
-  modalOverlay:          { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' },
-  modalSheet:            { backgroundColor: Colors.white, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, padding: Spacing['2xl'], paddingBottom: Spacing['4xl'] },
-  modalTitle:            { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.gray[900], marginBottom: 4 },
-  modalSub:              { fontSize: FontSize.sm, color: Colors.gray[500], marginBottom: Spacing.xl },
-  modalBankSummary:      { backgroundColor: Colors.gray[50], borderRadius: Radius.md, padding: Spacing.md, marginBottom: Spacing.lg },
+  statusBadge: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, textTransform: 'capitalize' },
+  modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' },
+  modalSheet: { backgroundColor: Colors.white, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, padding: Spacing['2xl'], paddingBottom: Spacing['4xl'] },
+  modalTitle: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.gray[900], marginBottom: 4 },
+  modalSub: { fontSize: FontSize.sm, color: Colors.gray[500], marginBottom: Spacing.xl },
+  modalBankSummary: { backgroundColor: Colors.gray[50], borderRadius: Radius.md, padding: Spacing.md, marginBottom: Spacing.lg },
   modalBankSummaryTitle: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[800] },
-  modalBankSummaryIban:  { fontSize: FontSize.xs, color: Colors.gray[500], marginTop: 2, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
-  inputLabel:   { fontSize: FontSize.sm, fontWeight: FontWeight.medium, color: Colors.gray[700], marginBottom: 6 },
-  input:        { borderWidth: 1, borderColor: Colors.gray[200], borderRadius: Radius.lg, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, fontSize: FontSize.base, color: Colors.gray[900], marginBottom: Spacing.lg },
-  payoutNote:   { fontSize: FontSize.xs, color: Colors.gray[400], marginBottom: Spacing.xl, textAlign: 'center' },
-  modalActions:       { gap: Spacing.sm },
-  confirmBtn:         { backgroundColor: Colors.brand[500], borderRadius: Radius.lg, paddingVertical: Spacing.md, alignItems: 'center' },
+  modalBankSummaryIban: { fontSize: FontSize.xs, color: Colors.gray[500], marginTop: 2, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
+  inputLabel: { fontSize: FontSize.sm, fontWeight: FontWeight.medium, color: Colors.gray[700], marginBottom: 6 },
+  input: { borderWidth: 1, borderColor: Colors.gray[200], borderRadius: Radius.lg, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, fontSize: FontSize.base, color: Colors.gray[900], marginBottom: Spacing.lg },
+  payoutNote: { fontSize: FontSize.xs, color: Colors.gray[400], marginBottom: Spacing.xl, textAlign: 'center' },
+  modalActions: { gap: Spacing.sm },
+  confirmBtn: { backgroundColor: Colors.brand[500], borderRadius: Radius.lg, paddingVertical: Spacing.md, alignItems: 'center' },
   confirmBtnDisabled: { opacity: 0.5 },
-  confirmBtnText:     { color: Colors.white, fontWeight: FontWeight.semibold, fontSize: FontSize.base },
-  cancelBtn:          { borderWidth: 1, borderColor: Colors.gray[200], borderRadius: Radius.lg, paddingVertical: Spacing.md, alignItems: 'center' },
-  cancelBtnText:      { color: Colors.gray[600], fontWeight: FontWeight.medium, fontSize: FontSize.base },
+  confirmBtnText: { color: Colors.white, fontWeight: FontWeight.semibold, fontSize: FontSize.base },
+  cancelBtn: { borderWidth: 1, borderColor: Colors.gray[200], borderRadius: Radius.lg, paddingVertical: Spacing.md, alignItems: 'center' },
+  cancelBtnText: { color: Colors.gray[600], fontWeight: FontWeight.medium, fontSize: FontSize.base },
 })

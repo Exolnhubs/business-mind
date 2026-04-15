@@ -9,7 +9,7 @@ import type { TicketType } from '@/types/database'
 import { ensureEventOccurrences } from '@/lib/events/occurrences'
 
 interface Props {
-  params:      Promise<{ id: string }>
+  params: Promise<{ id: string }>
   searchParams: Promise<{ ticket_type_id?: string; occurrence_id?: string }>
 }
 
@@ -44,20 +44,20 @@ export default async function CheckoutPage({ params, searchParams }: Props) {
 
   const occurrences = event.event_frequency !== 'one_time'
     ? await ensureEventOccurrences(admin, {
-        id: event.id,
-        start_at: event.start_at,
-        end_at: event.end_at,
-        event_frequency: event.event_frequency,
-        capacity: event.capacity,
-        is_cancelled: event.is_cancelled,
-      })
+      id: event.id,
+      start_at: event.start_at,
+      end_at: event.end_at,
+      event_frequency: event.event_frequency,
+      capacity: event.capacity,
+      is_cancelled: event.is_cancelled,
+    })
     : []
 
   const selectedOccurrence = event.event_frequency === 'one_time'
     ? null
     : (occurrence_id
-        ? occurrences.find((occurrence) => occurrence.id === occurrence_id) ?? null
-        : (occurrences[0] ?? null))
+      ? occurrences.find((occurrence) => occurrence.id === occurrence_id) ?? null
+      : (occurrences[0] ?? null))
 
   if (event.event_frequency !== 'one_time' && !selectedOccurrence) {
     redirect(`/events/${id}`)
@@ -85,7 +85,7 @@ export default async function CheckoutPage({ params, searchParams }: Props) {
   const capacity = selectedOccurrence?.capacity ?? event.capacity
   const bookingsCount = selectedOccurrence?.bookings_count ?? event.bookings_count
   const spotsLeft = capacity ? capacity - bookingsCount : null
-  const isFull    = spotsLeft !== null && spotsLeft <= 0
+  const isFull = spotsLeft !== null && spotsLeft <= 0
   if (isFull) redirect(`/events/${id}`)
 
   // Ticket types
@@ -128,7 +128,7 @@ export default async function CheckoutPage({ params, searchParams }: Props) {
             <h2 className="font-semibold text-gray-900 text-sm line-clamp-2">{event.title}</h2>
             <p className="text-xs text-gray-500 mt-0.5">
               {formatDate(startsAt)} · {formatTime(startsAt)}
-              {endsAt ? ` – ${formatTime(endsAt)}` : ''}
+              {endsAt ? ` - ${formatTime(endsAt)}` : ''}
             </p>
             <p className="text-xs text-gray-500">
               {event.venue_name ? `${event.venue_name} · ` : ''}{event.city}

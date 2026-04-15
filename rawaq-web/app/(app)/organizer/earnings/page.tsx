@@ -20,11 +20,11 @@ interface BankAccount {
 }
 
 const REASON_LABELS: Record<string, string> = {
-  tip:              '💝 Tip received',
-  ticket_sale:      '🎟️ Ticket sale',
-  refund_deducted:  '↩️ Refund deducted',
-  payout:           '🏦 Payout',
-  adjustment:       '⚙️ Adjustment',
+  tip: '💝 Tip received',
+  ticket_sale: '🎟️ Ticket sale',
+  refund_deducted: '↩️ Refund deducted',
+  payout: '🏦 Payout',
+  adjustment: '⚙️ Adjustment',
 }
 
 export default function EarningsPage() {
@@ -32,31 +32,31 @@ export default function EarningsPage() {
   const router = useRouter()
   const cacheScopeKey = user?.id ?? null
 
-  const [wallet,        setWallet]        = useState<OrganizerWallet | null>(null)
-  const [ledger,        setLedger]        = useState<WalletLedgerEntry[]>([])
-  const [payouts,       setPayouts]       = useState<Payout[]>([])
+  const [wallet, setWallet] = useState<OrganizerWallet | null>(null)
+  const [ledger, setLedger] = useState<WalletLedgerEntry[]>([])
+  const [payouts, setPayouts] = useState<Payout[]>([])
   const [pendingPayout, setPendingPayout] = useState<Payout | null>(null)
-  const [bankAccount,   setBankAccount]   = useState<BankAccount | null>(null)
-  const [loading,       setLoading]       = useState(true)
+  const [bankAccount, setBankAccount] = useState<BankAccount | null>(null)
+  const [loading, setLoading] = useState(true)
 
   // Payout form
   const [showPayoutForm, setShowPayoutForm] = useState(false)
-  const [payoutAmount,   setPayoutAmount]   = useState('')
-  const [payoutLoading,  setPayoutLoading]  = useState(false)
-  const [payoutMsg,      setPayoutMsg]      = useState<{ ok: boolean; text: string } | null>(null)
+  const [payoutAmount, setPayoutAmount] = useState('')
+  const [payoutLoading, setPayoutLoading] = useState(false)
+  const [payoutMsg, setPayoutMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
   // Bank account form
   const [showBankForm, setShowBankForm] = useState(false)
-  const [bankForm,     setBankForm]     = useState({
-    bank_name:           '',
-    bank_name_ar:        '',
+  const [bankForm, setBankForm] = useState({
+    bank_name: '',
+    bank_name_ar: '',
     account_holder_name: '',
-    iban:                '',
-    swift_code:          '',
-    country:             'SA',
+    iban: '',
+    swift_code: '',
+    country: 'SA',
   })
   const [bankLoading, setBankLoading] = useState(false)
-  const [bankMsg,     setBankMsg]     = useState<{ ok: boolean; text: string } | null>(null)
+  const [bankMsg, setBankMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
   useEffect(() => {
     if (!authLoading && !user) router.replace('/login')
@@ -98,12 +98,12 @@ export default function EarningsPage() {
 
   function openEditBankForm(account: BankAccount | null) {
     setBankForm({
-      bank_name:           account?.bank_name           ?? '',
-      bank_name_ar:        account?.bank_name_ar        ?? '',
+      bank_name: account?.bank_name ?? '',
+      bank_name_ar: account?.bank_name_ar ?? '',
       account_holder_name: account?.account_holder_name ?? '',
-      iban:                account?.iban                 ?? '',
-      swift_code:          account?.swift_code          ?? '',
-      country:             account?.country             ?? 'SA',
+      iban: account?.iban ?? '',
+      swift_code: account?.swift_code ?? '',
+      country: account?.country ?? 'SA',
     })
     setBankMsg(null)
     setShowBankForm(true)
@@ -116,15 +116,15 @@ export default function EarningsPage() {
     setBankMsg(null)
 
     const res = await fetch('/api/organizer/bank-account', {
-      method:  'POST',
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        bank_name:           bankForm.bank_name,
-        bank_name_ar:        bankForm.bank_name_ar  || undefined,
+        bank_name: bankForm.bank_name,
+        bank_name_ar: bankForm.bank_name_ar || undefined,
         account_holder_name: bankForm.account_holder_name,
-        iban:                bankForm.iban,
-        swift_code:          bankForm.swift_code   || undefined,
-        country:             bankForm.country       || 'SA',
+        iban: bankForm.iban,
+        swift_code: bankForm.swift_code || undefined,
+        country: bankForm.country || 'SA',
       }),
     })
 
@@ -147,9 +147,9 @@ export default function EarningsPage() {
     setPayoutMsg(null)
 
     const res = await fetch('/api/organizer/payouts', {
-      method:  'POST',
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ amount: parseFloat(payoutAmount) }),
+      body: JSON.stringify({ amount: parseFloat(payoutAmount) }),
     })
 
     const json = await res.json()
@@ -166,8 +166,8 @@ export default function EarningsPage() {
       clientFetchInvalidate('/api/organizer', cacheScopeKey)
       await loadEarnings(true)
       setPayoutMsg({
-        ok:   true,
-        text: `✓ Withdrawal of ${formatCurrency(parseFloat(payoutAmount))} requested. Processing in 1–3 business days.`,
+        ok: true,
+        text: `✓ Withdrawal of ${formatCurrency(parseFloat(payoutAmount))} requested. Processing in 1-3 business days.`,
       })
       setPayoutAmount('')
       setShowPayoutForm(false)
@@ -181,8 +181,8 @@ export default function EarningsPage() {
     return <div className="flex items-center justify-center h-[60vh]"><Spinner size="lg" /></div>
   }
 
-  const balance        = wallet?.balance ?? 0
-  const pendingAmount  = pendingPayout?.amount ?? 0
+  const balance = wallet?.balance ?? 0
+  const pendingAmount = pendingPayout?.amount ?? 0
   const availableToWithdraw = Math.max(0, balance - pendingAmount)
 
   return (
@@ -208,7 +208,7 @@ export default function EarningsPage() {
           )}
         </div>
         {[
-          { label: 'Total Earned',    value: formatCurrency(wallet?.total_earned ?? 0),    icon: '📈' },
+          { label: 'Total Earned', value: formatCurrency(wallet?.total_earned ?? 0), icon: '📈' },
           { label: 'Total Withdrawn', value: formatCurrency(wallet?.total_withdrawn ?? 0), icon: '🏦' },
         ].map((s) => (
           <div key={s.label} className="card p-5">
@@ -318,11 +318,10 @@ export default function EarningsPage() {
               </div>
             </div>
             {bankMsg && (
-              <div className={`text-sm rounded-xl px-4 py-3 ${
-                bankMsg.ok
+              <div className={`text-sm rounded-xl px-4 py-3 ${bankMsg.ok
                   ? 'bg-green-50 border border-green-200 text-green-700'
                   : 'bg-red-50 border border-red-200 text-red-700'
-              }`}>{bankMsg.text}</div>
+                }`}>{bankMsg.text}</div>
             )}
             <div className="flex gap-3">
               <button type="submit" disabled={bankLoading} className="btn-primary disabled:opacity-50">
@@ -389,15 +388,14 @@ export default function EarningsPage() {
               </div>
 
               <p className="text-xs text-gray-400">
-                ℹ️ Payouts are processed within 1–3 business days.
+                ℹ️ Payouts are processed within 1-3 business days.
               </p>
 
               {payoutMsg && (
-                <div className={`text-sm rounded-xl px-4 py-3 ${
-                  payoutMsg.ok
+                <div className={`text-sm rounded-xl px-4 py-3 ${payoutMsg.ok
                     ? 'bg-green-50 border border-green-200 text-green-700'
                     : 'bg-red-50 border border-red-200 text-red-700'
-                }`}>{payoutMsg.text}</div>
+                  }`}>{payoutMsg.text}</div>
               )}
               <div className="flex gap-3">
                 <button type="submit" disabled={payoutLoading || !payoutAmount} className="btn-primary disabled:opacity-50">
@@ -425,11 +423,10 @@ export default function EarningsPage() {
       )}
 
       {payoutMsg && !showPayoutForm && (
-        <div className={`text-sm rounded-xl px-4 py-3 ${
-          payoutMsg.ok
+        <div className={`text-sm rounded-xl px-4 py-3 ${payoutMsg.ok
             ? 'bg-green-50 border border-green-200 text-green-700'
             : 'bg-red-50 border border-red-200 text-red-700'
-        }`}>{payoutMsg.text}</div>
+          }`}>{payoutMsg.text}</div>
       )}
 
       {/* Ledger */}
@@ -458,9 +455,8 @@ export default function EarningsPage() {
                       {REASON_LABELS[entry.reason] ?? entry.reason}
                       {entry.note && <span className="text-xs text-gray-400 ml-2">{entry.note}</span>}
                     </td>
-                    <td className={`px-4 py-3 text-end font-semibold ${
-                      entry.type === 'credit' ? 'text-green-600' : 'text-red-500'
-                    }`}>
+                    <td className={`px-4 py-3 text-end font-semibold ${entry.type === 'credit' ? 'text-green-600' : 'text-red-500'
+                      }`}>
                       {entry.type === 'credit' ? '+' : '-'}{formatCurrency(entry.amount)}
                     </td>
                     <td className="px-4 py-3 text-end text-gray-500 hidden sm:table-cell">
@@ -496,12 +492,11 @@ export default function EarningsPage() {
                   <tr key={p.id} className="hover:bg-gray-50/50">
                     <td className="px-4 py-3 font-semibold text-gray-900">{formatCurrency(p.amount)}</td>
                     <td className="px-4 py-3">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${
-                        p.status === 'completed'  ? 'bg-green-100 text-green-700' :
-                        p.status === 'pending'    ? 'bg-amber-100 text-amber-700' :
-                        p.status === 'processing' ? 'bg-blue-100 text-blue-700'   :
-                        'bg-red-100 text-red-700'
-                      }`}>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${p.status === 'completed' ? 'bg-green-100 text-green-700' :
+                          p.status === 'pending' ? 'bg-amber-100 text-amber-700' :
+                            p.status === 'processing' ? 'bg-blue-100 text-blue-700' :
+                              'bg-red-100 text-red-700'
+                        }`}>
                         {p.status}
                       </span>
                     </td>

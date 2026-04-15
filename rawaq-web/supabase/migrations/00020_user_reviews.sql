@@ -7,7 +7,7 @@
 --
 --  Design:
 --    • One review per (reviewer, reviewed) pair — UNIQUE constraint
---    • Rating 1–5 stars
+--    • Rating 1-5 stars
 --    • Content is optional (star-only reviews are valid)
 --    • Reviewer cannot review themselves
 --    • RLS: public read; own insert/update/delete; admin full

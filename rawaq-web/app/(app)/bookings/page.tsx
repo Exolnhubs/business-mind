@@ -9,10 +9,15 @@ export type BookingRow = {
   id: string
   status: string
   ticket_id: string | null
+  occurrence: {
+    starts_at: string
+    ends_at: string | null
+  } | null
   event: {
     id: string
     title: string
     start_at: string
+    end_at?: string | null
     city: string
     is_free: boolean
     price: number | null
@@ -30,7 +35,8 @@ export default async function BookingsPage() {
     .from('bookings')
     .select(`
       id, status, ticket_id,
-      event:events!event_id(id, title, start_at, city, is_free, price, is_cancelled)
+      occurrence:event_occurrences!occurrence_id(starts_at, ends_at),
+      event:events!event_id(id, title, start_at, end_at, city, is_free, price, is_cancelled)
     `)
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })

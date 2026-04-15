@@ -14,14 +14,14 @@ const EMPTY_FORM = {
 }
 
 const PREFIXES = ['SAVE', 'DEAL', 'OFF', 'VIP', 'FLASH', 'PROMO', 'RAWAQ', 'WELCOME', 'SPECIAL']
-const CHARS    = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+const CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 
 function generateCode(): string {
   // 50% chance: PREFIX + 2-digit number (e.g. SAVE20, FLASH50)
   // 50% chance: 3-letter prefix + 5 random chars (e.g. RWQ-XK7P9)
   if (Math.random() < 0.5) {
     const prefix = PREFIXES[Math.floor(Math.random() * PREFIXES.length)]
-    const num    = Math.floor(Math.random() * 81) + 10  // 10–90
+    const num = Math.floor(Math.random() * 81) + 10  // 10-90
     return `${prefix}${num}`
   }
   let code = ''
@@ -39,13 +39,13 @@ function formatDiscount(promo: PromoCode) {
 interface EventOption { id: string; title: string }
 
 export default function PromoCodesPage() {
-  const [promos, setPromos]         = useState<PromoCode[]>([])
-  const [events, setEvents]         = useState<EventOption[]>([])
-  const [loading, setLoading]       = useState(true)
-  const [showForm, setShowForm]     = useState(false)
-  const [form, setForm]             = useState(EMPTY_FORM)
-  const [saving, startSaving]       = useTransition()
-  const [error, setError]           = useState('')
+  const [promos, setPromos] = useState<PromoCode[]>([])
+  const [events, setEvents] = useState<EventOption[]>([])
+  const [loading, setLoading] = useState(true)
+  const [showForm, setShowForm] = useState(false)
+  const [form, setForm] = useState(EMPTY_FORM)
+  const [saving, startSaving] = useTransition()
+  const [error, setError] = useState('')
 
   function loadPromos() {
     fetch('/api/promo-codes')
@@ -60,7 +60,7 @@ export default function PromoCodesPage() {
     fetch('/api/events?organizer_own=true&per_page=100')
       .then((r) => r.json())
       .then((j) => setEvents((j.data?.data ?? j.data ?? []).map((e: { id: string; title: string }) => ({ id: e.id, title: e.title }))))
-      .catch(() => {})
+      .catch(() => { })
   }, [])
 
   function submit() {
@@ -71,13 +71,13 @@ export default function PromoCodesPage() {
     setError('')
     startSaving(async () => {
       const payload = {
-        code:             form.code.toUpperCase().trim(),
-        event_id:         form.event_id || null,
-        discount_type:    form.discount_type,
-        discount_value:   Number(form.discount_value),
-        max_uses:         form.max_uses ? Number(form.max_uses) : null,
+        code: form.code.toUpperCase().trim(),
+        event_id: form.event_id || null,
+        discount_type: form.discount_type,
+        discount_value: Number(form.discount_value),
+        max_uses: form.max_uses ? Number(form.max_uses) : null,
         min_order_amount: Number(form.min_order_amount),
-        expires_at:       form.expires_at ? new Date(form.expires_at).toISOString() : null,
+        expires_at: form.expires_at ? new Date(form.expires_at).toISOString() : null,
       }
       const res = await fetch('/api/promo-codes', {
         method: 'POST',

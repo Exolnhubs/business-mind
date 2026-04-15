@@ -16,18 +16,25 @@ import { Spinner } from '@/components/ui/Spinner'
 import { formatDate } from '@/lib/utils'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
 import type { Booking, Event } from '@/types/database'
-import { applyResolvedEventWindow } from '@/lib/event-recurrence'
 
 type BookingListRow = Pick<
   Booking,
   'id' | 'status' | 'ticket_id' | 'seat' | 'scanned_at' | 'created_at' | 'updated_at' | 'user_id' | 'event_id' | 'notes'
 > & {
+  occurrence: {
+    starts_at: string
+    ends_at: string | null
+  } | null
   event: Pick<Event, 'id' | 'title' | 'title_ar' | 'start_at' | 'end_at' | 'event_frequency' | 'cover_image_url' | 'city' | 'is_free' | 'price' | 'is_cancelled'> | null
 }
 
 type BookingListItem =
   | { type: 'header'; id: string; label: string }
   | { type: 'item'; id: string; booking: BookingListRow }
+
+function getBookingStartAt(booking: BookingListRow) {
+  return booking.occurrence?.starts_at ?? booking.event?.start_at ?? null
+}
 
 export default function BookingsScreen() {
   const { user } = useAuth()
@@ -47,13 +54,10 @@ export default function BookingsScreen() {
     if (!user) { setLoading(false); return }
     const { data } = await supabase
       .from('bookings')
-      .select(`id, status, ticket_id, seat, scanned_at, created_at, updated_at, user_id, event_id, notes, event:events!event_id(id, title, title_ar, start_at, end_at, event_frequency, cover_image_url, city, is_free, price, is_cancelled)`)
+      .select(`id, status, ticket_id, seat, scanned_at, created_at, updated_at, user_id, event_id, notes, occurrence:event_occurrences!occurrence_id(starts_at, ends_at), event:events!event_id(id, title, title_ar, start_at, end_at, event_frequency, cover_image_url, city, is_free, price, is_cancelled)`)
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
-    const nextBookings = ((data ?? []) as unknown as BookingListRow[]).map((booking) => ({
-      ...booking,
-      event: booking.event ? applyResolvedEventWindow(booking.event) : booking.event,
-    }))
+    const nextBookings = (data ?? []) as unknown as BookingListRow[]
     setBookings(nextBookings)
     setLoading(false)
     setRefreshing(false)
@@ -100,8 +104,8 @@ export default function BookingsScreen() {
     Alert.alert(
       'Ticket cancelled',
       autoRefunded
-        ? 'Your ticket has been cancelled and the refund has been sent to your original payment method. It may take 3–5 business days to appear.'
-        : 'Your ticket has been cancelled. The refund is being reviewed and will be processed within 1–3 business days.',
+        ? 'Your ticket has been cancelled and the refund has been sent to your original payment method. It may take 3-5 business days to appear.'
+        : 'Your ticket has been cancelled. The refund is being reviewed and will be processed within 1-3 business days.',
     )
     loadBookings()
   }
@@ -116,12 +120,14 @@ export default function BookingsScreen() {
 
   if (loading) return <Spinner fullScreen />
 
-  const upcoming = bookings.filter(
-    (b) => b.status === 'confirmed' && b.event && new Date(b.event.start_at) > new Date(),
-  )
-  const past = bookings.filter(
-    (b) => b.event && new Date(b.event.start_at) <= new Date(),
-  )
+  const upcoming = bookings.filter((b) => {
+    const startAt = getBookingStartAt(b)
+    return b.status === 'confirmed' && !!b.event && !!startAt && new Date(startAt) > new Date()
+  })
+  const past = bookings.filter((b) => {
+    const startAt = getBookingStartAt(b)
+    return !!b.event && !!startAt && new Date(startAt) <= new Date()
+  })
 
   const all: BookingListItem[] = []
   if (upcoming.length) {
@@ -166,6 +172,7 @@ export default function BookingsScreen() {
           const title = locale === 'ar' && b.event?.title_ar ? b.event.title_ar : b.event?.title ?? 'Event'
           const isActive     = b.status === 'confirmed' && !b.event?.is_cancelled
           const canRefund    = canRefundBooking(b)
+          const startAt = getBookingStartAt(b)
 
           return (
             <TouchableOpacity
@@ -179,7 +186,7 @@ export default function BookingsScreen() {
               <View style={styles.cardBody}>
                 <Text style={styles.cardTitle} numberOfLines={1}>{title}</Text>
                 <Text style={styles.cardMeta}>
-                  {b.event ? `${formatDate(b.event.start_at, locale)} · ${b.event.city}` : ''}
+                  {b.event && startAt ? `${formatDate(startAt, locale)} · ${b.event.city}` : ''}
                 </Text>
                 {isActive && b.ticket_id && (
                   <TouchableOpacity
@@ -242,7 +249,7 @@ export default function BookingsScreen() {
 
             <View style={styles.modalNote}>
               <Text style={styles.modalNoteText}>
-                ℹ️ Refunds are reviewed within 1–3 business days. Your ticket will be released immediately for others.
+                Refunds are reviewed within 1-3 business days. Your ticket will be released immediately for others.
               </Text>
             </View>
 
@@ -274,7 +281,8 @@ export default function BookingsScreen() {
 function canRefundBooking(booking: BookingListRow) {
   const isActive = booking.status === 'confirmed' && !booking.event?.is_cancelled
   const isPaid = !booking.event?.is_free && (booking.event?.price ?? 0) > 0
-  const isUpcoming = booking.event ? new Date(booking.event.start_at) > new Date() : false
+  const startAt = getBookingStartAt(booking)
+  const isUpcoming = !!startAt && new Date(startAt) > new Date()
   return isActive && isPaid && isUpcoming
 }
 

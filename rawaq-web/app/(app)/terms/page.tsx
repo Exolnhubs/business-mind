@@ -30,12 +30,12 @@ function EnglishTerms() {
       <nav className="bg-gray-50 rounded-xl p-5 mb-10 text-sm space-y-1">
         <p className="font-semibold text-gray-700 mb-3">Contents</p>
         {[
-          ['#eligibility','1. Eligibility'],['#accounts','2. Accounts'],['#events','3. Events & Bookings'],
-          ['#organizers','4. Organizers'],['#content','5. User Content'],['#payments','6. Payments & Tips'],
-          ['#conduct','7. Prohibited Conduct'],['#ip','8. Intellectual Property'],['#privacy','9. Privacy'],
-          ['#disclaimers','10. Disclaimers'],['#liability','11. Limitation of Liability'],
-          ['#termination','12. Termination'],['#governing','13. Governing Law'],
-          ['#changes','14. Changes to These Terms'],['#contact','15. Contact'],
+          ['#eligibility', '1. Eligibility'], ['#accounts', '2. Accounts'], ['#events', '3. Events & Bookings'],
+          ['#organizers', '4. Organizers'], ['#content', '5. User Content'], ['#payments', '6. Payments & Tips'],
+          ['#conduct', '7. Prohibited Conduct'], ['#ip', '8. Intellectual Property'], ['#privacy', '9. Privacy'],
+          ['#disclaimers', '10. Disclaimers'], ['#liability', '11. Limitation of Liability'],
+          ['#termination', '12. Termination'], ['#governing', '13. Governing Law'],
+          ['#changes', '14. Changes to These Terms'], ['#contact', '15. Contact'],
         ].map(([href, label]) => (
           <a key={href} href={href} className="block text-brand-600 hover:underline">{label}</a>
         ))}
@@ -43,7 +43,7 @@ function EnglishTerms() {
 
       <div className="space-y-8">
         <Section id="eligibility" title="1. Eligibility">
-          <p>Rawaq is available to individuals aged 13 and over. Users aged 13–17 must have parental consent. By creating an account, you confirm you meet the eligibility criteria and that the information you provide is accurate.</p>
+          <p>Rawaq is available to individuals aged 13 and over. Users aged 13-17 must have parental consent. By creating an account, you confirm you meet the eligibility criteria and that the information you provide is accurate.</p>
         </Section>
         <Section id="accounts" title="2. Accounts">
           <p>You are responsible for keeping your account credentials confidential. Notify us immediately at <a href="mailto:hello@rawaq.app" className="text-brand-600 hover:underline">hello@rawaq.app</a> of any unauthorized use. We may suspend or terminate accounts that violate these Terms.</p>
@@ -112,12 +112,12 @@ function ArabicTerms() {
       <nav className="bg-gray-50 rounded-xl p-5 mb-10 text-sm space-y-1">
         <p className="font-semibold text-gray-700 mb-3">المحتويات</p>
         {[
-          ['#eligibility','١. الأهلية'],['#accounts','٢. الحسابات'],['#events','٣. الفعاليات والحجوزات'],
-          ['#organizers','٤. المنظمون'],['#content','٥. محتوى المستخدم'],['#payments','٦. المدفوعات والدعم المالي'],
-          ['#conduct','٧. السلوك المحظور'],['#ip','٨. الملكية الفكرية'],['#privacy','٩. الخصوصية'],
-          ['#disclaimers','١٠. إخلاء المسؤولية'],['#liability','١١. تحديد المسؤولية'],
-          ['#termination','١٢. إنهاء الخدمة'],['#governing','١٣. القانون الحاكم'],
-          ['#changes','١٤. التغييرات على هذه الشروط'],['#contact','١٥. التواصل'],
+          ['#eligibility', '١. الأهلية'], ['#accounts', '٢. الحسابات'], ['#events', '٣. الفعاليات والحجوزات'],
+          ['#organizers', '٤. المنظمون'], ['#content', '٥. محتوى المستخدم'], ['#payments', '٦. المدفوعات والدعم المالي'],
+          ['#conduct', '٧. السلوك المحظور'], ['#ip', '٨. الملكية الفكرية'], ['#privacy', '٩. الخصوصية'],
+          ['#disclaimers', '١٠. إخلاء المسؤولية'], ['#liability', '١١. تحديد المسؤولية'],
+          ['#termination', '١٢. إنهاء الخدمة'], ['#governing', '١٣. القانون الحاكم'],
+          ['#changes', '١٤. التغييرات على هذه الشروط'], ['#contact', '١٥. التواصل'],
         ].map(([href, label]) => (
           <a key={href} href={href} className="block text-brand-600 hover:underline">{label}</a>
         ))}
