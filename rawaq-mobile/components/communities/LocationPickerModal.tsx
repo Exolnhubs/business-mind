@@ -161,11 +161,28 @@ async function reverseLabel(lat: number, lng: number) {
     if (!query.trim()) return
     setSearching(true)
     try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&q=${encodeURIComponent(query.trim())}`,
+      const geocoded = await Location.geocodeAsync(query.trim())
+      const limited = geocoded.slice(0, 5)
+
+      if (limited.length === 0) {
+        setResults([])
+        return
+      }
+
+      const resolved = await Promise.all(
+        limited.map(async (item) => {
+          const label = await reverseLabel(item.latitude, item.longitude)
+          return {
+            display_name: label.label,
+            lat: String(item.latitude),
+            lon: String(item.longitude),
+          } satisfies SearchResult
+        }),
       )
-      const json = await res.json().catch(() => []) as SearchResult[]
-      setResults(json)
+
+      setResults(resolved)
+    } catch {
+      setResults([])
     } finally {
       setSearching(false)
     }
@@ -242,6 +259,10 @@ async function reverseLabel(lat: number, lng: number) {
               style={styles.map}
               region={region}
               onRegionChangeComplete={setRegion}
+              showsCompass
+              zoomControlEnabled={Platform.OS === 'android'}
+              toolbarEnabled={Platform.OS === 'android'}
+              showsMyLocationButton={Platform.OS === 'android'}
               onPress={(event: MapPressEvent) => {
                 const { latitude, longitude } = event.nativeEvent.coordinate
                 handleMapPick(latitude, longitude)
