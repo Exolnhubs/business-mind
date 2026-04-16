@@ -79,6 +79,8 @@ export default function EventDetailScreen() {
   const [fawryContext, setFawryContext] = useState<'ticket' | 'donation'>('ticket')
   const [paymentIntent, setPaymentIntent] = useState<PaymentIntent>(null)
   const [eventCommunities, setEventCommunities] = useState<Array<Pick<Community, 'id' | 'name' | 'name_ar' | 'slug' | 'level'>>>([])
+  const [groupSize, setGroupSize]   = useState(1)
+  const [holders, setHolders]       = useState<{ full_name: string; date_of_birth: string; relation: string }[]>([])
 
   useEffect(() => {
     if (!id) return
@@ -244,6 +246,29 @@ export default function EventDetailScreen() {
   const effectiveOnWaitlist = selectedOccurrenceId ? waitlistedOccurrenceIds.includes(selectedOccurrenceId) : onWaitlist
   const activeBookingId = selectedOccurrenceId ? bookingIdByOccurrence[selectedOccurrenceId] ?? null : currentBookingId
 
+  const maxGroup = (event?.max_group_size as number | null | undefined) ?? 5
+  const spotsLeftOcc = selectedOccurrence
+    ? (selectedOccurrence.capacity !== null ? selectedOccurrence.capacity - selectedOccurrence.bookings_count : null)
+    : null
+  const effectiveMax = Math.min(maxGroup, spotsLeftOcc ?? maxGroup)
+
+  function changeGroupSize(newSize: number) {
+    const clamped = Math.min(Math.max(1, newSize), effectiveMax)
+    setGroupSize(clamped)
+    setHolders((prev) => {
+      const needed = clamped - 1
+      if (needed > prev.length) {
+        return [
+          ...prev,
+          ...Array.from({ length: needed - prev.length }, () => ({
+            full_name: '', date_of_birth: '', relation: '',
+          })),
+        ]
+      }
+      return prev.slice(0, needed)
+    })
+  }
+
   // Compute whether the current selection results in a paid booking
   const computeIsPaid = useCallback((): boolean => {
     if (!event) return false
@@ -273,6 +298,8 @@ export default function EventDetailScreen() {
       promo_code: promoCodeVal,
       payment_option_id: paymentOptionId,
       source: 'mobile',
+      group_size: groupSize,
+      holders:    holders.map((h, i) => ({ ...h, position: i + 2 })),
     })
 
     setBL(false)
@@ -936,11 +963,91 @@ export default function EventDetailScreen() {
                       </View>
                     )}
 
+                    {/* Quantity stepper */}
+                    <View style={{ marginBottom: Spacing.md }}>
+                      <Text style={{ fontSize: FontSize.xs, fontWeight: FontWeight.semibold as any, color: Colors.gray[500], textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: Spacing.sm }}>
+                        Number of tickets
+                      </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.md }}>
+                        <TouchableOpacity
+                          onPress={() => changeGroupSize(groupSize - 1)}
+                          disabled={groupSize <= 1}
+                          style={[styles.stepperBtn, groupSize <= 1 && styles.stepperBtnDisabled]}
+                        >
+                          <Text style={styles.stepperBtnText}>−</Text>
+                        </TouchableOpacity>
+                        <Text style={styles.stepperCount}>{groupSize}</Text>
+                        <TouchableOpacity
+                          onPress={() => changeGroupSize(groupSize + 1)}
+                          disabled={groupSize >= effectiveMax}
+                          style={[styles.stepperBtn, groupSize >= effectiveMax && styles.stepperBtnDisabled]}
+                        >
+                          <Text style={styles.stepperBtnText}>+</Text>
+                        </TouchableOpacity>
+                        <Text style={styles.stepperMax}>Max {effectiveMax}</Text>
+                      </View>
+                    </View>
+
+                    {/* Dependent holder forms */}
+                    {holders.map((holder, idx) => (
+                      <View key={idx} style={[styles.section, { marginBottom: Spacing.sm }]}>
+                        <Text style={styles.sectionTitle}>
+                          Ticket {idx + 2} — Attendee details
+                        </Text>
+                        <View style={styles.fieldWrap}>
+                          <Text style={styles.fieldLabel}>Full Name *</Text>
+                          <TextInput
+                            style={styles.input}
+                            value={holder.full_name}
+                            onChangeText={(text) => {
+                              const updated = [...holders]
+                              updated[idx] = { ...updated[idx], full_name: text }
+                              setHolders(updated)
+                            }}
+                            placeholder="Full name of attendee"
+                            placeholderTextColor={Colors.gray[400]}
+                            maxLength={120}
+                          />
+                        </View>
+                        <View style={styles.fieldWrap}>
+                          <Text style={styles.fieldLabel}>Date of Birth * (YYYY-MM-DD)</Text>
+                          <TextInput
+                            style={styles.input}
+                            value={holder.date_of_birth}
+                            onChangeText={(text) => {
+                              const updated = [...holders]
+                              updated[idx] = { ...updated[idx], date_of_birth: text }
+                              setHolders(updated)
+                            }}
+                            placeholder="1990-01-31"
+                            placeholderTextColor={Colors.gray[400]}
+                            keyboardType="numbers-and-punctuation"
+                            maxLength={10}
+                          />
+                        </View>
+                        <View style={styles.fieldWrap}>
+                          <Text style={styles.fieldLabel}>Relation *</Text>
+                          <TextInput
+                            style={styles.input}
+                            value={holder.relation}
+                            onChangeText={(text) => {
+                              const updated = [...holders]
+                              updated[idx] = { ...updated[idx], relation: text }
+                              setHolders(updated)
+                            }}
+                            placeholder="e.g. son, wife, friend"
+                            placeholderTextColor={Colors.gray[400]}
+                            maxLength={60}
+                          />
+                        </View>
+                      </View>
+                    ))}
+
                     {/* Book button */}
                     <TouchableOpacity
-                      style={[styles.bookBtn, (bookingLoading || (occurrences.length > 0 && !selectedOccurrenceId) || (ticketTypes.length > 0 && !selectedTypeId)) && styles.bookBtnGray]}
+                      style={[styles.bookBtn, (bookingLoading || (occurrences.length > 0 && !selectedOccurrenceId) || (ticketTypes.length > 0 && !selectedTypeId) || holders.some((h) => !h.full_name.trim() || !h.date_of_birth || !h.relation.trim())) && styles.bookBtnGray]}
                       onPress={handleBooking}
-                      disabled={bookingLoading || (occurrences.length > 0 && !selectedOccurrenceId) || (ticketTypes.length > 0 && !selectedTypeId)}
+                      disabled={bookingLoading || (occurrences.length > 0 && !selectedOccurrenceId) || (ticketTypes.length > 0 && !selectedTypeId) || holders.some((h) => !h.full_name.trim() || !h.date_of_birth || !h.relation.trim())}
                       activeOpacity={0.85}
                     >
                       {bookingLoading
@@ -1374,5 +1481,20 @@ const styles = StyleSheet.create({
   paymentOptionDesc: { fontSize: FontSize.xs, color: Colors.gray[500], marginTop: 1 },
   paymentCancelBtn: { marginTop: Spacing.xs, paddingVertical: Spacing.md, alignItems: 'center', borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.gray[200] },
   paymentCancelText: { fontSize: FontSize.sm, color: Colors.gray[600], fontWeight: FontWeight.medium },
+  // Group size stepper
+  stepperBtn: {
+    width: 36, height: 36, borderRadius: 18,
+    borderWidth: 1, borderColor: Colors.gray[300],
+    alignItems: 'center' as const, justifyContent: 'center' as const,
+    backgroundColor: Colors.white,
+  },
+  stepperBtnDisabled: { opacity: 0.4 },
+  stepperBtnText: { fontSize: 20, fontWeight: FontWeight.bold as any, color: Colors.gray[700] },
+  stepperCount: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold as any, minWidth: 24, textAlign: 'center' as const },
+  stepperMax: { fontSize: FontSize.xs, color: Colors.gray[400] },
+  // Holder forms
+  fieldWrap: { marginBottom: Spacing.sm },
+  fieldLabel: { fontSize: FontSize.xs, fontWeight: FontWeight.medium as any, color: Colors.gray[600], marginBottom: 4 },
+  input: { borderWidth: 1, borderColor: Colors.gray[200], borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2, fontSize: FontSize.base, color: Colors.gray[900] },
 })
 
