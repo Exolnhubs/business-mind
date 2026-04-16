@@ -129,6 +129,15 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    // ── Group size cap ─────────────────────────────────────────────────────────
+    const maxGroup = (event as any).max_group_size ?? 5
+    if (input.group_size > maxGroup) {
+      throw new ForbiddenException(`Maximum group size for this event is ${maxGroup}`)
+    }
+    if (input.holders.length !== input.group_size - 1) {
+      throw new ForbiddenException('Holder details must be provided for each extra ticket')
+    }
+
     // ── Ticket type validation ──────────────────────────────────────────────
     let ticketType: { id: string; price: number; is_free: boolean; capacity: number | null; sold_count: number; sale_starts_at: string | null; sale_ends_at: string | null } | null = null
     if (input.ticket_type_id) {
@@ -245,6 +254,7 @@ export async function POST(req: NextRequest) {
       discount_amount:     discountAmount,
       platform_fee_pct:    platformFeePct,
       platform_fee_amount: platformFeeAmount,
+      group_size:          input.group_size,
     }
 
     let booking
@@ -308,6 +318,19 @@ export async function POST(req: NextRequest) {
           payload: { event_id: event.id, occurrence_id: occurrence.id, event_title: event.title },
         }).catch(() => {})
       }
+    }
+
+    // Insert dependent holder rows (position 2+)
+    if (input.holders.length > 0) {
+      const holderRows = input.holders.map((h) => ({
+        booking_id:    booking.id,
+        full_name:     h.full_name,
+        date_of_birth: h.date_of_birth,
+        relation:      h.relation,
+        position:      h.position,
+      }))
+      const { error: holderErr } = await supabase.from('booking_holders').insert(holderRows as never)
+      if (holderErr) throw holderErr
     }
 
     return created(booking)
