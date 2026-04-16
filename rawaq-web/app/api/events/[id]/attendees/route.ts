@@ -1,5 +1,4 @@
 import { NextRequest } from 'next/server'
-import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { requireAuth, requireEventOwnership } from '@/lib/auth'
 import { handleApiError, ok, NotFoundException } from '@/lib/errors'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
@@ -20,12 +19,11 @@ export async function GET(
     const from = (page - 1) * perPage
     const requestedOccurrenceId = req.nextUrl.searchParams.get('occurrence_id')
 
-    const supabase = await createSupabaseServerClient()
     const admin = createSupabaseAdminClient()
 
-    const { data: event } = await supabase
+    const { data: event } = await admin
       .from('events')
-      .select('id, start_at, end_at, event_frequency, capacity, is_cancelled')
+      .select('id, start_at, end_at, recurrence_until, event_frequency, capacity, is_cancelled')
       .eq('id', id)
       .single()
 
@@ -38,14 +36,18 @@ export async function GET(
         })
       : await resolveAttendanceOccurrence(admin, event)
 
-    const { data, count, error } = await supabase
+    if (!occurrence) {
+      return ok({ data: [], total: 0, page, per_page: perPage, occurrence: null })
+    }
+
+    const { data, count, error } = await admin
       .from('bookings')
       .select(
-        `id, status, created_at,
+        `id, status, created_at, scanned_at, ticket_id,
          user:profiles!user_id(id, display_name, avatar_url, city)`,
         { count: 'exact' }
       )
-      .eq('occurrence_id', occurrence?.id ?? '')
+      .eq('occurrence_id', occurrence.id)
       .order('created_at', { ascending: true })
       .range(from, from + perPage - 1)
 

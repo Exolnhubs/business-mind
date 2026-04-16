@@ -285,5 +285,8 @@ export async function resolveAttendanceOccurrence(
     return endsAt !== null ? endsAt > now.getTime() : startsAt > now.getTime()
   })
 
-  return activeOrUpcoming[0] ?? occurrences[0] ?? null
+  const activeOrUpcomingWithBookings = activeOrUpcoming.filter((occurrence) => occurrence.bookings_count > 0)
+  const anyOccurrenceWithBookings = occurrences.find((occurrence) => occurrence.bookings_count > 0)
+
+  return activeOrUpcomingWithBookings[0] ?? activeOrUpcoming[0] ?? anyOccurrenceWithBookings ?? occurrences[0] ?? null
 }

@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   FlatList,
+  ScrollView,
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
@@ -19,6 +20,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera'
 import { apiGet, apiPost } from '@/lib/api'
 import { useAuth } from '@/contexts/auth-context'
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '@/theme'
+import type { EventOccurrence } from '@/types/database'
 
 interface Attendee {
   id: string
@@ -38,16 +40,12 @@ interface ScanResult {
   already_scanned?: boolean
   message?: string
   booking_id?: string
+  occurrence_id?: string
   event_title?: string
   scanned_at?: string
 }
 
-type EventScannerMeta = {
-  id: string
-  starts_at: string
-  ends_at: string | null
-  status: 'scheduled' | 'cancelled' | 'completed'
-}
+type EventScannerMeta = Pick<EventOccurrence, 'id' | 'starts_at' | 'ends_at' | 'status' | 'bookings_count'>
 
 type AttendeesResponse = {
   data: Attendee[]
@@ -59,13 +57,41 @@ function hasOccurrenceEnded(occurrence: EventScannerMeta | null) {
   return new Date(occurrence.ends_at).getTime() < Date.now()
 }
 
+function chooseDefaultOccurrence(occurrences: EventScannerMeta[]) {
+  const now = Date.now()
+  const activeOrUpcoming = occurrences.filter((occurrence) => {
+    if (occurrence.status !== 'scheduled') return false
+    const startsAt = new Date(occurrence.starts_at).getTime()
+    const endsAt = occurrence.ends_at ? new Date(occurrence.ends_at).getTime() : null
+    return endsAt !== null ? endsAt > now : startsAt > now
+  })
+
+  return (
+    activeOrUpcoming.find((occurrence) => occurrence.bookings_count > 0)
+    ?? activeOrUpcoming[0]
+    ?? occurrences.find((occurrence) => occurrence.bookings_count > 0)
+    ?? occurrences[0]
+    ?? null
+  )
+}
+
+function formatOccurrenceLabel(occurrence: EventScannerMeta) {
+  const date = new Date(occurrence.starts_at)
+  return date.toLocaleString('en-SA-u-ca-gregory', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  })
+}
+
 export default function AttendeesScreen() {
   const router = useRouter()
   const { user, profile } = useAuth()
-  const { eventId, title } = useLocalSearchParams<{ eventId: string; title: string }>()
+  const { eventId, title, occurrenceId } = useLocalSearchParams<{ eventId: string; title: string; occurrenceId?: string }>()
   const insets = useSafeAreaInsets()
 
   const [attendees, setAttendees] = useState<Attendee[]>([])
+  const [occurrences, setOccurrences] = useState<EventScannerMeta[]>([])
+  const [selectedOccurrenceId, setSelectedOccurrenceId] = useState<string | null>(occurrenceId ?? null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [search, setSearch] = useState('')
@@ -79,15 +105,37 @@ export default function AttendeesScreen() {
 
   const [permission, requestPermission] = useCameraPermissions()
 
+  useEffect(() => {
+    if (!selectedOccurrenceId && occurrenceId) {
+      setSelectedOccurrenceId(occurrenceId)
+    }
+  }, [occurrenceId, selectedOccurrenceId])
+
   const load = useCallback(async () => {
     if (!eventId || !user) return
 
-    const [attendeesRes, subscriptionRes] = await Promise.all([
-      apiGet<AttendeesResponse>(`/api/events/${eventId}/attendees`, { force: refreshing }),
+    const [occurrencesRes, subscriptionRes] = await Promise.all([
+      apiGet<EventScannerMeta[]>(`/api/events/${eventId}/occurrences`, { force: refreshing }),
       profile?.role === 'admin'
         ? Promise.resolve({ data: { plan: { features: { ticket_scanner: true } } }, error: null })
         : apiGet<{ plan: { features?: Record<string, unknown> | null } | null }>('/api/subscriptions'),
     ])
+
+    const occurrenceRows = (occurrencesRes.data ?? []) as EventScannerMeta[]
+    const matchedSelectedOccurrence = occurrenceRows.find((occurrence) => occurrence.id === selectedOccurrenceId)
+    const matchedParamOccurrence = occurrenceId ? occurrenceRows.find((occurrence) => occurrence.id === occurrenceId) : null
+    const fallbackOccurrence = chooseDefaultOccurrence(occurrenceRows)
+    const effectiveOccurrence = matchedSelectedOccurrence ?? matchedParamOccurrence ?? fallbackOccurrence
+
+    if (!effectiveOccurrence) {
+      router.back()
+      return
+    }
+
+    const attendeesRes = await apiGet<AttendeesResponse>(
+      `/api/events/${eventId}/attendees?occurrence_id=${encodeURIComponent(effectiveOccurrence.id)}`,
+      { force: refreshing },
+    )
 
     if (!attendeesRes.data?.occurrence) {
       router.back()
@@ -100,12 +148,16 @@ export default function AttendeesScreen() {
     const canScan = profile?.role === 'admin'
       || (features && typeof features === 'object' && (features as Record<string, unknown>).ticket_scanner === true)
 
+    setOccurrences(occurrenceRows)
+    if (effectiveOccurrence.id !== selectedOccurrenceId) {
+      setSelectedOccurrenceId(effectiveOccurrence.id)
+    }
     setEventMeta(attendeesRes.data.occurrence)
     setScannerAvailable(Boolean(canScan) && !hasEnded)
     setAttendees((attendeesRes.data.data ?? []) as Attendee[])
     setLoading(false)
     setRefreshing(false)
-  }, [eventId, user, router, profile?.role, refreshing])
+  }, [eventId, user, router, profile?.role, refreshing, selectedOccurrenceId, occurrenceId])
 
   useEffect(() => {
     load()
@@ -142,6 +194,9 @@ export default function AttendeesScreen() {
       setScanResult({ valid: false, message: error ?? 'Scan failed' })
     } else {
       setScanResult(result)
+      if (result.occurrence_id && result.occurrence_id !== selectedOccurrenceId) {
+        setSelectedOccurrenceId(result.occurrence_id)
+      }
       if (result.valid && result.booking_id) {
         setAttendees((prev) =>
           prev.map((attendee) =>
@@ -244,6 +299,35 @@ export default function AttendeesScreen() {
           </View>
         ))}
       </View>
+
+      {occurrences.length > 1 ? (
+        <View style={styles.occurrenceSection}>
+          <Text style={styles.occurrenceSectionTitle}>Session</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.occurrenceScroll}>
+            {occurrences.map((occurrence) => {
+              const isSelected = occurrence.id === selectedOccurrenceId
+              return (
+                <TouchableOpacity
+                  key={occurrence.id}
+                  style={[styles.occurrenceChip, isSelected && styles.occurrenceChipActive]}
+                  onPress={() => {
+                    if (occurrence.id !== selectedOccurrenceId) {
+                      setSelectedOccurrenceId(occurrence.id)
+                    }
+                  }}
+                >
+                  <Text style={[styles.occurrenceChipTitle, isSelected && styles.occurrenceChipTitleActive]}>
+                    {formatOccurrenceLabel(occurrence)}
+                  </Text>
+                  <Text style={[styles.occurrenceChipMeta, isSelected && styles.occurrenceChipMetaActive]}>
+                    {occurrence.bookings_count} booked
+                  </Text>
+                </TouchableOpacity>
+              )
+            })}
+          </ScrollView>
+        </View>
+      ) : null}
 
       <View style={styles.searchWrap}>
         <TextInput
@@ -434,6 +518,55 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: Colors.gray[100],
+  },
+  occurrenceSection: {
+    backgroundColor: Colors.white,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.gray[100],
+  },
+  occurrenceSectionTitle: {
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.semibold,
+    color: Colors.gray[500],
+    paddingHorizontal: Spacing.lg,
+    marginBottom: Spacing.sm,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  occurrenceScroll: {
+    paddingHorizontal: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  occurrenceChip: {
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.gray[200],
+    backgroundColor: Colors.gray[50],
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    minWidth: 176,
+  },
+  occurrenceChipActive: {
+    backgroundColor: Colors.brand[50] ?? '#EEF2FF',
+    borderColor: Colors.brand[300] ?? Colors.brand[200],
+  },
+  occurrenceChipTitle: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.semibold,
+    color: Colors.gray[800],
+  },
+  occurrenceChipTitleActive: {
+    color: Colors.brand[700] ?? Colors.brand[600],
+  },
+  occurrenceChipMeta: {
+    marginTop: 4,
+    fontSize: FontSize.xs,
+    color: Colors.gray[500],
+  },
+  occurrenceChipMetaActive: {
+    color: Colors.brand[600] ?? Colors.brand[500],
   },
   searchInput: {
     backgroundColor: Colors.gray[50],
