@@ -39,6 +39,7 @@ export function EventFiltersPlayful() {
   const [geoLoading, setGeoLoading] = useState(false)
   const [categories, setCategories] = useState<Category[]>([])
   const [searchValue, setSearchValue] = useState(query)
+  const pendingSearchQueryRef = useRef<string | null>(null)
   const [fadeLeft, setFadeLeft]   = useState(false)
   const [fadeRight, setFadeRight] = useState(false)
   const catsRef = useRef<HTMLDivElement>(null)
@@ -142,6 +143,11 @@ export function EventFiltersPlayful() {
   )
 
   useEffect(() => {
+    if (pendingSearchQueryRef.current === query) {
+      pendingSearchQueryRef.current = null
+      return
+    }
+
     setSearchValue(query)
   }, [query])
 
@@ -150,6 +156,7 @@ export function EventFiltersPlayful() {
     if (normalizedSearch === query) return
 
     const timeoutId = window.setTimeout(() => {
+      pendingSearchQueryRef.current = normalizedSearch
       const nextParams = new URLSearchParams(paramsSnapshot)
       if (normalizedSearch) nextParams.set('q', normalizedSearch)
       else nextParams.delete('q')
@@ -216,7 +223,11 @@ export function EventFiltersPlayful() {
             </span>
             {hasFilters && (
               <button
-                onClick={() => replaceWithParams(new URLSearchParams())}
+                onClick={() => {
+                  pendingSearchQueryRef.current = ''
+                  setSearchValue('')
+                  replaceWithParams(new URLSearchParams())
+                }}
                 className="ef-clear-btn"
                 aria-label="Clear all filters"
               >
