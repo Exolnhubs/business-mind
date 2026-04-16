@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { Badge } from '@/components/ui/Badge'
 import { formatDate } from '@/lib/utils'
 
@@ -43,13 +44,41 @@ export default async function AttendeesPage({ params }: { params: Promise<{ id: 
 
   if (!event) notFound()
 
-  const { data: rawBookings } = await (supabase as any)
+  // Use admin client so RLS doesn't restrict reading booking_holders (organizer access)
+  const admin = createSupabaseAdminClient()
+
+  const { data: rawBookings } = await admin
     .from('bookings')
-    .select('id, status, created_at, group_size, user:profiles!user_id(display_name, avatar_url, city), holders:booking_holders(id, full_name, date_of_birth, relation, position)')
+    .select('id, status, created_at, group_size, user:profiles!user_id(display_name, avatar_url, city)')
     .eq('event_id', id)
     .order('created_at', { ascending: true })
 
-  const bookings = (rawBookings ?? []) as AttendeeRow[]
+  const baseBookings = (rawBookings ?? []) as unknown as Omit<AttendeeRow, 'holders'>[]
+
+  // Fetch holders separately — resilient if migration 00068 hasn't been applied yet
+  type HolderRow = { id: string; booking_id: string; full_name: string; date_of_birth: string; relation: string; position: number }
+  let holdersByBookingId: Record<string, HolderRow[]> = {}
+  try {
+    const bookingIds = baseBookings.map((b) => b.id)
+    if (bookingIds.length > 0) {
+      const { data: holderRows } = await admin
+        .from('booking_holders' as any)
+        .select('id, booking_id, full_name, date_of_birth, relation, position')
+        .in('booking_id', bookingIds)
+      ;((holderRows ?? []) as unknown as HolderRow[]).forEach((h: HolderRow) => {
+        if (!holdersByBookingId[h.booking_id]) holdersByBookingId[h.booking_id] = []
+        holdersByBookingId[h.booking_id].push(h)
+      })
+    }
+  } catch {
+    // booking_holders table may not exist yet (migration pending) — silently skip
+  }
+
+  const bookings: AttendeeRow[] = baseBookings.map((b) => ({
+    ...b,
+    group_size: (b as any).group_size ?? 1,
+    holders: holdersByBookingId[b.id] ?? [],
+  }))
   const confirmed = bookings.filter((b) => b.status === 'confirmed')
   const cancelled  = bookings.filter((b) => b.status === 'cancelled')
 
