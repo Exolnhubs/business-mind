@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireAuth } from '@/lib/auth'
-import { handleApiError, ok, created, NotFoundException, ForbiddenException } from '@/lib/errors'
+import { handleApiError, ok, created, NotFoundException, ForbiddenException, ApiException } from '@/lib/errors'
 import { CreateBookingSchema } from '@/lib/validations/bookings'
 import { sendNotification } from '@/lib/notifications'
 import { applyResolvedEventWindow } from '@/lib/events/recurrence'
@@ -135,7 +135,7 @@ export async function POST(req: NextRequest) {
       throw new ForbiddenException(`Maximum group size for this event is ${maxGroup}`)
     }
     if (input.holders.length !== input.group_size - 1) {
-      throw new ForbiddenException('Holder details must be provided for each extra ticket')
+      throw new ApiException('Holder details must be provided for each extra ticket', 422)
     }
 
     // ── Ticket type validation ──────────────────────────────────────────────
