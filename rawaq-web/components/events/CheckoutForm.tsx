@@ -152,26 +152,29 @@ function PromoInput({
 function PriceBreakdown({
   basePrice,
   discountAmount,
+  groupSize,
   currency,
   promoCode,
 }: {
   basePrice: number
   discountAmount: number
+  groupSize: number
   currency: string
   promoCode?: string | null
 }) {
-  const total = Math.max(0, basePrice - discountAmount)
+  const primaryTotal = Math.max(0, basePrice - discountAmount)
+  const total = primaryTotal + basePrice * (groupSize - 1)
 
   return (
     <div className="bg-gray-50 rounded-xl p-4 space-y-2 text-sm">
       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Price breakdown</p>
       <div className="flex justify-between text-gray-700">
-        <span>Ticket price</span>
-        <span>{basePrice === 0 ? 'Free' : formatCurrency(basePrice, currency)}</span>
+        <span>Ticket price{groupSize > 1 ? ` × ${groupSize}` : ''}</span>
+        <span>{basePrice === 0 ? 'Free' : formatCurrency(basePrice * groupSize, currency)}</span>
       </div>
       {discountAmount > 0 && (
         <div className="flex justify-between text-green-600 font-medium">
-          <span>Promo{promoCode ? ` (${promoCode})` : ''}</span>
+          <span>Promo{promoCode ? ` (${promoCode})` : ''}{groupSize > 1 ? ' — primary ticket' : ''}</span>
           <span>−{formatCurrency(discountAmount, currency)}</span>
         </div>
       )}
@@ -214,6 +217,8 @@ interface CheckoutFormProps {
   isFree: boolean
   eventPrice: number | null
   isLoggedIn: boolean
+  maxGroupSize: number
+  spotsLeft: number | null
 }
 
 export function CheckoutForm({
@@ -226,6 +231,8 @@ export function CheckoutForm({
   isFree,
   eventPrice,
   isLoggedIn,
+  maxGroupSize,
+  spotsLeft,
 }: CheckoutFormProps) {
   const router = useRouter()
 
@@ -239,6 +246,28 @@ export function CheckoutForm({
   const [needsProfile,   setNeedsProfile]  = useState(false)
   const [booked,         setBooked]        = useState(false)
   const [fawryRef,       setFawryRef]      = useState<string | null>(null)
+
+  const [groupSize, setGroupSize] = useState(1)
+  const [holders,   setHolders]   = useState<{ full_name: string; date_of_birth: string; relation: string }[]>([])
+
+  const effectiveMax = Math.min(maxGroupSize, spotsLeft ?? maxGroupSize)
+
+  function changeGroupSize(newSize: number) {
+    const clamped = Math.min(Math.max(1, newSize), effectiveMax)
+    setGroupSize(clamped)
+    setHolders((prev) => {
+      const needed = clamped - 1
+      if (needed > prev.length) {
+        return [
+          ...prev,
+          ...Array.from({ length: needed - prev.length }, () => ({
+            full_name: '', date_of_birth: '', relation: '',
+          })),
+        ]
+      }
+      return prev.slice(0, needed)
+    })
+  }
 
   // Payment method options fetched from API
   const [paymentOptions,  setPaymentOptions] = useState<PaymentOption[]>([])
@@ -255,11 +284,13 @@ export function CheckoutForm({
       .catch(() => {})
   }, [currency])
 
-  const basePrice     = selectedType ? selectedType.price  : (eventPrice ?? 0)
-  const isFreeTicket  = selectedType ? selectedType.is_free : isFree
-  const discountAmt   = promo?.discount_amount ?? 0
-  const total         = Math.max(0, basePrice - discountAmt)
-  const isPaid        = !isFreeTicket && total > 0
+  const basePrice    = selectedType ? selectedType.price : (eventPrice ?? 0)
+  const isFreeTicket = selectedType ? selectedType.is_free : isFree
+  const discountAmt  = promo?.discount_amount ?? 0
+  // Promo applies to primary ticket only; extra tickets pay full price
+  const primaryTotal = Math.max(0, basePrice - discountAmt)
+  const total        = primaryTotal + basePrice * (groupSize - 1)
+  const isPaid       = !isFreeTicket && total > 0
 
   async function confirmBooking() {
     if (!isLoggedIn) { router.push('/login'); return }
@@ -278,6 +309,8 @@ export function CheckoutForm({
           ticket_type_id:    selectedTypeId ?? null,
           promo_code:        promo?.valid ? promo.code : null,
           payment_option_id: selectedOptionId ?? 'simulated',
+          group_size:        groupSize,
+          holders:           holders.map((h, i) => ({ ...h, position: i + 2 })),
         }),
       })
 
@@ -355,6 +388,92 @@ export function CheckoutForm({
         />
       )}
 
+      {/* Quantity stepper */}
+      <div>
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+          Number of tickets
+        </p>
+        <div className="flex items-center gap-4">
+          <button
+            type="button"
+            onClick={() => changeGroupSize(groupSize - 1)}
+            disabled={groupSize <= 1}
+            className="w-9 h-9 rounded-full border border-gray-300 flex items-center justify-center text-lg font-bold text-gray-700 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            −
+          </button>
+          <span className="text-sm font-semibold w-6 text-center">{groupSize}</span>
+          <button
+            type="button"
+            onClick={() => changeGroupSize(groupSize + 1)}
+            disabled={groupSize >= effectiveMax}
+            className="w-9 h-9 rounded-full border border-gray-300 flex items-center justify-center text-lg font-bold text-gray-700 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            +
+          </button>
+          <span className="text-xs text-gray-400">Max {effectiveMax}</span>
+        </div>
+      </div>
+
+      {/* Dependent holder forms */}
+      {groupSize >= 2 && (
+        <div className="space-y-4">
+          {holders.map((holder, idx) => (
+            <div key={idx} className="card p-4 space-y-3">
+              <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide">
+                Ticket {idx + 2} — Attendee details
+              </p>
+              <div>
+                <label className="label">Full Name *</label>
+                <input
+                  type="text"
+                  required
+                  maxLength={120}
+                  value={holder.full_name}
+                  onChange={(e) => {
+                    const updated = [...holders]
+                    updated[idx] = { ...updated[idx], full_name: e.target.value }
+                    setHolders(updated)
+                  }}
+                  className="input"
+                  placeholder="Full name of attendee"
+                />
+              </div>
+              <div>
+                <label className="label">Date of Birth *</label>
+                <input
+                  type="date"
+                  required
+                  value={holder.date_of_birth}
+                  onChange={(e) => {
+                    const updated = [...holders]
+                    updated[idx] = { ...updated[idx], date_of_birth: e.target.value }
+                    setHolders(updated)
+                  }}
+                  className="input"
+                />
+              </div>
+              <div>
+                <label className="label">Relation *</label>
+                <input
+                  type="text"
+                  required
+                  maxLength={60}
+                  value={holder.relation}
+                  onChange={(e) => {
+                    const updated = [...holders]
+                    updated[idx] = { ...updated[idx], relation: e.target.value }
+                    setHolders(updated)
+                  }}
+                  className="input"
+                  placeholder="e.g. son, wife, friend"
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Promo code — only for paid tickets */}
       {(selectedType ? !isFreeTicket && basePrice > 0 : !isFree && (eventPrice ?? 0) > 0) && (
         <PromoInput
@@ -371,6 +490,7 @@ export function CheckoutForm({
         <PriceBreakdown
           basePrice={isFreeTicket ? 0 : basePrice}
           discountAmount={discountAmt}
+          groupSize={groupSize}
           currency={currency}
           promoCode={promo?.valid ? promo.code : null}
         />
@@ -398,15 +518,21 @@ export function CheckoutForm({
       {/* Confirm button */}
       <button
         onClick={confirmBooking}
-        disabled={loading || (hasTypes && !selectedTypeId)}
+        disabled={
+          loading ||
+          (hasTypes && !selectedTypeId) ||
+          holders.some((h) => !h.full_name.trim() || !h.date_of_birth || !h.relation.trim())
+        }
         className={`w-full btn-primary text-base py-3 ${hasTypes && !selectedTypeId ? 'opacity-60 cursor-not-allowed' : ''}`}
       >
         {loading ? (
           <Spinner size="sm" />
         ) : !hasTypes || isFreeTicket || total === 0 ? (
-          'Confirm Booking — Free'
+          groupSize > 1 ? `Confirm Booking — Free (${groupSize} tickets)` : 'Confirm Booking — Free'
         ) : (
-          `Pay ${formatCurrency(total, currency)}`
+          groupSize > 1
+            ? `Pay ${formatCurrency(total, currency)} (${groupSize} tickets)`
+            : `Pay ${formatCurrency(total, currency)}`
         )}
       </button>
 
