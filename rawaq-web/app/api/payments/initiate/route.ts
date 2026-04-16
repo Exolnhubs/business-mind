@@ -81,6 +81,23 @@ export async function POST(req: NextRequest) {
       throw new ForbiddenException('This event is for Premium members only.')
     }
 
+    // ── Group size cap ─────────────────────────────────────────────────────────
+    const maxGroup = (event as any).max_group_size ?? 5
+    if (input.group_size > maxGroup) {
+      throw new ForbiddenException(`Maximum group size for this event is ${maxGroup}`)
+    }
+    if (input.holders.length !== input.group_size - 1) {
+      throw new ApiException('Holder details must be provided for each extra ticket', 422)
+    }
+
+    // ── Occurrence capacity pre-check ─────────────────────────────────────────
+    if (
+      occurrence.capacity !== null &&
+      occurrence.bookings_count + input.group_size > occurrence.capacity
+    ) {
+      throw new ForbiddenException('Not enough spots available for your group size')
+    }
+
     // ── Ticket type ───────────────────────────────────────────────────────────
     let ticketType: { id: string; price: number; is_free: boolean; capacity: number | null; sold_count: number; sale_starts_at: string | null; sale_ends_at: string | null } | null = null
     if (input.ticket_type_id) {
@@ -137,12 +154,17 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Effective price ───────────────────────────────────────────────────────
-    const effectivePrice = ticketType
+    // Promo applies to primary ticket only; extra tickets pay full price
+    const primaryPrice  = ticketType
       ? Math.max(0, ticketType.price - discountAmount)
-      : event.price ? Math.max(0, event.price - discountAmount) : 0
-    const isFreeBooking  = ticketType
-      ? ticketType.is_free || effectivePrice === 0
-      : event.is_free || effectivePrice === 0
+      : event.price
+        ? Math.max(0, event.price - discountAmount)
+        : 0
+    const extraPrice    = ticketType
+      ? ticketType.price * (input.group_size - 1)
+      : (event.price ?? 0) * (input.group_size - 1)
+    const effectivePrice = primaryPrice + extraPrice
+    const isFreeBooking  = effectivePrice === 0
 
     // ── Platform fee ──────────────────────────────────────────────────────────
     let platformFeePct    = 0
@@ -194,6 +216,7 @@ export async function POST(req: NextRequest) {
     const bookingFields = {
       status:               bookingStatus,
       notes:                input.notes ?? null,
+      group_size:           input.group_size,
       ticket_type_id:       input.ticket_type_id ?? null,
       promo_code_id:        promoCodeId,
       discount_amount:      discountAmount,
@@ -212,6 +235,19 @@ export async function POST(req: NextRequest) {
       const { data, error } = await admin.from('bookings').insert({ user_id: ctx.userId, event_id: input.event_id, occurrence_id: occurrence.id, ...bookingFields } as any).select().single()
       if (error) throw error
       booking = data as Record<string, unknown>
+    }
+
+    // Insert dependent holder rows (position 2+)
+    if (input.holders.length > 0) {
+      const holderRows = input.holders.map((h) => ({
+        booking_id:    booking.id,
+        full_name:     h.full_name,
+        date_of_birth: h.date_of_birth,
+        relation:      h.relation,
+        position:      h.position,
+      }))
+      const { error: holderErr } = await admin.from('booking_holders').insert(holderRows as never)
+      if (holderErr) throw holderErr
     }
 
     // ── Free booking: confirm immediately ────────────────────────────────────
