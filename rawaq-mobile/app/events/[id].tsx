@@ -1057,12 +1057,14 @@ export default function EventDetailScreen() {
                             {(() => {
                               const basePrice = selectedType ? selectedType.price : (event.price ?? 0)
                               const disc = promoResult?.valid ? (promoResult.discount_amount ?? 0) : 0
-                              const finalP = Math.max(0, basePrice - disc)
-                              const free = selectedType ? selectedType.is_free || finalP === 0 : event.is_free || finalP === 0
+                              const primaryTotal = Math.max(0, basePrice - disc)
+                              const total = primaryTotal + basePrice * (groupSize - 1)
+                              const free = (selectedType ? selectedType.is_free : event.is_free) && total === 0
                               if (occurrences.length > 0 && !selectedOccurrenceId) return 'Select a session first'
-                              return free
-                                ? 'Join Event — Free'
-                                : `Book Now — ${formatCurrency(finalP, event.currency, locale)}`
+                              if (free) return groupSize > 1 ? `Join — Free (${groupSize} tickets)` : 'Join Event — Free'
+                              return groupSize > 1
+                                ? `Book Now — ${formatCurrency(total, event.currency, locale)} (${groupSize} tickets)`
+                                : `Book Now — ${formatCurrency(total, event.currency, locale)}`
                             })()}
                           </Text>
                         )
