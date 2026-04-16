@@ -225,6 +225,7 @@ export interface Event {
   is_premium_only: boolean;
   is_published: boolean;
   is_cancelled: boolean;
+  max_group_size: number | null;
   cancelled_reason: string | null;
   visibility_type: EventVisibility;
   bookings_count: number;
@@ -271,8 +272,19 @@ export interface Booking {
   scanned_at: string | null;
   platform_fee_pct: number;
   platform_fee_amount: number;
+  group_size: number;
   created_at: string;
   updated_at: string;
+}
+
+export interface BookingHolder {
+  id: string;
+  booking_id: string;
+  full_name: string;
+  date_of_birth: string;  // ISO date string YYYY-MM-DD
+  relation: string;
+  position: number;
+  created_at: string;
 }
 
 export interface PromoCode {
