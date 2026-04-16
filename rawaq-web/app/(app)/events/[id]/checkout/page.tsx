@@ -36,7 +36,7 @@ export default async function CheckoutPage({ params, searchParams }: Props) {
   // Fetch event
   const { data: event } = await supabase
     .from('events')
-    .select('id, title, start_at, end_at, event_frequency, venue_name, city, country, cover_image_url, is_free, price, currency, is_cancelled, is_published, capacity, bookings_count')
+    .select('id, title, start_at, end_at, event_frequency, venue_name, city, country, cover_image_url, is_free, price, currency, is_cancelled, is_published, capacity, bookings_count, max_group_size')
     .eq('id', id)
     .single()
 
@@ -150,6 +150,8 @@ export default async function CheckoutPage({ params, searchParams }: Props) {
           isFree={event.is_free}
           eventPrice={event.price}
           isLoggedIn={!!user}
+          maxGroupSize={(event as any).max_group_size ?? 5}
+          spotsLeft={spotsLeft}
         />
       </div>
     </div>
