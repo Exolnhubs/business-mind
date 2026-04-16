@@ -125,6 +125,7 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
     event_frequency:    event?.event_frequency ?? 'one_time',
     recurrence_until:   event?.recurrence_until ? event.recurrence_until.slice(0, 16) : '',
     capacity:           event?.capacity?.toString() ?? '',
+    max_group_size:     event?.max_group_size?.toString() ?? '',
     is_free:            event?.is_free ?? true,
     price:              event?.price?.toString() ?? '',
     gender_restriction: event?.gender_restriction ?? 'mixed',
@@ -356,6 +357,7 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
           ? new Date(form.recurrence_until).toISOString()
           : null,
         capacity: form.capacity ? Number(form.capacity) : null,
+        max_group_size: form.max_group_size ? Number(form.max_group_size) : null,
         is_free: form.is_free,
         price: form.is_free ? null : Number(form.price),
         currency: eventCurrency,
@@ -471,6 +473,21 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
             <label className="label">Capacity</label>
             <input type="number" min={1} value={form.capacity} onChange={set('capacity')} className="input" placeholder="Unlimited" />
             <p className="mt-1 text-xs text-gray-400">{capacityHelperText}</p>
+          </div>
+          <div>
+            <label className="label">Max tickets per booking</label>
+            <input
+              type="number"
+              min={1}
+              max={20}
+              value={form.max_group_size}
+              onChange={set('max_group_size')}
+              className="input"
+              placeholder="Default: 5"
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              Maximum number of tickets a single user can purchase per booking. Leave blank for the default of 5.
+            </p>
           </div>
           <div>
             <label className="label">Price</label>
@@ -636,6 +653,7 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
         ? new Date(form.recurrence_until).toISOString()
         : null,
       capacity:           form.capacity ? Number(form.capacity) : null,
+      max_group_size:     form.max_group_size ? Number(form.max_group_size) : null,
       is_free:            true,
         currency:           eventCurrency,
       gender_restriction: form.gender_restriction as 'mixed' | 'male' | 'female',
@@ -852,6 +870,21 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
               <label className="label">Total Capacity</label>
               <input type="number" min={1} value={form.capacity} onChange={set('capacity')} className="input" placeholder="Unlimited" />
               <p className="mt-1 text-xs text-gray-400">{capacityHelperText}</p>
+            </div>
+            <div>
+              <label className="label">Max tickets per booking</label>
+              <input
+                type="number"
+                min={1}
+                max={20}
+                value={form.max_group_size}
+                onChange={set('max_group_size')}
+                className="input"
+                placeholder="Default: 5"
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                Maximum number of tickets a single user can purchase per booking. Leave blank for the default of 5.
+              </p>
             </div>
             <div>
               <label className="label">Gender Restriction</label>
