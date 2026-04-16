@@ -12,7 +12,7 @@ import { CommentThread } from '@/components/comments/CommentThread'
 import { formatDate, formatTime, formatCurrency } from '@/lib/utils'
 import type { Community, EventOccurrence, EventWithOrganizer, CommentWithAuthor, TicketType } from '@/types/database'
 import { applyResolvedEventWindow } from '@/lib/events/recurrence'
-import { ensureEventOccurrences } from '@/lib/events/occurrences'
+import { listEventOccurrences, getBookableOccurrences } from '@/lib/events/occurrences'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
@@ -43,17 +43,10 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
 
   const ev = applyResolvedEventWindow(event as unknown as EventWithOrganizer)
   const isRecurring = ev.event_frequency !== 'one_time'
-  const admin = createSupabaseAdminClient()
+  const now = new Date()
 
   const occurrences = isRecurring
-    ? await ensureEventOccurrences(admin, {
-      id: ev.id,
-      start_at: ev.start_at,
-      end_at: ev.end_at,
-      event_frequency: ev.event_frequency,
-      capacity: ev.capacity,
-      is_cancelled: ev.is_cancelled,
-    })
+    ? getBookableOccurrences(await listEventOccurrences(createSupabaseAdminClient(), ev.id), now)
     : []
 
   const { data: { user } } = await supabase.auth.getUser()

@@ -129,13 +129,45 @@ function buildOccurrenceWindows(
   return windows
 }
 
+// Normalize to UTC calendar date (YYYY-MM-DD) for series matching.
+// This lets us match occurrences by their date slot rather than exact timestamp,
+// so a time-only change to event start_at updates occurrences in-place
+// (preserving UUIDs) instead of deleting and re-inserting them.
+function toUtcDateKey(isoString: string) {
+  return isoString.slice(0, 10)
+}
+
 function shouldUpdateOccurrence(existing: EventOccurrence, next: EventOccurrenceWindow) {
   return (
-    existing.starts_at !== next.starts_at
+    existing.series_starts_at !== next.series_starts_at
+    || existing.starts_at !== next.starts_at
     || (existing.ends_at ?? null) !== (next.ends_at ?? null)
     || existing.capacity !== next.capacity
     || existing.status !== next.status
   )
+}
+
+export function getBookableOccurrences(
+  occurrences: EventOccurrence[],
+  now = new Date(),
+) {
+  return occurrences.filter((occurrence) =>
+    occurrence.status === 'scheduled' && new Date(occurrence.starts_at).getTime() > now.getTime(),
+  )
+}
+
+export async function listEventOccurrences(
+  admin: AdminClient,
+  eventId: string,
+) {
+  const { data, error } = await admin
+    .from('event_occurrences')
+    .select('*')
+    .eq('event_id', eventId)
+    .order('starts_at', { ascending: true })
+
+  if (error) throw error
+  return (data ?? []) as EventOccurrence[]
 }
 
 export async function ensureEventOccurrences(
@@ -155,11 +187,15 @@ export async function ensureEventOccurrences(
   if (existingError) throw existingError
 
   const existing = (existingRows ?? []) as EventOccurrence[]
-  const existingBySeriesStart = new Map(existing.map((row) => [row.series_starts_at, row]))
-  const desiredSeriesStarts = new Set(windows.map((window) => window.series_starts_at))
+
+  // Match by UTC date (YYYY-MM-DD) so that a time-only change to event.start_at
+  // updates occurrences in-place rather than delete + re-insert (which would
+  // regenerate UUIDs and break any stored occurrence IDs in bookings / client state).
+  const existingBySeriesDate = new Map(existing.map((row) => [toUtcDateKey(row.series_starts_at), row]))
+  const desiredSeriesDates = new Set(windows.map((window) => toUtcDateKey(window.series_starts_at)))
 
   const inserts = windows
-    .filter((window) => !existingBySeriesStart.has(window.series_starts_at))
+    .filter((window) => !existingBySeriesDate.has(toUtcDateKey(window.series_starts_at)))
     .map((window) => ({
       event_id: event.id,
       ...window,
@@ -174,7 +210,7 @@ export async function ensureEventOccurrences(
   }
 
   const updates = windows
-    .map((window) => ({ window, existing: existingBySeriesStart.get(window.series_starts_at) }))
+    .map((window) => ({ window, existing: existingBySeriesDate.get(toUtcDateKey(window.series_starts_at)) }))
     .filter(
       (entry): entry is { window: EventOccurrenceWindow; existing: EventOccurrence } =>
         Boolean(entry.existing) && !entry.existing!.is_exception && shouldUpdateOccurrence(entry.existing!, entry.window),
@@ -184,6 +220,7 @@ export async function ensureEventOccurrences(
     const { error } = await admin
       .from('event_occurrences')
       .update({
+        series_starts_at: window.series_starts_at,
         starts_at: window.starts_at,
         ends_at: window.ends_at,
         capacity: window.capacity,
@@ -198,7 +235,7 @@ export async function ensureEventOccurrences(
     .filter((row) =>
       !row.is_exception
       && row.bookings_count === 0
-      && !desiredSeriesStarts.has(row.series_starts_at)
+      && !desiredSeriesDates.has(toUtcDateKey(row.series_starts_at))
       && new Date(row.starts_at).getTime() > now.getTime(),
     )
     .map((row) => row.id)
@@ -229,7 +266,7 @@ export async function resolveTargetOccurrence(
   requestedOccurrenceId?: string | null,
   now = new Date(),
 ) {
-  const occurrences = await ensureEventOccurrences(admin, event, now)
+  const occurrences = await listEventOccurrences(admin, event.id)
 
   if (requestedOccurrenceId) {
     const requested = occurrences.find((occurrence) => occurrence.id === requestedOccurrenceId)
@@ -245,9 +282,7 @@ export async function resolveTargetOccurrence(
     return requested
   }
 
-  const candidates = occurrences.filter((occurrence) =>
-    occurrence.status === 'scheduled' && new Date(occurrence.starts_at).getTime() > now.getTime(),
-  )
+  const candidates = getBookableOccurrences(occurrences, now)
 
   if (candidates.length === 0) {
     throw new ForbiddenException('No upcoming event occurrences are available to book')
@@ -277,7 +312,7 @@ export async function resolveAttendanceOccurrence(
   event: EventOccurrenceSource,
   now = new Date(),
 ) {
-  const occurrences = await ensureEventOccurrences(admin, event, now)
+  const occurrences = await listEventOccurrences(admin, event.id)
   const activeOrUpcoming = occurrences.filter((occurrence) => {
     if (occurrence.status !== 'scheduled') return false
     const startsAt = new Date(occurrence.starts_at).getTime()

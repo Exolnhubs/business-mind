@@ -4,7 +4,7 @@ import {
   ActivityIndicator, Alert, TextInput, Image, Modal, Platform, Linking, KeyboardAvoidingView,
 } from 'react-native'
 import * as WebBrowser from 'expo-web-browser'
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '@/lib/supabase'
 import { apiPost, apiGet, apiDelete } from '@/lib/api'
@@ -28,6 +28,10 @@ interface PaymentOption {
 
 const QUICK_TIPS = [5, 10, 25, 50]
 type PaymentIntent = 'booking' | 'donation' | null
+
+function isBookableOccurrence(occurrence: EventOccurrence, now = Date.now()) {
+  return occurrence.status === 'scheduled' && new Date(occurrence.starts_at).getTime() > now
+}
 
 export default function EventDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
@@ -82,9 +86,11 @@ export default function EventDetailScreen() {
   const [groupSize, setGroupSize]   = useState(1)
   const [holders, setHolders]       = useState<{ full_name: string; date_of_birth: string; relation: string }[]>([])
 
-  useEffect(() => {
+  const loadEventDetails = useCallback(async (isActive?: () => boolean) => {
     if (!id) return
-    Promise.all([
+    setLoading(true)
+
+    const [{ data: ev }, { data: cmts }, { data: bookingRows }, { data: waitlistRows }, { data: tts }, { data: eventCommunityRows }] = await Promise.all([
       supabase
         .from('events')
         .select(`*, gender_restriction,
@@ -119,55 +125,80 @@ export default function EventDetailScreen() {
       supabase.from('ticket_types').select('*')
         .eq('event_id', id).eq('is_active', true).order('sort_order'),
       supabase.from('event_communities').select('community_id').eq('event_id', id),
-    ]).then(async ([{ data: ev }, { data: cmts }, { data: bookingRows }, { data: waitlistRows }, { data: tts }, { data: eventCommunityRows }]) => {
-      const resolvedEvent = ev ? applyResolvedEventWindow(ev as unknown as EventWithOrganizer) : null
-      const isRecurring = resolvedEvent?.event_frequency !== 'one_time'
-      setEvent(resolvedEvent)
-      setComments((cmts ?? []) as unknown as CommentWithAuthor[])
-      const confirmedBookings = ((bookingRows ?? []) as Array<{ id: string; status: string; occurrence_id: string | null }>).filter((booking) => booking.status === 'confirmed')
-      const pendingBookings = ((bookingRows ?? []) as Array<{ id: string; status: string; occurrence_id: string | null }>).filter((booking) => booking.status === 'pending')
-      const confirmedIds = confirmedBookings.map((booking) => booking.occurrence_id).filter((value): value is string => Boolean(value))
-      const pendingIds = pendingBookings.map((booking) => booking.occurrence_id).filter((value): value is string => Boolean(value))
-      const waitlistedIds = ((waitlistRows ?? []) as Array<{ occurrence_id: string | null }>).map((row) => row.occurrence_id).filter((value): value is string => Boolean(value))
-      setConfirmedOccurrenceIds(confirmedIds)
-      setPendingOccurrenceIds(pendingIds)
-      setWaitlistedOccurrenceIds(waitlistedIds)
-      setBookingIdByOccurrence(
-        confirmedBookings.reduce<Record<string, string>>((acc, booking) => {
-          if (booking.occurrence_id) acc[booking.occurrence_id] = booking.id
-          return acc
-        }, {}),
+    ])
+
+    if (isActive && !isActive()) return
+
+    const resolvedEvent = ev ? applyResolvedEventWindow(ev as unknown as EventWithOrganizer) : null
+    const isRecurring = resolvedEvent?.event_frequency !== 'one_time'
+    setEvent(resolvedEvent)
+    setComments((cmts ?? []) as unknown as CommentWithAuthor[])
+    const confirmedBookings = ((bookingRows ?? []) as Array<{ id: string; status: string; occurrence_id: string | null }>).filter((booking) => booking.status === 'confirmed')
+    const pendingBookings = ((bookingRows ?? []) as Array<{ id: string; status: string; occurrence_id: string | null }>).filter((booking) => booking.status === 'pending')
+    const confirmedIds = confirmedBookings.map((booking) => booking.occurrence_id).filter((value): value is string => Boolean(value))
+    const pendingIds = pendingBookings.map((booking) => booking.occurrence_id).filter((value): value is string => Boolean(value))
+    const waitlistedIds = ((waitlistRows ?? []) as Array<{ occurrence_id: string | null }>).map((row) => row.occurrence_id).filter((value): value is string => Boolean(value))
+    setConfirmedOccurrenceIds(confirmedIds)
+    setPendingOccurrenceIds(pendingIds)
+    setWaitlistedOccurrenceIds(waitlistedIds)
+    setBookingIdByOccurrence(
+      confirmedBookings.reduce<Record<string, string>>((acc, booking) => {
+        if (booking.occurrence_id) acc[booking.occurrence_id] = booking.id
+        return acc
+      }, {}),
+    )
+    setCurrentBookingId(confirmedBookings[0]?.id ?? null)
+    setHasConfirmedBooking(confirmedBookings.length > 0)
+    setIsBooked(!isRecurring && confirmedBookings.length > 0)
+    setBookingPending(!isRecurring && pendingBookings.length > 0)
+    setOnWaitlist(!isRecurring && waitlistedIds.length > 0)
+    setTicketTypes((tts ?? []) as TicketType[])
+
+    if (resolvedEvent?.event_frequency !== 'one_time') {
+      const { data: occurrenceRows } = await apiGet<EventOccurrence[]>(`/api/events/${id}/occurrences`, {
+        force: true,
+      })
+
+      if (isActive && !isActive()) return
+
+      const nextOccurrences = (occurrenceRows ?? []).filter((occurrence) => isBookableOccurrence(occurrence))
+      setOccurrences(nextOccurrences)
+      setSelectedOccurrenceId((current) =>
+        current && nextOccurrences.some((occurrence) => occurrence.id === current)
+          ? current
+          : (nextOccurrences[0]?.id ?? null),
       )
-      setCurrentBookingId(confirmedBookings[0]?.id ?? null)
-      setHasConfirmedBooking(confirmedBookings.length > 0)
-      setIsBooked(!isRecurring && confirmedBookings.length > 0)
-      setBookingPending(!isRecurring && pendingBookings.length > 0)
-      setOnWaitlist(!isRecurring && waitlistedIds.length > 0)
-      setTicketTypes((tts ?? []) as TicketType[])
-      if (resolvedEvent?.event_frequency !== 'one_time') {
-        const { data: occurrenceRows } = await apiGet<EventOccurrence[]>(`/api/events/${id}/occurrences`)
-        const nextOccurrences = occurrenceRows ?? []
-        setOccurrences(nextOccurrences)
-        setSelectedOccurrenceId(nextOccurrences[0]?.id ?? null)
-      } else {
-        setOccurrences([])
-        setSelectedOccurrenceId(null)
-      }
-      const communityIds = (eventCommunityRows ?? []).map((row) => row.community_id)
-      if (communityIds.length > 0) {
-        supabase
-          .from('communities')
-          .select('id, name, name_ar, slug, level')
-          .in('id', communityIds)
-          .then(({ data: communities }) =>
-            setEventCommunities((communities ?? []) as Array<Pick<Community, 'id' | 'name' | 'name_ar' | 'slug' | 'level'>>),
-          )
-      } else {
-        setEventCommunities([])
-      }
-      setLoading(false)
-    })
+    } else {
+      setOccurrences([])
+      setSelectedOccurrenceId(null)
+    }
+
+    const communityIds = (eventCommunityRows ?? []).map((row) => row.community_id)
+    if (communityIds.length > 0) {
+      const { data: communities } = await supabase
+        .from('communities')
+        .select('id, name, name_ar, slug, level')
+        .in('id', communityIds)
+
+      if (isActive && !isActive()) return
+
+      setEventCommunities((communities ?? []) as Array<Pick<Community, 'id' | 'name' | 'name_ar' | 'slug' | 'level'>>)
+    } else {
+      setEventCommunities([])
+    }
+
+    setLoading(false)
   }, [id, user])
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true
+      void loadEventDetails(() => active)
+      return () => {
+        active = false
+      }
+    }, [loadEventDetails]),
+  )
 
   // Load payment options when event currency is known
   useEffect(() => {

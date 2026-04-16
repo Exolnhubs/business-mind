@@ -6,7 +6,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { CheckoutForm } from '@/components/events/CheckoutForm'
 import { formatDate, formatTime } from '@/lib/utils'
 import type { TicketType } from '@/types/database'
-import { ensureEventOccurrences } from '@/lib/events/occurrences'
+import { listEventOccurrences, getBookableOccurrences } from '@/lib/events/occurrences'
 
 interface Props {
   params: Promise<{ id: string }>
@@ -41,16 +41,10 @@ export default async function CheckoutPage({ params, searchParams }: Props) {
     .single()
 
   if (!event || event.is_cancelled || !event.is_published) notFound()
+  const now = new Date()
 
   const occurrences = event.event_frequency !== 'one_time'
-    ? await ensureEventOccurrences(admin, {
-      id: event.id,
-      start_at: event.start_at,
-      end_at: event.end_at,
-      event_frequency: event.event_frequency,
-      capacity: event.capacity,
-      is_cancelled: event.is_cancelled,
-    })
+    ? getBookableOccurrences(await listEventOccurrences(admin, event.id), now)
     : []
 
   const selectedOccurrence = event.event_frequency === 'one_time'
