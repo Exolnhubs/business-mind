@@ -42,7 +42,10 @@ export default function TicketScreen() {
   const { t, locale } = useLocale()
   const router = useRouter()
 
+  type HolderData = { id: string; full_name: string; date_of_birth: string; relation: string; position: number }
+
   const [ticket, setTicket] = useState<TicketData | null>(null)
+  const [holders, setHolders] = useState<HolderData[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -58,8 +61,17 @@ export default function TicketScreen() {
       .eq('id', id)
       .eq('user_id', user.id)
       .single()
-      .then(({ data }) => {
+      .then(async ({ data }) => {
         setTicket(data as TicketData | null)
+        // Fetch dependent holders (resilient if migration not yet applied)
+        try {
+          const { data: holderRows } = await supabase
+            .from('booking_holders' as any)
+            .select('id, full_name, date_of_birth, relation, position')
+            .eq('booking_id', id)
+            .order('position')
+          setHolders((holderRows ?? []) as unknown as HolderData[])
+        } catch { /* migration may be pending */ }
         setLoading(false)
       })
   }, [id, user])
@@ -158,6 +170,31 @@ export default function TicketScreen() {
           </Text>
         )}
       </View>
+
+      {/* Dependent holder tickets */}
+      {holders.map((holder) => (
+        <View key={holder.id} style={{ marginTop: Spacing.lg, width: '100%', backgroundColor: Colors.white, borderRadius: Radius.xl, overflow: 'hidden', ...Shadow.card }}>
+          <View style={[styles.header, { paddingVertical: Spacing.md }]}>
+            <Text style={styles.headerLogo}>Rawaq 🌟</Text>
+            <Text style={styles.headerSub}>Guest Ticket — Position {holder.position}</Text>
+          </View>
+          <View style={styles.body}>
+            <View style={styles.infoList}>
+              <InfoRow icon="📅" label="Date" value={formatDate(displayStartAt, locale)} />
+              <InfoRow icon="🕐" label="Time" value={formatTime(displayStartAt, locale) + (displayEndAt ? ` - ${formatTime(displayEndAt, locale)}` : '')} />
+              <InfoRow icon="📍" label="Venue" value={event.venue_name ?? event.city} />
+              <InfoRow icon="👤" label="Attendee" value={holder.full_name} />
+              <InfoRow icon="🎂" label="Date of Birth" value={holder.date_of_birth} />
+              <InfoRow icon="👥" label="Relation" value={holder.relation} />
+            </View>
+          </View>
+          <View style={{ paddingHorizontal: Spacing.xl, paddingBottom: Spacing.lg, alignItems: 'center' }}>
+            <Text style={{ fontSize: FontSize.xs, color: Colors.gray[400], fontFamily: 'monospace' }}>
+              Companion · {ticket.ticket_id?.slice(-8).toUpperCase()}
+            </Text>
+          </View>
+        </View>
+      ))}
 
       {/* Actions */}
       <View style={styles.actions}>

@@ -1,6 +1,7 @@
 import { notFound, redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { generateTicketQR } from '@/lib/qr'
 import { formatDate, formatTime } from '@/lib/utils'
 import { PrintButton } from './PrintButton'
@@ -25,6 +26,7 @@ export default async function TicketPage({ params }: Props) {
   }
   type BookingShape = {
     id: string; status: string; ticket_id: string | null; seat: string | null; created_at: string
+    group_size: number
     occurrence: { starts_at: string; ends_at: string | null } | null
     event: EventShape | null
   }
@@ -60,6 +62,31 @@ export default async function TicketPage({ params }: Props) {
 
   // profile type assertion
   const profileData = profile as { display_name: string } | null
+
+  // Fetch group_size and dependent holders — resilient if migration pending
+  type HolderShape = { id: string; full_name: string; date_of_birth: string; relation: string; position: number }
+  let groupSize = 1
+  let holders: HolderShape[] = []
+  try {
+    const admin = createSupabaseAdminClient()
+    const { data: bookingMeta } = await admin
+      .from('bookings')
+      .select('group_size')
+      .eq('id', id)
+      .single()
+    groupSize = (bookingMeta as any)?.group_size ?? 1
+
+    if (groupSize > 1) {
+      const { data: holderRows } = await admin
+        .from('booking_holders' as any)
+        .select('id, full_name, date_of_birth, relation, position')
+        .eq('booking_id', id)
+        .order('position')
+      holders = (holderRows ?? []) as unknown as HolderShape[]
+    }
+  } catch {
+    // booking_holders table may not exist yet (migration pending)
+  }
 
   const qrDataUrl = await generateTicketQR(booking.ticket_id)
 
@@ -133,6 +160,32 @@ export default async function TicketPage({ params }: Props) {
           </p>
         </div>
       </div>
+
+      {/* Dependent holder tickets */}
+      {holders.map((holder) => (
+        <div
+          key={holder.id}
+          className="w-full max-w-md bg-white rounded-3xl shadow-lg overflow-hidden mt-4"
+        >
+          <div className="bg-gradient-to-r from-gray-500 to-gray-400 px-8 py-4 text-white">
+            <p className="text-xs text-gray-200 font-medium">Event Ticket — Guest {holder.position}</p>
+            <p className="text-lg font-bold tracking-tight mt-0.5">Rawaq 🌟</p>
+          </div>
+          <div className="px-8 py-5 space-y-3 text-sm">
+            <InfoRow icon="📅" label="Date" value={formatDate(displayStartAt)} />
+            <InfoRow icon="🕐" label="Time" value={formatTime(displayStartAt) + (displayEndAt ? ` - ${formatTime(displayEndAt)}` : '')} />
+            <InfoRow icon="📍" label="Venue" value={event.venue_name ?? event.city} />
+            <InfoRow icon="👤" label="Attendee" value={holder.full_name} />
+            <InfoRow icon="🎂" label="Date of Birth" value={holder.date_of_birth} />
+            <InfoRow icon="👥" label="Relation" value={holder.relation} />
+          </div>
+          <div className="px-8 pb-6 text-center">
+            <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">
+              Companion ticket · ref {booking.ticket_id?.slice(-8).toUpperCase()}
+            </p>
+          </div>
+        </div>
+      ))}
 
       {/* Action buttons */}
       <div className="mt-6 flex gap-3 print:hidden">
