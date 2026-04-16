@@ -13,11 +13,19 @@ interface AttendeeRow {
   id: string
   status: string
   created_at: string
+  group_size: number
   user: {
     display_name: string
     avatar_url: string | null
     city: string | null
   } | null
+  holders: {
+    id: string
+    full_name: string
+    date_of_birth: string
+    relation: string
+    position: number
+  }[]
 }
 
 export default async function AttendeesPage({ params }: { params: Promise<{ id: string }> }) {
@@ -35,14 +43,15 @@ export default async function AttendeesPage({ params }: { params: Promise<{ id: 
 
   if (!event) notFound()
 
-  const { data: bookings } = await supabase
+  const { data: rawBookings } = await (supabase as any)
     .from('bookings')
-    .select('id, status, created_at, user:profiles!user_id(display_name, avatar_url, city)')
+    .select('id, status, created_at, group_size, user:profiles!user_id(display_name, avatar_url, city), holders:booking_holders(id, full_name, date_of_birth, relation, position)')
     .eq('event_id', id)
     .order('created_at', { ascending: true })
 
-  const confirmed = (bookings ?? []).filter((b) => b.status === 'confirmed') as unknown as AttendeeRow[]
-  const cancelled = (bookings ?? []).filter((b) => b.status === 'cancelled') as unknown as AttendeeRow[]
+  const bookings = (rawBookings ?? []) as AttendeeRow[]
+  const confirmed = bookings.filter((b) => b.status === 'confirmed')
+  const cancelled  = bookings.filter((b) => b.status === 'cancelled')
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 space-y-6">
@@ -87,14 +96,24 @@ export default async function AttendeesPage({ params }: { params: Promise<{ id: 
               <tbody className="divide-y divide-gray-50">
                 {confirmed.map((booking) => (
                   <tr key={booking.id} className="hover:bg-gray-50/50">
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 text-sm text-gray-900">
                       <div className="flex items-center gap-2.5">
                         <div className="w-8 h-8 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center text-xs font-bold uppercase shrink-0">
                           {(booking.user?.display_name ?? '?')[0]}
                         </div>
-                        <span className="font-medium text-gray-900 text-sm">
-                          {booking.user?.display_name ?? 'Unknown'}
-                        </span>
+                        <div>
+                          <p className="font-medium">{booking.user?.display_name ?? '—'}</p>
+                          {booking.group_size > 1 && (
+                            <p className="text-xs text-brand-600 font-medium mt-0.5">
+                              👥 +{booking.group_size - 1} guest{booking.group_size > 2 ? 's' : ''}
+                            </p>
+                          )}
+                          {booking.holders.map((h) => (
+                            <p key={h.id} className="text-xs text-gray-500 mt-0.5">
+                              {h.position}. {h.full_name} · {h.relation} · {h.date_of_birth}
+                            </p>
+                          ))}
+                        </div>
                       </div>
                     </td>
                     <td className="px-4 py-3 text-gray-500 text-xs hidden sm:table-cell">
