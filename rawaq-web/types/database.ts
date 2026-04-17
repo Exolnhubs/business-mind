@@ -328,6 +328,9 @@ export interface TicketType {
   sale_ends_at: string | null;
   sort_order: number;
   is_active: boolean;
+  is_hot_offer: boolean;
+  hot_offer_price: number | null;
+  hot_offer_ends_at: string | null;
   created_at: string;
   updated_at: string;
 }
