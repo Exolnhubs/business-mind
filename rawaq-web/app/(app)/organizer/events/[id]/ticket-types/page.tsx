@@ -79,6 +79,9 @@ export default function ManageTicketTypesPage() {
 
   function submit() {
     if (!form.name.trim()) { setError('Name is required'); return }
+    if (!form.is_free && (!form.price || Number(form.price) <= 0)) {
+      setError('Price is required for paid tickets'); return
+    }
     if (form.is_hot_offer) {
       if (!form.hot_offer_price || Number(form.hot_offer_price) <= 0) {
         setError('Hot offer price is required'); return
