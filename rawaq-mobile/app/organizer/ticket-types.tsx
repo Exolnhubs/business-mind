@@ -458,7 +458,7 @@ export default function TicketTypesScreen() {
               value={pickerTempDate}
               mode={pickerMode}
               display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              minimumDate={pickerTarget !== 'sale_starts_at' ? new Date() : undefined}
+              minimumDate={pickerTarget === 'hot_offer_ends_at' ? new Date() : undefined}
               onChange={onPickerChange}
             />
           )}
