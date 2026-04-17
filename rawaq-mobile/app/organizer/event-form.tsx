@@ -794,16 +794,19 @@ export default function EventFormScreen() {
               <Text style={styles.helperText}>{capacityHelperText}</Text>
             </Field>
 
-            {/* Edit mode keeps price field */}
             {isEdit && (
-              <Field label="Pricing">
-                <View style={styles.switchRow}>
-                  <Text style={styles.switchLabel}>Free Event</Text>
-                  <Switch value={isFree} onValueChange={setIsFree} trackColor={{ false: Colors.gray[200], true: Colors.brand[400] }} thumbColor={isFree ? Colors.brand[500] : Colors.gray[400]} />
-                </View>
-                {!isFree && (
-                  <TextInput style={[styles.input, { marginTop: Spacing.sm }]} value={price} onChangeText={setPrice} placeholder={`Price in ${eventCurrency}`} placeholderTextColor={Colors.gray[400]} keyboardType="decimal-pad" maxLength={8} />
-                )}
+              <Field label="Ticket Types">
+                <TouchableOpacity
+                  style={styles.navRow}
+                  onPress={() =>
+                    router.push(
+                      `/organizer/ticket-types?eventId=${id}&title=${encodeURIComponent(title)}&currency=${encodeURIComponent(eventCurrency)}`
+                    )
+                  }
+                >
+                  <Text style={styles.navRowText}>Manage Ticket Types</Text>
+                  <Text style={styles.navRowArrow}>›</Text>
+                </TouchableOpacity>
               </Field>
             )}
 
@@ -1153,6 +1156,9 @@ const styles = StyleSheet.create({
   switchRow:           { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: Colors.white, borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderWidth: 1, borderColor: Colors.gray[200] },
   switchLabel:         { fontSize: FontSize.base, color: Colors.gray[800] },
   helperText:          { fontSize: FontSize.xs, color: Colors.gray[500], marginBottom: Spacing.sm },
+  navRow:              { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: Colors.white, borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.md, borderWidth: 1, borderColor: Colors.gray[200] },
+  navRowText:          { fontSize: FontSize.base, color: Colors.brand[600], fontWeight: FontWeight.semibold },
+  navRowArrow:         { fontSize: 20, color: Colors.gray[400] },
   locationCard:        { borderWidth: 1, borderColor: Colors.gray[200], borderRadius: Radius.lg, backgroundColor: Colors.gray[50], padding: Spacing.md },
   locationHeader:      { flexDirection: 'row', gap: Spacing.md, alignItems: 'flex-start' },
   locationTitle:       { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[900] },
