@@ -9,6 +9,17 @@ const ScanSchema = z.object({
   ticket_id: z.string().min(1),
 })
 
+function getScanOpensAt(startsAt: string) {
+  return new Date(new Date(startsAt).getTime() - 3 * 60 * 60 * 1000)
+}
+
+function formatScanOpensAt(value: Date) {
+  return value.toLocaleString('en-SA-u-ca-gregory', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  })
+}
+
 // POST /api/bookings/scan
 // Organizer scans a QR code to check in an attendee.
 // Body: { ticket_id: string }
@@ -47,8 +58,16 @@ export async function POST(req: NextRequest) {
       throw new ForbiddenException('QR scanning is not available for this event occurrence.')
     }
 
-    if (occurrence.ends_at && new Date(occurrence.ends_at).getTime() < Date.now()) {
-      throw new ForbiddenException('QR scanning is closed because this event has already ended.')
+    const scanOpensAt = getScanOpensAt(occurrence.starts_at)
+    if (Date.now() < scanOpensAt.getTime()) {
+      return ok({
+        valid: false,
+        reason: 'scan_not_open_yet',
+        message: `Scanning for this event is valid at ${formatScanOpensAt(scanOpensAt)}.`,
+        booking_id: booking.id,
+        occurrence_id: occurrence.id,
+        event_title: event.title,
+      })
     }
 
     if (booking.status !== 'confirmed') {

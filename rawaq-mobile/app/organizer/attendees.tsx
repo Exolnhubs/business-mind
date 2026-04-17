@@ -52,9 +52,23 @@ type AttendeesResponse = {
   occurrence: EventScannerMeta | null
 }
 
-function hasOccurrenceEnded(occurrence: EventScannerMeta | null) {
-  if (!occurrence?.ends_at) return false
-  return new Date(occurrence.ends_at).getTime() < Date.now()
+function getScanValidAt(occurrence: EventScannerMeta | null) {
+  if (!occurrence?.starts_at) return null
+  return new Date(new Date(occurrence.starts_at).getTime() - 3 * 60 * 60 * 1000)
+}
+
+function isScanWindowOpen(occurrence: EventScannerMeta | null) {
+  const validAt = getScanValidAt(occurrence)
+  return validAt ? validAt.getTime() <= Date.now() : false
+}
+
+function formatScanValidAt(occurrence: EventScannerMeta | null) {
+  const validAt = getScanValidAt(occurrence)
+  if (!validAt) return null
+  return validAt.toLocaleString('en-SA-u-ca-gregory', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  })
 }
 
 function chooseDefaultOccurrence(occurrences: EventScannerMeta[]) {
@@ -142,8 +156,6 @@ export default function AttendeesScreen() {
       return
     }
 
-    const hasEnded = hasOccurrenceEnded(attendeesRes.data.occurrence)
-
     const features = subscriptionRes.data?.plan?.features
     const canScan = profile?.role === 'admin'
       || (features && typeof features === 'object' && (features as Record<string, unknown>).ticket_scanner === true)
@@ -153,7 +165,7 @@ export default function AttendeesScreen() {
       setSelectedOccurrenceId(effectiveOccurrence.id)
     }
     setEventMeta(attendeesRes.data.occurrence)
-    setScannerAvailable(Boolean(canScan) && !hasEnded)
+    setScannerAvailable(Boolean(canScan))
     setAttendees((attendeesRes.data.data ?? []) as Attendee[])
     setLoading(false)
     setRefreshing(false)
@@ -165,7 +177,8 @@ export default function AttendeesScreen() {
 
   const confirmed = attendees.filter((a) => a.status === 'confirmed')
   const scannedCount = confirmed.filter((a) => a.scanned_at).length
-  const eventHasEnded = hasOccurrenceEnded(eventMeta)
+  const scanWindowOpen = isScanWindowOpen(eventMeta)
+  const scanValidAtLabel = formatScanValidAt(eventMeta)
   const filtered = search.trim()
     ? confirmed.filter((a) =>
         a.user?.display_name.toLowerCase().includes(search.toLowerCase())
@@ -217,12 +230,17 @@ export default function AttendeesScreen() {
   }
 
   async function openScanner() {
-    if (hasOccurrenceEnded(eventMeta)) {
-      Alert.alert('Scanner closed', 'This event has already ended, so QR scanning is no longer available.')
-      return
-    }
     if (!scannerAvailable) {
       Alert.alert('Upgrade required', 'QR scanning is available on Pro and Elite organizer plans.')
+      return
+    }
+    if (!scanWindowOpen) {
+      Alert.alert(
+        'Scanner not open yet',
+        scanValidAtLabel
+          ? `Scanning for this event is valid at ${scanValidAtLabel}.`
+          : 'Scanning is not available yet for this event occurrence.',
+      )
       return
     }
     if (isAndroidExpoGo) {
@@ -267,19 +285,21 @@ export default function AttendeesScreen() {
           onPress={openScanner}
         >
           <Text style={[styles.scanBtnText, !scannerAvailable && styles.scanBtnTextLocked]}>
-            {eventHasEnded
-              ? 'Event Ended'
-              : scannerAvailable ? 'Scan QR' : 'Pro / Elite'}
+            {!scannerAvailable
+              ? 'Pro / Elite'
+              : scanWindowOpen ? 'Scan QR' : 'Opens Soon'}
           </Text>
         </TouchableOpacity>
       </View>
 
-      {!scannerAvailable && (
+      {(!scannerAvailable || !scanWindowOpen) && (
         <View style={styles.planNotice}>
           <Text style={styles.planNoticeText}>
-            {eventHasEnded
-              ? 'QR scanning closes automatically once an event has ended.'
-              : 'QR ticket scanning is available on Pro and Elite organizer plans.'}
+            {!scannerAvailable
+              ? 'QR ticket scanning is available on Pro and Elite organizer plans.'
+              : scanValidAtLabel
+                ? `Scanning for this event is valid at ${scanValidAtLabel}.`
+                : 'Scanning is not available yet for this event occurrence.'}
           </Text>
         </View>
       )}

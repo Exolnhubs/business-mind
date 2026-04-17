@@ -5,6 +5,17 @@ import { handleApiError, ok, NotFoundException, ForbiddenException } from '@/lib
 import { requireAuth } from '@/lib/auth'
 import { canUseTicketScanner, getOrganizerPlanAccess } from '@/lib/plans'
 
+function getScanOpensAt(startsAt: string) {
+  return new Date(new Date(startsAt).getTime() - 3 * 60 * 60 * 1000)
+}
+
+function formatScanOpensAt(value: Date) {
+  return value.toLocaleString('en-SA-u-ca-gregory', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  })
+}
+
 type BookingGetShape = {
   id: string; status: string; ticket_id: string | null; seat: string | null; scanned_at: string | null
   event: { id: string; title: string; start_at: string; venue_name: string | null; city: string } | null
@@ -122,8 +133,9 @@ export async function POST(req: NextRequest) {
       throw new ForbiddenException('QR scanning is not available for this event occurrence.')
     }
 
-    if (occurrence.ends_at && new Date(occurrence.ends_at).getTime() < Date.now()) {
-      throw new ForbiddenException('QR scanning is closed because this event has already ended.')
+    const scanOpensAt = getScanOpensAt(occurrence.starts_at)
+    if (Date.now() < scanOpensAt.getTime()) {
+      throw new ForbiddenException(`Scanning for this event is valid at ${formatScanOpensAt(scanOpensAt)}.`)
     }
 
     if (booking.status !== 'confirmed') {
