@@ -20,6 +20,10 @@ function formatScanOpensAt(value: Date) {
   })
 }
 
+function isScannableOccurrenceStatus(status: string | null | undefined) {
+  return status === 'scheduled' || status === 'completed'
+}
+
 // POST /api/bookings/scan
 // Organizer scans a QR code to check in an attendee.
 // Body: { ticket_id: string }
@@ -54,7 +58,7 @@ export async function POST(req: NextRequest) {
       throw new ForbiddenException('You do not own this event')
     }
 
-    if (!occurrence || occurrence.status !== 'scheduled') {
+    if (!occurrence || !isScannableOccurrenceStatus(occurrence.status)) {
       throw new ForbiddenException('QR scanning is not available for this event occurrence.')
     }
 

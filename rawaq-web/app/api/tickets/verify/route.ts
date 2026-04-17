@@ -16,6 +16,10 @@ function formatScanOpensAt(value: Date) {
   })
 }
 
+function isScannableOccurrenceStatus(status: string | null | undefined) {
+  return status === 'scheduled' || status === 'completed'
+}
+
 type BookingGetShape = {
   id: string; status: string; ticket_id: string | null; seat: string | null; scanned_at: string | null
   event: { id: string; title: string; start_at: string; venue_name: string | null; city: string } | null
@@ -129,7 +133,7 @@ export async function POST(req: NextRequest) {
       throw new ForbiddenException('Only the event organizer can scan tickets')
     }
 
-    if (!occurrence || occurrence.status !== 'scheduled') {
+    if (!occurrence || !isScannableOccurrenceStatus(occurrence.status)) {
       throw new ForbiddenException('QR scanning is not available for this event occurrence.')
     }
 

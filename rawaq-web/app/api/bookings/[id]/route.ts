@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireAuth } from '@/lib/auth'
-import { handleApiError, ok, NotFoundException, ForbiddenException } from '@/lib/errors'
+import { handleApiError, ok, NotFoundException, ForbiddenException, ApiException } from '@/lib/errors'
 import { UpdateBookingSchema } from '@/lib/validations/bookings'
 import { sendNotification } from '@/lib/notifications'
 
@@ -40,7 +40,7 @@ export async function PATCH(
       if (check && ctx.role !== 'admin' && check.user_id !== ctx.userId) {
         throw new ForbiddenException()
       }
-      if (ctx.role === 'user' && input.status !== 'cancelled') {
+      if (ctx.role === 'user' && input.status !== undefined && input.status !== 'cancelled') {
         throw new ForbiddenException('Users can only cancel bookings')
       }
     }
@@ -48,20 +48,77 @@ export async function PATCH(
     // Fetch booking + event title for notification
     const { data: booking, error: fetchErr } = await supabase
       .from('bookings')
-      .select('id, user_id, event_id, status, event:events(id, title)')
+      .select(`
+        id,
+        user_id,
+        event_id,
+        occurrence_id,
+        status,
+        group_size,
+        event:events(id, title),
+        occurrence:event_occurrences!occurrence_id(starts_at)
+      `)
       .eq('id', id)
       .single()
 
     if (fetchErr || !booking) throw new NotFoundException('Booking')
 
-    const { data, error } = await supabase
-      .from('bookings')
-      .update({ status: input.status })
-      .eq('id', id)
-      .select()
-      .single()
+    if (input.holders !== undefined) {
+      const groupSize = (booking as { group_size?: number | null }).group_size ?? 1
+      const expectedHolderCount = Math.max(0, groupSize - 1)
 
-    if (error) throw error
+      if (input.holders.length !== expectedHolderCount) {
+        throw new ApiException(`Expected ${expectedHolderCount} companion holder records for this booking`, 422)
+      }
+
+      if (booking.status === 'cancelled' || booking.status === 'waitlisted') {
+        throw new ForbiddenException('This booking can no longer be updated')
+      }
+
+      const occurrenceStartsAt = (booking as {
+        occurrence?: { starts_at?: string | null } | null
+      }).occurrence?.starts_at ?? null
+
+      if (occurrenceStartsAt && new Date(occurrenceStartsAt) <= new Date()) {
+        throw new ForbiddenException('Tickets can only be updated before the session starts')
+      }
+
+      const { error: deleteErr } = await supabase
+        .from('booking_holders')
+        .delete()
+        .eq('booking_id', id)
+
+      if (deleteErr) throw deleteErr
+
+      if (input.holders.length > 0) {
+        const holderRows = input.holders.map((holder, index) => ({
+          booking_id: id,
+          full_name: holder.full_name,
+          date_of_birth: holder.date_of_birth,
+          relation: holder.relation,
+          position: holder.position ?? index + 2,
+        }))
+
+        const { error: insertErr } = await supabase
+          .from('booking_holders')
+          .insert(holderRows as never)
+
+        if (insertErr) throw insertErr
+      }
+    }
+
+    let data: unknown = booking
+    if (input.status !== undefined) {
+      const { data: updatedBooking, error } = await supabase
+        .from('bookings')
+        .update({ status: input.status })
+        .eq('id', id)
+        .select()
+        .single()
+
+      if (error) throw error
+      data = updatedBooking
+    }
 
     // Fire booking_cancelled notification when status changes to cancelled
     if (input.status === 'cancelled') {

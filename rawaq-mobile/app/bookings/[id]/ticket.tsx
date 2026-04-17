@@ -1,11 +1,13 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import {
   View, Text, ScrollView, StyleSheet,
   TouchableOpacity, ActivityIndicator, Share,
+  TextInput, Alert, Modal, KeyboardAvoidingView, Platform,
 } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import QRCode from 'react-native-qrcode-svg'
 import { supabase } from '@/lib/supabase'
+import { apiPatch } from '@/lib/api'
 import { useAuth } from '@/contexts/auth-context'
 import { useLocale } from '@/contexts/locale-context'
 import { formatDate, formatTime } from '@/lib/utils'
@@ -36,17 +38,26 @@ interface TicketData {
   profile: { display_name: string } | null
 }
 
+type HolderData = {
+  id: string
+  full_name: string
+  date_of_birth: string
+  relation: string
+  position: number
+}
+
 export default function TicketScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const { user } = useAuth()
   const { t, locale } = useLocale()
   const router = useRouter()
 
-  type HolderData = { id: string; full_name: string; date_of_birth: string; relation: string; position: number }
-
   const [ticket, setTicket] = useState<TicketData | null>(null)
   const [holders, setHolders] = useState<HolderData[]>([])
   const [loading, setLoading] = useState(true)
+  const [showUpdateModal, setShowUpdateModal] = useState(false)
+  const [draftHolders, setDraftHolders] = useState<HolderData[]>([])
+  const [savingUpdate, setSavingUpdate] = useState(false)
 
   useEffect(() => {
     if (!user || !id) { setLoading(false); return }
@@ -63,7 +74,6 @@ export default function TicketScreen() {
       .single()
       .then(async ({ data }) => {
         setTicket(data as TicketData | null)
-        // Fetch dependent holders (resilient if migration not yet applied)
         try {
           const { data: holderRows } = await supabase
             .from('booking_holders' as any)
@@ -71,7 +81,9 @@ export default function TicketScreen() {
             .eq('booking_id', id)
             .order('position')
           setHolders((holderRows ?? []) as unknown as HolderData[])
-        } catch { /* migration may be pending */ }
+        } catch {
+          // booking_holders migration may still be pending
+        }
         setLoading(false)
       })
   }, [id, user])
@@ -83,6 +95,40 @@ export default function TicketScreen() {
       message: `I'm attending ${ticket.event.title}! Check it out: ${eventUrl}`,
       url: eventUrl,
     })
+  }
+
+  function openUpdateModal() {
+    setDraftHolders(holders.map((holder) => ({ ...holder })))
+    setShowUpdateModal(true)
+  }
+
+  async function handleUpdateTicket() {
+    if (!id) return
+
+    if (draftHolders.some((holder) => !holder.full_name.trim() || !holder.date_of_birth.trim() || !holder.relation.trim())) {
+      Alert.alert('Missing details', 'Please complete each companion attendee field before saving.')
+      return
+    }
+
+    setSavingUpdate(true)
+    const { error } = await apiPatch(`/api/bookings/${id}`, {
+      holders: draftHolders.map((holder) => ({
+        full_name: holder.full_name.trim(),
+        date_of_birth: holder.date_of_birth.trim(),
+        relation: holder.relation.trim(),
+        position: holder.position,
+      })),
+    })
+    setSavingUpdate(false)
+
+    if (error) {
+      Alert.alert('Update failed', error)
+      return
+    }
+
+    setHolders(draftHolders.map((holder) => ({ ...holder })))
+    setShowUpdateModal(false)
+    Alert.alert('Ticket updated', 'Your companion ticket details have been saved.')
   }
 
   if (loading) {
@@ -110,102 +156,191 @@ export default function TicketScreen() {
   const displayTitle = locale === 'ar' && event.title_ar ? event.title_ar : event.title
   const verifyUrl = `${APP_URL}/api/tickets/verify?t=${ticket.ticket_id}`
   const isScanned = !!ticket.scanned_at
+  const canUpdateTicket = holders.length > 0
+    && ticket.status === 'confirmed'
+    && (!ticket.occurrence?.starts_at || new Date(ticket.occurrence.starts_at) > new Date())
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      {/* Header band */}
-      <View style={styles.header}>
-        <Text style={styles.headerLogo}>Rawaq 🌟</Text>
-        <Text style={styles.headerSub}>{t('ticket.event_ticket')}</Text>
-        {isScanned && (
-          <View style={styles.scannedBadge}>
-            <Text style={styles.scannedText}>{t('ticket.scanned')}</Text>
-          </View>
-        )}
-      </View>
-
-      {/* Event info */}
-      <View style={styles.body}>
-        <Text style={styles.eventTitle} numberOfLines={2}>{displayTitle}</Text>
-        {locale !== 'ar' && event.title_ar && (
-          <Text style={styles.eventTitleAr} numberOfLines={1}>{event.title_ar}</Text>
-        )}
-
-        <View style={styles.infoList}>
-          <InfoRow icon="📅" label={t('ticket.date')} value={formatDate(displayStartAt, locale)} />
-          <InfoRow
-            icon="🕐"
-            label={t('ticket.time')}
-            value={formatTime(displayStartAt, locale) + (displayEndAt ? ` - ${formatTime(displayEndAt, locale)}` : '')}
-          />
-          <InfoRow icon="📍" label={t('ticket.venue')} value={event.venue_name ?? event.city} />
-          {event.address && <InfoRow icon="🗺️" label={t('ticket.address')} value={event.address} />}
-          <InfoRow icon="👤" label={t('ticket.attendee')} value={ticket.profile?.display_name ?? user?.email ?? ''} />
-          {ticket.seat && <InfoRow icon="💺" label={t('ticket.seat')} value={ticket.seat} />}
+    <>
+      <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.header}>
+          <Text style={styles.headerLogo}>Rawaq</Text>
+          <Text style={styles.headerSub}>{t('ticket.event_ticket')}</Text>
+          {isScanned && (
+            <View style={styles.scannedBadge}>
+              <Text style={styles.scannedText}>{t('ticket.scanned')}</Text>
+            </View>
+          )}
         </View>
-      </View>
 
-      {/* Dashed divider */}
-      <View style={styles.divider}>
-        <View style={styles.dividerCircleLeft} />
-        <View style={styles.dividerLine} />
-        <View style={styles.dividerCircleRight} />
-      </View>
+        <View style={styles.body}>
+          <Text style={styles.eventTitle} numberOfLines={2}>{displayTitle}</Text>
+          {locale !== 'ar' && event.title_ar && (
+            <Text style={styles.eventTitleAr} numberOfLines={1}>{event.title_ar}</Text>
+          )}
 
-      {/* QR section */}
-      <View style={styles.qrSection}>
-        <View style={[styles.qrWrapper, isScanned && styles.qrWrapperScanned]}>
-          <QRCode
-            value={verifyUrl}
-            size={200}
-            color={Colors.gray[900]}
-            backgroundColor={Colors.white}
-          />
-        </View>
-        <Text style={styles.ticketId}>{ticket.ticket_id}</Text>
-        <Text style={styles.qrHint}>{t('ticket.present_qr')}</Text>
-        {isScanned && (
-          <Text style={styles.scannedNote}>
-            {t('ticket.scanned_at')}: {new Date(ticket.scanned_at!).toLocaleString()}
-          </Text>
-        )}
-      </View>
-
-      {/* Dependent holder tickets */}
-      {holders.map((holder) => (
-        <View key={holder.id} style={{ marginTop: Spacing.lg, width: '100%', backgroundColor: Colors.white, borderRadius: Radius.xl, overflow: 'hidden', ...Shadow.card }}>
-          <View style={[styles.header, { paddingVertical: Spacing.md }]}>
-            <Text style={styles.headerLogo}>Rawaq 🌟</Text>
-            <Text style={styles.headerSub}>Guest Ticket — Position {holder.position}</Text>
+          <View style={styles.infoList}>
+            <InfoRow icon="DT" label={t('ticket.date')} value={formatDate(displayStartAt, locale)} />
+            <InfoRow
+              icon="TM"
+              label={t('ticket.time')}
+              value={formatTime(displayStartAt, locale) + (displayEndAt ? ` - ${formatTime(displayEndAt, locale)}` : '')}
+            />
+            <InfoRow icon="VN" label={t('ticket.venue')} value={event.venue_name ?? event.city} />
+            {event.address && <InfoRow icon="AD" label={t('ticket.address')} value={event.address} />}
+            <InfoRow icon="AT" label={t('ticket.attendee')} value={ticket.profile?.display_name ?? user?.email ?? ''} />
+            {ticket.seat && <InfoRow icon="ST" label={t('ticket.seat')} value={ticket.seat} />}
           </View>
-          <View style={styles.body}>
-            <View style={styles.infoList}>
-              <InfoRow icon="📅" label="Date" value={formatDate(displayStartAt, locale)} />
-              <InfoRow icon="🕐" label="Time" value={formatTime(displayStartAt, locale) + (displayEndAt ? ` - ${formatTime(displayEndAt, locale)}` : '')} />
-              <InfoRow icon="📍" label="Venue" value={event.venue_name ?? event.city} />
-              <InfoRow icon="👤" label="Attendee" value={holder.full_name} />
-              <InfoRow icon="🎂" label="Date of Birth" value={holder.date_of_birth} />
-              <InfoRow icon="👥" label="Relation" value={holder.relation} />
+        </View>
+
+        <View style={styles.divider}>
+          <View style={styles.dividerCircleLeft} />
+          <View style={styles.dividerLine} />
+          <View style={styles.dividerCircleRight} />
+        </View>
+
+        <View style={styles.qrSection}>
+          <View style={[styles.qrWrapper, isScanned && styles.qrWrapperScanned]}>
+            <QRCode
+              value={verifyUrl}
+              size={200}
+              color={Colors.gray[900]}
+              backgroundColor={Colors.white}
+            />
+          </View>
+          <Text style={styles.ticketId}>{ticket.ticket_id}</Text>
+          <Text style={styles.qrHint}>{t('ticket.present_qr')}</Text>
+          {isScanned && (
+            <Text style={styles.scannedNote}>
+              {t('ticket.scanned_at')}: {new Date(ticket.scanned_at!).toLocaleString()}
+            </Text>
+          )}
+        </View>
+
+        {holders.map((holder) => (
+          <View key={holder.id} style={styles.holderTicket}>
+            <View style={[styles.header, styles.holderHeader]}>
+              <Text style={styles.headerLogo}>Rawaq</Text>
+              <Text style={styles.headerSub}>Guest Ticket - Position {holder.position}</Text>
+            </View>
+            <View style={styles.body}>
+              <View style={styles.infoList}>
+                <InfoRow icon="DT" label="Date" value={formatDate(displayStartAt, locale)} />
+                <InfoRow icon="TM" label="Time" value={formatTime(displayStartAt, locale) + (displayEndAt ? ` - ${formatTime(displayEndAt, locale)}` : '')} />
+                <InfoRow icon="VN" label="Venue" value={event.venue_name ?? event.city} />
+                <InfoRow icon="AT" label="Attendee" value={holder.full_name} />
+                <InfoRow icon="BD" label="Date of Birth" value={holder.date_of_birth} />
+                <InfoRow icon="RL" label="Relation" value={holder.relation} />
+              </View>
+            </View>
+            <View style={styles.holderFooter}>
+              <Text style={styles.holderFooterText}>
+                Companion · {ticket.ticket_id.slice(-8).toUpperCase()}
+              </Text>
             </View>
           </View>
-          <View style={{ paddingHorizontal: Spacing.xl, paddingBottom: Spacing.lg, alignItems: 'center' }}>
-            <Text style={{ fontSize: FontSize.xs, color: Colors.gray[400], fontFamily: 'monospace' }}>
-              Companion · {ticket.ticket_id?.slice(-8).toUpperCase()}
-            </Text>
-          </View>
-        </View>
-      ))}
+        ))}
 
-      {/* Actions */}
-      <View style={styles.actions}>
-        <TouchableOpacity style={styles.shareBtn} onPress={handleShare}>
-          <Text style={styles.shareBtnText}>📤 {t('ticket.share')}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.backLink} onPress={() => router.back()}>
-          <Text style={styles.backLinkText}>{t('common.back')}</Text>
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+        <View style={styles.actions}>
+          {canUpdateTicket && (
+            <TouchableOpacity style={styles.updateBtn} onPress={openUpdateModal}>
+              <Text style={styles.updateBtnText}>Update Ticket</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity style={styles.shareBtn} onPress={handleShare}>
+            <Text style={styles.shareBtnText}>{t('ticket.share')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.backLink} onPress={() => router.back()}>
+            <Text style={styles.backLinkText}>{t('common.back')}</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+
+      <Modal
+        visible={showUpdateModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowUpdateModal(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.modalSheet}>
+            <Text style={styles.modalTitle}>Update Ticket</Text>
+            <Text style={styles.modalSub}>
+              Update the companion attendee details for this booking before the session starts.
+            </Text>
+
+            <ScrollView style={styles.modalScroll} contentContainerStyle={styles.modalScrollContent}>
+              {draftHolders.map((holder, index) => (
+                <View key={holder.id || `${holder.position}-${index}`} style={styles.editorCard}>
+                  <Text style={styles.editorTitle}>Companion {holder.position}</Text>
+
+                  <Text style={styles.editorLabel}>Full Name *</Text>
+                  <TextInput
+                    style={styles.editorInput}
+                    value={holder.full_name}
+                    onChangeText={(text) => {
+                      setDraftHolders((current) => current.map((item, itemIndex) => (
+                        itemIndex === index ? { ...item, full_name: text } : item
+                      )))
+                    }}
+                    placeholder="Full name of attendee"
+                    placeholderTextColor={Colors.gray[400]}
+                    maxLength={120}
+                  />
+
+                  <Text style={styles.editorLabel}>Date of Birth * (YYYY-MM-DD)</Text>
+                  <TextInput
+                    style={styles.editorInput}
+                    value={holder.date_of_birth}
+                    onChangeText={(text) => {
+                      setDraftHolders((current) => current.map((item, itemIndex) => (
+                        itemIndex === index ? { ...item, date_of_birth: text } : item
+                      )))
+                    }}
+                    placeholder="1990-01-31"
+                    placeholderTextColor={Colors.gray[400]}
+                    keyboardType="numbers-and-punctuation"
+                    maxLength={10}
+                  />
+
+                  <Text style={styles.editorLabel}>Relation *</Text>
+                  <TextInput
+                    style={styles.editorInput}
+                    value={holder.relation}
+                    onChangeText={(text) => {
+                      setDraftHolders((current) => current.map((item, itemIndex) => (
+                        itemIndex === index ? { ...item, relation: text } : item
+                      )))
+                    }}
+                    placeholder="e.g. son, wife, friend"
+                    placeholderTextColor={Colors.gray[400]}
+                    maxLength={60}
+                  />
+                </View>
+              ))}
+            </ScrollView>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalPrimaryBtn, savingUpdate && styles.modalPrimaryBtnDisabled]}
+                onPress={handleUpdateTicket}
+                disabled={savingUpdate}
+              >
+                {savingUpdate
+                  ? <ActivityIndicator color={Colors.white} />
+                  : <Text style={styles.modalPrimaryBtnText}>Save Changes</Text>}
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalSecondaryBtn} onPress={() => setShowUpdateModal(false)}>
+                <Text style={styles.modalSecondaryBtnText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+    </>
   )
 }
 
@@ -237,13 +372,13 @@ const styles = StyleSheet.create({
   backBtn: { paddingHorizontal: Spacing.xl, paddingVertical: Spacing.md, backgroundColor: Colors.brand[500], borderRadius: Radius.lg },
   backBtnText: { color: Colors.white, fontWeight: FontWeight.semibold },
 
-  // Ticket card
   header: {
     width: '100%', maxWidth: 380,
     backgroundColor: Colors.brand[500],
     borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl,
     paddingHorizontal: Spacing.xl, paddingVertical: Spacing.lg,
   },
+  holderHeader: { paddingVertical: Spacing.md },
   headerLogo: { color: Colors.white, fontSize: FontSize.lg, fontWeight: FontWeight.bold },
   headerSub: { color: Colors.brand[100], fontSize: FontSize.xs, marginTop: 2 },
   scannedBadge: {
@@ -296,7 +431,27 @@ const styles = StyleSheet.create({
   qrHint: { marginTop: 4, fontSize: FontSize.xs, color: Colors.gray[400], textAlign: 'center' },
   scannedNote: { marginTop: Spacing.sm, fontSize: FontSize.xs, color: Colors.red.text, textAlign: 'center' },
 
+  holderTicket: {
+    marginTop: Spacing.lg,
+    width: '100%',
+    backgroundColor: Colors.white,
+    borderRadius: Radius.xl,
+    overflow: 'hidden',
+    ...Shadow.card,
+  },
+  holderFooter: { paddingHorizontal: Spacing.xl, paddingBottom: Spacing.lg, alignItems: 'center' },
+  holderFooterText: { fontSize: FontSize.xs, color: Colors.gray[400], fontFamily: 'monospace' },
+
   actions: { marginTop: Spacing['2xl'], width: '100%', maxWidth: 380, gap: Spacing.sm },
+  updateBtn: {
+    backgroundColor: Colors.white,
+    borderRadius: Radius.lg,
+    paddingVertical: Spacing.md + 2,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.brand[200],
+  },
+  updateBtnText: { color: Colors.brand[600], fontWeight: FontWeight.semibold, fontSize: FontSize.base },
   shareBtn: {
     backgroundColor: Colors.brand[500], borderRadius: Radius.lg,
     paddingVertical: Spacing.md + 2, alignItems: 'center',
@@ -304,4 +459,55 @@ const styles = StyleSheet.create({
   shareBtnText: { color: Colors.white, fontWeight: FontWeight.semibold, fontSize: FontSize.base },
   backLink: { alignItems: 'center', paddingVertical: Spacing.sm },
   backLinkText: { color: Colors.brand[600], fontSize: FontSize.sm, fontWeight: FontWeight.medium },
+
+  modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.45)' },
+  modalSheet: {
+    backgroundColor: Colors.white,
+    borderTopLeftRadius: Radius.xl,
+    borderTopRightRadius: Radius.xl,
+    padding: Spacing.xl,
+    paddingBottom: Spacing['2xl'],
+    maxHeight: '88%',
+  },
+  modalTitle: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.gray[900] },
+  modalSub: { fontSize: FontSize.sm, color: Colors.gray[500], marginTop: 4, marginBottom: Spacing.lg, lineHeight: 20 },
+  modalScroll: { flexGrow: 0 },
+  modalScrollContent: { gap: Spacing.md },
+  editorCard: {
+    backgroundColor: Colors.gray[50],
+    borderRadius: Radius.lg,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.gray[100],
+  },
+  editorTitle: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[900], marginBottom: Spacing.sm },
+  editorLabel: { fontSize: FontSize.xs, fontWeight: FontWeight.medium, color: Colors.gray[600], marginBottom: 6 },
+  editorInput: {
+    borderWidth: 1,
+    borderColor: Colors.gray[200],
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm + 2,
+    fontSize: FontSize.base,
+    color: Colors.gray[900],
+    marginBottom: Spacing.sm,
+    backgroundColor: Colors.white,
+  },
+  modalActions: { gap: Spacing.sm, marginTop: Spacing.lg },
+  modalPrimaryBtn: {
+    backgroundColor: Colors.brand[500],
+    borderRadius: Radius.lg,
+    paddingVertical: Spacing.md,
+    alignItems: 'center',
+  },
+  modalPrimaryBtnDisabled: { opacity: 0.6 },
+  modalPrimaryBtnText: { color: Colors.white, fontWeight: FontWeight.semibold, fontSize: FontSize.base },
+  modalSecondaryBtn: {
+    borderWidth: 1,
+    borderColor: Colors.gray[200],
+    borderRadius: Radius.lg,
+    paddingVertical: Spacing.md,
+    alignItems: 'center',
+  },
+  modalSecondaryBtnText: { color: Colors.gray[600], fontWeight: FontWeight.medium, fontSize: FontSize.base },
 })

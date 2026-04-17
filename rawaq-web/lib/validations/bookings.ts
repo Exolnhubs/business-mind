@@ -18,7 +18,10 @@ export const CreateBookingSchema = z.object({
 })
 
 export const UpdateBookingSchema = z.object({
-  status: z.enum(['cancelled', 'confirmed', 'waitlisted']),
+  status: z.enum(['cancelled', 'confirmed', 'waitlisted']).optional(),
+  holders: z.array(HolderSchema).optional(),
+}).refine((value) => value.status !== undefined || value.holders !== undefined, {
+  message: 'At least one booking update field is required',
 })
 
 export type CreateBookingInput = z.infer<typeof CreateBookingSchema>
