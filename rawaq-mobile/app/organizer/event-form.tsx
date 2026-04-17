@@ -452,8 +452,6 @@ export default function EventFormScreen() {
       end_at: parsedEnd?.toISOString() ?? null,
       recurrence_until: eventFrequency !== 'one_time' && recurrenceUntil ? parseDate(recurrenceUntil).toISOString() : null,
       capacity: capacity ? Number(capacity) : null,
-      is_free: isFree,
-      price: isFree ? null : Number(price),
       currency: eventCurrency,
       event_frequency: eventFrequency,
       gender_restriction: genderRestriction,
