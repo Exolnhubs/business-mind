@@ -1,8 +1,11 @@
 -- 00069_ticket_hot_offer.sql
 ALTER TABLE ticket_types
   ADD COLUMN IF NOT EXISTS is_hot_offer      BOOLEAN       NOT NULL DEFAULT FALSE,
-  ADD COLUMN IF NOT EXISTS hot_offer_price   NUMERIC(10,2) CHECK (hot_offer_price >= 0),
+  ADD COLUMN IF NOT EXISTS hot_offer_price   NUMERIC(10,2) CONSTRAINT chk_hot_offer_price_non_negative CHECK (hot_offer_price >= 0),
   ADD COLUMN IF NOT EXISTS hot_offer_ends_at TIMESTAMPTZ;
+
+ALTER TABLE ticket_types
+  DROP CONSTRAINT IF EXISTS chk_hot_offer_fields;
 
 ALTER TABLE ticket_types
   ADD CONSTRAINT chk_hot_offer_fields
