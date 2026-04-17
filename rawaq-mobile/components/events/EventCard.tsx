@@ -51,6 +51,10 @@ export const EventCard = React.memo(function EventCard({
   useEffect(() => { setSaved(initialSaved) }, [initialSaved])
 
   const icon = CATEGORY_EMOJI[event.category?.name_en?.toLowerCase() ?? ''] ?? '📅'
+  const now = new Date()
+  const hasHotOffer = (event.ticket_types ?? []).some(
+    (tt) => tt.is_hot_offer && !!tt.hot_offer_ends_at && new Date(tt.hot_offer_ends_at) > now,
+  )
   const spotsLeft = event.capacity ? event.capacity - event.bookings_count : null
   const isFull = spotsLeft !== null && spotsLeft <= 0
   const almostFull = spotsLeft !== null && spotsLeft > 0 && spotsLeft <= 10
@@ -120,6 +124,7 @@ export const EventCard = React.memo(function EventCard({
         {/* Attribute badges sit on the scrim */}
         <View style={cardStyles.badges}>
           {event.is_free && <Badge label="Free" variant="green" />}
+          {hasHotOffer && <Badge label="🔥 Hot Offer" variant="orange" />}
           {event.is_family_friendly && <Badge label="Family" variant="blue" />}
           {event.gender_restriction !== 'mixed' && (
             <Badge

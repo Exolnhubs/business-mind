@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet } from 'react-native'
 import { Colors, Radius, FontSize, FontWeight } from '@/theme'
 
-type Variant = 'brand' | 'green' | 'red' | 'yellow' | 'gray' | 'blue'
+type Variant = 'brand' | 'green' | 'red' | 'yellow' | 'gray' | 'blue' | 'orange'
 
 const variantStyles: Record<Variant, { bg: string; text: string }> = {
   brand:  { bg: Colors.brand[100],       text: Colors.brand[700] },
@@ -10,6 +10,7 @@ const variantStyles: Record<Variant, { bg: string; text: string }> = {
   yellow: { bg: Colors.yellow.light,     text: Colors.yellow.text },
   gray:   { bg: Colors.gray[100],        text: Colors.gray[600] },
   blue:   { bg: Colors.blue.light,       text: Colors.blue.text },
+  orange: { bg: '#ffedd5',               text: '#c2410c' },
 }
 
 interface BadgeProps {

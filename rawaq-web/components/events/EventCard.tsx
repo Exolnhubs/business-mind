@@ -20,23 +20,34 @@ interface EventCardProps {
   showSave?: boolean
 }
 
+function effectiveTicketPrice(tt: { price: number; is_hot_offer: boolean; hot_offer_price: number | null; hot_offer_ends_at: string | null }): number {
+  if (tt.is_hot_offer && tt.hot_offer_price != null && tt.hot_offer_ends_at && new Date(tt.hot_offer_ends_at) > new Date()) {
+    return tt.hot_offer_price
+  }
+  return tt.price
+}
+
 function getPriceDisplay(
   event: EventWithOrganizer,
   locale: string,
   t: (key: string) => string,
-): { label: string; isFree: boolean } {
+): { label: string; isFree: boolean; hasHotOffer: boolean } {
   const active = (event.ticket_types ?? []).filter((ticket) => ticket.is_active)
+  const now = new Date()
+  const hasHotOffer = active.some(
+    (tt) => tt.is_hot_offer && !!tt.hot_offer_ends_at && new Date(tt.hot_offer_ends_at) > now,
+  )
   if (active.length > 0) {
     const paid = active.filter((ticket) => !ticket.is_free)
-    if (paid.length === 0) return { label: t('events.free'), isFree: true }
-    const prices = paid.map((ticket) => ticket.price)
+    if (paid.length === 0) return { label: t('events.free'), isFree: true, hasHotOffer }
+    const prices = paid.map((ticket) => effectiveTicketPrice(ticket))
     const min = Math.min(...prices)
     const max = Math.max(...prices)
-    if (min === max) return { label: formatCurrency(min, event.currency, locale), isFree: false }
-    return { label: t('events.card.from').replace('{price}', formatCurrency(min, event.currency, locale)), isFree: false }
+    if (min === max) return { label: formatCurrency(min, event.currency, locale), isFree: false, hasHotOffer }
+    return { label: t('events.card.from').replace('{price}', formatCurrency(min, event.currency, locale)), isFree: false, hasHotOffer }
   }
-  if (event.is_free || !event.price) return { label: t('events.free'), isFree: true }
-  return { label: formatCurrency(event.price, event.currency, locale), isFree: false }
+  if (event.is_free || !event.price) return { label: t('events.free'), isFree: true, hasHotOffer }
+  return { label: formatCurrency(event.price, event.currency, locale), isFree: false, hasHotOffer }
 }
 
 export function EventCard({ event, locale, isSaved = false, showSave = false }: EventCardProps) {
@@ -63,6 +74,7 @@ export function EventCard({ event, locale, isSaved = false, showSave = false }: 
 
         <div className="absolute top-3 start-3 z-10 flex flex-wrap gap-1.5">
           {priceDisplay.isFree && <Badge variant="green">{t('events.free')}</Badge>}
+          {priceDisplay.hasHotOffer && <Badge variant="orange">🔥 Hot Offer</Badge>}
           {event.is_family_friendly && <Badge variant="blue"> {t('events.card.family')}</Badge>}
           {event.gender_restriction !== 'mixed' && (
             <Badge variant="yellow">

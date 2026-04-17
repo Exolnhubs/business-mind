@@ -24,8 +24,9 @@ type FeedOrganizer = Pick<Profile, 'id' | 'display_name' | 'avatar_url'> & {
 async function hydrateEvents(rows: Event[]): Promise<EventWithOrganizer[]> {
   const organizerIds = [...new Set(rows.map((row) => row.organizer_id))]
   const categoryIds = [...new Set(rows.map((row) => row.category_id).filter((id): id is string => Boolean(id)))]
+  const eventIds = rows.map((row) => row.id)
 
-  const [{ data: organizers }, { data: organizerProfiles }, { data: categories }] = await Promise.all([
+  const [{ data: organizers }, { data: organizerProfiles }, { data: categories }, { data: hotTickets }] = await Promise.all([
     organizerIds.length
       ? supabase.from('profiles').select('id, display_name, avatar_url').in('id', organizerIds)
       : Promise.resolve({ data: [] as Pick<Profile, 'id' | 'display_name' | 'avatar_url'>[] }),
@@ -35,7 +36,16 @@ async function hydrateEvents(rows: Event[]): Promise<EventWithOrganizer[]> {
     categoryIds.length
       ? supabase.from('event_categories').select('id, name_en, name_ar, icon').in('id', categoryIds)
       : Promise.resolve({ data: [] as Pick<EventCategory, 'id' | 'name_en' | 'name_ar' | 'icon'>[] }),
+    eventIds.length
+      ? supabase.from('ticket_types').select('id, event_id, price, is_free, is_active, is_hot_offer, hot_offer_price, hot_offer_ends_at').in('event_id', eventIds).eq('is_active', true)
+      : Promise.resolve({ data: [] as Array<{ id: string; event_id: string; price: number; is_free: boolean; is_active: boolean; is_hot_offer: boolean; hot_offer_price: number | null; hot_offer_ends_at: string | null }> }),
   ])
+
+  const ticketsByEventId = new Map<string, typeof hotTickets>()
+  for (const tt of hotTickets ?? []) {
+    if (!ticketsByEventId.has(tt.event_id)) ticketsByEventId.set(tt.event_id, [])
+    ticketsByEventId.get(tt.event_id)!.push(tt)
+  }
 
   const organizerProfileByUserId = new Map(
     (organizerProfiles ?? []).map((entry) => [entry.user_id, entry]),
@@ -70,6 +80,7 @@ async function hydrateEvents(rows: Event[]): Promise<EventWithOrganizer[]> {
         organizer_profile: null,
       },
       category: row.category_id ? categoryById.get(row.category_id) ?? null : null,
+      ticket_types: ticketsByEventId.get(row.id) ?? [],
     }))
     .map((row) => applyResolvedEventWindow(row))
 }

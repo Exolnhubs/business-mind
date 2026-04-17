@@ -767,7 +767,7 @@ export interface EventWithOrganizer extends Event {
   };
   category: Pick<EventCategory, "id" | "name_en" | "name_ar" | "icon"> | null;
   ticket_types?: Array<
-    Pick<TicketType, "id" | "price" | "is_free" | "is_active">
+    Pick<TicketType, "id" | "price" | "is_free" | "is_active" | "is_hot_offer" | "hot_offer_price" | "hot_offer_ends_at">
   >;
 }
 

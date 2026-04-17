@@ -17,6 +17,13 @@ import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
 import type { Community, EventOccurrence, EventWithOrganizer, CommentWithAuthor, TicketType, ReportReason } from '@/types/database'
 import { applyResolvedEventWindow } from '@/lib/event-recurrence'
 
+function getEffectivePrice(tt: TicketType): number {
+  if (tt.is_hot_offer && tt.hot_offer_price != null && tt.hot_offer_ends_at && new Date(tt.hot_offer_ends_at) > new Date()) {
+    return tt.hot_offer_price
+  }
+  return tt.price
+}
+
 interface PaymentOption {
   id: string
   gateway: string
@@ -218,7 +225,7 @@ export default function EventDetailScreen() {
     if (!promoCode.trim() || !event) return
     setPromoLoading(true)
 
-    const basePrice = selectedType ? selectedType.price : (event.price ?? 0)
+    const basePrice = selectedType ? getEffectivePrice(selectedType) : (event.price ?? 0)
     const code = promoCode.toUpperCase().trim()
 
     const { data: codes } = await supabase
@@ -303,7 +310,7 @@ export default function EventDetailScreen() {
   // Compute whether the current selection results in a paid booking
   const computeIsPaid = useCallback((): boolean => {
     if (!event) return false
-    const basePrice = selectedType ? selectedType.price : (event.price ?? 0)
+    const basePrice = selectedType ? getEffectivePrice(selectedType) : (event.price ?? 0)
     const disc = promoResult?.valid ? (promoResult.discount_amount ?? 0) : 0
     const finalP = Math.max(0, basePrice - disc)
     const isFree = selectedType ? selectedType.is_free || finalP === 0 : event.is_free || finalP === 0
@@ -950,9 +957,18 @@ export default function EventDetailScreen() {
                                   {saleEnded && <Text style={styles.ticketUnavail}>Sales ended</Text>}
                                   {notStarted && <Text style={styles.ticketUnavail}>Coming soon</Text>}
                                 </View>
-                                <Text style={[styles.ticketPrice, unavailable && { color: Colors.gray[400] }]}>
-                                  {tt.is_free ? 'Free' : formatCurrency(tt.price, event.currency, locale)}
-                                </Text>
+                                {(() => {
+                                  const hotActive = tt.is_hot_offer && tt.hot_offer_price != null && !!tt.hot_offer_ends_at && new Date(tt.hot_offer_ends_at) > now
+                                  const effective = getEffectivePrice(tt)
+                                  if (tt.is_free) return <Text style={[styles.ticketPrice, unavailable && { color: Colors.gray[400] }]}>Free</Text>
+                                  if (hotActive) return (
+                                    <View style={{ alignItems: 'flex-end' }}>
+                                      <Text style={{ fontSize: FontSize.xs, color: Colors.gray[400], textDecorationLine: 'line-through' }}>{formatCurrency(tt.price, event.currency, locale)}</Text>
+                                      <Text style={{ fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: '#ea580c' }}>🔥 {formatCurrency(effective, event.currency, locale)}</Text>
+                                    </View>
+                                  )
+                                  return <Text style={[styles.ticketPrice, unavailable && { color: Colors.gray[400] }]}>{formatCurrency(effective, event.currency, locale)}</Text>
+                                })()}
                               </View>
                               {selectedTypeId === tt.id && (
                                 <Text style={styles.ticketSelected}>✓ Selected</Text>
@@ -1086,7 +1102,7 @@ export default function EventDetailScreen() {
                         : (
                           <Text style={styles.bookBtnText}>
                             {(() => {
-                              const basePrice = selectedType ? selectedType.price : (event.price ?? 0)
+                              const basePrice = selectedType ? getEffectivePrice(selectedType) : (event.price ?? 0)
                               const disc = promoResult?.valid ? (promoResult.discount_amount ?? 0) : 0
                               const primaryTotal = Math.max(0, basePrice - disc)
                               const total = primaryTotal + basePrice * (groupSize - 1)

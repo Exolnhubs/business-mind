@@ -7,6 +7,14 @@ import { useAuth } from '@/contexts/auth-context'
 import { formatCurrency, formatDate, formatTime } from '@/lib/utils'
 import type { EventOccurrence, TicketType } from '@/types/database'
 
+// ── Helpers ─────────────────────────────────────────────────────────────────
+function getEffectivePrice(ticket: TicketType): number {
+  if (ticket.is_hot_offer && ticket.hot_offer_price != null && ticket.hot_offer_ends_at && new Date(ticket.hot_offer_ends_at) > new Date()) {
+    return ticket.hot_offer_price
+  }
+  return ticket.price
+}
+
 // ── Ticket type card ────────────────────────────────────────────────────────
 function TicketCard({
   ticket,
@@ -54,9 +62,18 @@ function TicketCard({
           )}
         </div>
         <div className="shrink-0 text-right">
-          <span className={`text-sm font-bold ${unavailable ? 'text-gray-400' : 'text-brand-700'}`}>
-            {ticket.is_free ? 'Free' : formatCurrency(ticket.price, currency)}
-          </span>
+          {(() => {
+            const effective = getEffectivePrice(ticket)
+            const hotActive = ticket.is_hot_offer && ticket.hot_offer_price != null && !!ticket.hot_offer_ends_at && new Date(ticket.hot_offer_ends_at) > new Date()
+            if (ticket.is_free) return <span className={`text-sm font-bold ${unavailable ? 'text-gray-400' : 'text-brand-700'}`}>Free</span>
+            if (hotActive) return (
+              <span className="flex flex-col items-end gap-0.5">
+                <span className="text-xs text-gray-400 line-through">{formatCurrency(ticket.price, currency)}</span>
+                <span className={`text-sm font-bold ${unavailable ? 'text-gray-400' : 'text-orange-600'}`}>🔥 {formatCurrency(effective, currency)}</span>
+              </span>
+            )
+            return <span className={`text-sm font-bold ${unavailable ? 'text-gray-400' : 'text-brand-700'}`}>{formatCurrency(effective, currency)}</span>
+          })()}
         </div>
       </div>
       {selected && <div className="mt-1.5 text-xs text-brand-600 font-medium">✓ Selected</div>}
@@ -119,8 +136,8 @@ export function BookingFlow({
     ? selectedOccurrence.capacity - selectedOccurrence.bookings_count
     : null
 
-  // Price preview for the CTA button label
-  const basePrice = selectedType ? selectedType.price : (eventPrice ?? 0)
+  // Price preview for the CTA button label — use hot offer price if active
+  const basePrice = selectedType ? getEffectivePrice(selectedType) : (eventPrice ?? 0)
   const effectiveFree = selectedType ? selectedType.is_free : isFree
 
   // ── Cancel booking ──────────────────────────────────────────────────────

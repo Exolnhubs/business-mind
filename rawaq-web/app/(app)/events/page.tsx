@@ -55,7 +55,7 @@ async function NearYouThisWeekend({
       organizer_profile:organizer_profiles!user_id(business_name, business_name_ar, logo_url, verified)
     ),
     category:event_categories(id, name_en, name_ar, icon),
-    ticket_types(id, price, is_free, is_active)
+    ticket_types(id, price, is_free, is_active, is_hot_offer, hot_offer_price, hot_offer_ends_at)
   `
 
   let events: EventWithOrganizer[] = []
@@ -171,7 +171,7 @@ async function EventsGrid({ searchParams }: { searchParams: SearchParams }) {
         organizer_profile:organizer_profiles!user_id(business_name, business_name_ar, logo_url, verified)
       ),
       category:event_categories(id, name_en, name_ar, icon),
-      ticket_types(id, price, is_free, is_active)
+      ticket_types(id, price, is_free, is_active, is_hot_offer, hot_offer_price, hot_offer_ends_at)
     `,
       { count: 'exact' },
     )

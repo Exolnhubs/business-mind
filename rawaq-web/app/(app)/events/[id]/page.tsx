@@ -14,6 +14,13 @@ import type { Community, EventOccurrence, EventWithOrganizer, CommentWithAuthor,
 import { applyResolvedEventWindow } from '@/lib/events/recurrence'
 import { listEventOccurrences, getBookableOccurrences } from '@/lib/events/occurrences'
 
+function getEffectivePrice(tt: TicketType): number {
+  if (tt.is_hot_offer && tt.hot_offer_price != null && tt.hot_offer_ends_at && new Date(tt.hot_offer_ends_at) > new Date()) {
+    return tt.hot_offer_price
+  }
+  return tt.price
+}
+
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
   const supabase = await createSupabaseServerClient()
@@ -197,14 +204,25 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
             <InfoBlock icon="💰" label="Price">
               {ticketTypes && ticketTypes.length > 0 ? (
                 <div className="space-y-0.5">
-                  {ticketTypes.map((tt) => (
-                    <p key={tt.id} className="text-sm font-medium">
-                      <span className="text-gray-600">{tt.name}: </span>
-                      <span className={tt.is_free ? 'text-green-600' : 'text-brand-700'}>
-                        {tt.is_free ? 'Free' : formatCurrency(tt.price, ev.currency)}
-                      </span>
-                    </p>
-                  ))}
+                  {(ticketTypes as TicketType[]).map((tt) => {
+                    const effective = getEffectivePrice(tt)
+                    const hotActive = tt.is_hot_offer && tt.hot_offer_price != null && !!tt.hot_offer_ends_at && new Date(tt.hot_offer_ends_at) > new Date()
+                    return (
+                      <p key={tt.id} className="text-sm font-medium flex items-center gap-1.5">
+                        <span className="text-gray-600">{tt.name}: </span>
+                        {tt.is_free ? (
+                          <span className="text-green-600">Free</span>
+                        ) : hotActive ? (
+                          <>
+                            <span className="text-gray-400 line-through text-xs">{formatCurrency(tt.price, ev.currency)}</span>
+                            <span className="text-orange-600 font-semibold">🔥 {formatCurrency(effective, ev.currency)}</span>
+                          </>
+                        ) : (
+                          <span className="text-brand-700">{formatCurrency(effective, ev.currency)}</span>
+                        )}
+                      </p>
+                    )
+                  })}
                 </div>
               ) : (
                 <p className="text-sm font-medium">
@@ -259,13 +277,14 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
                     {(() => {
                       const paid = (ticketTypes as TicketType[]).filter((t) => t.is_active && !t.is_free)
                       if (paid.length === 0) return <span className="text-2xl font-bold text-green-600">Free</span>
-                      const prices = paid.map((t) => t.price)
+                      const prices = paid.map((t) => getEffectivePrice(t))
                       const min = Math.min(...prices)
                       const max = Math.max(...prices)
+                      const hasHot = paid.some((t) => t.is_hot_offer && !!t.hot_offer_ends_at && new Date(t.hot_offer_ends_at) > new Date())
                       return (
                         <div>
-                          <span className="text-xs text-gray-400 font-medium uppercase tracking-wide block">from</span>
-                          <span className="text-2xl font-bold text-gray-900">{formatCurrency(min, ev.currency)}</span>
+                          <span className="text-xs text-gray-400 font-medium uppercase tracking-wide block">{hasHot ? '🔥 from' : 'from'}</span>
+                          <span className={`text-2xl font-bold ${hasHot ? 'text-orange-600' : 'text-gray-900'}`}>{formatCurrency(min, ev.currency)}</span>
                           {max !== min && <span className="text-sm text-gray-500 ml-1">- {formatCurrency(max, ev.currency)}</span>}
                         </div>
                       )
