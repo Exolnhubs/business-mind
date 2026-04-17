@@ -247,7 +247,9 @@ export default function ManageTicketTypesPage() {
       ) : (
         <div className="space-y-2">
           {types.map((t) => {
-            const soldOut = t.capacity !== null && t.sold_count >= t.capacity
+            const soldOut    = t.capacity !== null && t.sold_count >= t.capacity
+            const hotActive  = t.is_hot_offer && !!t.hot_offer_ends_at && new Date(t.hot_offer_ends_at) > new Date()
+            const hotExpired = t.is_hot_offer && !!t.hot_offer_ends_at && new Date(t.hot_offer_ends_at) <= new Date()
             return (
               <div key={t.id} className={`card p-4 flex items-center gap-3 ${!t.is_active ? 'opacity-50' : ''}`}>
                 <div className="flex-1 min-w-0">
@@ -255,29 +257,22 @@ export default function ManageTicketTypesPage() {
                     <span className="text-sm font-semibold text-gray-900">{t.name}</span>
                     {!t.is_active && <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">Inactive</span>}
                     {soldOut && <span className="text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full">Sold out</span>}
+                    {hotActive && <span className="text-xs bg-orange-100 text-orange-500 px-1.5 py-0.5 rounded-full">🔥 Hot</span>}
                   </div>
                   <div className="flex gap-3 mt-0.5 text-xs text-gray-500 flex-wrap">
-                    {(() => {
-                      const hotActive  = t.is_hot_offer && !!t.hot_offer_ends_at && new Date(t.hot_offer_ends_at) > new Date()
-                      const hotExpired = t.is_hot_offer && !!t.hot_offer_ends_at && new Date(t.hot_offer_ends_at) <= new Date()
-                      return (
-                        <>
-                          {hotActive ? (
-                            <span className="flex items-center gap-1">
-                              <span className="line-through text-gray-400">{t.is_free ? 'Free' : formatCurrency(t.price, eventCurrency)}</span>
-                              <span className="font-semibold text-orange-600">🔥 {formatCurrency(t.hot_offer_price!, eventCurrency)}</span>
-                              <span className="text-gray-400">until {new Date(t.hot_offer_ends_at!).toLocaleDateString()}</span>
-                            </span>
-                          ) : (
-                            <span className="font-medium text-brand-700">{t.is_free ? 'Free' : formatCurrency(t.price, eventCurrency)}</span>
-                          )}
-                          {hotExpired && <span className="text-xs bg-orange-100 text-orange-500 px-1.5 py-0.5 rounded-full">Offer expired</span>}
-                          {t.capacity && <span>{t.sold_count}/{t.capacity} sold</span>}
-                          {!t.capacity && t.sold_count > 0 && <span>{t.sold_count} sold</span>}
-                          {t.sale_ends_at && !hotActive && <span>Ends {new Date(t.sale_ends_at).toLocaleDateString()}</span>}
-                        </>
-                      )
-                    })()}
+                    {hotActive ? (
+                      <span className="flex items-center gap-1">
+                        <span className="line-through text-gray-400">{t.is_free ? 'Free' : formatCurrency(t.price, eventCurrency)}</span>
+                        <span className="font-semibold text-orange-600">🔥 {formatCurrency(t.hot_offer_price!, eventCurrency)}</span>
+                        <span className="text-gray-400">until {new Date(t.hot_offer_ends_at!).toLocaleDateString()}</span>
+                      </span>
+                    ) : (
+                      <span className="font-medium text-brand-700">{t.is_free ? 'Free' : formatCurrency(t.price, eventCurrency)}</span>
+                    )}
+                    {hotExpired && <span className="text-xs bg-orange-100 text-orange-500 px-1.5 py-0.5 rounded-full">Offer expired</span>}
+                    {t.capacity && <span>{t.sold_count}/{t.capacity} sold</span>}
+                    {!t.capacity && t.sold_count > 0 && <span>{t.sold_count} sold</span>}
+                    {t.sale_ends_at && !hotActive && <span>Ends {new Date(t.sale_ends_at).toLocaleDateString()}</span>}
                   </div>
                 </div>
                 <div className="flex gap-2 shrink-0">
