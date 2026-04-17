@@ -5,16 +5,19 @@ import { requireAuth } from '@/lib/auth'
 import { handleApiError, ok, NotFoundException, ForbiddenException } from '@/lib/errors'
 
 const UpdateTicketTypeSchema = z.object({
-  name:           z.string().min(1).max(100).optional(),
-  name_ar:        z.string().max(100).optional().nullable(),
-  description:    z.string().max(500).optional().nullable(),
-  price:          z.number().min(0).optional(),
-  capacity:       z.number().int().positive().optional().nullable(),
-  is_free:        z.boolean().optional(),
-  sale_starts_at: z.string().datetime().optional().nullable(),
-  sale_ends_at:   z.string().datetime().optional().nullable(),
-  sort_order:     z.number().int().optional(),
-  is_active:      z.boolean().optional(),
+  name:              z.string().min(1).max(100).optional(),
+  name_ar:           z.string().max(100).optional().nullable(),
+  description:       z.string().max(500).optional().nullable(),
+  price:             z.number().min(0).optional(),
+  capacity:          z.number().int().positive().optional().nullable(),
+  is_free:           z.boolean().optional(),
+  sale_starts_at:    z.string().datetime().optional().nullable(),
+  sale_ends_at:      z.string().datetime().optional().nullable(),
+  sort_order:        z.number().int().optional(),
+  is_active:         z.boolean().optional(),
+  is_hot_offer:      z.boolean().optional(),
+  hot_offer_price:   z.number().min(0).optional().nullable(),
+  hot_offer_ends_at: z.string().datetime().optional().nullable(),
 })
 
 type Ctx = { params: Promise<{ id: string; typeId: string }> }
