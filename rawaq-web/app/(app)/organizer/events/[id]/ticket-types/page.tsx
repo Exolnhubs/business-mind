@@ -16,6 +16,9 @@ const EMPTY_FORM = {
   sale_starts_at: '',
   sale_ends_at: '',
   sort_order: 0,
+  is_hot_offer: false,
+  hot_offer_price: 0,
+  hot_offer_ends_at: '',
 }
 
 export default function ManageTicketTypesPage() {
@@ -34,7 +37,7 @@ export default function ManageTicketTypesPage() {
 
   function load() {
     Promise.all([
-      fetch(`/api/events/${eventId}/ticket-types`).then((r) => r.json()),
+      fetch(`/api/events/${eventId}/ticket-types?organizer=1`).then((r) => r.json()),
       fetch(`/api/events/${eventId}`).then((r) => r.json()).catch(() => null),
     ])
       .then(([ticketJson, eventJson]) => {
@@ -57,15 +60,18 @@ export default function ManageTicketTypesPage() {
   function openEdit(t: TicketType) {
     setEditing(t)
     setForm({
-      name:           t.name,
-      name_ar:        t.name_ar ?? '',
-      description:    t.description ?? '',
-      price:          t.price,
-      capacity:       t.capacity?.toString() ?? '',
-      is_free:        t.is_free,
-      sale_starts_at: t.sale_starts_at ? t.sale_starts_at.slice(0, 16) : '',
-      sale_ends_at:   t.sale_ends_at   ? t.sale_ends_at.slice(0, 16)   : '',
-      sort_order:     t.sort_order,
+      name:              t.name,
+      name_ar:           t.name_ar ?? '',
+      description:       t.description ?? '',
+      price:             t.price,
+      capacity:          t.capacity?.toString() ?? '',
+      is_free:           t.is_free,
+      sale_starts_at:    t.sale_starts_at ? t.sale_starts_at.slice(0, 16) : '',
+      sale_ends_at:      t.sale_ends_at   ? t.sale_ends_at.slice(0, 16)   : '',
+      sort_order:        t.sort_order,
+      is_hot_offer:      t.is_hot_offer,
+      hot_offer_price:   t.hot_offer_price ?? 0,
+      hot_offer_ends_at: t.hot_offer_ends_at ? t.hot_offer_ends_at.slice(0, 16) : '',
     })
     setError('')
     setShowForm(true)
@@ -73,18 +79,34 @@ export default function ManageTicketTypesPage() {
 
   function submit() {
     if (!form.name.trim()) { setError('Name is required'); return }
+    if (form.is_hot_offer) {
+      if (!form.hot_offer_price || Number(form.hot_offer_price) <= 0) {
+        setError('Hot offer price is required'); return
+      }
+      if (!form.hot_offer_ends_at) {
+        setError('Offer end date is required'); return
+      }
+      if (new Date(form.hot_offer_ends_at) <= new Date()) {
+        setError('Offer end date must be in the future'); return
+      }
+    }
     setError('')
     startSaving(async () => {
       const payload = {
-        name:           form.name.trim(),
-        name_ar:        form.name_ar.trim() || null,
-        description:    form.description.trim() || null,
-        price:          form.is_free ? 0 : Number(form.price),
-        capacity:       form.capacity ? Number(form.capacity) : null,
-        is_free:        form.is_free,
-        sale_starts_at: form.sale_starts_at ? new Date(form.sale_starts_at).toISOString() : null,
-        sale_ends_at:   form.sale_ends_at   ? new Date(form.sale_ends_at).toISOString()   : null,
-        sort_order:     Number(form.sort_order),
+        name:              form.name.trim(),
+        name_ar:           form.name_ar.trim() || null,
+        description:       form.description.trim() || null,
+        price:             form.is_free ? 0 : Number(form.price),
+        capacity:          form.capacity ? Number(form.capacity) : null,
+        is_free:           form.is_free,
+        sale_starts_at:    form.sale_starts_at ? new Date(form.sale_starts_at).toISOString() : null,
+        sale_ends_at:      form.sale_ends_at   ? new Date(form.sale_ends_at).toISOString()   : null,
+        sort_order:        Number(form.sort_order),
+        is_hot_offer:      form.is_hot_offer,
+        hot_offer_price:   form.is_hot_offer ? Number(form.hot_offer_price) : null,
+        hot_offer_ends_at: form.is_hot_offer && form.hot_offer_ends_at
+          ? new Date(form.hot_offer_ends_at).toISOString()
+          : null,
       }
 
       const url    = editing ? `/api/events/${eventId}/ticket-types/${editing.id}` : `/api/events/${eventId}/ticket-types`
@@ -162,6 +184,48 @@ export default function ManageTicketTypesPage() {
               <label className="form-label">Sale ends</label>
               <input className="input" type="datetime-local" value={form.sale_ends_at} onChange={(e) => setForm((f) => ({ ...f, sale_ends_at: e.target.value }))} />
             </div>
+
+            <div className="col-span-2 border-t pt-3 mt-1">
+              <label className="flex items-center gap-2 cursor-pointer mb-3">
+                <input
+                  type="checkbox"
+                  checked={form.is_hot_offer}
+                  onChange={(e) => setForm((f) => ({
+                    ...f,
+                    is_hot_offer: e.target.checked,
+                    hot_offer_price:   e.target.checked ? f.hot_offer_price : 0,
+                    hot_offer_ends_at: e.target.checked ? f.hot_offer_ends_at : '',
+                  }))}
+                  className="w-4 h-4 accent-brand-500"
+                />
+                <span className="text-sm font-semibold text-gray-700">🔥 Hot Offer</span>
+              </label>
+
+              {form.is_hot_offer && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="form-label">Hot offer price ({eventCurrency})</label>
+                    <input
+                      className="input"
+                      type="number"
+                      min={0}
+                      step={0.01}
+                      value={form.hot_offer_price}
+                      onChange={(e) => setForm((f) => ({ ...f, hot_offer_price: Number(e.target.value) }))}
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label">Offer ends at</label>
+                    <input
+                      className="input"
+                      type="datetime-local"
+                      value={form.hot_offer_ends_at}
+                      onChange={(e) => setForm((f) => ({ ...f, hot_offer_ends_at: e.target.value }))}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           {error && <p className="text-xs text-red-500">{error}</p>}
@@ -192,11 +256,28 @@ export default function ManageTicketTypesPage() {
                     {!t.is_active && <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">Inactive</span>}
                     {soldOut && <span className="text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full">Sold out</span>}
                   </div>
-                  <div className="flex gap-3 mt-0.5 text-xs text-gray-500">
-                    <span className="font-medium text-brand-700">{t.is_free ? 'Free' : formatCurrency(t.price, eventCurrency)}</span>
-                    {t.capacity && <span>{t.sold_count}/{t.capacity} sold</span>}
-                    {!t.capacity && t.sold_count > 0 && <span>{t.sold_count} sold</span>}
-                    {t.sale_ends_at && <span>Ends {new Date(t.sale_ends_at).toLocaleDateString()}</span>}
+                  <div className="flex gap-3 mt-0.5 text-xs text-gray-500 flex-wrap">
+                    {(() => {
+                      const hotActive  = t.is_hot_offer && !!t.hot_offer_ends_at && new Date(t.hot_offer_ends_at) > new Date()
+                      const hotExpired = t.is_hot_offer && !!t.hot_offer_ends_at && new Date(t.hot_offer_ends_at) <= new Date()
+                      return (
+                        <>
+                          {hotActive ? (
+                            <span className="flex items-center gap-1">
+                              <span className="line-through text-gray-400">{t.is_free ? 'Free' : formatCurrency(t.price, eventCurrency)}</span>
+                              <span className="font-semibold text-orange-600">🔥 {formatCurrency(t.hot_offer_price!, eventCurrency)}</span>
+                              <span className="text-gray-400">until {new Date(t.hot_offer_ends_at!).toLocaleDateString()}</span>
+                            </span>
+                          ) : (
+                            <span className="font-medium text-brand-700">{t.is_free ? 'Free' : formatCurrency(t.price, eventCurrency)}</span>
+                          )}
+                          {hotExpired && <span className="text-xs bg-orange-100 text-orange-500 px-1.5 py-0.5 rounded-full">Offer expired</span>}
+                          {t.capacity && <span>{t.sold_count}/{t.capacity} sold</span>}
+                          {!t.capacity && t.sold_count > 0 && <span>{t.sold_count} sold</span>}
+                          {t.sale_ends_at && !hotActive && <span>Ends {new Date(t.sale_ends_at).toLocaleDateString()}</span>}
+                        </>
+                      )
+                    })()}
                   </div>
                 </div>
                 <div className="flex gap-2 shrink-0">
