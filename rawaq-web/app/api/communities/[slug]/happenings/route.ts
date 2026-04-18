@@ -5,6 +5,7 @@ import { optionalAuth, requireAuth } from '@/lib/auth'
 import { handleApiError, ok, NotFoundException, ForbiddenException } from '@/lib/errors'
 import { sendNotifications } from '@/lib/notifications'
 import { z } from 'zod'
+import { limiters, checkRateLimit } from '@/lib/rate-limit'
 
 const CreateSchema = z.object({
   type: z.enum(['open_invite', 'info', 'question', 'alert']).default('open_invite'),
@@ -108,6 +109,7 @@ export async function POST(
   try {
     const { slug } = await params
     const ctx      = await requireAuth()
+    await checkRateLimit(limiters.happenings, ctx.userId)
     const supabase = await createSupabaseServerClient()
     const admin    = createSupabaseAdminClient()
 

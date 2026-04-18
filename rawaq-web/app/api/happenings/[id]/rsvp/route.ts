@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireAuth } from '@/lib/auth'
 import { ForbiddenException, handleApiError, ok, NotFoundException } from '@/lib/errors'
+import { limiters, checkRateLimit } from '@/lib/rate-limit'
 
 // POST /api/happenings/:id/rsvp — join a happening
 export async function POST(
@@ -11,6 +12,7 @@ export async function POST(
   try {
     const { id } = await params
     const ctx    = await requireAuth()
+    await checkRateLimit(limiters.rsvp, ctx.userId)
     const admin  = createSupabaseAdminClient()
 
     const { data: happening } = await (admin as any)

@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireAuth } from '@/lib/auth'
 import { ForbiddenException, handleApiError, ok, NotFoundException } from '@/lib/errors'
+import { limiters, checkRateLimit } from '@/lib/rate-limit'
 
 // POST /api/happenings/:id/react — react to a happening
 export async function POST(
@@ -11,6 +12,7 @@ export async function POST(
   try {
     const { id } = await params
     const ctx    = await requireAuth()
+    await checkRateLimit(limiters.reactions, ctx.userId)
     const admin  = createSupabaseAdminClient()
     const body   = await req.json().catch(() => ({}))
     const emoji  = typeof body.emoji === 'string' && body.emoji.length <= 8 ? body.emoji : '👍'

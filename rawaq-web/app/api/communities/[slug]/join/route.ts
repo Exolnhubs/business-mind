@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireAuth } from '@/lib/auth'
 import { ForbiddenException, handleApiError, ok, NotFoundException } from '@/lib/errors'
+import { limiters, checkRateLimit } from '@/lib/rate-limit'
 
 // POST /api/communities/:slug/join
 export async function POST(
@@ -12,6 +13,7 @@ export async function POST(
   try {
     const { slug } = await params
     const ctx      = await requireAuth()
+    await checkRateLimit(limiters.communityJoin, ctx.userId)
     const supabase = await createSupabaseServerClient()
     const admin    = createSupabaseAdminClient()
 

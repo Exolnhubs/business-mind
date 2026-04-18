@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { requireAuth } from '@/lib/auth'
 import { handleApiError, ok } from '@/lib/errors'
+import { limiters, checkRateLimit } from '@/lib/rate-limit'
 
 const ReactSchema = z.object({
   type: z.enum(['like', 'interested']),
@@ -16,6 +17,7 @@ export async function POST(
   try {
     const { id: eventId } = await params
     const ctx = await requireAuth()
+    await checkRateLimit(limiters.reactions, ctx.userId)
     const input = ReactSchema.parse(await req.json())
     const supabase = await createSupabaseServerClient()
 
