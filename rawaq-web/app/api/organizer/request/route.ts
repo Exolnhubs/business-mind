@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { requireAuth } from '@/lib/auth'
 import { handleApiError, ok, ConflictException } from '@/lib/errors'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
+import { limiters, checkRateLimit } from '@/lib/rate-limit'
 
 const RequestSchema = z.object({
   business_name: z.string().min(2).max(120),
@@ -31,6 +32,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const { userId } = await requireAuth()
+    await checkRateLimit(limiters.organizerReq, userId)
     const admin = createSupabaseAdminClient()
 
     // Check current role

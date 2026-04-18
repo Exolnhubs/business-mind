@@ -9,6 +9,7 @@ import { resolveGateway } from '@/lib/gateways/selector'
 import { initiatePaymob } from '@/lib/gateways/paymob'
 import { initiateStripe } from '@/lib/gateways/stripe-gw'
 import type { InitiatePaymentParams } from '@/lib/gateways/types'
+import { limiters, checkRateLimit } from '@/lib/rate-limit'
 
 // GET /api/tips — tips sent by current user (or received, for organizers)
 export async function GET(req: NextRequest) {
@@ -51,6 +52,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const ctx = await requireAuth()
+    await checkRateLimit(limiters.tips, ctx.userId)
     const body = await req.json()
     const input = CreateTipSchema.parse(body)
 

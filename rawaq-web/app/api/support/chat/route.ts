@@ -4,6 +4,7 @@ import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireAuth } from '@/lib/auth'
 import { handleApiError, ok } from '@/lib/errors'
 import { z } from 'zod'
+import { limiters, checkRateLimit } from '@/lib/rate-limit'
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY ?? '')
 
@@ -67,6 +68,7 @@ const BodySchema = z.object({
 export async function POST(req: NextRequest) {
   try {
     const ctx  = await requireAuth()
+    await checkRateLimit(limiters.supportChat, ctx.userId)
     const body = await req.json()
     const { messages } = BodySchema.parse(body)
 
