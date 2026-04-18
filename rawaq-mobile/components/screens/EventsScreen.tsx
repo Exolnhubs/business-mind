@@ -183,6 +183,7 @@ export default function EventsScreen() {
   const [almostSoldOutEvents, setAlmostSoldOutEvents] = useState<EventWithOrganizer[]>([])
   const [nearYouWeekendEvents, setNearYouWeekendEvents] = useState<EventWithOrganizer[]>([])
   const [myCommunityEvents, setMyCommunityEvents] = useState<EventWithOrganizer[]>([])
+  const [hotOfferEvents, setHotOfferEvents] = useState<EventWithOrganizer[]>([])
   const [nearYouWeekendHappenings, setNearYouWeekendHappenings] = useState<HappeningDiscoveryItem[]>([])
   const [myCommunityHappenings, setMyCommunityHappenings] = useState<HappeningDiscoveryItem[]>([])
   const [activeHappenings, setActiveHappenings] = useState<HappeningDiscoveryItem[]>([])
@@ -562,6 +563,7 @@ export default function EventsScreen() {
       } else {
         setEvents([])
         setSavedIds(new Set())
+        setHotOfferEvents([])
         setAlmostSoldOutEvents([])
         setSavedInspiredEvents([])
         setNearYouWeekendEvents([])
@@ -583,6 +585,7 @@ export default function EventsScreen() {
     if (eventsError && list.length === 0 && debouncedSearch.length > 0) {
       setEvents([])
       setSavedIds(new Set())
+      setHotOfferEvents([])
       setAlmostSoldOutEvents([])
       setSavedInspiredEvents([])
       setNearYouWeekendEvents([])
@@ -599,6 +602,27 @@ export default function EventsScreen() {
       return
     }
     setEvents(list)
+
+    // Hot offers — sorted by soonest expiry so the most urgent deal is first
+    const nowMs = Date.now()
+    const hotOffers = list
+      .filter((event) =>
+        !event.is_cancelled &&
+        (event.ticket_types ?? []).some(
+          (tt) => tt.is_hot_offer && !!tt.hot_offer_ends_at && new Date(tt.hot_offer_ends_at).getTime() > nowMs,
+        ),
+      )
+      .sort((a, b) => {
+        const earliest = (ev: EventWithOrganizer) => {
+          const times = (ev.ticket_types ?? [])
+            .filter((tt) => tt.is_hot_offer && tt.hot_offer_ends_at)
+            .map((tt) => new Date(tt.hot_offer_ends_at!).getTime())
+          return times.length ? Math.min(...times) : Infinity
+        }
+        return earliest(a) - earliest(b)
+      })
+      .slice(0, 8)
+    setHotOfferEvents(hotOffers)
 
     let nextSavedIds = new Set<string>()
 
@@ -1102,6 +1126,15 @@ export default function EventsScreen() {
                   )}
 
                   {/* Discover communities nudge — shown when user has < 3 communities */}
+                  {/* Hot Offers — always first, most time-sensitive rail */}
+                  {showRecommendationRails && (
+                    <HotOffersRail
+                      events={hotOfferEvents}
+                      savedIds={savedIds}
+                      onSaveChange={handleSaveChange}
+                    />
+                  )}
+
                   {showRecommendationRails && user && joinedCommunities.length < 3 && suggestedCommunities.length > 0 && (
                     <View style={styles.discoverSection}>
                       <View style={styles.discoverHeader}>
@@ -1292,6 +1325,51 @@ export default function EventsScreen() {
 }
 
 const WEEKEND_RADIUS_OPTIONS = [5, 10, 25, 50, 100]
+
+// ── Hot Offers rail ───────────────────────────────────────────────────────────
+
+function HotOffersRail({
+  events,
+  savedIds,
+  onSaveChange,
+}: {
+  events: EventWithOrganizer[]
+  savedIds: Set<string>
+  onSaveChange: (id: string, saved: boolean) => void
+}) {
+  if (events.length === 0) return null
+
+  return (
+    <View style={styles.hotRailSection}>
+      <View style={styles.hotRailHeader}>
+        <View>
+          <Text style={styles.hotRailEyebrow}>Limited time</Text>
+          <Text style={styles.hotRailTitle}>🔥 Hot Offers</Text>
+        </View>
+        <View style={styles.hotRailBadge}>
+          <Text style={styles.hotRailBadgeText}>{events.length} deal{events.length !== 1 ? 's' : ''}</Text>
+        </View>
+      </View>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.hotRailScroller}
+      >
+        {events.map((event) => (
+          <EventCard
+            key={event.id}
+            event={event}
+            isSaved={savedIds.has(event.id)}
+            onSaveChange={onSaveChange}
+            variant="rail"
+          />
+        ))}
+      </ScrollView>
+    </View>
+  )
+}
+
+// ── Recommendation rail ───────────────────────────────────────────────────────
 
 function RecommendationRail({
   title,
@@ -1703,4 +1781,55 @@ const styles = StyleSheet.create({
   discoverExploreCard: { width: 80, alignItems: 'center', justifyContent: 'center', gap: Spacing.xs },
   discoverExploreIcon: { fontSize: 22, color: Colors.brand[400] },
   discoverExploreTxt: { fontSize: FontSize.xs, color: Colors.brand[600], fontWeight: FontWeight.medium },
+
+  // Hot Offers rail
+  hotRailSection: {
+    marginBottom: Spacing.lg,
+    marginTop: Spacing.xs,
+    marginHorizontal: -Spacing.lg,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.lg,
+    backgroundColor: '#1a0d04',
+    borderRadius: Radius.xl,
+    overflow: 'hidden',
+  },
+  hotRailHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.lg,
+    marginBottom: Spacing.sm,
+  },
+  hotRailEyebrow: {
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.semibold,
+    color: '#F97316',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: 2,
+  },
+  hotRailTitle: {
+    fontSize: FontSize.lg,
+    fontWeight: FontWeight.bold,
+    color: '#FBBF24',
+    letterSpacing: -0.3,
+  },
+  hotRailBadge: {
+    backgroundColor: 'rgba(249,115,22,0.18)',
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: 'rgba(249,115,22,0.35)',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+  },
+  hotRailBadgeText: {
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.semibold,
+    color: '#FB923C',
+  },
+  hotRailScroller: {
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.xs,
+    gap: Spacing.sm,
+  },
 })
