@@ -19,7 +19,7 @@ type CommunityGovernanceContext = {
   }
   actor: {
     userId: string
-    platformRole: 'user' | 'organizer' | 'admin'
+    platformRole: 'user' | 'organizer' | 'admin' | 'owner'
     communityRole: CommunityRole | null
     membershipStatus: CommunityMembershipStatus | null
     isOwner: boolean
@@ -31,7 +31,7 @@ type CommunityGovernanceContext = {
 export async function getCommunityGovernanceContext(
   slug: string,
   actorUserId: string,
-  platformRole: 'user' | 'organizer' | 'admin'
+  platformRole: 'user' | 'organizer' | 'admin' | 'owner'
 ): Promise<CommunityGovernanceContext> {
   const admin = createSupabaseAdminClient()
 
@@ -74,7 +74,7 @@ export async function getCommunityGovernanceContext(
 export async function requireCommunityManager(
   slug: string,
   actorUserId: string,
-  platformRole: 'user' | 'organizer' | 'admin'
+  platformRole: 'user' | 'organizer' | 'admin' | 'owner'
 ) {
   const ctx = await getCommunityGovernanceContext(slug, actorUserId, platformRole)
   if (!ctx.actor.isCommunityManager) {
@@ -86,7 +86,7 @@ export async function requireCommunityManager(
 export async function requireCommunityOwner(
   slug: string,
   actorUserId: string,
-  platformRole: 'user' | 'organizer' | 'admin'
+  platformRole: 'user' | 'organizer' | 'admin' | 'owner'
 ) {
   const ctx = await getCommunityGovernanceContext(slug, actorUserId, platformRole)
   if (!(ctx.actor.isOwner || ctx.actor.isPlatformAdmin)) {

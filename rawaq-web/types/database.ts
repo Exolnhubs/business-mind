@@ -13,7 +13,7 @@ export type {
   OrganizerMonthlyUsage,
 } from "./plans";
 
-export type UserRole = "user" | "organizer" | "admin";
+export type UserRole = "user" | "organizer" | "admin" | "owner";
 export type GenderType = "male" | "female" | "mixed";
 export type BookingStatus =
   | "pending"

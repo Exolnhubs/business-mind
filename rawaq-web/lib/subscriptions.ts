@@ -1,7 +1,7 @@
 import { createSupabaseAdminClient } from './supabase/admin'
 import { ForbiddenException, NotFoundException } from './errors'
 
-type AccountRole = 'user' | 'organizer' | 'admin'
+type AccountRole = 'user' | 'organizer' | 'admin' | 'owner'
 
 export async function assignMembershipPlan(args: {
   userId: string

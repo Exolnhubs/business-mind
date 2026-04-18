@@ -68,3 +68,10 @@ export function feePercent(plan: PlanDefinition): string {
 export function isUnlimited(value: number | null): value is null {
   return value === null;
 }
+
+export interface PlatformSetting {
+  key: string;
+  value: unknown;
+  updated_at: string;
+  updated_by: string | null;
+}
