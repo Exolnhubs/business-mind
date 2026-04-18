@@ -1,9 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { limiters } from '@/lib/rate-limit'
 
-// Refresh the Supabase session cookie on every request.
-// This keeps the JWT alive for server components and API routes.
 export async function middleware(request: NextRequest) {
+  // ── Global IP rate limit (300 req/min) — API routes only ─────────────────
+  if (request.nextUrl.pathname.startsWith('/api/')) {
+    const ip =
+      (request as any).ip ??
+      request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+      'anonymous'
+
+    const { success, reset } = await limiters.globalIp.limit(ip)
+    if (!success) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please try again later.', code: 'RATE_LIMITED' },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(Math.ceil((reset - Date.now()) / 1000)) },
+        },
+      )
+    }
+  }
+
+  // ── Supabase session refresh (do not remove) ──────────────────────────────
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(
@@ -33,7 +52,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // Skip static files and _next internals
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }
