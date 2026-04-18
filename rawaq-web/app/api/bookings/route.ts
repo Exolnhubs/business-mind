@@ -7,6 +7,7 @@ import { CreateBookingSchema } from '@/lib/validations/bookings'
 import { sendNotification } from '@/lib/notifications'
 import { applyResolvedEventWindow } from '@/lib/events/recurrence'
 import { resolveTargetOccurrence } from '@/lib/events/occurrences'
+import { limiters, checkRateLimit } from '@/lib/rate-limit'
 
 type BookingListEventShape = {
   id: string
@@ -82,6 +83,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const ctx = await requireAuth()
+    await checkRateLimit(limiters.bookings, ctx.userId)
     const body = await req.json()
     const input = CreateBookingSchema.parse(body)
 

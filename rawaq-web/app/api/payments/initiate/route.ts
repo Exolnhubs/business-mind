@@ -34,6 +34,7 @@ import { initiateStripe } from '@/lib/gateways/stripe-gw'
 import type { InitiatePaymentParams } from '@/lib/gateways/types'
 import { sendNotification } from '@/lib/notifications'
 import { resolveTargetOccurrence } from '@/lib/events/occurrences'
+import { limiters, checkRateLimit } from '@/lib/rate-limit'
 
 const BodySchema = CreateBookingSchema.extend({
   payment_option_id: z.string().min(1).default('simulated'),
@@ -47,6 +48,7 @@ function round2(n: number): number {
 export async function POST(req: NextRequest) {
   try {
     const ctx   = await requireAuth()
+    await checkRateLimit(limiters.payments, ctx.userId)
     const body  = await req.json()
     const input = BodySchema.parse(body)
 
