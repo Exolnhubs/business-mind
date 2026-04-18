@@ -5,6 +5,7 @@ import { requireAuth, optionalAuth } from '@/lib/auth'
 import { handleApiError, ok, created, NotFoundException, ForbiddenException } from '@/lib/errors'
 import { CreateCommentSchema, ListCommentsSchema } from '@/lib/validations/comments'
 import { sendNotifications } from '@/lib/notifications'
+import { limiters, checkRateLimit } from '@/lib/rate-limit'
 
 // GET /api/comments?event_id=|happening_id=&page=&per_page=&parent_id=
 export async function GET(req: NextRequest) {
@@ -59,6 +60,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const ctx = await requireAuth()
+    await checkRateLimit(limiters.comments, ctx.userId)
     const body = await req.json()
     const input = CreateCommentSchema.parse(body)
 

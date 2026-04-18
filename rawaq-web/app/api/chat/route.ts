@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { requireAuth } from '@/lib/auth'
 import { handleApiError, ok, created } from '@/lib/errors'
 import { CreateChatMessageSchema, ListChatSchema } from '@/lib/validations/chat'
+import { limiters, checkRateLimit } from '@/lib/rate-limit'
 
 // GET /api/chat — cursor-based pagination (newest first)
 export async function GET(req: NextRequest) {
@@ -37,6 +38,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const ctx = await requireAuth()
+    await checkRateLimit(limiters.chat, ctx.userId)
     const body = await req.json()
     const input = CreateChatMessageSchema.parse(body)
 
