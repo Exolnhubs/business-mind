@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/auth-context'
 import { apiDelete, apiPost } from '@/lib/api'
 import { Colors, Spacing } from '@/theme'
 import type { EventWithOrganizer } from '@/types/database'
+import { FlameBackground } from '@/components/events/FlameBackground'
 
 const CATEGORY_EMOJI: Record<string, string> = {
   sports: '⚽', art: '🎨', music: '🎵', tech: '💻', food: '🍽️',
@@ -87,14 +88,20 @@ export const EventCard = React.memo(function EventCard({
 
   return (
     <TouchableOpacity
-      style={[cardStyles.card, variant === 'rail' && cardStyles.cardRail]}
+      style={[cardStyles.card, variant === 'rail' && cardStyles.cardRail, hasHotOffer && cardStyles.cardHot]}
       activeOpacity={0.82}
       onPress={() => router.push(`/events/${event.id}`)}
     >
       {/* ── Cover ─────────────────────────────────────────── */}
       <View style={[cardStyles.cover, variant === 'rail' && cardStyles.coverRail]}>
+        {/* Animated flames live behind the cover image for hot-offer cards */}
+        {hasHotOffer && <FlameBackground />}
         {event.cover_image_url
-          ? <Image source={{ uri: event.cover_image_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+          ? <Image
+              source={{ uri: event.cover_image_url }}
+              style={[StyleSheet.absoluteFill, hasHotOffer && cardStyles.coverImageHot]}
+              resizeMode="cover"
+            />
           : (
             <View style={cardStyles.coverPlaceholder}>
               <Text style={cardStyles.coverEmoji}>{icon}</Text>
@@ -142,7 +149,7 @@ export const EventCard = React.memo(function EventCard({
       </View>
 
       {/* ── Body ─────────────────────────────────────────── */}
-      <View style={cardStyles.body}>
+      <View style={[cardStyles.body, hasHotOffer && cardStyles.bodyHot]}>
         <Text style={cardStyles.title} numberOfLines={2}>{title}</Text>
 
         <Text style={cardStyles.location} numberOfLines={1}>
@@ -219,6 +226,13 @@ const cardStyles = StyleSheet.create({
     marginBottom: 0,
     marginRight: Spacing.md,
   },
+  cardHot: {
+    shadowColor: '#F97316',
+    shadowOpacity: 0.55,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 14,
+  },
 
   // Cover
   cover: {
@@ -229,6 +243,10 @@ const cardStyles = StyleSheet.create({
     overflow: 'hidden',
   },
   coverRail: { height: 148 },
+  coverImageHot: {
+    // Reduce image opacity so animated flames show through from behind
+    opacity: 0.62,
+  },
   coverPlaceholder: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: '#2a1108',
@@ -297,6 +315,9 @@ const cardStyles = StyleSheet.create({
 
   // Body
   body: { padding: 12 },
+  bodyHot: {
+    backgroundColor: '#FFFBEB',  // amber-50 — subtle warm glow in the card body
+  },
   title: {
     fontSize: 15,
     fontWeight: '700',
