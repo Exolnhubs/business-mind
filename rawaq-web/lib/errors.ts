@@ -42,6 +42,14 @@ export class BadRequestException extends ApiException {
   }
 }
 
+export class RateLimitException extends ApiException {
+  readonly retryAfter?: number
+  constructor(retryAfterSeconds?: number) {
+    super('Too many requests. Please try again later.', 429, 'RATE_LIMITED')
+    this.retryAfter = retryAfterSeconds
+  }
+}
+
 // Map Supabase/postgres error codes to friendly messages
 function mapDbError(error: { code?: string; message?: string }): { message: string; status: number } {
   switch (error.code) {
@@ -64,9 +72,13 @@ export function handleApiError(error: unknown): NextResponse {
   }
 
   if (error instanceof ApiException) {
+    const headers: Record<string, string> = {}
+    if (error instanceof RateLimitException && error.retryAfter != null) {
+      headers['Retry-After'] = String(error.retryAfter)
+    }
     return NextResponse.json(
       { error: error.message, code: error.code },
-      { status: error.statusCode }
+      { status: error.statusCode, headers }
     )
   }
 
