@@ -10,7 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native'
-import MapView, { MapPressEvent, Marker, Region, UrlTile } from 'react-native-maps'
+import MapView, { MapPressEvent, Marker, PROVIDER_GOOGLE, Region } from 'react-native-maps'
 import * as Location from 'expo-location'
 import Constants from 'expo-constants'
 import { Ionicons } from '@expo/vector-icons'
@@ -336,13 +336,14 @@ export function LocationPickerModal({
 
           <MapView
             style={styles.map}
+            provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
             region={region}
             onRegionChangeComplete={setRegion}
             loadingEnabled
             showsCompass
             showsUserLocation
             moveOnMarkerPress={false}
-            mapType={Platform.OS === 'android' ? 'none' : 'standard'}
+            mapType="standard"
             zoomControlEnabled={Platform.OS === 'android'}
             toolbarEnabled={Platform.OS === 'android'}
             showsMyLocationButton={Platform.OS === 'android'}
@@ -351,13 +352,6 @@ export function LocationPickerModal({
               handleMapPick(latitude, longitude)
             }}
           >
-            {Platform.OS === 'android' && (
-              <UrlTile
-                urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-                maximumZ={19}
-                shouldReplaceMapContent
-              />
-            )}
             {selected && (
               <Marker
                 coordinate={{ latitude: selected.lat, longitude: selected.lng }}
@@ -369,9 +363,6 @@ export function LocationPickerModal({
               />
             )}
           </MapView>
-          {Platform.OS === 'android' && (
-            <Text style={styles.mapAttribution}>Map data © OpenStreetMap contributors</Text>
-          )}
 
           <View style={styles.infoCard}>
             <View style={styles.infoHeader}>
@@ -502,12 +493,6 @@ const styles = StyleSheet.create({
     height: 280,
     borderRadius: Radius.xl,
     overflow: 'hidden',
-  },
-  mapAttribution: {
-    marginTop: 6,
-    fontSize: 10,
-    color: Colors.gray[400],
-    textAlign: 'right',
   },
   infoCard: {
     marginTop: Spacing.md,
