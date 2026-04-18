@@ -98,7 +98,17 @@ export async function clientGetJson<T>(
     })
 
     if (!res.ok) {
-      throw new Error(`Request failed (${res.status})`)
+      const errJson = await parseJsonSafe<{ error?: string }>(res)
+      if (res.status === 429) {
+        const retryAfter = res.headers.get('Retry-After')
+        const seconds = retryAfter ? parseInt(retryAfter, 10) : null
+        throw new Error(
+          seconds
+            ? `Too many requests — please wait ${seconds}s and try again.`
+            : 'Too many requests — please slow down and try again.'
+        )
+      }
+      throw new Error(errJson.error ?? `Request failed (${res.status})`)
     }
 
     const json = await parseJsonSafe<T>(res)

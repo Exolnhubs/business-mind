@@ -28,6 +28,15 @@ async function parseJsonSafe(res: Response) {
   }
 }
 
+function rateLimitMessage(res: Response): string | null {
+  if (res.status !== 429) return null
+  const retryAfter = res.headers.get('Retry-After')
+  const seconds = retryAfter ? parseInt(retryAfter, 10) : null
+  return seconds
+    ? `You're doing that too fast. Please wait ${seconds} seconds and try again.`
+    : "You're doing that too fast. Please slow down and try again."
+}
+
 function buildCacheKey(path: string, userId: string | null | undefined) {
   return `${userId ?? 'anon'}:${path}`
 }
@@ -91,7 +100,7 @@ export async function apiGet<T = unknown>(
     })
     const json = await parseJsonSafe(res)
     if (!res.ok) {
-      return { data: null, error: (json.error as string | undefined) ?? `Request failed (${res.status})` }
+      return { data: null, error: rateLimitMessage(res) ?? (json.error as string | undefined) ?? `Request failed (${res.status})` }
     }
     const data = (json.data as T | undefined) ?? null
     if (!skipCache) {
@@ -129,7 +138,7 @@ export async function apiPost<T = unknown>(
     body: JSON.stringify(body),
   })
   const json = await parseJsonSafe(res)
-  if (!res.ok) return { data: null, error: (json.error as string | undefined) ?? `Request failed (${res.status})` }
+  if (!res.ok) return { data: null, error: rateLimitMessage(res) ?? (json.error as string | undefined) ?? `Request failed (${res.status})` }
   apiInvalidateAll()
   return { data: (json.data as T | undefined) ?? null, error: null }
 }
@@ -151,7 +160,7 @@ export async function apiPatch<T = unknown>(
     body: JSON.stringify(body),
   })
   const json = await parseJsonSafe(res)
-  if (!res.ok) return { data: null, error: (json.error as string | undefined) ?? `Request failed (${res.status})` }
+  if (!res.ok) return { data: null, error: rateLimitMessage(res) ?? (json.error as string | undefined) ?? `Request failed (${res.status})` }
   apiInvalidateAll()
   return { data: (json.data as T | undefined) ?? null, error: null }
 }
@@ -170,7 +179,7 @@ export async function apiDelete<T = unknown>(
     },
   })
   const json = await parseJsonSafe(res)
-  if (!res.ok) return { data: null, error: (json.error as string | undefined) ?? `Request failed (${res.status})` }
+  if (!res.ok) return { data: null, error: rateLimitMessage(res) ?? (json.error as string | undefined) ?? `Request failed (${res.status})` }
   apiInvalidateAll()
   return { data: json.data as T, error: null }
 }
