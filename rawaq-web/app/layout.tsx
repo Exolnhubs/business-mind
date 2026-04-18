@@ -3,6 +3,9 @@ import './globals.css'
 import { AuthProvider } from '@/contexts/auth-context'
 import { LocaleProvider } from '@/contexts/locale-context'
 import { CustomCursor } from '@/components/ui/CustomCursor'
+import { Analytics } from "@vercel/analytics/next"
+
+
 
 export const metadata: Metadata = {
   title: { default: 'Rawaq — Discover Local Events', template: '%s | Rawaq' },
