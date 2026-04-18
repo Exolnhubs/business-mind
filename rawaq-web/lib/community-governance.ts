@@ -53,7 +53,7 @@ export async function getCommunityGovernanceContext(
   const communityRole = (membership?.role as CommunityRole | undefined) ?? null
   const membershipStatus = (membership?.status as CommunityMembershipStatus | undefined) ?? null
   const isOwner = community.owner_user_id === actorUserId || communityRole === 'owner'
-  const isPlatformAdmin = platformRole === 'admin'
+  const isPlatformAdmin = platformRole === 'admin' || platformRole === 'owner'
   const isCommunityManager =
     isPlatformAdmin || isOwner || (communityRole === 'community_admin' && membershipStatus === 'active')
 

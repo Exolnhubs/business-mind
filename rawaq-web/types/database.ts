@@ -1086,6 +1086,12 @@ export type Database = {
         Update: R<Partial<EventCommunity>>;
         Relationships: [];
       };
+      platform_settings: {
+        Row: R<{ key: string; value: unknown; updated_at: string; updated_by: string | null }>;
+        Insert: R<{ key: string; value: unknown; updated_at?: string; updated_by: string | null }>;
+        Update: R<Partial<{ key: string; value: unknown; updated_at: string; updated_by: string | null }>>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
