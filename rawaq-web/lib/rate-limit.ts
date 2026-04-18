@@ -23,7 +23,6 @@ export const limiters = {
   payments:       sw(5,   '1 m',  'payments'),
   chat:           sw(10,  '1 m',  'chat'),
   comments:       sw(15,  '1 m',  'comments'),
-  supportTickets: sw(5,   '1 h',  'support:tickets'),
   supportChat:    sw(20,  '1 m',  'support:chat'),
   tips:           sw(5,   '1 m',  'tips'),
   organizerReq:   sw(3,   '24 h', 'organizer:req'),

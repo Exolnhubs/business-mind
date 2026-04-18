@@ -6,7 +6,6 @@ export async function middleware(request: NextRequest) {
   // ── Global IP rate limit (300 req/min) — API routes only ─────────────────
   if (request.nextUrl.pathname.startsWith('/api/')) {
     const ip =
-      (request as any).ip ??
       request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
       'anonymous'
 
