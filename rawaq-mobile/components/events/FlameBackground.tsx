@@ -1,118 +1,233 @@
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { Animated, StyleSheet, View } from 'react-native'
-import Svg, { Path, Defs, LinearGradient as SvgGrad, Stop } from 'react-native-svg'
+import Svg, { Defs, Ellipse, RadialGradient, Stop } from 'react-native-svg'
 
-// Flame silhouette — 60×120 viewBox, tip near top (y≈2), base at bottom (y≈118)
-const OUTER =
-  'M30,118 C10,100 0,75 5,52 C8,35 15,22 18,10 C22,2 27,0 30,2 C33,0 38,2 42,10 C45,22 52,35 55,52 C60,75 50,100 30,118 Z'
+// ── Timing constants (all co-prime so layers never sync up) ───────────────────
+const GLOW_PERIOD  = 2350  // outer base glow — very slow breathe
+const BODY_FLOAT   = 1130  // main orange body float
+const BODY_SWAY    = 2290  // main body sway (different from float → always async)
+const CORE_FLOAT   = 910   // inner amber core — faster than body
+const CORE_SWAY    = 1870  // core sway (opposite direction from body)
+const TIP_FLICKER  = 510   // yellow-white tip — fastest
 
-const INNER =
-  'M30,118 C15,102 7,80 11,58 C14,42 20,30 22,18 C24,8 27,4 30,6 C33,4 36,8 38,18 C40,30 46,42 49,58 C53,80 45,102 30,118 Z'
+// ── Individual animated layers ────────────────────────────────────────────────
 
-interface ColDef {
-  left: `${number}%`
-  h: number
-  delay: number
-  floatD: number
-  swayD: number
-  swayA: number
-}
-
-const COLS: ColDef[] = [
-  { left: '6%',  h: 100, delay: 0,   floatD: 1050, swayD: 1800, swayA: 5 },
-  { left: '19%', h: 128, delay: 240, floatD: 1200, swayD: 2100, swayA: 7 },
-  { left: '33%', h: 148, delay: 80,  floatD: 980,  swayD: 1950, swayA: 6 },
-  { left: '50%', h: 160, delay: 350, floatD: 1150, swayD: 2250, swayA: 8 },
-  { left: '64%', h: 138, delay: 140, floatD: 1080, swayD: 1900, swayA: 7 },
-  { left: '78%', h: 118, delay: 480, floatD: 1180, swayD: 2050, swayA: 5 },
-  { left: '92%', h: 95,  delay: 320, floatD: 1020, swayD: 1850, swayA: 4 },
-]
-
-interface FlameColumnProps extends ColDef { idx: number }
-
-function FlameColumn({ left, h, delay, floatD, swayD, swayA, idx }: FlameColumnProps) {
-  const floatY  = useRef(new Animated.Value(0)).current
-  const swayX   = useRef(new Animated.Value(0)).current
-  const flicker = useRef(new Animated.Value(0.82)).current
+// Layer 1 — wide dark-red base glow, breathes slowly, barely moves
+// Anchors the flame visually; fills the lower portion of the cover
+function OuterGlow({ w, h }: { w: number; h: number }) {
+  const scaleX = useRef(new Animated.Value(1)).current
 
   useEffect(() => {
-    const floatAnim = Animated.loop(
+    const anim = Animated.loop(
       Animated.sequence([
-        Animated.timing(floatY, { toValue: -(h * 0.14), duration: floatD,                    useNativeDriver: true, delay }),
-        Animated.timing(floatY, { toValue: 0,           duration: Math.round(floatD * 0.85), useNativeDriver: true }),
+        Animated.timing(scaleX, { toValue: 1.14, duration: GLOW_PERIOD,     useNativeDriver: true }),
+        Animated.timing(scaleX, { toValue: 0.90, duration: GLOW_PERIOD * 1.1, useNativeDriver: true }),
       ])
     )
-    const swayAnim = Animated.loop(
-      Animated.sequence([
-        Animated.timing(swayX, { toValue: swayA,           duration: swayD,                    useNativeDriver: true, delay: delay + 180 }),
-        Animated.timing(swayX, { toValue: -(swayA * 0.7), duration: Math.round(swayD * 1.2), useNativeDriver: true }),
-        Animated.timing(swayX, { toValue: swayA * 0.4,    duration: Math.round(swayD * 0.8), useNativeDriver: true }),
-      ])
-    )
-    // Irregular flicker via a 4-step sequence that never fully resolves to the same value
-    const flickerAnim = Animated.loop(
-      Animated.sequence([
-        Animated.timing(flicker, { toValue: 0.96, duration: Math.round(floatD * 0.38), useNativeDriver: true, delay }),
-        Animated.timing(flicker, { toValue: 0.58, duration: Math.round(floatD * 0.28), useNativeDriver: true }),
-        Animated.timing(flicker, { toValue: 0.86, duration: Math.round(floatD * 0.20), useNativeDriver: true }),
-        Animated.timing(flicker, { toValue: 0.68, duration: Math.round(floatD * 0.14), useNativeDriver: true }),
-      ])
-    )
+    anim.start()
+    return () => anim.stop()
+  }, [scaleX])
 
-    floatAnim.start()
-    swayAnim.start()
-    flickerAnim.start()
-
-    return () => { floatAnim.stop(); swayAnim.stop(); flickerAnim.stop() }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const w = Math.round(h * 0.5)
-  const go = `fgo${idx}`
-  const gi = `fgi${idx}`
+  // cx/cy in the viewBox (w × h). Base glow sits at the bottom ~80%, wide.
+  const cx = w / 2
+  const cy = h * 0.82
+  const rx = w * 0.50
+  const ry = h * 0.32
 
   return (
     <Animated.View
       pointerEvents="none"
-      style={{
-        position: 'absolute',
-        bottom: 0,
-        left,
-        marginLeft: -w / 2,
-        width: w,
-        height: h,
-        opacity: flicker,
-        transform: [{ translateY: floatY }, { translateX: swayX }],
-      }}
+      style={[StyleSheet.absoluteFill, { transform: [{ scaleX }] }]}
     >
-      <Svg width={w} height={h} viewBox="0 0 60 120">
+      <Svg width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
         <Defs>
-          {/* Outer flame: dark red base → orange → amber tip */}
-          <SvgGrad id={go} x1="0" y1="1" x2="0" y2="0">
-            <Stop offset="0"    stopColor="#7C1D1D" stopOpacity="1" />
-            <Stop offset="0.28" stopColor="#C2410C" stopOpacity="1" />
-            <Stop offset="0.62" stopColor="#F97316" stopOpacity="0.95" />
-            <Stop offset="1"    stopColor="#FDE68A" stopOpacity="0.72" />
-          </SvgGrad>
-          {/* Inner bright highlight: transparent base → amber → pale yellow tip */}
-          <SvgGrad id={gi} x1="0" y1="1" x2="0" y2="0">
-            <Stop offset="0"    stopColor="#EA580C" stopOpacity="0" />
-            <Stop offset="0.45" stopColor="#FBBF24" stopOpacity="0.48" />
-            <Stop offset="1"    stopColor="#FEF9C3" stopOpacity="0.78" />
-          </SvgGrad>
+          <RadialGradient id="rOuter" cx="50%" cy="50%" rx="50%" ry="50%">
+            <Stop offset="0"    stopColor="#AA1800" stopOpacity="0.92" />
+            <Stop offset="0.45" stopColor="#CC2200" stopOpacity="0.52" />
+            <Stop offset="1"    stopColor="#AA1800" stopOpacity="0" />
+          </RadialGradient>
         </Defs>
-        <Path d={OUTER} fill={`url(#${go})`} />
-        <Path d={INNER} fill={`url(#${gi})`} />
+        <Ellipse cx={cx} cy={cy} rx={rx} ry={ry} fill="url(#rOuter)" />
       </Svg>
     </Animated.View>
   )
 }
 
-export function FlameBackground() {
+// Layer 2 — main orange flame body, gentle float + organic 3-step sway
+function FlameBody({ w, h }: { w: number; h: number }) {
+  const floatY = useRef(new Animated.Value(0)).current
+  const swayX  = useRef(new Animated.Value(0)).current
+
+  useEffect(() => {
+    const floatAnim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatY, { toValue: -(h * 0.11), duration: BODY_FLOAT,              useNativeDriver: true }),
+        Animated.timing(floatY, { toValue: 0,           duration: Math.round(BODY_FLOAT * 0.88), useNativeDriver: true }),
+      ])
+    )
+    // 3-step sway so the flame doesn't just oscillate mechanically
+    const swayAnim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(swayX, { toValue: w * 0.038,  duration: BODY_SWAY,              useNativeDriver: true }),
+        Animated.timing(swayX, { toValue: -(w * 0.030), duration: Math.round(BODY_SWAY * 1.1), useNativeDriver: true }),
+        Animated.timing(swayX, { toValue: w * 0.018,  duration: Math.round(BODY_SWAY * 0.7), useNativeDriver: true }),
+      ])
+    )
+    floatAnim.start()
+    swayAnim.start()
+    return () => { floatAnim.stop(); swayAnim.stop() }
+  }, [floatY, swayX, h, w])
+
+  const cx = w / 2
+  const cy = h * 0.65          // center of body ellipse, ~65% down
+  const rx = w * 0.32
+  const ry = h * 0.58
+
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      {COLS.map((col, i) => (
-        <FlameColumn key={i} {...col} idx={i} />
-      ))}
+    <Animated.View
+      pointerEvents="none"
+      style={[StyleSheet.absoluteFill, { transform: [{ translateY: floatY }, { translateX: swayX }] }]}
+    >
+      <Svg width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
+        <Defs>
+          <RadialGradient id="rBody" cx="50%" cy="48%" rx="50%" ry="50%">
+            <Stop offset="0"    stopColor="#FF5200" stopOpacity="0.96" />
+            <Stop offset="0.42" stopColor="#FF6600" stopOpacity="0.58" />
+            <Stop offset="1"    stopColor="#FF4400" stopOpacity="0" />
+          </RadialGradient>
+        </Defs>
+        <Ellipse cx={cx} cy={cy} rx={rx} ry={ry} fill="url(#rBody)" />
+      </Svg>
+    </Animated.View>
+  )
+}
+
+// Layer 3 — inner amber core, slightly faster + swaying OPPOSITE to body
+// The body-vs-core opposition creates the organic "two tongues" shimmer of real fire
+function FlameCore({ w, h }: { w: number; h: number }) {
+  const floatY = useRef(new Animated.Value(0)).current
+  const swayX  = useRef(new Animated.Value(0)).current
+
+  useEffect(() => {
+    const floatAnim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatY, { toValue: -(h * 0.15), duration: CORE_FLOAT,              useNativeDriver: true }),
+        Animated.timing(floatY, { toValue: 0,           duration: Math.round(CORE_FLOAT * 0.84), useNativeDriver: true }),
+      ])
+    )
+    const swayAnim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(swayX, { toValue: -(w * 0.030), duration: CORE_SWAY,              useNativeDriver: true }),
+        Animated.timing(swayX, { toValue: w * 0.022,   duration: Math.round(CORE_SWAY * 1.15), useNativeDriver: true }),
+        Animated.timing(swayX, { toValue: -(w * 0.012), duration: Math.round(CORE_SWAY * 0.75), useNativeDriver: true }),
+      ])
+    )
+    floatAnim.start()
+    swayAnim.start()
+    return () => { floatAnim.stop(); swayAnim.stop() }
+  }, [floatY, swayX, h, w])
+
+  const cx = w / 2
+  const cy = h * 0.57
+  const rx = w * 0.19
+  const ry = h * 0.46
+
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[StyleSheet.absoluteFill, { transform: [{ translateY: floatY }, { translateX: swayX }] }]}
+    >
+      <Svg width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
+        <Defs>
+          <RadialGradient id="rCore" cx="50%" cy="45%" rx="50%" ry="50%">
+            <Stop offset="0"    stopColor="#FFAA00" stopOpacity="1" />
+            <Stop offset="0.45" stopColor="#FF8800" stopOpacity="0.62" />
+            <Stop offset="1"    stopColor="#FF6600" stopOpacity="0" />
+          </RadialGradient>
+        </Defs>
+        <Ellipse cx={cx} cy={cy} rx={rx} ry={ry} fill="url(#rCore)" />
+      </Svg>
+    </Animated.View>
+  )
+}
+
+// Layer 4 — bright yellow-white tip, fastest flicker + scale pulse
+// The high-frequency flicker gives the "dancing tip" of a real candle/fire
+function FlameTip({ w, h }: { w: number; h: number }) {
+  const floatY  = useRef(new Animated.Value(0)).current
+  const flicker = useRef(new Animated.Value(0.82)).current
+  const scale   = useRef(new Animated.Value(1)).current
+
+  useEffect(() => {
+    const floatAnim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatY, { toValue: -(h * 0.20), duration: Math.round(TIP_FLICKER * 1.5), useNativeDriver: true }),
+        Animated.timing(floatY, { toValue: 0,           duration: TIP_FLICKER,                    useNativeDriver: true }),
+      ])
+    )
+    // Irregular 4-step flicker — mimics real flame opacity noise
+    const flickerAnim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(flicker, { toValue: 1.00, duration: Math.round(TIP_FLICKER * 0.38), useNativeDriver: true }),
+        Animated.timing(flicker, { toValue: 0.52, duration: Math.round(TIP_FLICKER * 0.30), useNativeDriver: true }),
+        Animated.timing(flicker, { toValue: 0.88, duration: Math.round(TIP_FLICKER * 0.20), useNativeDriver: true }),
+        Animated.timing(flicker, { toValue: 0.68, duration: Math.round(TIP_FLICKER * 0.12), useNativeDriver: true }),
+      ])
+    )
+    const scaleAnim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(scale, { toValue: 1.18, duration: Math.round(TIP_FLICKER * 0.6), useNativeDriver: true }),
+        Animated.timing(scale, { toValue: 0.85, duration: Math.round(TIP_FLICKER * 0.6), useNativeDriver: true }),
+      ])
+    )
+    floatAnim.start()
+    flickerAnim.start()
+    scaleAnim.start()
+    return () => { floatAnim.stop(); flickerAnim.stop(); scaleAnim.stop() }
+  }, [floatY, flicker, scale, h])
+
+  const cx = w / 2
+  const cy = h * 0.38
+  const rx = w * 0.10
+  const ry = h * 0.26
+
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[StyleSheet.absoluteFill, { opacity: flicker, transform: [{ translateY: floatY }, { scale }] }]}
+    >
+      <Svg width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
+        <Defs>
+          <RadialGradient id="rTip" cx="50%" cy="42%" rx="50%" ry="50%">
+            <Stop offset="0"    stopColor="#FFF8C0" stopOpacity="1" />
+            <Stop offset="0.38" stopColor="#FFD700" stopOpacity="0.75" />
+            <Stop offset="1"    stopColor="#FFAA00" stopOpacity="0" />
+          </RadialGradient>
+        </Defs>
+        <Ellipse cx={cx} cy={cy} rx={rx} ry={ry} fill="url(#rTip)" />
+      </Svg>
+    </Animated.View>
+  )
+}
+
+// ── Main export ───────────────────────────────────────────────────────────────
+
+export function FlameBackground() {
+  const [size, setSize] = useState({ w: 360, h: 160 })
+
+  return (
+    <View
+      style={StyleSheet.absoluteFill}
+      pointerEvents="none"
+      onLayout={(e) => {
+        const { width, height } = e.nativeEvent.layout
+        setSize({ w: Math.round(width), h: Math.round(height) })
+      }}
+    >
+      <OuterGlow w={size.w} h={size.h} />
+      <FlameBody w={size.w} h={size.h} />
+      <FlameCore w={size.w} h={size.h} />
+      <FlameTip  w={size.w} h={size.h} />
     </View>
   )
 }
