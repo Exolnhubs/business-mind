@@ -28,7 +28,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     .eq('id', user.id)
     .single()
 
-  if ((profile as { role: string } | null)?.role !== 'admin') redirect('/events')
+  const role = (profile as { role: string } | null)?.role
+  if (role !== 'admin' && role !== 'owner') redirect('/events')
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
