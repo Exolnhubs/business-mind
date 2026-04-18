@@ -111,7 +111,8 @@ async function queryEvents(
         id, display_name, avatar_url,
         organizer_profile:organizer_profiles!user_id(business_name, business_name_ar, logo_url, verified)
       ),
-      category:event_categories(id, name_en, name_ar, icon)
+      category:event_categories(id, name_en, name_ar, icon),
+      ticket_types(id, price, is_free, is_active, is_hot_offer, hot_offer_price, hot_offer_ends_at)
     `,
     )
     .eq("is_published", true)

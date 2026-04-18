@@ -47,7 +47,8 @@ export async function GET(
          is_free, price, currency, bookings_count, capacity, visibility_type,
          organizer:profiles!organizer_id(id, display_name, avatar_url,
            organizer_profile:organizer_profiles!user_id(business_name, logo_url, verified)),
-         category:event_categories(id, name_en, name_ar, icon)`,
+         category:event_categories(id, name_en, name_ar, icon),
+         ticket_types(id, price, is_free, is_active, is_hot_offer, hot_offer_price, hot_offer_ends_at)`,
         { count: 'exact' }
       )
       .in('id', eventIds)
