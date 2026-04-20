@@ -51,16 +51,30 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    let communitiesData: unknown = null
-    let communitiesError: { message?: string } | null = null
+    const [primaryResult, recentMembershipsResult, recentHappeningsResult, recentEventLinksResult] =
+      await Promise.all([
+        admin
+          .from('communities')
+          .select(COMMUNITY_SELECT)
+          .order('member_count', { ascending: false })
+          .limit(100),
+        admin
+          .from('community_memberships')
+          .select('community_id, joined_at')
+          .gte('joined_at', since),
+        admin
+          .from('happenings')
+          .select('community_id, created_at')
+          .gte('created_at', since),
+        admin
+          .from('event_communities')
+          .select('community_id, event:events!inner(created_at, is_published)')
+          .gte('event.created_at', since)
+          .eq('event.is_published', true),
+      ])
 
-    const primaryResult = await admin
-      .from('communities')
-      .select(COMMUNITY_SELECT)
-      .order('member_count', { ascending: false })
-      .limit(100)
-    communitiesData = primaryResult.data
-    communitiesError = primaryResult.error
+    let communitiesData: unknown = primaryResult.data
+    let communitiesError: { message?: string } | null = primaryResult.error
 
     if (communitiesError && `${communitiesError.message ?? ''}`.includes('parent_community_id')) {
       const legacyResult = await admin
@@ -73,23 +87,13 @@ export async function GET(req: NextRequest) {
     }
     if (communitiesError) throw communitiesError
 
-    const { data: recentMemberships, error: membershipsError } = await admin
-      .from('community_memberships')
-      .select('community_id, joined_at')
-      .gte('joined_at', since)
+    const { data: recentMemberships, error: membershipsError } = recentMembershipsResult
     if (membershipsError) throw membershipsError
 
-    const { data: recentHappenings, error: happeningsError } = await admin
-      .from('happenings')
-      .select('community_id, created_at')
-      .gte('created_at', since)
+    const { data: recentHappenings, error: happeningsError } = recentHappeningsResult
     if (happeningsError) throw happeningsError
 
-    const { data: recentEventLinks, error: eventLinksError } = await admin
-      .from('event_communities')
-      .select('community_id, event:events!inner(created_at, is_published)')
-      .gte('event.created_at', since)
-      .eq('event.is_published', true)
+    const { data: recentEventLinks, error: eventLinksError } = recentEventLinksResult
     if (eventLinksError) throw eventLinksError
 
     const newMembers7d = new Map<string, number>()

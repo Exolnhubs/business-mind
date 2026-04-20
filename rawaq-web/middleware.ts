@@ -3,8 +3,10 @@ import { createServerClient } from '@supabase/ssr'
 import { limiters } from '@/lib/rate-limit'
 
 export async function middleware(request: NextRequest) {
+  const isApiRoute = request.nextUrl.pathname.startsWith('/api/')
+
   // ── Global IP rate limit (300 req/min) — API routes only ─────────────────
-  if (request.nextUrl.pathname.startsWith('/api/')) {
+  if (isApiRoute) {
     const ip =
       request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
       'anonymous'
@@ -19,9 +21,12 @@ export async function middleware(request: NextRequest) {
         },
       )
     }
+
+    // Skip session refresh for API routes — they authenticate independently
+    return NextResponse.next({ request })
   }
 
-  // ── Supabase session refresh (do not remove) ──────────────────────────────
+  // ── Supabase session refresh — page routes only (keeps cookies fresh) ─────
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(
@@ -43,7 +48,7 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // Refresh session — do not remove this call
+  // Refresh session — required for page routes only
   await supabase.auth.getUser()
 
   return supabaseResponse
