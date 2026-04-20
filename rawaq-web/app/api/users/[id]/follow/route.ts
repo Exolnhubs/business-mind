@@ -30,17 +30,19 @@ export async function POST(
 
     if (theirRow?.status === 'pending') {
       // Auto-accept both directions
-      await db
+      const { error: updateErr } = await db
         .from('user_follows')
         .update({ status: 'accepted' })
         .eq('id', theirRow.id)
+      if (updateErr) throw updateErr
 
-      await db
+      const { error: upsertErr } = await db
         .from('user_follows')
         .upsert(
           { follower_id: ctx.userId, following_id: targetId, status: 'accepted' },
           { onConflict: 'follower_id,following_id' }
         )
+      if (upsertErr) throw upsertErr
 
       const { data: actor } = await admin.from('profiles').select('display_name').eq('id', ctx.userId).single()
       sendNotification({

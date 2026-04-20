@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireAuth } from '@/lib/auth'
-import { handleApiError, ok } from '@/lib/errors'
+import { handleApiError, ok, BadRequestException } from '@/lib/errors'
 
 // POST /api/users/:id/follow/decline — delete incoming pending request
 // :id is the follower (person who sent the request)
@@ -12,6 +12,9 @@ export async function POST(
   try {
     const { id: followerId } = await params
     const ctx = await requireAuth()
+
+    if (ctx.userId === followerId) throw new BadRequestException('Cannot follow yourself')
+
     const admin = createSupabaseAdminClient()
 
     await (admin as any)
