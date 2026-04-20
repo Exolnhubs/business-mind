@@ -37,6 +37,7 @@ export function EventFiltersPlayful() {
   const query = params.get('q') ?? ''
   const [, startTransition] = useTransition()
   const [geoLoading, setGeoLoading] = useState(false)
+  const [radiusDisplay, setRadiusDisplay] = useState<number | null>(null)
   const [categories, setCategories] = useState<Category[]>([])
   const [searchValue, setSearchValue] = useState(query)
   const pendingSearchQueryRef = useRef<string | null>(null)
@@ -384,16 +385,27 @@ export function EventFiltersPlayful() {
               min={5}
               max={100}
               step={5}
-              value={Number(params.get('radius_km') ?? 25)}
-              onChange={(e) => {
+              value={radiusDisplay ?? Number(params.get('radius_km') ?? 25)}
+              onChange={(e) => setRadiusDisplay(Number(e.target.value))}
+              onMouseUp={(e) => {
+                const val = (e.target as HTMLInputElement).value
+                setRadiusDisplay(null)
                 const p = new URLSearchParams(paramsSnapshot)
-                p.set('radius_km', e.target.value)
+                p.set('radius_km', val)
+                p.delete('page')
+                replaceWithParams(p)
+              }}
+              onTouchEnd={(e) => {
+                const val = (e.target as HTMLInputElement).value
+                setRadiusDisplay(null)
+                const p = new URLSearchParams(paramsSnapshot)
+                p.set('radius_km', val)
                 p.delete('page')
                 replaceWithParams(p)
               }}
               className="ef-radius-slider"
             />
-            <span className="ef-radius-value">{params.get('radius_km') ?? 25} km</span>
+            <span className="ef-radius-value">{radiusDisplay ?? params.get('radius_km') ?? 25} km</span>
           </div>
         )}
 
