@@ -44,6 +44,38 @@ const PLAN_FEATURES: Record<string, string[]> = {
   ],
 }
 
+const PLAN_FEATURES_AR: Record<string, string[]> = {
+  user_free: [
+    'احجز وحضور أي فعالية عامة',
+    'احفظ حتى 20 فعالية',
+    'الوصول للمجتمعات والأحداث',
+    'تجربة اكتشاف قياسية',
+  ],
+  user_premium: [
+    'كل ما في الخطة المجانية',
+    'حفظ غير محدود للفعاليات',
+    'الوصول للفعاليات الحصرية',
+  ],
+  org_basic: [
+    '3 فعاليات منشورة شهرياً',
+    'حتى 50 حضوراً لكل فعالية',
+    'الوصول للوحة تحكم المنظِّم',
+    '10% رسوم المنصة على الإيرادات',
+  ],
+  org_pro: [
+    '15 فعالية منشورة شهرياً',
+    'حتى 200 حضوراً لكل فعالية',
+    'الوصول لماسح التذاكر',
+    '6% رسوم المنصة على الإيرادات',
+  ],
+  org_elite: [
+    'نشر غير محدود للفعاليات',
+    'عدد غير محدود من الحضور',
+    'الوصول لماسح التذاكر',
+    '3% رسوم المنصة على الإيرادات',
+  ],
+}
+
 // ── Types ───────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -73,7 +105,7 @@ function formatPlanAmount(amount: number): string {
 // ── Main component ──────────────────────────────────────────────────────────
 
 export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrganizer }: Props) {
-  const { t } = useLocale()
+  const { t, locale } = useLocale()
   const searchParams = useSearchParams()
   const [activePlanId, setActivePlanId] = useState(currentPlanId)
   const [loading, setLoading] = useState<string | null>(null)
@@ -114,7 +146,7 @@ export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrga
       }
 
       setActivePlanId(plan.id)
-      setMsg({ ok: true, text: `Switched to ${json.data?.plan_name ?? plan.name}` })
+      setMsg({ ok: true, text: t('plans.switched_to').replace('{name}', json.data?.plan_name ?? plan.name) })
     } catch (e) {
       setMsg({ ok: false, text: e instanceof Error ? e.message : t('plans.error') })
     } finally {
@@ -210,13 +242,13 @@ export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrga
           {/* Identity */}
           <div>
             <p className="text-[11px] font-bold uppercase tracking-widest text-white/40 mb-1.5">
-              Current plan
+              {t('plans.current_plan_label')}
             </p>
             <p className="font-display text-2xl font-black tracking-tight" style={{ color: 'var(--c-gold)' }}>
               {activePlan?.name ?? '—'}
             </p>
             {periodEnd ? (
-              <p className="text-[12px] text-white/30 mt-1">Renews {periodEnd}</p>
+              <p className="text-[12px] text-white/30 mt-1">{t('plans.renews').replace('{date}', periodEnd)}</p>
             ) : (
               <p className="text-[12px] text-white/25 mt-1">
                 {(activePlan?.price_amount ?? 0) === 0 ? t('plans.free_billing') : t('plans.active')}
@@ -229,13 +261,13 @@ export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrga
             <div className="flex-1 min-w-[180px] max-w-[260px]">
               <div className="flex items-baseline justify-between mb-2">
                 <span className="text-[11px] font-semibold uppercase tracking-wider text-white/35">
-                  Events{monthLabel ? ` · ${monthLabel}` : ' this month'}
+                  {monthLabel ? t('plans.events_label').replace('{month}', monthLabel) : t('plans.events_this_month')}
                 </span>
                 <span
                   className="text-sm font-bold tabular-nums"
                   style={{ color: usageColor }}
                 >
-                  {eventLimit !== null ? `${eventsUsed} / ${eventLimit}` : `${eventsUsed} events`}
+                  {eventLimit !== null ? `${eventsUsed} / ${eventLimit}` : t('plans.events_unlimited').replace('{n}', String(eventsUsed))}
                 </span>
               </div>
               <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'oklch(1 0 0 / 0.08)' }}>
@@ -249,16 +281,14 @@ export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrga
               </div>
               {eventLimit && usagePct >= 80 && usagePct < 100 && (
                 <p className="text-[11px] text-orange-300/75 mt-1.5">
-                  {eventLimit - eventsUsed} remaining — consider upgrading
+                  {t('plans.usage_warning').replace('{n}', String(eventLimit - eventsUsed))}
                 </p>
               )}
               {eventLimit && usagePct >= 100 && (
-                <p className="text-[11px] text-red-400/75 mt-1.5">
-                  Monthly limit reached — upgrade to publish more
-                </p>
+                <p className="text-[11px] text-red-400/75 mt-1.5">{t('plans.usage_limit')}</p>
               )}
               {!eventLimit && (
-                <p className="text-[11px] text-white/20 mt-1.5">No monthly cap on this plan</p>
+                <p className="text-[11px] text-white/20 mt-1.5">{t('plans.no_cap')}</p>
               )}
             </div>
           )}
@@ -283,7 +313,8 @@ export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrga
           const isCurrent = plan.id === activePlanId
           const isConfirming = confirmDowngrade === plan.id
           const action = getPlanAction(plan, activePlanId, plans)
-          const features = PLAN_FEATURES[plan.id] ?? []
+          const features = (locale === 'ar' ? PLAN_FEATURES_AR[plan.id] : PLAN_FEATURES[plan.id]) ?? []
+          const planName = locale === 'ar' && plan.name_ar ? plan.name_ar : plan.name
           const feeSavedVsBasic = isOrganizer && plan.platform_fee_pct < 0.10
             ? Math.round((0.10 - plan.platform_fee_pct) * 100)
             : null
@@ -303,14 +334,14 @@ export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrga
                   </span>
                   {isCurrent ? (
                     <span className="text-[10px] font-bold uppercase tracking-widest px-2.5 py-0.5 rounded-full bg-green-500/15 text-green-400">
-                      Active
+                      {t('plans.active_badge')}
                     </span>
                   ) : (
                     <span
                       className="text-[10px] font-bold uppercase tracking-widest px-2.5 py-0.5 rounded-full"
                       style={{ background: 'var(--c-gold)', color: 'var(--c-ink)' }}
                     >
-                      Best value
+                      {t('plans.best_value')}
                     </span>
                   )}
                 </div>
@@ -318,7 +349,7 @@ export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrga
                 {/* Price */}
                 <div className="mb-5">
                   <h3 className="font-display text-2xl font-black tracking-tight text-white mb-3">
-                    {plan.name}
+                    {planName}
                   </h3>
                   <div className="flex items-baseline gap-1.5">
                     {plan.price_amount > 0 ? (
@@ -326,15 +357,15 @@ export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrga
                         <span className="font-display text-4xl font-black" style={{ color: 'var(--c-gold)' }}>
                           {formatPlanAmount(plan.price_amount)}
                         </span>
-                        <span className="text-sm text-white/35">{plan.price_currency} / month</span>
+                        <span className="text-sm text-white/35">{plan.price_currency} {t('plans.per_month')}</span>
                       </>
                     ) : (
-                      <span className="font-display text-4xl font-black text-white">Free</span>
+                      <span className="font-display text-4xl font-black text-white">{t('plans.free')}</span>
                     )}
                   </div>
                   {plan.type === 'organizer' && (
                     <p className="text-[12px] text-white/35 mt-1.5">
-                      {(plan.platform_fee_pct * 100).toFixed(0)}% platform fee on revenue
+                      {t('plans.platform_fee').replace('{n}', (plan.platform_fee_pct * 100).toFixed(0))}
                     </p>
                   )}
                 </div>
@@ -345,7 +376,7 @@ export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrga
                     className="rounded-xl px-3.5 py-2 mb-4 text-xs font-semibold"
                     style={{ background: 'oklch(0.78 0.18 72 / 0.12)', color: 'oklch(0.78 0.18 72)' }}
                   >
-                    Save {feeSavedVsBasic}% in platform fees vs Basic
+                    {t('plans.save_fees').replace('{n}', String(feeSavedVsBasic))}
                   </div>
                 )}
 
@@ -366,12 +397,12 @@ export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrga
                     className="w-full py-3 rounded-xl text-sm font-semibold cursor-default"
                     style={{ background: 'oklch(1 0 0 / 0.06)', color: 'oklch(1 0 0 / 0.3)' }}
                   >
-                    Current plan
+                    {t('plans.current_plan_btn')}
                   </button>
                 ) : isConfirming ? (
                   <div className="space-y-2">
                     <p className="text-[12px] text-orange-300/80 text-center">
-                      Downgrading reduces your quota. Continue?
+                      {t('plans.downgrade_warning')}
                     </p>
                     <div className="flex gap-2">
                       <button
@@ -386,7 +417,7 @@ export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrga
                         className="py-2.5 px-4 rounded-xl text-sm transition-colors"
                         style={{ color: 'oklch(1 0 0 / 0.4)' }}
                       >
-                        Cancel
+                        {t('plans.cancel')}
                       </button>
                     </div>
                   </div>
@@ -400,8 +431,8 @@ export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrga
                     {loading === plan.id
                       ? t('plans.updating')
                       : action === 'upgrade'
-                      ? `Upgrade to ${plan.name}`
-                      : `Switch to ${plan.name}`}
+                      ? t('plans.upgrade_to').replace('{name}', planName)
+                      : t('plans.switch_to').replace('{name}', planName)}
                   </button>
                 )}
               </div>
@@ -429,7 +460,7 @@ export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrga
                 </span>
                 {isCurrent && (
                   <span className="text-[10px] font-bold uppercase tracking-widest px-2.5 py-0.5 rounded-full bg-green-100 text-green-700">
-                    Active
+                    {t('plans.active_badge')}
                   </span>
                 )}
               </div>
@@ -437,21 +468,21 @@ export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrga
               {/* Price */}
               <div className="mb-5">
                 <h3 className="font-display text-2xl font-black tracking-tight text-gray-900 mb-3">
-                  {plan.name}
+                  {planName}
                 </h3>
                 <div className="flex items-baseline gap-1.5">
                   {plan.price_amount > 0 ? (
                     <>
                       <span className="font-display text-4xl font-black text-gray-900">{formatPlanAmount(plan.price_amount)}</span>
-                      <span className="text-sm text-gray-400">{plan.price_currency} / month</span>
+                      <span className="text-sm text-gray-400">{plan.price_currency} {t('plans.per_month')}</span>
                     </>
                   ) : (
-                    <span className="font-display text-3xl font-black text-gray-500">Free</span>
+                    <span className="font-display text-3xl font-black text-gray-500">{t('plans.free')}</span>
                   )}
                 </div>
                 {plan.type === 'organizer' && (
                   <p className="text-[12px] text-gray-400 mt-1.5">
-                    {(plan.platform_fee_pct * 100).toFixed(0)}% platform fee on revenue
+                    {t('plans.platform_fee').replace('{n}', (plan.platform_fee_pct * 100).toFixed(0))}
                   </p>
                 )}
               </div>
@@ -459,7 +490,7 @@ export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrga
               {/* Savings callout (elite) */}
               {feeSavedVsBasic && (
                 <div className="rounded-xl px-3.5 py-2 mb-4 text-xs font-semibold bg-brand-50 text-brand-700">
-                  Save {feeSavedVsBasic}% in platform fees vs Basic
+                  {t('plans.save_fees').replace('{n}', String(feeSavedVsBasic))}
                 </div>
               )}
 
@@ -481,12 +512,12 @@ export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrga
                   disabled
                   className="w-full py-3 rounded-xl text-sm font-semibold bg-gray-100 text-gray-400 cursor-default"
                 >
-                  Current plan
+                  {t('plans.current_plan_btn')}
                 </button>
               ) : isConfirming ? (
                 <div className="space-y-2">
                   <p className="text-xs text-orange-600 text-center">
-                    Downgrading reduces your quota. Continue?
+                    {t('plans.downgrade_warning')}
                   </p>
                   <div className="flex gap-2">
                     <button
@@ -500,7 +531,7 @@ export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrga
                       onClick={() => setConfirmDowngrade(null)}
                       className="py-2.5 px-4 rounded-xl text-sm text-gray-400 hover:text-gray-600 transition-colors"
                     >
-                      Cancel
+                      {t('plans.cancel')}
                     </button>
                   </div>
                 </div>
@@ -515,8 +546,8 @@ export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrga
                   {loading === plan.id
                     ? t('plans.updating')
                     : action === 'upgrade'
-                    ? `Upgrade to ${plan.name}`
-                    : `Switch to ${plan.name}`}
+                    ? t('plans.upgrade_to').replace('{name}', planName)
+                    : t('plans.switch_to').replace('{name}', planName)}
                 </button>
               )}
             </div>
@@ -526,7 +557,7 @@ export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrga
 
       {/* ── Footer note ──────────────────────────────────────── */}
       <p className="text-xs text-center text-gray-400 pb-2">
-        Paid plans open a secure checkout. Free plan changes take effect immediately.
+        {t('plans.footer_note')}
       </p>
     </div>
   )
