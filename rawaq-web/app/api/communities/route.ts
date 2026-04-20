@@ -43,6 +43,7 @@ const ListCommunitiesSchema = z.object({
   recommended: z.coerce.boolean().optional(),
   approval_status: z.enum(['approved', 'pending', 'dismissed']).optional(),
   ancestor_slug: z.string().trim().min(1).max(120).optional(),
+  user_id:  z.string().uuid().optional(),
   page:     z.coerce.number().int().positive().default(1),
   per_page: z.coerce.number().int().min(1).max(50).default(20),
 })
@@ -194,6 +195,25 @@ export async function GET(req: NextRequest) {
       })
     }
 
+    let userFilterIds: string[] | null = null
+    if (params.user_id) {
+      const { data: userMemberships } = await admin
+        .from('community_memberships')
+        .select('community_id')
+        .eq('user_id', params.user_id)
+        .eq('status', 'active')
+      userFilterIds = (userMemberships ?? []).map((m) => m.community_id)
+      if (userFilterIds.length === 0) {
+        return ok({
+          data: [],
+          total: 0,
+          page: params.page,
+          per_page: params.per_page,
+          has_more: false,
+        })
+      }
+    }
+
     let descendantIds: string[] | null = null
     if (params.ancestor_slug) {
       const { data: ancestorCommunity, error: ancestorCommunityError } = await admin
@@ -248,6 +268,7 @@ export async function GET(req: NextRequest) {
       if (params.type) query = query.eq('type', params.type as any)
       if (params.q) query = query.or(`name.ilike.%${params.q.trim()}%,name_ar.ilike.%${params.q.trim()}%`)
       if (params.member_only) query = query.in('id', memberIds)
+      if (userFilterIds) query = query.in('id', userFilterIds)
       if (descendantIds) query = query.in('id', descendantIds)
       if (includeApprovalFilter && isPlatformAdmin && params.approval_status) {
         query = query.eq('approval_status', params.approval_status)
