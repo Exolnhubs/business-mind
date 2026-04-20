@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import {
-  Animated, View, Text, FlatList, TextInput, StyleSheet,
+  Animated, View, Text, FlatList, TextInput, StyleSheet, Image,
   TouchableOpacity, ScrollView, RefreshControl, Alert, ActivityIndicator,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
@@ -41,6 +41,21 @@ interface SavedSignalEvent {
   category_id: string | null
   city: string
   organizer_id: string
+}
+interface OrganizerResult {
+  id: string
+  display_name: string
+  avatar_url: string | null
+  city: string | null
+  organizer_profile: { business_name: string; logo_url: string | null } | null
+}
+interface CommunitySearchResult {
+  id: string
+  name: string
+  name_ar: string | null
+  slug: string
+  member_count: number
+  level: string
 }
 
 function getThisWeekendRange(): { start: string; end: string } {
@@ -209,6 +224,8 @@ export default function EventsScreen() {
   const [joinedCommunities, setJoinedCommunities] = useState<JoinedCommunity[]>([])
   const [activeCommunities, setActiveCommunities] = useState<ActiveCommunity[]>([])
   const [selectedHappening, setSelectedHappening] = useState<HappeningDiscoveryItem | null>(null)
+  const [orgResults, setOrgResults] = useState<OrganizerResult[]>([])
+  const [comResults, setComResults] = useState<CommunitySearchResult[]>([])
   const lastDiscoveryLoadRef = useRef(0)
   const lastEventsLoadRef = useRef(0)
   const latestEventsRequestRef = useRef(0)
@@ -248,6 +265,28 @@ export default function EventsScreen() {
       .order('sort_order')
       .then(({ data }) => setCategories((data ?? []) as Category[]))
   }, [])
+
+  useEffect(() => {
+    if (!debouncedSearch) { setOrgResults([]); setComResults([]); return }
+    const q = debouncedSearch.trim()
+    Promise.all([
+      supabase
+        .from('profiles')
+        .select('id, display_name, avatar_url, city, organizer_profile:organizer_profiles!user_id(business_name, logo_url)')
+        .eq('role', 'organizer')
+        .ilike('display_name', `%${q}%`)
+        .limit(4),
+      supabase
+        .from('communities')
+        .select('id, name, name_ar, slug, member_count, level')
+        .eq('is_private', false)
+        .or(`name.ilike.%${q}%,name_ar.ilike.%${q}%`)
+        .limit(4),
+    ]).then(([orgRes, comRes]) => {
+      setOrgResults((orgRes.data ?? []) as unknown as OrganizerResult[])
+      setComResults((comRes.data ?? []) as unknown as CommunitySearchResult[])
+    })
+  }, [debouncedSearch])
 
   const loadJoinedCommunities = useCallback(async (force = false) => {
     if (!user) {
@@ -1088,7 +1127,61 @@ export default function EventsScreen() {
           data={events}
           keyExtractor={keyExtractor}
           ListHeaderComponent={
-            showDiscoveryHeader
+            (debouncedSearch && (orgResults.length > 0 || comResults.length > 0))
+              ? (
+                <View style={styles.searchResultsSection}>
+                  <Text style={styles.searchResultsSectionLabel}>People &amp; Communities</Text>
+                  {orgResults.map((org) => {
+                    const name = org.organizer_profile?.business_name || org.display_name
+                    const initials = name.slice(0, 2).toUpperCase()
+                    return (
+                      <TouchableOpacity
+                        key={org.id}
+                        style={styles.searchResultRow}
+                        activeOpacity={0.75}
+                        onPress={() => router.push(`/user/${org.id}` as any)}
+                      >
+                        <View style={styles.searchResultAvatar}>
+                          {org.avatar_url
+                            ? <Image source={{ uri: org.avatar_url }} style={styles.searchResultAvatarImg} />
+                            : <Text style={styles.searchResultAvatarInitial}>{initials}</Text>}
+                        </View>
+                        <View style={styles.searchResultBody}>
+                          <Text style={styles.searchResultName} numberOfLines={1}>{name}</Text>
+                          {org.city ? <Text style={styles.searchResultMeta} numberOfLines={1}>{org.city}</Text> : null}
+                        </View>
+                        <View style={[styles.searchResultBadge, styles.searchResultBadgeOrganizer]}>
+                          <Text style={styles.searchResultBadgeText}>Organizer</Text>
+                        </View>
+                      </TouchableOpacity>
+                    )
+                  })}
+                  {comResults.map((com) => {
+                    const name = locale === 'ar' && com.name_ar ? com.name_ar : com.name
+                    const initials = name.slice(0, 2).toUpperCase()
+                    return (
+                      <TouchableOpacity
+                        key={com.id}
+                        style={styles.searchResultRow}
+                        activeOpacity={0.75}
+                        onPress={() => router.push(`/communities/${com.slug}` as any)}
+                      >
+                        <View style={[styles.searchResultAvatar, styles.searchResultAvatarCommunity]}>
+                          <Text style={styles.searchResultAvatarInitial}>{initials}</Text>
+                        </View>
+                        <View style={styles.searchResultBody}>
+                          <Text style={styles.searchResultName} numberOfLines={1}>{name}</Text>
+                          <Text style={styles.searchResultMeta}>{com.level} · {com.member_count.toLocaleString()} members</Text>
+                        </View>
+                        <View style={[styles.searchResultBadge, styles.searchResultBadgeCommunity]}>
+                          <Text style={styles.searchResultBadgeText}>Community</Text>
+                        </View>
+                      </TouchableOpacity>
+                    )
+                  })}
+                </View>
+              )
+              : showDiscoveryHeader
               ? (
                 <View>
                   {communitySlug && (
@@ -1285,6 +1378,13 @@ export default function EventsScreen() {
                   onSaveChange={handleSaveChange}
                   urgency
                 />
+              )}
+              {debouncedSearch.length > 0 && (
+                <View style={styles.eventSearchBadgeRow}>
+                  <View style={[styles.searchResultBadge, styles.searchResultBadgeEvent]}>
+                    <Text style={styles.searchResultBadgeText}>Event</Text>
+                  </View>
+                </View>
               )}
               <EventCard event={item} isSaved={savedIds.has(item.id)} onSaveChange={handleSaveChange} />
             </View>
@@ -1781,6 +1881,24 @@ const styles = StyleSheet.create({
   discoverExploreCard: { width: 80, alignItems: 'center', justifyContent: 'center', gap: Spacing.xs },
   discoverExploreIcon: { fontSize: 22, color: Colors.brand[400] },
   discoverExploreTxt: { fontSize: FontSize.xs, color: Colors.brand[600], fontWeight: FontWeight.medium },
+
+  // Search results (organizers + communities)
+  searchResultsSection: { backgroundColor: Colors.white, paddingBottom: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.gray[100], marginBottom: Spacing.sm },
+  searchResultsSectionLabel: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.gray[400], textTransform: 'uppercase', letterSpacing: 0.6, paddingHorizontal: Spacing.lg, paddingTop: Spacing.md, paddingBottom: Spacing.sm },
+  searchResultRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, gap: Spacing.sm },
+  searchResultAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.brand[100], alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  searchResultAvatarCommunity: { backgroundColor: Colors.green.light },
+  searchResultAvatarImg: { width: 40, height: 40, borderRadius: 20 },
+  searchResultAvatarInitial: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.brand[700] },
+  searchResultBody: { flex: 1 },
+  searchResultName: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[900] },
+  searchResultMeta: { fontSize: FontSize.xs, color: Colors.gray[400], marginTop: 1 },
+  searchResultBadge: { paddingHorizontal: Spacing.sm, paddingVertical: 3, borderRadius: Radius.full },
+  searchResultBadgeOrganizer: { backgroundColor: Colors.blue.light },
+  searchResultBadgeCommunity: { backgroundColor: Colors.green.light },
+  searchResultBadgeEvent: { backgroundColor: '#fef3c7' },
+  searchResultBadgeText: { fontSize: 11, fontWeight: FontWeight.semibold, color: Colors.gray[700] },
+  eventSearchBadgeRow: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm },
 
   // Hot Offers rail
   hotRailSection: {
