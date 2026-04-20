@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/auth-context'
+import { useLocale } from '@/contexts/locale-context'
 import { createSupabaseBrowserClient } from '@/lib/supabase/client'
 import { Spinner } from '@/components/ui/Spinner'
 import { FileUpload } from '@/components/ui/FileUpload'
@@ -30,6 +31,7 @@ interface OrganizerForm {
 export default function ProfilePage() {
   const { user, profile, loading: authLoading, refreshProfile } = useAuth()
   const router = useRouter()
+  const { t } = useLocale()
   const supabase = createSupabaseBrowserClient()
 
   const [profileForm, setProfileForm] = useState<ProfileForm>({
@@ -187,10 +189,10 @@ export default function ProfilePage() {
 
     if (res.ok) {
       await refreshProfile()
-      setProfileMsg({ ok: true, text: 'Profile saved!' })
+      setProfileMsg({ ok: true, text: t('profile.saved_ok') })
     } else {
       const { error } = await res.json()
-      setProfileMsg({ ok: false, text: error ?? 'Failed to save profile.' })
+      setProfileMsg({ ok: false, text: error ?? t('profile.saved_err') })
     }
     setSavingProfile(false)
   }
@@ -219,10 +221,10 @@ export default function ProfilePage() {
     })
 
     if (res.ok) {
-      setOrgMsg({ ok: true, text: 'Business profile saved!' })
+      setOrgMsg({ ok: true, text: t('profile.business_saved_ok') })
     } else {
       const { error } = await res.json().catch(() => ({ error: null }))
-      setOrgMsg({ ok: false, text: error ?? 'Failed to save business profile.' })
+      setOrgMsg({ ok: false, text: error ?? t('profile.business_saved_err') })
     }
     setSavingOrg(false)
   }
@@ -315,11 +317,11 @@ export default function ProfilePage() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8 space-y-8">
-      <h1 className="text-2xl font-bold text-gray-900">⚙️ Profile Settings</h1>
+      <h1 className="text-2xl font-bold text-gray-900">{t('profile.title')}</h1>
 
       {/* ── Public Profile ────────────────────────────────── */}
       <div className="card p-6">
-        <h2 className="text-base font-semibold text-gray-900 mb-5">Public Profile</h2>
+        <h2 className="text-base font-semibold text-gray-900 mb-5">{t('profile.public_heading')}</h2>
 
         <form onSubmit={saveProfile} className="space-y-4">
           {/* Avatar */}
@@ -331,15 +333,15 @@ export default function ProfilePage() {
               onChange={(url) => setProfileForm((f) => ({ ...f, avatar_url: url }))}
             />
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-gray-700 mb-1">Profile Photo</p>
-              <p className="text-xs text-gray-400">Click the circle to upload. JPG, PNG, WEBP · max 5 MB</p>
+              <p className="text-xs font-medium text-gray-700 mb-1">{t('profile.photo_label')}</p>
+              <p className="text-xs text-gray-400">{t('profile.photo_hint')}</p>
               {profileForm.avatar_url && (
                 <button
                   type="button"
                   onClick={() => setProfileForm((f) => ({ ...f, avatar_url: '' }))}
                   className="text-xs text-red-500 hover:text-red-700 mt-1"
                 >
-                  Remove photo
+                  {t('profile.remove_photo')}
                 </button>
               )}
             </div>
@@ -347,7 +349,7 @@ export default function ProfilePage() {
 
           {/* Display name */}
           <div>
-            <label className="label">Display Name *</label>
+            <label className="label">{t('profile.display_name')}</label>
             <input
               type="text"
               required
@@ -356,19 +358,19 @@ export default function ProfilePage() {
               value={profileForm.display_name}
               onChange={setP('display_name')}
               className="input"
-              placeholder="Your name"
+              placeholder={t('profile.display_name')}
             />
           </div>
 
           {/* City — location-detected, always re-detectable */}
           <div>
-            <label className="label">City</label>
+            <label className="label">{t('profile.city')}</label>
             <div className="flex items-center gap-2">
               <input
                 type="text"
                 value={profile?.city ?? ''}
                 readOnly
-                placeholder="Not set — tap 📍 to detect"
+                placeholder={t('profile.city_placeholder')}
                 className="input bg-gray-50 text-gray-500 cursor-default flex-1"
               />
               <button
@@ -379,7 +381,7 @@ export default function ProfilePage() {
                 className="btn-secondary text-sm flex items-center gap-1.5 shrink-0"
               >
                 {locating ? <Spinner size="sm" /> : '📍'}
-                {locating ? 'Detecting…' : 'Update'}
+                {locating ? t('profile.detecting') : t('profile.update_location')}
               </button>
             </div>
             {locMsg && (
@@ -391,43 +393,43 @@ export default function ProfilePage() {
 
           {/* Gender */}
           <div>
-            <label className="label">Gender</label>
+            <label className="label">{t('profile.gender')}</label>
             {profile?.gender ? (
               <div>
                 <input
                   type="text"
-                  value={profileForm.gender === 'male' ? 'Male' : profileForm.gender === 'female' ? 'Female' : profileForm.gender}
+                  value={profileForm.gender === 'male' ? t('profile.gender_male') : profileForm.gender === 'female' ? t('profile.gender_female') : profileForm.gender}
                   readOnly
                   className="input bg-gray-50 text-gray-500 cursor-default capitalize"
                 />
-                <p className="text-xs text-gray-400 mt-1">Gender cannot be changed after it has been set.</p>
+                <p className="text-xs text-gray-400 mt-1">{t('profile.gender_locked')}</p>
               </div>
             ) : (
               <select value={profileForm.gender} onChange={setP('gender')} className="input cursor-pointer">
-                <option value="">Prefer not to say</option>
-                <option value="male">Male</option>
-                <option value="female">Female</option>
+                <option value="">{t('profile.gender_prefer_not')}</option>
+                <option value="male">{t('profile.gender_male')}</option>
+                <option value="female">{t('profile.gender_female')}</option>
               </select>
             )}
           </div>
 
           {/* Bio */}
           <div>
-            <label className="label">Bio</label>
+            <label className="label">{t('profile.bio')}</label>
             <textarea
               value={profileForm.bio}
               onChange={setP('bio')}
               rows={3}
               maxLength={500}
               className="input resize-none"
-              placeholder="Tell others a bit about yourself…"
+              placeholder={t('profile.bio_placeholder')}
             />
             <p className="text-xs text-gray-400 mt-1 text-end">{profileForm.bio.length}/500</p>
           </div>
 
           {/* Phone */}
           <div>
-            <label className="label">Phone Number</label>
+            <label className="label">{t('profile.phone')}</label>
             <input
               type="tel"
               value={profileForm.phone}
@@ -440,7 +442,7 @@ export default function ProfilePage() {
 
           {/* Email (read-only) */}
           <div>
-            <label className="label">Email</label>
+            <label className="label">{t('profile.email')}</label>
             <input
               type="email"
               value={user.email ?? ''}
@@ -460,7 +462,7 @@ export default function ProfilePage() {
           )}
 
           <button type="submit" disabled={savingProfile} className="btn-primary w-full">
-            {savingProfile ? <Spinner size="sm" /> : 'Save Profile'}
+            {savingProfile ? <Spinner size="sm" /> : t('profile.save_btn')}
           </button>
         </form>
       </div>
@@ -468,8 +470,8 @@ export default function ProfilePage() {
       {/* ── Organizer Business Profile ────────────────────── */}
       {profile?.role === 'organizer' && (
         <div className="card p-6">
-          <h2 className="text-base font-semibold text-gray-900 mb-1">Business Profile</h2>
-          <p className="text-sm text-gray-500 mb-5">Visible on your events and organizer page.</p>
+          <h2 className="text-base font-semibold text-gray-900 mb-1">{t('profile.business_heading')}</h2>
+          <p className="text-sm text-gray-500 mb-5">{t('profile.business_sub')}</p>
 
           {loadingOrg ? (
             <div className="flex justify-center py-8"><Spinner /></div>
@@ -477,7 +479,7 @@ export default function ProfilePage() {
             <form onSubmit={saveOrganizerProfile} className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="label">Business Name (EN) *</label>
+                  <label className="label">{t('profile.business_name_en')}</label>
                   <input
                     type="text"
                     required
@@ -488,7 +490,7 @@ export default function ProfilePage() {
                   />
                 </div>
                 <div>
-                  <label className="label">Business Name (AR)</label>
+                  <label className="label">{t('profile.business_name_ar')}</label>
                   <input
                     type="text"
                     value={orgForm.business_name_ar}
@@ -501,7 +503,7 @@ export default function ProfilePage() {
               </div>
 
               <div>
-                <label className="label">Description (EN)</label>
+                <label className="label">{t('profile.desc_en')}</label>
                 <textarea
                   value={orgForm.description}
                   onChange={setO('description')}
@@ -512,7 +514,7 @@ export default function ProfilePage() {
               </div>
 
               <div>
-                <label className="label">Description (AR)</label>
+                <label className="label">{t('profile.desc_ar')}</label>
                 <textarea
                   value={orgForm.description_ar}
                   onChange={setO('description_ar')}
@@ -525,7 +527,7 @@ export default function ProfilePage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="label">Logo URL</label>
+                  <label className="label">{t('profile.logo_url')}</label>
                   <input
                     type="url"
                     value={orgForm.logo_url}
@@ -535,7 +537,7 @@ export default function ProfilePage() {
                   />
                 </div>
                 <div>
-                  <label className="label">Website</label>
+                  <label className="label">{t('profile.website')}</label>
                   <input
                     type="url"
                     value={orgForm.website}
@@ -545,7 +547,7 @@ export default function ProfilePage() {
                   />
                 </div>
                 <div>
-                  <label className="label">Phone</label>
+                  <label className="label">{t('profile.phone')}</label>
                   <input
                     type="tel"
                     value={orgForm.phone}
@@ -567,7 +569,7 @@ export default function ProfilePage() {
               )}
 
               <button type="submit" disabled={savingOrg} className="btn-primary w-full">
-                {savingOrg ? <Spinner size="sm" /> : 'Save Business Profile'}
+                {savingOrg ? <Spinner size="sm" /> : t('profile.save_business_btn')}
               </button>
             </form>
           )}
@@ -579,9 +581,9 @@ export default function ProfilePage() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="text-xl">🎁</span>
-            <h2 className="text-base font-semibold text-gray-900">Refer &amp; Earn</h2>
+            <h2 className="text-base font-semibold text-gray-900">{t('profile.refer_earn_title')}</h2>
           </div>
-          <p className="text-sm text-gray-500">Invite friends with your link · earn 15% and 25% discount coupons</p>
+          <p className="text-sm text-gray-500">{t('profile.refer_earn_sub')}</p>
         </div>
         <span className="text-gray-400 group-hover:text-brand-500 text-lg">→</span>
       </a>
@@ -592,18 +594,18 @@ export default function ProfilePage() {
       {/* ── Become an Organizer ───────────────────────────── */}
       {profile?.role === 'user' && orgRequest !== undefined && (
         <div className="card p-6">
-          <h2 className="text-base font-semibold text-gray-900 mb-1">🏢 Become an Organizer</h2>
+          <h2 className="text-base font-semibold text-gray-900 mb-1">{t('profile.become_organizer')}</h2>
 
           {orgRequest?.status === 'pending' ? (
             <div className="bg-amber-50 text-amber-700 border border-amber-200 rounded-xl px-4 py-3 text-sm">
-              ⏳ Application pending — under review. We&apos;ll notify you when approved.
+              {t('profile.pending')}
             </div>
           ) : (
             <>
               <p className="text-sm text-gray-500 mb-4">
                 {orgRequest?.status === 'rejected'
-                  ? 'Your previous application was not approved — you may reapply.'
-                  : 'Host and manage your own events on Rawaq.'}
+                  ? t('profile.rejected')
+                  : t('profile.host')}
               </p>
 
               {!showOrgForm ? (
@@ -612,12 +614,12 @@ export default function ProfilePage() {
                   onClick={() => { setShowOrgForm(true); setOrgReqMsg(null) }}
                   className="btn-primary"
                 >
-                  Apply
+                  {t('profile.apply_btn')}
                 </button>
               ) : (
                 <form onSubmit={submitOrgRequest} className="space-y-4">
                   <div>
-                    <label className="label">Business / Organizer Name *</label>
+                    <label className="label">{t('profile.org_name_label')}</label>
                     <input
                       type="text"
                       required
@@ -630,7 +632,7 @@ export default function ProfilePage() {
                     />
                   </div>
                   <div>
-                    <label className="label">About your organization (optional)</label>
+                    <label className="label">{t('profile.org_desc_label')}</label>
                     <textarea
                       value={orgReqForm.description}
                       onChange={(e) => setOrgReqForm((f) => ({ ...f, description: e.target.value }))}
@@ -655,14 +657,14 @@ export default function ProfilePage() {
                       disabled={submittingOrgReq || !orgReqForm.business_name.trim()}
                       className="btn-primary flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {submittingOrgReq ? <Spinner size="sm" /> : 'Submit Request'}
+                      {submittingOrgReq ? <Spinner size="sm" /> : t('profile.submit_request')}
                     </button>
                     <button
                       type="button"
                       onClick={() => { setShowOrgForm(false); setOrgReqMsg(null) }}
                       className="text-sm text-gray-500 hover:text-gray-700 px-3"
                     >
-                      Cancel
+                      {t('common.cancel')}
                     </button>
                   </div>
                 </form>
@@ -674,20 +676,20 @@ export default function ProfilePage() {
 
       {/* ── Account Security ───────────────────────────────── */}
       <div className="card p-6">
-        <h2 className="text-base font-semibold text-gray-900 mb-1">Account Security</h2>
+        <h2 className="text-base font-semibold text-gray-900 mb-1">{t('profile.account_security')}</h2>
         <p className="text-sm text-gray-500 mb-4">
-          Role: <span className="font-medium capitalize text-gray-700">{profile?.role ?? '—'}</span>
+          {t('profile.role_label')} <span className="font-medium capitalize text-gray-700">{profile?.role ?? '—'}</span>
           &nbsp;·&nbsp;
-          Member since: <span className="font-medium text-gray-700">
+          {t('profile.member_since')} <span className="font-medium text-gray-700">
             {profile?.created_at ? new Date(profile.created_at).toLocaleDateString() : '—'}
           </span>
         </p>
 
         <form onSubmit={handleEmailChange} className="space-y-3">
           <div>
-            <label className="label">Change Email</label>
+            <label className="label">{t('profile.change_email')}</label>
             <p className="text-xs text-gray-400 mb-2">
-              Current: <span className="font-medium text-gray-600">{user.email}</span>
+              {t('profile.current_email')} <span className="font-medium text-gray-600">{user.email}</span>
             </p>
             <input
               type="email"
@@ -696,9 +698,7 @@ export default function ProfilePage() {
               className="input"
               placeholder="new@example.com"
             />
-            <p className="text-xs text-gray-400 mt-1">
-              A confirmation link will be sent to the new address. Your email won&apos;t change until you click it.
-            </p>
+            <p className="text-xs text-gray-400 mt-1">{t('profile.email_hint')}</p>
           </div>
 
           {emailForm.msg && (
@@ -716,7 +716,7 @@ export default function ProfilePage() {
             disabled={emailForm.loading || !emailForm.newEmail || emailForm.newEmail === user.email}
             className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {emailForm.loading ? <Spinner size="sm" /> : 'Send Confirmation'}
+            {emailForm.loading ? <Spinner size="sm" /> : t('profile.send_confirmation')}
           </button>
         </form>
       </div>

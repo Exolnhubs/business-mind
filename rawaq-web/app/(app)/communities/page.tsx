@@ -3,6 +3,7 @@
 import { useCallback, useDeferredValue, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/auth-context'
+import { useLocale } from '@/contexts/locale-context'
 import { Spinner } from '@/components/ui/Spinner'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { clientFetchInvalidate, clientGetJson } from '@/lib/client-fetch'
@@ -12,12 +13,12 @@ type CommunityWithMembership = Community & { is_member: boolean; event_count?: n
 type TrendingCommunity = CommunityWithMembership & { trending_score?: number }
 type MembershipMutationResponse = { is_member?: boolean; member_count?: number }
 
-const LEVEL_LABELS: Record<CommunityLevel, string> = {
-  micro:    'Micro',
-  interest: 'Interest',
-  district: 'District',
-  city:     'City',
-  country:  'Country',
+const LEVEL_LABEL_KEYS: Record<CommunityLevel, string> = {
+  micro:    'comm.level.micro',
+  interest: 'comm.level.interest',
+  district: 'comm.level.district',
+  city:     'comm.level.city',
+  country:  'comm.level.country',
 }
 
 const LEVEL_ICONS: Record<CommunityLevel, string> = {
@@ -44,6 +45,7 @@ function CommunityCard({ community, onToggleMembership }: {
 }) {
   const [loading, setLoading] = useState(false)
   const router = useRouter()
+  const { t } = useLocale()
 
   async function handleJoinLeave(e: React.MouseEvent<HTMLButtonElement>) {
     e.stopPropagation()
@@ -89,18 +91,18 @@ function CommunityCard({ community, onToggleMembership }: {
           </div>
           {community.is_verified && (
             <span className="shrink-0 rounded-full bg-brand-50 px-2 py-1 text-[11px] font-semibold text-brand-700">
-              Verified
+              {t('comm.verified')}
             </span>
           )}
         </div>
 
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${LEVEL_COLORS[community.level]}`}>
-            {LEVEL_ICONS[community.level]} {LEVEL_LABELS[community.level]}
+            {LEVEL_ICONS[community.level]} {t(LEVEL_LABEL_KEYS[community.level])}
           </span>
           {community.is_member && (
             <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-              Joined
+              {t('comm.joined')}
             </span>
           )}
           {community.city && (
@@ -114,12 +116,8 @@ function CommunityCard({ community, onToggleMembership }: {
 
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3 text-xs text-gray-400">
-            <span>
-              {community.member_count.toLocaleString()} member{community.member_count !== 1 ? 's' : ''}
-            </span>
-            <span>
-              {community.event_count ?? 0} event{(community.event_count ?? 0) !== 1 ? 's' : ''}
-            </span>
+            <span>{t('comm.member_count').replace('{n}', community.member_count.toLocaleString())}</span>
+            <span>{t('comm.event_count').replace('{n}', String(community.event_count ?? 0))}</span>
           </div>
           <button
             onClick={handleJoinLeave}
@@ -130,7 +128,7 @@ function CommunityCard({ community, onToggleMembership }: {
                 : 'bg-brand-600 text-white hover:bg-brand-700'
             }`}
           >
-            {loading ? '...' : community.is_member ? 'Joined' : 'Join'}
+            {loading ? '...' : community.is_member ? t('comm.joined') : t('comm.join')}
           </button>
         </div>
       </div>
@@ -141,6 +139,7 @@ function CommunityCard({ community, onToggleMembership }: {
 export default function CommunitiesPage() {
   const { user } = useAuth()
   const router = useRouter()
+  const { t } = useLocale()
   const cacheScopeKey = user?.id ?? null
   const [communities, setCommunities] = useState<CommunityWithMembership[]>([])
   const [loading, setLoading]         = useState(true)
@@ -351,9 +350,9 @@ export default function CommunitiesPage() {
       <div className="mb-8 rounded-3xl border border-brand-100 bg-gradient-to-br from-brand-50 via-white to-amber-50 px-6 py-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-600">Rawaq Communities</p>
-            <h1 className="mt-2 text-3xl font-bold text-gray-900">Find your people</h1>
-            <p className="mt-2 max-w-2xl text-sm text-gray-600">Explore local circles, interest groups, and city communities where events turn into real relationships.</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-600">{t('comm.heading_eyebrow')}</p>
+            <h1 className="mt-2 text-3xl font-bold text-gray-900">{t('comm.heading_title')}</h1>
+            <p className="mt-2 max-w-2xl text-sm text-gray-600">{t('comm.heading_sub')}</p>
           </div>
           {user && (
             <button
@@ -365,7 +364,7 @@ export default function CommunitiesPage() {
               }`}
             >
               <span>{joinedOnly ? '✓' : '◎'}</span>
-              My Communities
+              {t('comm.my_communities')}
             </button>
           )}
         </div>
@@ -376,7 +375,7 @@ export default function CommunitiesPage() {
         trendingLoaded ? (
           trending.length > 0 && (
             <div className="mb-6">
-              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Trending now</h2>
+              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">{t('comm.trending')}</h2>
               <div className="grid gap-3 md:grid-cols-3">
                 {trending.map((c) => (
                   <button
@@ -390,12 +389,12 @@ export default function CommunitiesPage() {
                         {LEVEL_ICONS[c.level]}
                       </div>
                       <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-700">
-                        Trending
+                        {t('comm.trending_badge')}
                       </span>
                     </div>
                     <p className="line-clamp-1 text-sm font-semibold text-gray-900">{c.name}</p>
                     <p className="mt-1 text-xs text-gray-500">
-                      {c.city ? `${c.city} · ` : ''}{c.member_count.toLocaleString()} members
+                      {c.city ? `${c.city} · ` : ''}{t('comm.members').replace('{n}', c.member_count.toLocaleString())}
                     </p>
                   </button>
                 ))}
@@ -417,7 +416,7 @@ export default function CommunitiesPage() {
         recommendedLoaded ? (
           recommended.length > 0 && (
             <div className="mb-6">
-              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Recommended for you</h2>
+              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">{t('comm.recommended')}</h2>
               <div className="flex flex-wrap gap-3">
                 {recommended.map((c) => (
                   <div
@@ -430,7 +429,7 @@ export default function CommunitiesPage() {
                     <div className="min-w-0">
                       <p className="line-clamp-1 text-sm font-semibold text-gray-900">{c.name}</p>
                       <p className="text-xs text-gray-500">
-                        {LEVEL_LABELS[c.level]}{c.city ? ` · ${c.city}` : ''} · {c.member_count.toLocaleString()} members
+                        {t(LEVEL_LABEL_KEYS[c.level])}{c.city ? ` · ${c.city}` : ''} · {t('comm.members').replace('{n}', c.member_count.toLocaleString())}
                       </p>
                     </div>
                     <button
@@ -438,7 +437,7 @@ export default function CommunitiesPage() {
                       disabled={suggestedJoining === c.slug}
                       className="ml-2 rounded-xl bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-brand-700 disabled:opacity-60"
                     >
-                      {suggestedJoining === c.slug ? '...' : 'Join'}
+                      {suggestedJoining === c.slug ? '...' : t('comm.join')}
                     </button>
                   </div>
                 ))}
@@ -457,7 +456,7 @@ export default function CommunitiesPage() {
 
       {user && !joinedOnly && !search && suggestedCommunities.length > 0 && (
         <div className="mb-6">
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Popular communities</h2>
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">{t('comm.popular')}</h2>
           <div className="flex flex-wrap gap-3">
             {suggestedCommunities.map((c) => (
               <div
@@ -469,14 +468,14 @@ export default function CommunitiesPage() {
                 </div>
                 <div className="min-w-0">
                   <p className="line-clamp-1 text-sm font-semibold text-gray-900">{c.name}</p>
-                  <p className="text-xs text-gray-400">{c.member_count.toLocaleString()} members</p>
+                  <p className="text-xs text-gray-400">{t('comm.members').replace('{n}', c.member_count.toLocaleString())}</p>
                 </div>
                 <button
                   onClick={() => joinCommunityRecommendation(c)}
                   disabled={suggestedJoining === c.slug}
                   className="ml-2 rounded-xl bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700 transition-colors disabled:opacity-60"
                 >
-                  {suggestedJoining === c.slug ? '...' : 'Join'}
+                  {suggestedJoining === c.slug ? '...' : t('comm.join')}
                 </button>
               </div>
             ))}
@@ -491,7 +490,7 @@ export default function CommunitiesPage() {
             className="inline-flex items-center gap-2 rounded-full bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-700"
           >
             <span>+</span>
-            Create Community
+            {t('comm.create')}
           </button>
         </div>
       )}
@@ -503,8 +502,8 @@ export default function CommunitiesPage() {
           <div className="ef-pattern" aria-hidden="true" />
           <div className="ef-header-inner" style={{ position: 'relative' }}>
             <div>
-              <p className="ef-eyebrow">Browse</p>
-              <h3 className="ef-title">Filter Communities</h3>
+              <p className="ef-eyebrow">{t('comm.filter_eyebrow')}</p>
+              <h3 className="ef-title">{t('comm.filter_title')}</h3>
             </div>
             {(search || level !== 'all') && (
               <button
@@ -515,7 +514,7 @@ export default function CommunitiesPage() {
                 <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
                   <path d="M1.5 1.5L8.5 8.5M8.5 1.5L1.5 8.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
                 </svg>
-                Clear
+                {t('comm.filter_clear')}
               </button>
             )}
           </div>
@@ -532,7 +531,7 @@ export default function CommunitiesPage() {
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search communities…"
+              placeholder={t('comm.filter_search')}
               className="ef-search-input"
             />
           </div>
@@ -545,7 +544,7 @@ export default function CommunitiesPage() {
                 onClick={() => setLevel('all')}
                 className={`cf-level-btn${level === 'all' ? ' cf-level-btn--active' : ''}`}
               >
-                All
+                {t('comm.level_all')}
               </button>
               {ALL_LEVELS.map((l) => (
                 <button
@@ -553,7 +552,7 @@ export default function CommunitiesPage() {
                   onClick={() => setLevel(l)}
                   className={`cf-level-btn${level === l ? ' cf-level-btn--active' : ''}`}
                 >
-                  {LEVEL_ICONS[l]} {LEVEL_LABELS[l]}
+                  {LEVEL_ICONS[l]} {t(LEVEL_LABEL_KEYS[l])}
                 </button>
               ))}
             </div>
@@ -567,12 +566,8 @@ export default function CommunitiesPage() {
       ) : communities.length === 0 ? (
         <EmptyState
           icon="Groups"
-          title={joinedOnly ? 'No joined communities yet' : 'No communities found'}
-          description={
-            joinedOnly
-              ? 'Communities you join will appear here so you can filter by them quickly.'
-              : 'Try a different search or filter.'
-          }
+          title={joinedOnly ? t('comm.empty_joined') : t('comm.empty_none')}
+          description={joinedOnly ? t('comm.empty_joined_desc') : t('comm.empty_none_desc')}
         />
       ) : (
         <>
@@ -593,7 +588,7 @@ export default function CommunitiesPage() {
                 disabled={loading}
                 className="btn-secondary"
               >
-                {loading ? <Spinner size="sm" /> : 'Load more'}
+                {loading ? <Spinner size="sm" /> : t('comm.load_more')}
               </button>
             </div>
           )}

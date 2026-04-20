@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition, type FormEvent } from 'reac
 import { useRouter } from 'next/navigation'
 import { createSupabaseBrowserClient } from '@/lib/supabase/client'
 import { useAuth } from '@/contexts/auth-context'
+import { useLocale } from '@/contexts/locale-context'
 import { formatRelativeTime } from '@/lib/utils'
 import { Spinner } from '@/components/ui/Spinner'
 
@@ -23,6 +24,7 @@ const PAGE_SIZE = 50
 export default function ChatPage() {
   const { user, profile, loading: authLoading } = useAuth()
   const router = useRouter()
+  const { t } = useLocale()
   const supabase = createSupabaseBrowserClient()
 
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -95,7 +97,7 @@ export default function ChatPage() {
 
           const newMsg: ChatMessage = {
             ...(payload.new as ChatMessage),
-            author: author ?? { id: payload.new.user_id, display_name: 'Unknown', avatar_url: null },
+            author: author ?? { id: payload.new.user_id, display_name: t('chat.unknown'), avatar_url: null },
             isNew: true,
           }
 
@@ -133,7 +135,7 @@ export default function ChatPage() {
       content: text,
       created_at: new Date().toISOString(),
       mentions: [],
-      author: { id: user.id, display_name: profile?.display_name ?? 'You', avatar_url: profile?.avatar_url ?? null },
+      author: { id: user.id, display_name: profile?.display_name ?? t('chat.you'), avatar_url: profile?.avatar_url ?? null },
       isNew: true,
     }
     setMessages((prev) => [...prev, optimistic])
@@ -174,12 +176,12 @@ export default function ChatPage() {
           <div className="chat-header-pattern" aria-hidden="true" />
           <div className="chat-header-content">
             <div>
-              <h1 className="chat-title">Global Chat</h1>
-              <p className="chat-subtitle">Connect with the Rawaq community in real time</p>
+              <h1 className="chat-title">{t('chat.title')}</h1>
+              <p className="chat-subtitle">{t('chat.subtitle')}</p>
             </div>
             <div className="chat-live-badge" aria-label="Live chat active">
               <span className="chat-live-dot" aria-hidden="true" />
-              Live
+              {t('chat.live')}
             </div>
           </div>
         </div>
@@ -197,7 +199,7 @@ export default function ChatPage() {
                     <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
                       <path d="M6 10V2M6 2L2.5 5.5M6 2L9.5 5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                     </svg>
-                    Load older messages
+                    {t('chat.load_older')}
                   </>
                 )}
               </button>
@@ -207,7 +209,7 @@ export default function ChatPage() {
           {fetching ? (
             <div className="chat-state-center">
               <Spinner size="lg" />
-              <span className="chat-state-label">Loading messages…</span>
+              <span className="chat-state-label">{t('chat.loading')}</span>
             </div>
           ) : messages.length === 0 ? (
             <div className="chat-state-center">
@@ -220,8 +222,8 @@ export default function ChatPage() {
                   <circle cx="26" cy="17" r="2" fill="currentColor" opacity="0.5"/>
                 </svg>
               </div>
-              <p className="chat-empty-title">No messages yet</p>
-              <p className="chat-empty-body">Be the first to say something to the Rawaq community</p>
+              <p className="chat-empty-title">{t('chat.empty_title')}</p>
+              <p className="chat-empty-body">{t('chat.empty_desc')}</p>
             </div>
           ) : (
             messages.map((msg) => {
@@ -245,7 +247,7 @@ export default function ChatPage() {
                   <div
                     className={`chat-avatar${isOwn ? ' chat-avatar--own' : ''}`}
                     aria-hidden="true"
-                    title={isOwn ? 'You' : (msg.author?.display_name ?? 'Unknown')}
+                    title={isOwn ? t('chat.you') : (msg.author?.display_name ?? t('chat.unknown'))}
                   >
                     {msg.author?.avatar_url ? (
                       <img src={msg.author.avatar_url} alt="" className="chat-avatar-img" />
@@ -257,7 +259,7 @@ export default function ChatPage() {
                   {/* Bubble + meta */}
                   <div className={`chat-msg-body${isOwn ? ' chat-msg-body--own' : ''}`}>
                     <span className={`chat-msg-meta${isOwn ? ' chat-msg-meta--own' : ''}`}>
-                      {isOwn ? 'You' : (msg.author?.display_name ?? 'Unknown')}
+                      {isOwn ? t('chat.you') : (msg.author?.display_name ?? t('chat.unknown'))}
                       <span className="chat-msg-time">· {formatRelativeTime(msg.created_at)}</span>
                     </span>
                     <div
@@ -282,7 +284,7 @@ export default function ChatPage() {
               type="text"
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              placeholder="Say something to the community…"
+              placeholder={t('chat.placeholder')}
               disabled={sending}
               maxLength={1000}
               className="chat-input"
@@ -316,7 +318,7 @@ export default function ChatPage() {
             </button>
           </div>
           <p className="chat-input-hint">
-            Enter to send
+            {t('chat.enter_to_send')}
             {content.length > 0 && (
               <span className="chat-char-count"> · {content.length}/1000</span>
             )}

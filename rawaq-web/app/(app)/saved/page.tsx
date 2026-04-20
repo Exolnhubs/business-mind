@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { EventCard } from '@/components/events/EventCard'
-import { EmptyState } from '@/components/ui/EmptyState'
+import { SavedPageHeader, SavedEmptyState } from '@/components/saved/SavedStrings'
 import type { EventWithOrganizer } from '@/types/database'
 
 export const metadata: Metadata = { title: 'Saved Events' }
@@ -34,17 +34,10 @@ export default async function SavedEventsPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Saved Events</h1>
-        <p className="text-gray-500 text-sm mt-1">{events.length} event{events.length !== 1 ? 's' : ''} saved</p>
-      </div>
+      <SavedPageHeader count={events.length} />
 
       {events.length === 0 ? (
-        <EmptyState
-          icon="🤍"
-          title="No saved events yet"
-          description="Tap the heart on any event to save it here"
-        />
+        <SavedEmptyState />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {events.map((event) => (
