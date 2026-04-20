@@ -82,10 +82,10 @@ export function UserProfileTabs({ targetId, followState, isMutual, sharedCommuni
   }
 
   async function loadCommunities() {
-    const res = await fetch(`/api/communities?member_only=true&user_id=${targetId}`)
+    const res = await fetch(`/api/communities?user_id=${targetId}&per_page=50`)
     if (res.ok) {
-      const { data } = await res.json() as { data: any[] }
-      setAllCommunities(data ?? [])
+      const { data: payload } = await res.json() as { data: { data: any[]; total: number } }
+      setAllCommunities(payload?.data ?? [])
     }
     setCommunitiesLoaded(true)
   }
