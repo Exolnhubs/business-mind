@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { useLocale } from '@/contexts/locale-context'
 import { Badge } from '@/components/ui/Badge'
 import { Spinner } from '@/components/ui/Spinner'
 import { formatDate } from '@/lib/utils'
@@ -15,6 +16,7 @@ function getBookingStartAt(booking: BookingRow) {
 export default function BookingsClient({ initialBookings }: { initialBookings: BookingRow[] }) {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { t } = useLocale()
   const [bookings, setBookings] = useState(initialBookings)
 
   // Refund modal state
@@ -34,7 +36,7 @@ export default function BookingsClient({ initialBookings }: { initialBookings: B
     } else {
       setRefundMsg({
         ok: false,
-        text: 'This booking cannot be cancelled from here right now.',
+        text: t('bookings.refund_err_not_eligible'),
       })
     }
 
@@ -63,12 +65,10 @@ export default function BookingsClient({ initialBookings }: { initialBookings: B
       const autoRefunded = json.data?.auto_refunded === true
       setRefundMsg({
         ok: true,
-        text: autoRefunded
-          ? '✓ Ticket cancelled. Your refund has been sent to your original payment method — allow 3-5 business days to appear.'
-          : '✓ Ticket cancelled. Your refund is queued for review and will be processed within 1-3 business days.',
+        text: autoRefunded ? t('bookings.refund_ok_auto') : t('bookings.refund_ok_queued'),
       })
     } else {
-      setRefundMsg({ ok: false, text: json.error ?? 'Refund request failed.' })
+      setRefundMsg({ ok: false, text: json.error ?? t('bookings.refund_err_generic') })
     }
   }
 
@@ -84,7 +84,7 @@ export default function BookingsClient({ initialBookings }: { initialBookings: B
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 space-y-8">
-      <h1 className="text-2xl font-bold text-gray-900">My Bookings</h1>
+      <h1 className="text-2xl font-bold text-gray-900">{t('bookings.title')}</h1>
 
       {refundMsg && (
         <div className={`text-sm rounded-xl px-4 py-3 ${refundMsg.ok
@@ -94,47 +94,47 @@ export default function BookingsClient({ initialBookings }: { initialBookings: B
       )}
 
       <BookingSection
-        title="Upcoming"
+        title={t('bookings.upcoming')}
         bookings={upcoming}
         emptyIcon="📅"
-        emptyText="No upcoming bookings"
+        emptyText={t('bookings.empty_upcoming')}
         onRefund={(b) => { setRefundTarget(b); setRefundMsg(null) }}
+        t={t}
       />
       <BookingSection
-        title="Past Events"
+        title={t('bookings.past')}
         bookings={past}
         emptyIcon="🕰️"
-        emptyText="No past events"
+        emptyText={t('bookings.empty_past')}
+        t={t}
       />
       {cancelled.length > 0 && (
-        <BookingSection title="Cancelled" bookings={cancelled} />
+        <BookingSection title={t('bookings.cancelled')} bookings={cancelled} t={t} />
       )}
 
       {/* Refund modal */}
       {refundTarget && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-4">
-            <h2 className="text-lg font-bold text-gray-900">Cancel & Request Refund</h2>
+            <h2 className="text-lg font-bold text-gray-900">{t('bookings.refund_modal_title')}</h2>
             <p className="text-sm text-gray-600">
-              Your ticket for{' '}
-              <span className="font-semibold">{refundTarget.event?.title}</span>{' '}
-              will be cancelled and a refund request will be submitted for review.
+              {t('bookings.refund_modal_body').replace('{event}', refundTarget.event?.title ?? '')}
             </p>
 
             <div>
-              <label className="label">Reason for cancellation (optional)</label>
+              <label className="label">{t('bookings.refund_reason_label')}</label>
               <textarea
                 className="input resize-none"
                 rows={3}
                 value={userNote}
                 onChange={(e) => setUserNote(e.target.value)}
-                placeholder="e.g. Change of plans, unable to attend…"
+                placeholder={t('bookings.refund_reason_placeholder')}
                 maxLength={500}
               />
             </div>
 
             <p className="text-xs text-gray-400 bg-gray-50 rounded-xl px-4 py-3">
-              Refunds are reviewed within 1-3 business days. Your ticket will be released immediately for others.
+              {t('bookings.refund_policy')}
             </p>
 
             {refundMsg && !refundMsg.ok && (
@@ -149,13 +149,13 @@ export default function BookingsClient({ initialBookings }: { initialBookings: B
                 disabled={submitting}
                 className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-2.5 rounded-xl disabled:opacity-50 transition-colors"
               >
-                {submitting ? <Spinner size="sm" /> : 'Confirm Cancellation'}
+                {submitting ? <Spinner size="sm" /> : t('bookings.confirm_cancel')}
               </button>
               <button
                 onClick={() => { setRefundTarget(null); setRefundMsg(null) }}
                 className="flex-1 btn-secondary"
               >
-                Keep Ticket
+                {t('bookings.keep_ticket')}
               </button>
             </div>
           </div>
@@ -178,12 +178,14 @@ function BookingSection({
   emptyIcon,
   emptyText,
   onRefund,
+  t,
 }: {
   title: string
   bookings: BookingRow[]
   emptyIcon?: string
   emptyText?: string
   onRefund?: (b: BookingRow) => void
+  t: (k: string) => string
 }) {
   return (
     <section>
@@ -213,7 +215,7 @@ function BookingSection({
                 <div className="flex-1 min-w-0">
                   <Link href={`/events/${booking.event?.id}`}>
                     <p className="text-sm font-semibold text-gray-900 truncate hover:underline">
-                      {booking.event?.title ?? 'Event'}
+                      {booking.event?.title ?? t('bookings.event_fallback')}
                     </p>
                   </Link>
                   <p className="text-xs text-gray-500 mt-0.5">
@@ -228,14 +230,14 @@ function BookingSection({
                           'green'
                     }
                   >
-                    {booking.event?.is_cancelled ? 'Event Cancelled' : booking.status}
+                    {booking.event?.is_cancelled ? t('bookings.event_cancelled') : booking.status}
                   </Badge>
                   {booking.status === 'confirmed' && !booking.event?.is_cancelled && (
                     <Link
                       href={`/bookings/${booking.id}/ticket`}
                       className="text-xs font-semibold text-brand-600 border border-brand-200 px-2.5 py-1 rounded-lg hover:bg-brand-50 transition"
                     >
-                      🎟️ Ticket
+                      {t('bookings.ticket_link')}
                     </Link>
                   )}
                   {canRefund && onRefund && (
@@ -243,7 +245,7 @@ function BookingSection({
                       onClick={() => onRefund(booking)}
                       className="text-xs font-semibold text-red-600 border border-red-200 px-2.5 py-1 rounded-lg hover:bg-red-50 transition"
                     >
-                      ↩️ Refund
+                      {t('bookings.refund_btn')}
                     </button>
                   )}
                 </div>

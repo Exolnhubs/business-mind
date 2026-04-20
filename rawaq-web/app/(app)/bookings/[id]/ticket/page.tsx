@@ -4,7 +4,16 @@ import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { generateTicketQR } from '@/lib/qr'
 import { formatDate, formatTime } from '@/lib/utils'
-import { PrintButton } from './PrintButton'
+import {
+  TicketBackLink,
+  TicketBandLabel,
+  TicketGuestLabel,
+  TicketQrHint,
+  TicketCompanionRef,
+  TicketViewEventBtn,
+  PrintButton,
+  TicketInfoRowLabel,
+} from '@/components/bookings/TicketStrings'
 
 export const metadata: Metadata = { title: 'Your Ticket' }
 
@@ -96,7 +105,7 @@ export default async function TicketPage({ params }: Props) {
     <div className="min-h-screen bg-gray-50 flex flex-col items-center py-10 px-4">
       {/* Print/Download hint */}
       <div className="w-full max-w-md mb-4 flex items-center justify-between">
-        <a href="/bookings" className="text-sm text-brand-600 hover:underline">← My Bookings</a>
+        <TicketBackLink />
         <button
           onClick={undefined}
           className="text-sm text-brand-600 hover:underline print:hidden"
@@ -119,7 +128,7 @@ export default async function TicketPage({ params }: Props) {
               </span>
             )}
           </div>
-          <p className="text-xs text-amber-100 font-medium">Event Ticket</p>
+          <TicketBandLabel />
         </div>
 
         {/* Event info */}
@@ -130,12 +139,12 @@ export default async function TicketPage({ params }: Props) {
           )}
 
           <div className="mt-5 space-y-3 text-sm">
-            <InfoRow icon="📅" label="Date" value={formatDate(displayStartAt)} />
-            <InfoRow icon="🕐" label="Time" value={formatTime(displayStartAt) + (displayEndAt ? ` - ${formatTime(displayEndAt)}` : '')} />
-            <InfoRow icon="📍" label="Venue" value={event.venue_name ?? event.city} />
-            {event.address && <InfoRow icon="🗺️" label="Address" value={event.address} />}
-            <InfoRow icon="👤" label="Attendee" value={profileData?.display_name ?? user.email ?? ''} />
-            {booking.seat && <InfoRow icon="💺" label="Seat" value={booking.seat} />}
+            <InfoRow icon="📅" labelKey="ticket.info.date" value={formatDate(displayStartAt)} />
+            <InfoRow icon="🕐" labelKey="ticket.info.time" value={formatTime(displayStartAt) + (displayEndAt ? ` - ${formatTime(displayEndAt)}` : '')} />
+            <InfoRow icon="📍" labelKey="ticket.info.venue" value={event.venue_name ?? event.city} />
+            {event.address && <InfoRow icon="🗺️" labelKey="ticket.info.address" value={event.address} />}
+            <InfoRow icon="👤" labelKey="ticket.info.attendee" value={profileData?.display_name ?? user.email ?? ''} />
+            {booking.seat && <InfoRow icon="💺" labelKey="ticket.info.seat" value={booking.seat} />}
           </div>
         </div>
 
@@ -155,9 +164,7 @@ export default async function TicketPage({ params }: Props) {
           <p className="mt-3 font-mono text-base font-bold text-gray-800 tracking-widest">
             {booking.ticket_id}
           </p>
-          <p className="mt-1 text-xs text-gray-400 text-center">
-            Present this QR code at the venue entrance
-          </p>
+          <TicketQrHint />
         </div>
       </div>
 
@@ -168,21 +175,19 @@ export default async function TicketPage({ params }: Props) {
           className="w-full max-w-md bg-white rounded-3xl shadow-lg overflow-hidden mt-4"
         >
           <div className="bg-gradient-to-r from-gray-500 to-gray-400 px-8 py-4 text-white">
-            <p className="text-xs text-gray-200 font-medium">Event Ticket — Guest {holder.position}</p>
+            <TicketGuestLabel position={holder.position} />
             <p className="text-lg font-bold tracking-tight mt-0.5">Rawaq 🌟</p>
           </div>
           <div className="px-8 py-5 space-y-3 text-sm">
-            <InfoRow icon="📅" label="Date" value={formatDate(displayStartAt)} />
-            <InfoRow icon="🕐" label="Time" value={formatTime(displayStartAt) + (displayEndAt ? ` - ${formatTime(displayEndAt)}` : '')} />
-            <InfoRow icon="📍" label="Venue" value={event.venue_name ?? event.city} />
-            <InfoRow icon="👤" label="Attendee" value={holder.full_name} />
-            <InfoRow icon="🎂" label="Date of Birth" value={holder.date_of_birth} />
-            <InfoRow icon="👥" label="Relation" value={holder.relation} />
+            <InfoRow icon="📅" labelKey="ticket.info.date" value={formatDate(displayStartAt)} />
+            <InfoRow icon="🕐" labelKey="ticket.info.time" value={formatTime(displayStartAt) + (displayEndAt ? ` - ${formatTime(displayEndAt)}` : '')} />
+            <InfoRow icon="📍" labelKey="ticket.info.venue" value={event.venue_name ?? event.city} />
+            <InfoRow icon="👤" labelKey="ticket.info.attendee" value={holder.full_name} />
+            <InfoRow icon="🎂" labelKey="ticket.info.dob" value={holder.date_of_birth} />
+            <InfoRow icon="👥" labelKey="ticket.info.relation" value={holder.relation} />
           </div>
           <div className="px-8 pb-6 text-center">
-            <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">
-              Companion ticket · ref {booking.ticket_id?.slice(-8).toUpperCase()}
-            </p>
+            <TicketCompanionRef ref={booking.ticket_id?.slice(-8).toUpperCase() ?? ''} />
           </div>
         </div>
       ))}
@@ -190,12 +195,7 @@ export default async function TicketPage({ params }: Props) {
       {/* Action buttons */}
       <div className="mt-6 flex gap-3 print:hidden">
         <PrintButton />
-        <a
-          href={`/events/${event.id}`}
-          className="px-5 py-2.5 text-sm font-semibold text-brand-600 border border-brand-200 rounded-xl hover:bg-brand-50 transition"
-        >
-          View Event
-        </a>
+        <TicketViewEventBtn href={`/events/${event.id}`} />
       </div>
 
       <style>{`
@@ -208,12 +208,12 @@ export default async function TicketPage({ params }: Props) {
   )
 }
 
-function InfoRow({ icon, label, value }: { icon: string; label: string; value: string }) {
+function InfoRow({ icon, labelKey, value }: { icon: string; labelKey: string; value: string }) {
   return (
     <div className="flex gap-3">
       <span className="text-base shrink-0 w-5 text-center">{icon}</span>
       <div className="min-w-0">
-        <p className="text-xs text-gray-400 font-medium uppercase tracking-wide leading-none mb-0.5">{label}</p>
+        <TicketInfoRowLabel labelKey={labelKey} />
         <p className="text-gray-800 font-medium truncate">{value}</p>
       </div>
     </div>

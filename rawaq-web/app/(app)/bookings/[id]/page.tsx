@@ -12,6 +12,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { useParams, useSearchParams, useRouter } from 'next/navigation'
+import { useLocale } from '@/contexts/locale-context'
 
 type BookingStatus = 'confirmed' | 'pending' | 'cancelled' | 'waitlisted' | null
 
@@ -33,6 +34,7 @@ export default function BookingResultPage() {
   const { id }          = useParams<{ id: string }>()
   const searchParams    = useSearchParams()
   const router          = useRouter()
+  const { t }           = useLocale()
   const paymentHint     = searchParams.get('payment') // success | failed | pending | null
 
   const [status,   setStatus]   = useState<BookingStatus>(null)
@@ -46,7 +48,7 @@ export default function BookingResultPage() {
     try {
       const res  = await fetch(`/api/payments/status/${id}`)
       const json = await res.json()
-      if (!res.ok) { setError('Could not load booking details.'); setLoading(false); return }
+      if (!res.ok) { setError(t('booking.error_load')); setLoading(false); return }
 
       const data: StatusResponse = json.data ?? json
       setStatus(data.booking_status)
@@ -59,7 +61,7 @@ export default function BookingResultPage() {
       }
     } catch {
       setLoading(false)
-      setError('Network error. Please refresh.')
+      setError(t('booking.error_network'))
     }
   }
 
@@ -88,7 +90,7 @@ export default function BookingResultPage() {
       <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4 text-center p-8">
         <div className="w-10 h-10 border-4 border-brand-200 border-t-brand-500 rounded-full animate-spin" />
         <p className="text-gray-500 text-sm">
-          {paymentHint === 'success' ? 'Confirming your payment…' : 'Loading booking…'}
+          {paymentHint === 'success' ? t('booking.confirming') : t('booking.loading')}
         </p>
       </div>
     )
@@ -100,7 +102,7 @@ export default function BookingResultPage() {
         <div className="text-4xl">⚠️</div>
         <p className="text-gray-700">{error}</p>
         <button onClick={() => router.push('/bookings')} className="btn-primary">
-          My Bookings
+          {t('booking.my_bookings')}
         </button>
       </div>
     )
@@ -111,15 +113,15 @@ export default function BookingResultPage() {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4 text-center p-8">
         <div className="text-5xl">⏳</div>
-        <h1 className="text-2xl font-bold text-gray-900">Payment pending</h1>
+        <h1 className="text-2xl font-bold text-gray-900">{t('booking.pending_title')}</h1>
         <p className="text-gray-500 max-w-sm">
           {tx?.gateway === 'paymob' && tx?.payment_method === 'fawry'
-            ? 'Pay at any Fawry outlet using the reference you received. Your ticket will appear here once payment is confirmed.'
-            : 'Your payment is being processed. This page will update automatically — please keep it open.'}
+            ? t('booking.pending_fawry')
+            : t('booking.pending_generic')}
         </p>
         <div className="w-8 h-8 border-4 border-gray-200 border-t-brand-500 rounded-full animate-spin mt-2" />
         <button onClick={fetchStatus} className="text-sm text-brand-600 underline mt-2">
-          Refresh now
+          {t('booking.refresh_now')}
         </button>
       </div>
     )
@@ -130,16 +132,16 @@ export default function BookingResultPage() {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4 text-center p-8">
         <div className="text-5xl">❌</div>
-        <h1 className="text-2xl font-bold text-gray-900">Payment failed</h1>
+        <h1 className="text-2xl font-bold text-gray-900">{t('booking.failed_title')}</h1>
         <p className="text-gray-500 max-w-sm">
-          {tx?.failure_reason ?? 'Your payment was not completed. No charge was made.'}
+          {tx?.failure_reason ?? t('booking.failed_body')}
         </p>
         <div className="flex gap-3 mt-2">
           <button onClick={() => router.back()} className="btn-primary">
-            Try again
+            {t('booking.try_again')}
           </button>
           <button onClick={() => router.push('/bookings')} className="btn-secondary">
-            My Bookings
+            {t('booking.my_bookings')}
           </button>
         </div>
       </div>
@@ -165,26 +167,24 @@ export default function BookingResultPage() {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center gap-6 text-center p-8">
         <div className="text-6xl">🎉</div>
-        <h1 className="text-2xl font-bold text-gray-900">You&apos;re in!</h1>
+        <h1 className="text-2xl font-bold text-gray-900">{t('booking.confirmed_title')}</h1>
         <p className="text-gray-500 max-w-sm">
-          Your booking is confirmed
+          {t('booking.confirmed_body')}
           {tx && tx.gateway !== 'simulated' && (
-            <> · paid {tx.amount} {tx.currency} via {methodLabel[tx.payment_method] ?? tx.payment_method} ({gatewayLabel[tx.gateway] ?? tx.gateway})</>
+            <> · {t('booking.confirmed_paid')
+              .replace('{amount}', String(tx.amount))
+              .replace('{currency}', tx.currency)
+              .replace('{method}', methodLabel[tx.payment_method] ?? tx.payment_method)
+              .replace('{gateway}', gatewayLabel[tx.gateway] ?? tx.gateway)}</>
           )}
         </p>
 
         <div className="flex gap-3">
-          <button
-            onClick={() => router.push(`/bookings/${id}/ticket`)}
-            className="btn-primary"
-          >
-            🎟️ View Ticket
+          <button onClick={() => router.push(`/bookings/${id}/ticket`)} className="btn-primary">
+            {t('booking.view_ticket')}
           </button>
-          <button
-            onClick={() => router.push('/bookings')}
-            className="btn-secondary"
-          >
-            My Bookings
+          <button onClick={() => router.push('/bookings')} className="btn-secondary">
+            {t('booking.my_bookings')}
           </button>
         </div>
       </div>
@@ -197,7 +197,7 @@ export default function BookingResultPage() {
       <div className="text-4xl">📋</div>
       <p className="text-gray-500">Booking #{id}</p>
       <button onClick={() => router.push(`/bookings/${id}/ticket`)} className="btn-primary">
-        View Ticket
+        {t('booking.view_ticket_plain')}
       </button>
     </div>
   )
