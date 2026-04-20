@@ -290,7 +290,7 @@ export function Navbar() {
                       )}
                       <Link href="/feed" onClick={() => setMenuOpen(false)}
                         className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50">
-                        👥 Following
+                        👥 {t('nav.feed')}
                       </Link>
                       <Link href="/saved" onClick={() => setMenuOpen(false)}
                         className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50">
@@ -302,7 +302,7 @@ export function Navbar() {
                       </Link>
                       <Link href="/plans" onClick={() => setMenuOpen(false)}
                         className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50">
-                        ⭐ My Plan
+                        ⭐ {t('nav.my_plans')}
                       </Link>
                       <Link href="/profile" onClick={() => setMenuOpen(false)}
                         className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50">

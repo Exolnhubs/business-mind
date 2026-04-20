@@ -39,8 +39,8 @@ const PLAN_FLAGSHIP: Record<string, boolean> = {
 const PLAN_FEATURES: Record<string, string[]> = {
   user_free:    ['Book & attend any public event', 'Save up to 20 events', 'Community access & happenings', 'Standard discovery experience'],
   user_premium: ['Everything in Free', 'Unlimited saved events', 'Access premium-only events'],
-  org_basic:    ['3 events published per month', 'Up to 50 attendees per event', 'Organizer dashboard access', '10% platform fee on revenue'],
-  org_pro:      ['15 events published per month', 'Up to 200 attendees per event', 'Ticket scanner access', '6% platform fee on revenue'],
+  org_basic:    ['5 events published per month', 'Up to 50 attendees per event', 'Organizer dashboard access', '10% platform fee on revenue'],
+  org_pro:      ['20 events published per month', 'Up to 200 attendees per event', 'Ticket scanner access', '6% platform fee on revenue'],
   org_elite:    ['Unlimited events published', 'Unlimited attendees per event', 'Ticket scanner access', '3% platform fee on revenue'],
 }
 

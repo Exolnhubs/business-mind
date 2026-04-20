@@ -25,13 +25,13 @@ const PLAN_FEATURES: Record<string, string[]> = {
     'Access premium-only events',
   ],
   org_basic: [
-    '3 events published per month',
+    '5 events published per month',
     'Up to 50 attendees per event',
     'Organizer dashboard access',
     '10% platform fee on revenue',
   ],
   org_pro: [
-    '15 events published per month',
+    '20 events published per month',
     'Up to 200 attendees per event',
     'Ticket scanner access',
     '6% platform fee on revenue',
@@ -57,13 +57,13 @@ const PLAN_FEATURES_AR: Record<string, string[]> = {
     'الوصول للفعاليات الحصرية',
   ],
   org_basic: [
-    '3 فعاليات منشورة شهرياً',
+    '5 فعاليات منشورة شهرياً',
     'حتى 50 حضوراً لكل فعالية',
     'الوصول للوحة تحكم المنظِّم',
     '10% رسوم المنصة على الإيرادات',
   ],
   org_pro: [
-    '15 فعالية منشورة شهرياً',
+    '20 فعالية منشورة شهرياً',
     'حتى 200 حضوراً لكل فعالية',
     'الوصول لماسح التذاكر',
     '6% رسوم المنصة على الإيرادات',

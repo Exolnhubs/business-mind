@@ -322,6 +322,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'nav.login': 'تسجيل الدخول',
     'nav.register': 'إنشاء حساب',
     'nav.feed': 'المتابَعون',
+    'nav.my_plans': 'خطتي',
     'nav.dashboard': 'لوحة التحكم',
     'nav.my_bookings': 'حجوزاتي',
     'nav.logout': 'تسجيل الخروج',
