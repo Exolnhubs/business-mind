@@ -47,9 +47,8 @@ interface Happening {
 interface MobileEvent {
   id: string
   title: string
-  start_date: string
+  start_at: string
   cover_image_url: string | null
-  slug: string
 }
 
 interface Community {
@@ -468,14 +467,14 @@ export default function PublicUserProfileScreen() {
           <Text style={styles.emptyText}>No events attended yet.</Text>
         )}
         {feedEvents.map((e) => (
-          <TouchableOpacity key={e.id} style={styles.eventRow} onPress={() => router.push(`/events/${e.slug}` as any)}>
+          <TouchableOpacity key={e.id} style={styles.eventRow} onPress={() => router.push(`/events/${e.id}` as any)}>
             {e.cover_image_url
               ? <Image source={{ uri: e.cover_image_url }} style={styles.eventThumb} />
               : <View style={[styles.eventThumb, styles.eventThumbEmpty]}><Text style={{ fontSize: 20 }}>🎟️</Text></View>
             }
             <View style={styles.eventInfo}>
               <Text style={styles.eventTitle} numberOfLines={2}>{e.title}</Text>
-              <Text style={styles.eventDate}>{formatDate(e.start_date)}</Text>
+              <Text style={styles.eventDate}>{formatDate(e.start_at)}</Text>
             </View>
           </TouchableOpacity>
         ))}

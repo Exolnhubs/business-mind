@@ -37,7 +37,7 @@ export async function GET(
     const admin = createSupabaseAdminClient()
     const { data, error } = await admin
       .from('bookings')
-      .select('id, events(id, title, title_ar, start_at, cover_image_url, city, venue_name, venue_name_ar, currency, price, is_free, capacity, bookings_count, category:categories(name_en), organizer:profiles!organizer_id(id, display_name, organizer_profile:organizer_profiles(business_name)), ticket_types(id, price, is_free, is_active, is_hot_offer, hot_offer_price, hot_offer_ends_at))')
+      .select('id, events!event_id(id, title, title_ar, start_at, cover_image_url, city, venue_name, venue_name_ar, currency, price, is_free, capacity, bookings_count, category:event_categories(name_en), organizer:profiles!organizer_id(id, display_name, organizer_profile:organizer_profiles(business_name)), ticket_types(id, price, is_free, is_active, is_hot_offer, hot_offer_price, hot_offer_ends_at))')
       .eq('user_id', targetId)
       .eq('status', 'confirmed')
       .order('created_at', { ascending: false })
