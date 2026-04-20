@@ -42,7 +42,10 @@ export type NotificationType =
   | "referral_signup_reward"
   | "referral_conversion_reward"
   | "community_new_event"
-  | "community_happening";
+  | "community_happening"
+  | "follow_request"
+  | "follow_accepted"
+  | "say_hi";
 export type ReactionType = "like" | "interested";
 export type ReportReason =
   | "spam"

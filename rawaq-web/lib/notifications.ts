@@ -133,6 +133,9 @@ function getPushTitle(type: NotificationType): string {
     referral_conversion_reward:'Bonus reward unlocked! 🎉',
     community_new_event:       'New event in your community 🗓️',
     community_happening:       'Something\'s happening nearby 📍',
+    follow_request:  'New follow request 👤',
+    follow_accepted: 'Follow request accepted ✅',
+    say_hi:          'Someone waved at you 👋',
   }
   return titles[type] ?? 'Rawaq Notification'
 }
@@ -162,6 +165,9 @@ function getPushBody(type: NotificationType, payload: Record<string, unknown>): 
     case 'referral_conversion_reward':  return 'Your friend just made their first booking — you earned a 25% coupon!'
     case 'community_new_event':         return `New event in ${str('community_name')}: "${str('event_title')}"`
     case 'community_happening':         return `${str('community_name')}: "${str('body')}"`
+    case 'follow_request':  return `${str('actor_name')} wants to follow you`
+    case 'follow_accepted': return `${str('actor_name')} accepted your follow request`
+    case 'say_hi':          return `${str('actor_name')} waved at you 👋`
     default:                            return 'You have a new notification'
   }
 }
