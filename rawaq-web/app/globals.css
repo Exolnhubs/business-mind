@@ -545,6 +545,8 @@ body {
 /* Diamond hotspot — centered on wrapper origin, rotated 45° */
 .cursor-dot-shape {
   position: absolute;
+  top: 0;
+  left: 0;
   width: 10px;
   height: 10px;
   background-color: var(--c-gold);
@@ -567,6 +569,8 @@ body {
    so the animation never touches the wrapper's transform */
 .cursor-ring-shape {
   position: absolute;
+  top: 0;
+  left: 0;
   width: 34px;
   height: 34px;
   border: 1.5px dashed oklch(0.78 0.18 72 / 0.55);
