@@ -268,7 +268,9 @@ export async function GET(req: NextRequest) {
       if (params.type) query = query.eq('type', params.type as any)
       if (params.q) query = query.or(`name.ilike.%${params.q.trim()}%,name_ar.ilike.%${params.q.trim()}%`)
       if (params.member_only) query = query.in('id', memberIds)
-      if (userFilterIds) query = query.in('id', userFilterIds)
+      if (userFilterIds) {
+        query = query.in('id', userFilterIds).eq('is_private', false)
+      }
       if (descendantIds) query = query.in('id', descendantIds)
       if (includeApprovalFilter && isPlatformAdmin && params.approval_status) {
         query = query.eq('approval_status', params.approval_status)
