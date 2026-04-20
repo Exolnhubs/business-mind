@@ -202,8 +202,9 @@ export function EventFiltersPlayful() {
   const gender    = params.get('gender')   ?? ''
   const freeOnly  = params.get('free')     === 'true'
   const familyFriendly = params.get('family') === 'true'
-  const hasFilters = !!(category || city || gender || freeOnly || familyFriendly || query || hasGeo)
-  const activeCount = [category, city, gender, query, freeOnly ? '1' : '', familyFriendly ? '1' : '', hasGeo ? '1' : ''].filter(Boolean).length
+  const hotOffers = params.get('hot')      === 'true'
+  const hasFilters = !!(category || city || gender || freeOnly || familyFriendly || hotOffers || query || hasGeo)
+  const activeCount = [category, city, gender, query, freeOnly ? '1' : '', familyFriendly ? '1' : '', hotOffers ? '1' : '', hasGeo ? '1' : ''].filter(Boolean).length
 
   return (
     <div className="ef-wrap">
@@ -346,6 +347,14 @@ export function EventFiltersPlayful() {
           >
             <span aria-hidden="true">{familyFriendly ? '✓' : '👨‍👩‍👧'}</span>
             {t('events.filter.family_friendly')}
+          </button>
+
+          <button
+            onClick={() => toggleBool('hot')}
+            className={`ef-toggle${hotOffers ? ' ef-toggle--on ef-toggle--amber' : ''}`}
+          >
+            <span aria-hidden="true">{hotOffers ? '✓' : '🔥'}</span>
+            Hot Offers
           </button>
 
           <button

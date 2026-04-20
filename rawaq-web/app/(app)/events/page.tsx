@@ -138,6 +138,7 @@ interface SearchParams {
   gender?: string
   free?: string
   family?: string
+  hot?: string
   page?: string
   lat?: string
   lng?: string
@@ -180,6 +181,17 @@ async function EventsGrid({ searchParams }: { searchParams: SearchParams }) {
   if (searchParams.gender) query = query.eq('gender_restriction', searchParams.gender as import('@/types/database').GenderType)
   if (searchParams.free === 'true') query = query.eq('is_free', true)
   if (searchParams.family === 'true') query = query.eq('is_family_friendly', true)
+  if (searchParams.hot === 'true') {
+    const { data: hotRows } = await supabase
+      .from('ticket_types')
+      .select('event_id')
+      .eq('is_hot_offer', true)
+      .eq('is_active', true)
+      .gt('hot_offer_ends_at', new Date().toISOString())
+    const hotIds = (hotRows ?? []).map((r) => r.event_id).filter(Boolean)
+    if (hotIds.length === 0) return <EventsGridEmpty />
+    query = query.in('id', hotIds)
+  }
   if (searchParams.category) query = query.eq('category_id', searchParams.category)
   if (searchParams.community) {
     const { data: community } = await supabase
@@ -298,6 +310,7 @@ export default async function EventsPage({
     params.gender,
     params.free === 'true' ? 'free' : null,
     params.family === 'true' ? 'family' : null,
+    params.hot === 'true' ? 'hot' : null,
     params.lat && params.lng ? 'geo' : null,
   ].filter(Boolean).length
 
