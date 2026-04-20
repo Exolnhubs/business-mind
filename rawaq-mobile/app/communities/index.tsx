@@ -62,7 +62,6 @@ export default function CommunitiesScreen() {
   const discoveryVisibility           = useRef(new Animated.Value(1)).current
   const [discoveryVisible, setDiscoveryVisible] = useState(true)
   const lastScrollYRef                = useRef(0)
-  const scrollDirectionLockRef        = useRef<'up' | 'down' | null>(null)
   const popularCommunities = popular.filter(
     (community) =>
       !recommended.some((item) => item.id === community.id) &&
@@ -317,22 +316,12 @@ export default function CommunitiesScreen() {
     lastScrollYRef.current = nextY
 
     if (nextY < 24) {
-      scrollDirectionLockRef.current = null
       setDiscoveryExpanded(true)
       return
     }
 
-    if (Math.abs(delta) < 6) return
-
-    if (delta > 0 && scrollDirectionLockRef.current !== 'down') {
-      scrollDirectionLockRef.current = 'down'
+    if (delta > 4) {
       setDiscoveryExpanded(false)
-      return
-    }
-
-    if (delta < 0 && scrollDirectionLockRef.current !== 'up') {
-      scrollDirectionLockRef.current = 'up'
-      setDiscoveryExpanded(true)
     }
   }
 
