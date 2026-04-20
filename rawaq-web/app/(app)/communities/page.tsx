@@ -71,7 +71,7 @@ function CommunityCard({ community, onToggleMembership }: {
       onClick={() => router.push(`/communities/${community.slug}`)}
     >
       {community.cover_url ? (
-        <img src={community.cover_url} alt="" className="h-32 w-full object-cover" />
+        <img src={community.cover_url} alt="" width={384} height={128} className="h-32 w-full object-cover" />
       ) : (
         <div className={`flex h-32 w-full items-center justify-center text-4xl ${LEVEL_COLORS[community.level].split(' ')[0]}`}>
           {LEVEL_ICONS[community.level]}
@@ -150,7 +150,9 @@ export default function CommunitiesPage() {
   const [page, setPage]               = useState(1)
   const [hasMore, setHasMore]         = useState(false)
   const [trending, setTrending]       = useState<TrendingCommunity[]>([])
+  const [trendingLoaded, setTrendingLoaded] = useState(false)
   const [recommended, setRecommended] = useState<CommunityWithMembership[]>([])
+  const [recommendedLoaded, setRecommendedLoaded] = useState(false)
   const [suggested, setSuggested]     = useState<CommunityWithMembership[]>([])
   const [suggestedJoining, setSuggestedJoining] = useState<string | null>(null)
   const levelsRef = useRef<HTMLDivElement>(null)
@@ -218,12 +220,15 @@ export default function CommunitiesPage() {
       setTrending(json.data.data ?? [])
     } catch {
       setTrending([])
+    } finally {
+      setTrendingLoaded(true)
     }
   }, [cacheScopeKey])
 
   const fetchRecommended = useCallback(async () => {
     if (!user) {
       setRecommended([])
+      setRecommendedLoaded(true)
       return
     }
 
@@ -235,6 +240,8 @@ export default function CommunitiesPage() {
       setRecommended((json.data.data ?? []).filter((c) => !c.is_member))
     } catch {
       setRecommended([])
+    } finally {
+      setRecommendedLoaded(true)
     }
   }, [cacheScopeKey, user])
 
@@ -364,65 +371,88 @@ export default function CommunitiesPage() {
         </div>
       </div>
 
-      {/* Suggested for you — shown when user is logged in, not filtering */}
-      {!joinedOnly && !search && trending.length > 0 && (
-        <div className="mb-6">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Trending now</h2>
-          <div className="grid gap-3 md:grid-cols-3">
-            {trending.map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => router.push(`/communities/${c.slug}`)}
-                className="rounded-2xl border border-amber-200 bg-amber-50/70 px-4 py-4 text-left shadow-sm transition-colors hover:border-amber-300 hover:bg-amber-50"
-              >
-                <div className="mb-3 flex items-start justify-between gap-3">
-                  <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-lg ${LEVEL_COLORS[c.level].split(' ')[0]}`}>
-                    {LEVEL_ICONS[c.level]}
-                  </div>
-                  <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-700">
-                    Trending
-                  </span>
-                </div>
-                <p className="line-clamp-1 text-sm font-semibold text-gray-900">{c.name}</p>
-                <p className="mt-1 text-xs text-gray-500">
-                  {c.city ? `${c.city} · ` : ''}{c.member_count.toLocaleString()} members
-                </p>
-              </button>
-            ))}
+      {/* Trending — skeleton shown while loading to prevent CLS */}
+      {!joinedOnly && !search && (
+        trendingLoaded ? (
+          trending.length > 0 && (
+            <div className="mb-6">
+              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Trending now</h2>
+              <div className="grid gap-3 md:grid-cols-3">
+                {trending.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => router.push(`/communities/${c.slug}`)}
+                    className="rounded-2xl border border-amber-200 bg-amber-50/70 px-4 py-4 text-left shadow-sm transition-colors hover:border-amber-300 hover:bg-amber-50"
+                  >
+                    <div className="mb-3 flex items-start justify-between gap-3">
+                      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-lg ${LEVEL_COLORS[c.level].split(' ')[0]}`}>
+                        {LEVEL_ICONS[c.level]}
+                      </div>
+                      <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-700">
+                        Trending
+                      </span>
+                    </div>
+                    <p className="line-clamp-1 text-sm font-semibold text-gray-900">{c.name}</p>
+                    <p className="mt-1 text-xs text-gray-500">
+                      {c.city ? `${c.city} · ` : ''}{c.member_count.toLocaleString()} members
+                    </p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )
+        ) : (
+          <div className="mb-6" aria-hidden="true">
+            <div className="skeleton mb-3 h-3.5 w-28 rounded" />
+            <div className="grid gap-3 md:grid-cols-3">
+              {[0, 1, 2].map((i) => <div key={i} className="skeleton h-28 rounded-2xl" />)}
+            </div>
           </div>
-        </div>
+        )
       )}
 
-      {user && !joinedOnly && !search && recommended.length > 0 && (
-        <div className="mb-6">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Recommended for you</h2>
-          <div className="flex flex-wrap gap-3">
-            {recommended.map((c) => (
-              <div
-                key={c.id}
-                className="flex items-center gap-3 rounded-2xl border border-brand-100 bg-brand-50/60 px-4 py-3 shadow-sm"
-              >
-                <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-lg ${LEVEL_COLORS[c.level].split(' ')[0]}`}>
-                  {LEVEL_ICONS[c.level]}
-                </div>
-                <div className="min-w-0">
-                  <p className="line-clamp-1 text-sm font-semibold text-gray-900">{c.name}</p>
-                  <p className="text-xs text-gray-500">
-                    {LEVEL_LABELS[c.level]}{c.city ? ` · ${c.city}` : ''} · {c.member_count.toLocaleString()} members
-                  </p>
-                </div>
-                <button
-                  onClick={() => joinCommunityRecommendation(c)}
-                  disabled={suggestedJoining === c.slug}
-                  className="ml-2 rounded-xl bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-brand-700 disabled:opacity-60"
-                >
-                  {suggestedJoining === c.slug ? '...' : 'Join'}
-                </button>
+      {/* Recommended — skeleton shown while loading to prevent CLS */}
+      {user && !joinedOnly && !search && (
+        recommendedLoaded ? (
+          recommended.length > 0 && (
+            <div className="mb-6">
+              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Recommended for you</h2>
+              <div className="flex flex-wrap gap-3">
+                {recommended.map((c) => (
+                  <div
+                    key={c.id}
+                    className="flex items-center gap-3 rounded-2xl border border-brand-100 bg-brand-50/60 px-4 py-3 shadow-sm"
+                  >
+                    <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-lg ${LEVEL_COLORS[c.level].split(' ')[0]}`}>
+                      {LEVEL_ICONS[c.level]}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="line-clamp-1 text-sm font-semibold text-gray-900">{c.name}</p>
+                      <p className="text-xs text-gray-500">
+                        {LEVEL_LABELS[c.level]}{c.city ? ` · ${c.city}` : ''} · {c.member_count.toLocaleString()} members
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => joinCommunityRecommendation(c)}
+                      disabled={suggestedJoining === c.slug}
+                      className="ml-2 rounded-xl bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-brand-700 disabled:opacity-60"
+                    >
+                      {suggestedJoining === c.slug ? '...' : 'Join'}
+                    </button>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
+          )
+        ) : (
+          <div className="mb-6" aria-hidden="true">
+            <div className="skeleton mb-3 h-3.5 w-40 rounded" />
+            <div className="flex flex-wrap gap-3">
+              {[0, 1, 2].map((i) => <div key={i} className="skeleton h-16 w-56 rounded-2xl" />)}
+            </div>
           </div>
-        </div>
+        )
       )}
 
       {user && !joinedOnly && !search && suggestedCommunities.length > 0 && (

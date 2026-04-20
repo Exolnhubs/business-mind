@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
@@ -42,7 +43,7 @@ async function getStats() {
   }
 }
 
-export default async function OwnerOverviewPage() {
+async function OwnerStats() {
   const stats = await getStats()
 
   const kpis = [
@@ -59,13 +60,7 @@ export default async function OwnerOverviewPage() {
   ]
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h2 className="text-lg font-semibold text-gray-900">Platform Overview</h2>
-        <p className="text-sm text-gray-500 mt-0.5">Live snapshot of platform activity.</p>
-      </div>
-
-      {/* KPI grid */}
+    <>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
         {kpis.map((kpi) => (
           <div key={kpi.label} className={`rounded-xl border p-4 ${kpi.color}`}>
@@ -76,29 +71,6 @@ export default async function OwnerOverviewPage() {
         ))}
       </div>
 
-      {/* Quick links */}
-      <div className="flex flex-wrap gap-3 pt-2">
-        <Link
-          href="/owner/plans"
-          className="px-4 py-2 rounded-lg bg-amber-600 text-white text-sm font-medium hover:bg-amber-700 transition-colors"
-        >
-          💎 Manage Plans
-        </Link>
-        <Link
-          href="/owner/settings"
-          className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200 transition-colors"
-        >
-          ⚙️ Platform Settings
-        </Link>
-        <Link
-          href="/admin/organizers"
-          className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200 transition-colors"
-        >
-          🏢 Review Organizers
-        </Link>
-      </div>
-
-      {/* Plan catalog snapshot */}
       <div>
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold text-gray-900">Active Plan Catalog</h3>
@@ -135,6 +107,57 @@ export default async function OwnerOverviewPage() {
           </table>
         </div>
       </div>
+    </>
+  )
+}
+
+function OwnerStatsSkeleton() {
+  return (
+    <>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+        {[0, 1, 2, 3, 4].map((i) => (
+          <div key={i} className="skeleton rounded-xl h-24" />
+        ))}
+      </div>
+      <div className="skeleton rounded-xl h-48" />
+    </>
+  )
+}
+
+export default function OwnerOverviewPage() {
+  return (
+    <div className="space-y-8">
+      <div>
+        <h2 className="text-lg font-semibold text-gray-900">Platform Overview</h2>
+        <p className="text-sm text-gray-500 mt-0.5">Live snapshot of platform activity.</p>
+      </div>
+
+      {/* Quick links paint immediately — no data dependency */}
+      <div className="flex flex-wrap gap-3 pt-2">
+        <Link
+          href="/owner/plans"
+          className="px-4 py-2 rounded-lg bg-amber-600 text-white text-sm font-medium hover:bg-amber-700 transition-colors"
+        >
+          💎 Manage Plans
+        </Link>
+        <Link
+          href="/owner/settings"
+          className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200 transition-colors"
+        >
+          ⚙️ Platform Settings
+        </Link>
+        <Link
+          href="/admin/organizers"
+          className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200 transition-colors"
+        >
+          🏢 Review Organizers
+        </Link>
+      </div>
+
+      {/* KPI grid + plan table stream in independently */}
+      <Suspense fallback={<OwnerStatsSkeleton />}>
+        <OwnerStats />
+      </Suspense>
     </div>
   )
 }

@@ -273,13 +273,45 @@ export default function ProfilePage() {
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       setOrgForm((f) => ({ ...f, [k]: e.target.value }))
 
-  if (authLoading || !user) {
+  if (authLoading) {
     return (
-      <div className="flex items-center justify-center h-[60vh]">
-        <Spinner size="lg" />
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8 space-y-8">
+        <div className="skeleton h-8 w-48 rounded" />
+        <div className="card p-6 space-y-4">
+          <div className="skeleton h-4 w-32 rounded" />
+          <div className="flex items-center gap-4">
+            <div className="skeleton h-16 w-16 rounded-full shrink-0" />
+            <div className="flex-1 space-y-2">
+              <div className="skeleton h-3 w-24 rounded" />
+              <div className="skeleton h-3 w-40 rounded" />
+            </div>
+          </div>
+          {[0, 1, 2, 3, 4].map((i) => (
+            <div key={i} className="space-y-1.5">
+              <div className="skeleton h-3 w-20 rounded" />
+              <div className="skeleton h-10 rounded-xl" />
+            </div>
+          ))}
+          <div className="skeleton h-10 rounded-xl" />
+        </div>
+        <div className="card p-5 flex items-center justify-between">
+          <div className="space-y-2">
+            <div className="skeleton h-4 w-28 rounded" />
+            <div className="skeleton h-3 w-56 rounded" />
+          </div>
+          <div className="skeleton h-4 w-4 rounded" />
+        </div>
+        <div className="card p-6 space-y-4">
+          <div className="skeleton h-4 w-24 rounded" />
+          <div className="skeleton h-3 w-48 rounded" />
+          <div className="skeleton h-10 rounded-xl" />
+          <div className="skeleton h-10 w-36 rounded-xl" />
+        </div>
       </div>
     )
   }
+
+  if (!user) return null
 
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8 space-y-8">

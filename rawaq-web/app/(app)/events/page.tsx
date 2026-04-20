@@ -151,15 +151,9 @@ async function EventsGrid({ searchParams }: { searchParams: SearchParams }) {
 
   const page = Math.max(1, Number(searchParams.page ?? 1))
   const from = (page - 1) * PAGE_SIZE
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
 
-  let savedIds = new Set<string>()
-  if (user) {
-    const { data: saves } = await supabase.from('saved_events').select('event_id').eq('user_id', user.id)
-    savedIds = new Set((saves ?? []).map((save) => save.event_id))
-  }
+  // Kick off auth in parallel with query setup — independent operations
+  const userPromise = supabase.auth.getUser()
 
   let query = supabase
     .from('events')
@@ -221,7 +215,17 @@ async function EventsGrid({ searchParams }: { searchParams: SearchParams }) {
     }
   }
 
-  const { data: events, error } = await query
+  // Run events query and auth resolution in parallel
+  const [{ data: events, error }, { data: { user } }] = await Promise.all([
+    query,
+    userPromise,
+  ])
+
+  let savedIds = new Set<string>()
+  if (user) {
+    const { data: saves } = await supabase.from('saved_events').select('event_id').eq('user_id', user.id)
+    savedIds = new Set((saves ?? []).map((save) => save.event_id))
+  }
 
   if (error) {
     console.error('Supabase query error:', error)
@@ -252,8 +256,8 @@ async function EventsGrid({ searchParams }: { searchParams: SearchParams }) {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {pagedEvents.map((event) => (
-          <EventCard key={event.id} event={event} isSaved={savedIds.has(event.id)} showSave={!!user} />
+        {pagedEvents.map((event, i) => (
+          <EventCard key={event.id} event={event} isSaved={savedIds.has(event.id)} showSave={!!user} priority={i < 4} />
         ))}
       </div>
 
@@ -301,16 +305,18 @@ export default async function EventsPage({
     <div className="max-w-7xl mx-auto space-y-8 px-4 py-8 sm:px-6">
       <EventsPageHero activeFilterCount={activeFilterCount} />
 
-      <Suspense>
+      <Suspense fallback={<div className="h-[13.5rem] animate-pulse rounded-2xl bg-gray-100" />}>
         <EventFiltersPlayful />
       </Suspense>
 
-      <Suspense fallback={null}>
-        <ActiveCommunitySpotlight slug={params.community} />
-      </Suspense>
+      {params.community && (
+        <Suspense fallback={<div className="h-20 animate-pulse rounded-2xl bg-gray-100" />}>
+          <ActiveCommunitySpotlight slug={params.community} />
+        </Suspense>
+      )}
 
       {(params.lat && params.lng) || params.city ? (
-        <Suspense fallback={null}>
+        <Suspense fallback={<div className="h-48 animate-pulse rounded-2xl bg-gray-100" />}>
           <NearYouThisWeekend
             city={params.city}
             lat={params.lat ? Number(params.lat) : undefined}

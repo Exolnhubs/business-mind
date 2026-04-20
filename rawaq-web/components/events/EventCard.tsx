@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import Link from 'next/link'
 import { Badge } from '@/components/ui/Badge'
 import { SaveButton } from '@/components/events/SaveButton'
@@ -18,6 +19,7 @@ interface EventCardProps {
   locale?: string
   isSaved?: boolean
   showSave?: boolean
+  priority?: boolean
 }
 
 function effectiveTicketPrice(tt: { price: number; is_hot_offer: boolean; hot_offer_price: number | null; hot_offer_ends_at: string | null }): number {
@@ -50,7 +52,7 @@ function getPriceDisplay(
   return { label: formatCurrency(event.price, event.currency, locale), isFree: false, hasHotOffer }
 }
 
-export function EventCard({ event, locale, isSaved = false, showSave = false }: EventCardProps) {
+export function EventCard({ event, locale, isSaved = false, showSave = false, priority = false }: EventCardProps) {
   const { locale: contextLocale, t } = useLocale()
   const resolvedLocale = locale ?? contextLocale
   const icon = CATEGORY_EMOJI[event.category?.name_en?.toLowerCase() ?? ''] ?? '📅'
@@ -65,8 +67,14 @@ export function EventCard({ event, locale, isSaved = false, showSave = false }: 
     >
       <div className="relative flex h-36 items-center justify-center bg-gradient-to-br from-brand-100 to-brand-200">
         {event.cover_image_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={event.cover_image_url} alt={event.title} className="absolute inset-0 h-full w-full object-cover" />
+          <Image
+            src={event.cover_image_url}
+            alt={event.title}
+            fill
+            className="object-cover"
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+            priority={priority}
+          />
         ) : (
           <span className="text-5xl">{icon}</span>
         )}
