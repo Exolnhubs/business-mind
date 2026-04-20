@@ -41,9 +41,10 @@ export function EventFiltersPlayful() {
   const [categories, setCategories] = useState<Category[]>([])
   const [searchValue, setSearchValue] = useState(query)
   const pendingSearchQueryRef = useRef<string | null>(null)
-  const [fadeLeft, setFadeLeft]   = useState(false)
+  const [fadeLeft, setFadeLeft] = useState(false)
   const [fadeRight, setFadeRight] = useState(false)
   const catsRef = useRef<HTMLDivElement>(null)
+  const { dir } = useLocale()
 
   // ── Drag-to-scroll (document-level so it works outside the element bounds) ──
   useEffect(() => {
@@ -116,7 +117,7 @@ export function EventFiltersPlayful() {
           setFadeRight(el.scrollWidth > el.clientWidth + 4)
         })
       })
-      .catch(() => {})
+      .catch(() => { })
   }, [])
 
   const replaceWithParams = useCallback(
@@ -198,12 +199,12 @@ export function EventFiltersPlayful() {
     )
   }
 
-  const category  = params.get('category') ?? ''
-  const city      = params.get('city')     ?? ''
-  const gender    = params.get('gender')   ?? ''
-  const freeOnly  = params.get('free')     === 'true'
+  const category = params.get('category') ?? ''
+  const city = params.get('city') ?? ''
+  const gender = params.get('gender') ?? ''
+  const freeOnly = params.get('free') === 'true'
   const familyFriendly = params.get('family') === 'true'
-  const hotOffers = params.get('hot')      === 'true'
+  const hotOffers = params.get('hot') === 'true'
   const hasFilters = !!(category || city || gender || freeOnly || familyFriendly || hotOffers || query || hasGeo)
   const activeCount = [category, city, gender, query, freeOnly ? '1' : '', familyFriendly ? '1' : '', hotOffers ? '1' : '', hasGeo ? '1' : ''].filter(Boolean).length
 
@@ -234,7 +235,7 @@ export function EventFiltersPlayful() {
                 aria-label="Clear all filters"
               >
                 <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
-                  <path d="M1.5 1.5L8.5 8.5M8.5 1.5L1.5 8.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                  <path d="M1.5 1.5L8.5 8.5M8.5 1.5L1.5 8.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                 </svg>
                 {t('events.filters.reset')}
               </button>
@@ -251,8 +252,8 @@ export function EventFiltersPlayful() {
           {/* Search */}
           <div className="ef-search-wrap">
             <svg className="ef-search-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.5"/>
-              <path d="M10.5 10.5L13.5 13.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.5" />
+              <path d="M10.5 10.5L13.5 13.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
             </svg>
             <input
               type="search"
@@ -276,7 +277,7 @@ export function EventFiltersPlayful() {
                 {CITIES.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
               <svg className="ef-chevron" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-                <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </div>
           </div>
@@ -296,7 +297,7 @@ export function EventFiltersPlayful() {
                 <option value="female">{t('events.filter.gender.female')}</option>
               </select>
               <svg className="ef-chevron" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-                <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </div>
           </div>
@@ -306,8 +307,10 @@ export function EventFiltersPlayful() {
 
         {/* Row 2 — Category pills (horizontal scroll + drag) */}
         <div className="ef-cats-wrap">
-          {fadeLeft  && <div className="ef-cats-fade ef-cats-fade--left"  aria-hidden="true" />}
-          {fadeRight && <div className="ef-cats-fade ef-cats-fade--right" aria-hidden="true" />}
+           {/* {fadeLeft && <div className="ef-cats-fade ef-cats-fade--left" aria-hidden="true" />} */}
+          { dir === 'ltr' && <div className="ef-cats-fade ef-cats-fade--right" aria-hidden="true" />} 
+          { dir === 'rtl' && <div className="ef-cats-fade ef-cats-fade--left" aria-hidden="true" />} 
+
           <div ref={catsRef} className="ef-cats-track">
             <button
               onClick={() => setParam('category', null)}
@@ -324,7 +327,7 @@ export function EventFiltersPlayful() {
                 style={{ animationDelay: `${(i + 1) * 38}ms` }}
               >
                 {cat.icon && <span aria-hidden="true">{cat.icon}</span>}
-                {cat.name_en}
+                {  dir === 'rtl' ? cat.name_ar : cat.name_en}
               </button>
             ))}
           </div>
@@ -355,7 +358,7 @@ export function EventFiltersPlayful() {
             className={`ef-toggle${hotOffers ? ' ef-toggle--on ef-toggle--amber' : ''}`}
           >
             <span aria-hidden="true">{hotOffers ? '✓' : '🔥'}</span>
-            Hot Offers
+            {t('events.filter.hot_offers')}
           </button>
 
           <button
@@ -372,8 +375,8 @@ export function EventFiltersPlayful() {
             {geoLoading
               ? 'Locating…'
               : hasGeo
-              ? t('events.filters.near_me_active')
-              : t('events.filters.use_near_me')}
+                ? t('events.filters.near_me_active')
+                : t('events.filters.use_near_me')}
           </button>
         </div>
 

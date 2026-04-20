@@ -52,7 +52,7 @@ export function EventFilters() {
     fetch('/api/categories')
       .then((r) => r.json())
       .then((json) => setCategories(json.data ?? []))
-      .catch(() => {})
+      .catch(() => { })
   }, [])
 
   const setParam = useCallback(
@@ -159,22 +159,20 @@ export function EventFilters() {
       {/* Toggle chips */}
       <button
         onClick={() => toggleBool('free')}
-        className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${
-          freeOnly
+        className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${freeOnly
             ? 'bg-green-50 border-green-200 text-green-700'
             : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-        }`}
+          }`}
       >
         {t('events.filter.free_only')}
       </button>
 
       <button
         onClick={() => toggleBool('family')}
-        className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${
-          familyFriendly
+        className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${familyFriendly
             ? 'bg-blue-50 border-blue-200 text-blue-700'
             : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-        }`}
+          }`}
       >
         {t('events.filter.family_friendly')}
       </button>
@@ -183,11 +181,10 @@ export function EventFilters() {
       <button
         onClick={useNearMe}
         disabled={geoLoading}
-        className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${
-          hasGeo
+        className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${hasGeo
             ? 'bg-brand-50 border-brand-200 text-brand-700'
             : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-        } disabled:opacity-50`}
+          } disabled:opacity-50`}
       >
         {geoLoading ? '⌛' : '📍'} {hasGeo ? 'Near me ✕' : 'Near me'}
       </button>
