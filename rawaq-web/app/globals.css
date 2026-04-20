@@ -544,6 +544,7 @@ body {
 
 /* Diamond hotspot — centered on wrapper origin, rotated 45° */
 .cursor-dot-shape {
+  position: absolute;
   width: 10px;
   height: 10px;
   background-color: var(--c-gold);
@@ -565,6 +566,7 @@ body {
 /* Spinning dashed ring — centering translate is baked into keyframe
    so the animation never touches the wrapper's transform */
 .cursor-ring-shape {
+  position: absolute;
   width: 34px;
   height: 34px;
   border: 1.5px dashed oklch(0.78 0.18 72 / 0.55);
