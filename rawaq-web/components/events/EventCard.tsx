@@ -71,8 +71,8 @@ export function EventCard({ event, locale, isSaved = false, showSave = false, pr
             src={event.cover_image_url}
             alt={event.title}
             fill
+            unoptimized
             className="object-cover"
-            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
             priority={priority}
           />
         ) : (
