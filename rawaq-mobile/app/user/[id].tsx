@@ -6,12 +6,15 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '@/lib/supabase'
-import { apiPost, apiDelete } from '@/lib/api'
+import { apiPost, apiDelete, apiGet } from '@/lib/api'
 import { useAuth } from '@/contexts/auth-context'
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '@/theme'
 import { formatDate, formatRelativeTime } from '@/lib/utils'
 
 // ── Types ──────────────────────────────────────────────────────────────────
+type FollowState = 'self' | 'none' | 'pending_sent' | 'pending_received' | 'accepted'
+type Tab = 'activity' | 'events' | 'communities'
+
 interface Profile {
   id: string
   display_name: string
@@ -28,31 +31,43 @@ interface Review {
   rating: number
   content: string | null
   created_at: string
-  reviewer: {
-    id: string
-    display_name: string
-    avatar_url: string | null
-  } | null
+  reviewer: { id: string; display_name: string; avatar_url: string | null } | null
 }
 
-interface Stats {
-  eventsAttended: number
-  followingCount: number
-  reactionsCount: number
+interface Happening {
+  id: string
+  body: string
+  created_at: string
+  expires_at: string | null
+  communities: { name: string; slug: string } | null
+  reaction_count: number
+  rsvp_count: number
 }
 
-// ── Star display ────────────────────────────────────────────────────────────
+interface MobileEvent {
+  id: string
+  title: string
+  start_date: string
+  cover_image_url: string | null
+  slug: string
+}
+
+interface Community {
+  id: string
+  name: string
+  slug: string
+  member_count: number
+}
+
+// ── Stars ────────────────────────────────────────────────────────────────────
 function Stars({ rating, size = 14 }: { rating: number; size?: number }) {
   return (
     <Text style={{ fontSize: size }}>
-      {[1, 2, 3, 4, 5].map((s) =>
-        s <= Math.round(rating) ? '⭐' : '☆'
-      ).join('')}
+      {[1, 2, 3, 4, 5].map((s) => s <= Math.round(rating) ? '⭐' : '☆').join('')}
     </Text>
   )
 }
 
-// ── Star picker ─────────────────────────────────────────────────────────────
 function StarPicker({ value, onChange }: { value: number; onChange: (v: number) => void }) {
   return (
     <View style={{ flexDirection: 'row', gap: 4 }}>
@@ -65,50 +80,97 @@ function StarPicker({ value, onChange }: { value: number; onChange: (v: number) 
   )
 }
 
-// ── Main screen ─────────────────────────────────────────────────────────────
+// ── Main screen ──────────────────────────────────────────────────────────────
 export default function PublicUserProfileScreen() {
   const router = useRouter()
   const { user } = useAuth()
   const { id } = useLocalSearchParams<{ id: string }>()
 
-  const [profile, setProfile]           = useState<Profile | null>(null)
-  const [stats, setStats]               = useState<Stats>({ eventsAttended: 0, followingCount: 0, reactionsCount: 0 })
+  // Profile + stats
+  const [profile, setProfile]                   = useState<Profile | null>(null)
+  const [happeningsCount, setHappeningsCount]   = useState(0)
+  const [eventsAttended, setEventsAttended]     = useState(0)
+  const [communitiesCount, setCommunitiesCount] = useState(0)
+  const [loading, setLoading]                   = useState(true)
+  const [refreshing, setRefreshing]             = useState(false)
+
+  // Reviews
   const [reviews, setReviews]           = useState<Review[]>([])
   const [totalReviews, setTotalReviews] = useState(0)
   const [avgRating, setAvgRating]       = useState<number | null>(null)
   const [viewerReview, setViewerReview] = useState<{ rating: number; content: string | null } | null>(null)
-  const [loading, setLoading]           = useState(true)
-  const [refreshing, setRefreshing]     = useState(false)
   const [page, setPage]                 = useState(1)
   const [hasMore, setHasMore]           = useState(false)
   const [loadingMore, setLoadingMore]   = useState(false)
 
-  // review form state
-  const [showForm, setShowForm]     = useState(false)
-  const [editing, setEditing]       = useState(false)
-  const [formRating, setFormRating] = useState(0)
-  const [formContent, setFormContent] = useState('')
-  const [formLoading, setFormLoading] = useState(false)
-  const [formError, setFormError]   = useState('')
+  // Follow
+  const [followState, setFollowState]       = useState<FollowState>('none')
+  const [isMutual, setIsMutual]             = useState(false)
+  const [followLoading, setFollowLoading]   = useState(false)
 
-  const isSelf      = user?.id === id
-  const isLoggedIn  = !!user
-  const PER_PAGE    = 20
+  // Say Hi
+  const [sayHiSent, setSayHiSent]       = useState(false)
+  const [sayHiLoading, setSayHiLoading] = useState(false)
 
+  // Tabs
+  const [tab, setTab] = useState<Tab>('activity')
+
+  // Happenings feed
+  const [happenings, setHappenings]             = useState<Happening[]>([])
+  const [happeningsLoaded, setHappeningsLoaded] = useState(false)
+  const [happeningsLoading, setHappeningsLoading] = useState(false)
+  const [happeningsBefore, setHappeningsBefore] = useState<string | null>(null)
+  const [happeningsHasMore, setHappeningsHasMore] = useState(true)
+
+  // Events feed
+  const [feedEvents, setFeedEvents]         = useState<MobileEvent[]>([])
+  const [eventsLoaded, setEventsLoaded]     = useState(false)
+  const [eventsLoading, setEventsLoading]   = useState(false)
+  const [eventsOffset, setEventsOffset]     = useState(0)
+  const [eventsHasMore, setEventsHasMore]   = useState(true)
+
+  // Communities tab
+  const [allCommunities, setAllCommunities]       = useState<Community[]>([])
+  const [sharedCommunities, setSharedCommunities] = useState<Community[]>([])
+  const [communitiesLoaded, setCommunitiesLoaded] = useState(false)
+  const [communitiesExpanded, setCommunitiesExpanded] = useState(false)
+
+  // Review form
+  const [showForm, setShowForm]         = useState(false)
+  const [editing, setEditing]           = useState(false)
+  const [formRating, setFormRating]     = useState(0)
+  const [formContent, setFormContent]   = useState('')
+  const [formLoading, setFormLoading]   = useState(false)
+  const [formError, setFormError]       = useState('')
+
+  const isSelf     = user?.id === id
+  const isLoggedIn = !!user
+  const PER_PAGE   = 20
+
+  // ── Profile + follow + stats loader ────────────────────────────────────────
   const load = useCallback(async (pg = 1, append = false) => {
     if (!id) return
+    const viewerId = user?.id ?? null
 
     const [
       { data: profileData },
       { count: attended },
-      { count: following },
-      { count: reactions },
+      { count: hapCount },
+      { count: comCount },
+      viewerFollowRes,
+      targetFollowRes,
       { data: reviewData, count: reviewCount },
     ] = await Promise.all([
       supabase.from('profiles').select('id, display_name, avatar_url, city, bio, role, created_at').eq('id', id).single(),
       supabase.from('bookings').select('id', { count: 'exact', head: true }).eq('user_id', id).eq('status', 'confirmed'),
-      supabase.from('organizer_follows').select('id', { count: 'exact', head: true }).eq('follower_id', id),
-      supabase.from('event_reactions').select('id', { count: 'exact', head: true }).eq('user_id', id),
+      (supabase as any).from('happenings').select('id', { count: 'exact', head: true }).eq('author_id', id),
+      supabase.from('community_memberships').select('id', { count: 'exact', head: true }).eq('user_id', id).eq('status', 'active'),
+      viewerId && viewerId !== id
+        ? (supabase as any).from('user_follows').select('status').eq('follower_id', viewerId).eq('following_id', id).maybeSingle()
+        : Promise.resolve({ data: null }),
+      viewerId && viewerId !== id
+        ? (supabase as any).from('user_follows').select('status').eq('follower_id', id).eq('following_id', viewerId).maybeSingle()
+        : Promise.resolve({ data: null }),
       supabase.from('user_reviews')
         .select('id, reviewer_id, rating, content, created_at, reviewer:profiles!reviewer_id(id, display_name, avatar_url)', { count: 'exact' })
         .eq('reviewed_id', id)
@@ -116,42 +178,42 @@ export default function PublicUserProfileScreen() {
         .range((pg - 1) * PER_PAGE, pg * PER_PAGE - 1),
     ])
 
-    if (!profileData || profileData.role === 'admin') {
-      router.back()
-      return
-    }
+    if (!profileData || profileData.role === 'admin') { router.back(); return }
 
     setProfile(profileData)
-    setStats({
-      eventsAttended: attended ?? 0,
-      followingCount: following ?? 0,
-      reactionsCount: reactions ?? 0,
-    })
+    setEventsAttended(attended ?? 0)
+    setHappeningsCount(hapCount ?? 0)
+    setCommunitiesCount(comCount ?? 0)
 
-    const newReviews = (reviewData ?? []) as unknown as Review[]
-    if (append) {
-      setReviews((prev) => [...prev, ...newReviews])
+    // Follow state
+    if (viewerId === id) {
+      setFollowState('self')
     } else {
-      setReviews(newReviews)
+      const vRow = (viewerFollowRes as any).data as { status: string } | null
+      const tRow = (targetFollowRes as any).data as { status: string } | null
+      if (vRow?.status === 'accepted')     setFollowState('accepted')
+      else if (vRow?.status === 'pending') setFollowState('pending_sent')
+      else if (tRow?.status === 'pending') setFollowState('pending_received')
+      else                                 setFollowState('none')
+      setIsMutual(vRow?.status === 'accepted' && tRow?.status === 'accepted')
     }
 
+    const newReviews = (reviewData ?? []) as unknown as Review[]
+    setReviews(append ? (prev) => [...prev, ...newReviews] : newReviews)
     const total = reviewCount ?? 0
     setTotalReviews(total)
     setHasMore(pg * PER_PAGE < total)
 
-    // Compute avg from all ratings
-    const { data: allRatings } = await supabase
-      .from('user_reviews').select('rating').eq('reviewed_id', id)
-    const avg = allRatings?.length
-      ? allRatings.reduce((s: number, r: { rating: number }) => s + r.rating, 0) / allRatings.length
-      : null
-    setAvgRating(avg)
+    const { data: allRatings } = await supabase.from('user_reviews').select('rating').eq('reviewed_id', id)
+    setAvgRating(
+      allRatings?.length
+        ? allRatings.reduce((s: number, r: { rating: number }) => s + r.rating, 0) / allRatings.length
+        : null
+    )
 
-    // Load viewer's own review
-    if (user && user.id !== id) {
-      const { data: vr } = await supabase
-        .from('user_reviews').select('rating, content')
-        .eq('reviewer_id', user.id).eq('reviewed_id', id).maybeSingle()
+    if (viewerId && viewerId !== id) {
+      const { data: vr } = await supabase.from('user_reviews').select('rating, content')
+        .eq('reviewer_id', viewerId).eq('reviewed_id', id).maybeSingle()
       setViewerReview(vr ?? null)
     }
 
@@ -162,90 +224,326 @@ export default function PublicUserProfileScreen() {
 
   useEffect(() => { load(1, false) }, [load])
 
-  function onRefresh() {
-    setRefreshing(true)
-    setPage(1)
-    load(1, false)
+  // ── Tab feed loaders ────────────────────────────────────────────────────────
+  async function loadHappenings() {
+    if (!id || happeningsLoading) return
+    setHappeningsLoading(true)
+    const qs = happeningsBefore ? `&before=${happeningsBefore}` : ''
+    const { data } = await apiGet<Happening[]>(`/api/users/${id}/happenings?limit=10${qs}`, { skipCache: true })
+    const items = data ?? []
+    setHappenings((prev) => [...prev, ...items])
+    setHappeningsHasMore(items.length === 10)
+    if (items.length > 0) setHappeningsBefore(items[items.length - 1].created_at)
+    setHappeningsLoaded(true)
+    setHappeningsLoading(false)
   }
+
+  async function loadEvents() {
+    if (!id || eventsLoading) return
+    setEventsLoading(true)
+    const { data } = await apiGet<MobileEvent[]>(`/api/users/${id}/events?limit=8&offset=${eventsOffset}`, { skipCache: true })
+    const items = data ?? []
+    setFeedEvents((prev) => [...prev, ...items])
+    setEventsHasMore(items.length === 8)
+    setEventsOffset((o) => o + items.length)
+    setEventsLoaded(true)
+    setEventsLoading(false)
+  }
+
+  async function loadCommunities() {
+    if (!id) return
+    const [commRes, viewerMemRes] = await Promise.all([
+      apiGet<{ data: Community[]; total: number }>(`/api/communities?user_id=${id}&per_page=50`, { skipCache: true }),
+      user && user.id !== id
+        ? supabase.from('community_memberships').select('community_id').eq('user_id', user.id).eq('status', 'active')
+        : Promise.resolve({ data: [] as any[] }),
+    ])
+    const communities = commRes.data?.data ?? []
+    setAllCommunities(communities)
+    if (viewerMemRes.data) {
+      const viewerIds = new Set((viewerMemRes.data as any[]).map((m) => m.community_id))
+      setSharedCommunities(communities.filter((c) => viewerIds.has(c.id)))
+    }
+    setCommunitiesLoaded(true)
+  }
+
+  // Load activity tab on mount
+  useEffect(() => { if (id) loadHappenings() }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function switchTab(next: Tab) {
+    setTab(next)
+    if (next === 'events' && isMutual && !eventsLoaded) loadEvents()
+    if (next === 'communities' && !communitiesLoaded) loadCommunities()
+  }
+
+  // ── Follow actions ──────────────────────────────────────────────────────────
+  async function sendFollow() {
+    if (followLoading) return
+    setFollowLoading(true)
+    const { error } = await apiPost(`/api/users/${id}/follow`, {})
+    setFollowLoading(false)
+    if (error) { Alert.alert('Error', error); return }
+    if (followState === 'pending_received') { setFollowState('accepted'); setIsMutual(true) }
+    else setFollowState('pending_sent')
+  }
+
+  async function cancelFollow() {
+    if (followLoading) return
+    setFollowLoading(true)
+    await apiDelete(`/api/users/${id}/follow`)
+    setFollowLoading(false)
+    setFollowState('none')
+    setIsMutual(false)
+  }
+
+  async function acceptFollow() {
+    if (followLoading) return
+    setFollowLoading(true)
+    const { error } = await apiPost(`/api/users/${id}/follow/accept`, {})
+    setFollowLoading(false)
+    if (error) { Alert.alert('Error', error); return }
+    setFollowState('accepted')
+    setIsMutual(true)
+  }
+
+  async function declineFollow() {
+    if (followLoading) return
+    setFollowLoading(true)
+    const { error } = await apiPost(`/api/users/${id}/follow/decline`, {})
+    setFollowLoading(false)
+    if (error) { Alert.alert('Error', error); return }
+    setFollowState('none')
+  }
+
+  async function sendSayHi() {
+    if (sayHiLoading || sayHiSent) return
+    setSayHiLoading(true)
+    const { error } = await apiPost(`/api/users/${id}/say-hi`, {})
+    setSayHiLoading(false)
+    if (!error || error.toLowerCase().includes('already')) setSayHiSent(true)
+    else Alert.alert('Error', error)
+  }
+
+  // ── Review actions ──────────────────────────────────────────────────────────
+  function onRefresh() { setRefreshing(true); setPage(1); load(1, false) }
 
   function loadMore() {
     if (loadingMore || !hasMore) return
     const next = page + 1
-    setPage(next)
-    setLoadingMore(true)
-    load(next, true)
+    setPage(next); setLoadingMore(true); load(next, true)
   }
 
-  // ── Review form actions ────────────────────────────────────────────────
   function openWriteForm() {
-    setFormRating(0)
-    setFormContent('')
-    setFormError('')
-    setShowForm(true)
-    setEditing(false)
+    setFormRating(0); setFormContent(''); setFormError(''); setShowForm(true); setEditing(false)
   }
 
   function openEditForm() {
     if (!viewerReview) return
-    setFormRating(viewerReview.rating)
-    setFormContent(viewerReview.content ?? '')
-    setFormError('')
-    setEditing(true)
-    setShowForm(true)
+    setFormRating(viewerReview.rating); setFormContent(viewerReview.content ?? '')
+    setFormError(''); setEditing(true); setShowForm(true)
   }
 
   async function submitReview() {
     if (formRating === 0) { setFormError('Please choose a star rating.'); return }
     if (!user) return
-    setFormLoading(true)
-    setFormError('')
-    const { error } = await apiPost(`/api/users/${id}/reviews`, {
-      rating:  formRating,
-      content: formContent.trim() || null,
-    })
+    setFormLoading(true); setFormError('')
+    const { error } = await apiPost(`/api/users/${id}/reviews`, { rating: formRating, content: formContent.trim() || null })
     setFormLoading(false)
     if (error) { setFormError(error); return }
-    setShowForm(false)
-    setEditing(false)
-    load(1, false)
+    setShowForm(false); setEditing(false); load(1, false)
   }
 
   async function deleteReview() {
     if (!user) return
-    Alert.alert('Delete review', 'Are you sure you want to delete your review?', [
+    Alert.alert('Delete review', 'Are you sure?', [
       { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete', style: 'destructive',
-        onPress: async () => {
-          await apiDelete(`/api/users/${id}/reviews`)
-          setViewerReview(null)
-          load(1, false)
-        },
-      },
+      { text: 'Delete', style: 'destructive', onPress: async () => {
+        await apiDelete(`/api/users/${id}/reviews`)
+        setViewerReview(null); load(1, false)
+      }},
     ])
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  // ── Loading guard ────────────────────────────────────────────────────────────
   if (loading) {
+    return <View style={styles.centered}><ActivityIndicator size="large" color={Colors.brand[500]} /></View>
+  }
+  if (!profile) return null
+
+  const initials = profile.display_name.split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase()
+
+  // ── Follow button ────────────────────────────────────────────────────────────
+  function renderFollowButton() {
+    if (!isLoggedIn || isSelf) return null
+    if (followState === 'pending_received') {
+      return (
+        <View style={styles.followRow}>
+          <TouchableOpacity onPress={acceptFollow} disabled={followLoading} style={[styles.btn, styles.btnPrimary, followLoading && styles.btnDisabled]}>
+            <Text style={styles.btnPrimaryText}>{followLoading ? '…' : 'Accept'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={declineFollow} disabled={followLoading} style={[styles.btn, styles.btnSecondary, followLoading && styles.btnDisabled]}>
+            <Text style={styles.btnSecondaryText}>Decline</Text>
+          </TouchableOpacity>
+        </View>
+      )
+    }
+    if (followState === 'pending_sent') {
+      return (
+        <TouchableOpacity onPress={cancelFollow} disabled={followLoading} style={[styles.btn, styles.btnSecondary, followLoading && styles.btnDisabled]}>
+          <Text style={styles.btnSecondaryText}>{followLoading ? '…' : 'Requested ✕'}</Text>
+        </TouchableOpacity>
+      )
+    }
+    if (followState === 'accepted') {
+      return (
+        <TouchableOpacity onPress={cancelFollow} disabled={followLoading} style={[styles.btn, styles.btnSecondary, followLoading && styles.btnDisabled]}>
+          <Text style={styles.btnSecondaryText}>{followLoading ? '…' : 'Following ✓'}</Text>
+        </TouchableOpacity>
+      )
+    }
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={Colors.brand[500]} />
+      <TouchableOpacity onPress={sendFollow} disabled={followLoading} style={[styles.btn, styles.btnPrimary, followLoading && styles.btnDisabled]}>
+        <Text style={styles.btnPrimaryText}>{followLoading ? '…' : 'Follow'}</Text>
+      </TouchableOpacity>
+    )
+  }
+
+  // ── Tab panels ───────────────────────────────────────────────────────────────
+  function renderActivityTab() {
+    return (
+      <View style={styles.tabContent}>
+        {happeningsLoading && happenings.length === 0 && (
+          <ActivityIndicator color={Colors.brand[500]} style={{ marginVertical: 24 }} />
+        )}
+        {happeningsLoaded && happenings.length === 0 && (
+          <Text style={styles.emptyText}>No public activity yet.</Text>
+        )}
+        {happenings.map((h) => {
+          const isPast = h.expires_at ? new Date(h.expires_at) < new Date() : false
+          return (
+            <View key={h.id} style={styles.hapCard}>
+              {h.communities && (
+                <View style={styles.hapTag}>
+                  <Text style={styles.hapTagText}>{h.communities.name}</Text>
+                </View>
+              )}
+              <Text style={styles.hapBody} numberOfLines={3}>{h.body}</Text>
+              <View style={styles.hapMeta}>
+                <Text style={styles.hapTime}>{formatRelativeTime(h.created_at)}</Text>
+                {h.reaction_count > 0 && <Text style={styles.hapMetaItem}>👍 {h.reaction_count}</Text>}
+                {h.rsvp_count > 0 && <Text style={styles.hapMetaItem}>✋ {h.rsvp_count}</Text>}
+                {isPast && <View style={styles.hapPastBadge}><Text style={styles.hapPastText}>Past</Text></View>}
+              </View>
+            </View>
+          )
+        })}
+        {happeningsHasMore && happeningsLoaded && (
+          <TouchableOpacity onPress={loadHappenings} disabled={happeningsLoading} style={styles.loadMoreBtn}>
+            {happeningsLoading
+              ? <ActivityIndicator size="small" color={Colors.brand[500]} />
+              : <Text style={styles.loadMoreText}>Load more</Text>
+            }
+          </TouchableOpacity>
+        )}
       </View>
     )
   }
 
-  if (!profile) return null
+  function renderEventsTab() {
+    if (!isMutual) {
+      return (
+        <View style={[styles.tabContent, styles.lockedPanel]}>
+          <Text style={styles.lockedIcon}>🔒</Text>
+          <Text style={styles.lockedText}>You both need to follow each other to see attended events.</Text>
+          {followState === 'none' && renderFollowButton()}
+        </View>
+      )
+    }
+    return (
+      <View style={styles.tabContent}>
+        {eventsLoading && feedEvents.length === 0 && (
+          <ActivityIndicator color={Colors.brand[500]} style={{ marginVertical: 24 }} />
+        )}
+        {eventsLoaded && feedEvents.length === 0 && (
+          <Text style={styles.emptyText}>No events attended yet.</Text>
+        )}
+        {feedEvents.map((e) => (
+          <TouchableOpacity key={e.id} style={styles.eventRow} onPress={() => router.push(`/events/${e.slug}` as any)}>
+            {e.cover_image_url
+              ? <Image source={{ uri: e.cover_image_url }} style={styles.eventThumb} />
+              : <View style={[styles.eventThumb, styles.eventThumbEmpty]}><Text style={{ fontSize: 20 }}>🎟️</Text></View>
+            }
+            <View style={styles.eventInfo}>
+              <Text style={styles.eventTitle} numberOfLines={2}>{e.title}</Text>
+              <Text style={styles.eventDate}>{formatDate(e.start_date)}</Text>
+            </View>
+          </TouchableOpacity>
+        ))}
+        {eventsHasMore && eventsLoaded && (
+          <TouchableOpacity onPress={loadEvents} disabled={eventsLoading} style={styles.loadMoreBtn}>
+            {eventsLoading
+              ? <ActivityIndicator size="small" color={Colors.brand[500]} />
+              : <Text style={styles.loadMoreText}>Load more</Text>
+            }
+          </TouchableOpacity>
+        )}
+      </View>
+    )
+  }
 
-  const initials = profile.display_name
-    .split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase()
+  function renderCommunitiesTab() {
+    if (!communitiesLoaded) {
+      return <View style={styles.tabContent}><ActivityIndicator color={Colors.brand[500]} style={{ marginVertical: 24 }} /></View>
+    }
+    const visible = communitiesExpanded ? allCommunities : allCommunities.slice(0, 6)
+    return (
+      <View style={styles.tabContent}>
+        {sharedCommunities.length > 0 && (
+          <View style={styles.comSection}>
+            <Text style={styles.comSectionLabel}>In common</Text>
+            {sharedCommunities.map((c) => (
+              <TouchableOpacity key={c.id} style={styles.comRow} onPress={() => router.push(`/communities/${c.slug}` as any)}>
+                <Text style={styles.comName}>{c.name}</Text>
+                <Text style={styles.comCount}>{c.member_count} members</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+        <View style={styles.comSection}>
+          <Text style={styles.comSectionLabel}>All communities</Text>
+          {allCommunities.length === 0
+            ? <Text style={styles.emptyText}>Not a member of any public communities.</Text>
+            : (
+              <>
+                {visible.map((c) => (
+                  <TouchableOpacity key={c.id} style={styles.comRow} onPress={() => router.push(`/communities/${c.slug}` as any)}>
+                    <Text style={styles.comName}>{c.name}</Text>
+                    <Text style={styles.comCount}>{c.member_count} members</Text>
+                  </TouchableOpacity>
+                ))}
+                {allCommunities.length > 6 && (
+                  <TouchableOpacity onPress={() => setCommunitiesExpanded((v) => !v)}>
+                    <Text style={styles.showMoreText}>
+                      {communitiesExpanded ? 'Show less' : `Show ${allCommunities.length - 6} more`}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </>
+            )
+          }
+        </View>
+      </View>
+    )
+  }
 
+  // ── JSX ──────────────────────────────────────────────────────────────────────
   return (
     <ScrollView
       style={styles.scroll}
       contentContainerStyle={styles.container}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.brand[500]} />}
     >
-      {/* Back button */}
+      {/* Back */}
       <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
         <Ionicons name="chevron-back" size={22} color={Colors.gray[700]} />
         <Text style={styles.backText}>Back</Text>
@@ -255,24 +553,19 @@ export default function PublicUserProfileScreen() {
       <View style={styles.card}>
         <View style={styles.profileRow}>
           <View style={styles.avatar}>
-            {profile.avatar_url ? (
-              <Image source={{ uri: profile.avatar_url }} style={styles.avatarImage} />
-            ) : (
-              <Text style={styles.avatarText}>{initials}</Text>
-            )}
+            {profile.avatar_url
+              ? <Image source={{ uri: profile.avatar_url }} style={styles.avatarImage} />
+              : <Text style={styles.avatarText}>{initials}</Text>
+            }
           </View>
           <View style={styles.profileInfo}>
             <View style={styles.nameRow}>
               <Text style={styles.displayName}>{profile.display_name}</Text>
               {profile.role === 'organizer' && (
-                <View style={styles.orgBadge}>
-                  <Text style={styles.orgBadgeText}>Organizer</Text>
-                </View>
+                <View style={styles.orgBadge}><Text style={styles.orgBadgeText}>Organizer</Text></View>
               )}
             </View>
-            {profile.city ? (
-              <Text style={styles.city}>📍 {profile.city}</Text>
-            ) : null}
+            {profile.city ? <Text style={styles.city}>📍 {profile.city}</Text> : null}
             <Text style={styles.memberSince}>Member since {formatDate(profile.created_at)}</Text>
             {avgRating !== null && (
               <View style={styles.ratingRow}>
@@ -284,14 +577,35 @@ export default function PublicUserProfileScreen() {
           </View>
         </View>
         {profile.bio ? <Text style={styles.bio}>{profile.bio}</Text> : null}
+
+        {/* Action buttons */}
+        {isLoggedIn && !isSelf && (
+          <View style={styles.actionRow}>
+            {renderFollowButton()}
+            <TouchableOpacity
+              onPress={sendSayHi}
+              disabled={sayHiLoading || sayHiSent}
+              style={[styles.btn, styles.btnGhost, (sayHiLoading || sayHiSent) && styles.btnDisabled]}
+            >
+              <Text style={styles.btnGhostText}>
+                {sayHiSent ? '👋 Said hi today' : sayHiLoading ? '…' : 'Say Hi 👋'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        {isLoggedIn && isSelf && (
+          <TouchableOpacity onPress={() => router.push('/profile' as any)} style={[styles.btn, styles.btnSecondary, { marginTop: Spacing.md, alignSelf: 'flex-start' }]}>
+            <Text style={styles.btnSecondaryText}>Edit Profile →</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Stats */}
       <View style={styles.statsRow}>
         {[
-          { icon: '🎟️', label: 'Attended', value: stats.eventsAttended },
-          { icon: '👥', label: 'Following', value: stats.followingCount },
-          { icon: '⭐', label: 'Reactions', value: stats.reactionsCount },
+          { icon: '📣', label: 'Happenings',  value: happeningsCount },
+          { icon: '🎟️', label: 'Attended',    value: eventsAttended },
+          { icon: '🏘️', label: 'Communities', value: communitiesCount },
         ].map((s) => (
           <View key={s.label} style={styles.statCard}>
             <Text style={styles.statIcon}>{s.icon}</Text>
@@ -301,12 +615,26 @@ export default function PublicUserProfileScreen() {
         ))}
       </View>
 
-      {/* Reviews section */}
+      {/* Tab bar */}
+      <View style={styles.tabBar}>
+        {(['activity', 'events', 'communities'] as Tab[]).map((t) => (
+          <TouchableOpacity key={t} onPress={() => switchTab(t)} style={[styles.tabBtn, tab === t && styles.tabBtnActive]}>
+            <Text style={[styles.tabBtnText, tab === t && styles.tabBtnTextActive]}>
+              {t === 'activity' ? 'Activity' : t === 'events' ? `Events${!isMutual ? ' 🔒' : ''}` : 'Communities'}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {/* Tab content */}
+      {tab === 'activity'     && renderActivityTab()}
+      {tab === 'events'       && renderEventsTab()}
+      {tab === 'communities'  && renderCommunitiesTab()}
+
+      {/* Reviews */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>
-            Reviews{totalReviews > 0 ? ` (${totalReviews})` : ''}
-          </Text>
+          <Text style={styles.sectionTitle}>Reviews{totalReviews > 0 ? ` (${totalReviews})` : ''}</Text>
           {isLoggedIn && !isSelf && !viewerReview && !showForm && (
             <TouchableOpacity onPress={openWriteForm}>
               <Text style={styles.writeBtn}>+ Write a review</Text>
@@ -314,7 +642,6 @@ export default function PublicUserProfileScreen() {
           )}
         </View>
 
-        {/* Avg summary */}
         {avgRating !== null && totalReviews > 0 && (
           <View style={styles.avgCard}>
             <View style={styles.avgLeft}>
@@ -341,50 +668,33 @@ export default function PublicUserProfileScreen() {
           </View>
         )}
 
-        {/* Viewer's own review */}
         {viewerReview && !editing && (
           <View style={styles.ownReviewCard}>
             <Text style={styles.ownReviewLabel}>Your review</Text>
             <View style={styles.ownReviewContent}>
               <Stars rating={viewerReview.rating} size={14} />
-              {viewerReview.content ? (
-                <Text style={styles.reviewText}>{viewerReview.content}</Text>
-              ) : null}
+              {viewerReview.content ? <Text style={styles.reviewText}>{viewerReview.content}</Text> : null}
               <View style={styles.reviewActions}>
-                <TouchableOpacity onPress={openEditForm}>
-                  <Text style={styles.editBtn}>Edit</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={deleteReview}>
-                  <Text style={styles.deleteBtn}>Delete</Text>
-                </TouchableOpacity>
+                <TouchableOpacity onPress={openEditForm}><Text style={styles.editBtn}>Edit</Text></TouchableOpacity>
+                <TouchableOpacity onPress={deleteReview}><Text style={styles.deleteBtn}>Delete</Text></TouchableOpacity>
               </View>
             </View>
           </View>
         )}
 
-        {/* Write/edit form */}
         {showForm && (
           <View style={styles.formCard}>
             <Text style={styles.formLabel}>Your rating</Text>
             <StarPicker value={formRating} onChange={setFormRating} />
             <Text style={[styles.formLabel, { marginTop: 12 }]}>Comment (optional)</Text>
             <TextInput
-              value={formContent}
-              onChangeText={setFormContent}
-              placeholder="Share your experience…"
-              placeholderTextColor={Colors.gray[400]}
-              multiline
-              numberOfLines={3}
-              maxLength={1000}
-              style={styles.textarea}
+              value={formContent} onChangeText={setFormContent}
+              placeholder="Share your experience…" placeholderTextColor={Colors.gray[400]}
+              multiline numberOfLines={3} maxLength={1000} style={styles.textarea}
             />
             {formError ? <Text style={styles.formError}>{formError}</Text> : null}
             <View style={styles.formButtons}>
-              <TouchableOpacity
-                onPress={submitReview}
-                disabled={formLoading}
-                style={[styles.submitBtn, formLoading && { opacity: 0.6 }]}
-              >
+              <TouchableOpacity onPress={submitReview} disabled={formLoading} style={[styles.submitBtn, formLoading && { opacity: 0.6 }]}>
                 <Text style={styles.submitBtnText}>{formLoading ? 'Saving…' : editing ? 'Update' : 'Submit'}</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => { setShowForm(false); setEditing(false) }}>
@@ -394,29 +704,23 @@ export default function PublicUserProfileScreen() {
           </View>
         )}
 
-        {/* Not logged in */}
-        {!isLoggedIn && (
-          <Text style={styles.loginPrompt}>Sign in to leave a review.</Text>
-        )}
+        {!isLoggedIn && <Text style={styles.loginPrompt}>Sign in to leave a review.</Text>}
 
-        {/* Reviews list */}
         {reviews.length > 0 ? (
           <View style={styles.reviewList}>
             {reviews.map((review) => {
-              const initials2 = (review.reviewer?.display_name ?? '?')
-                .split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase()
+              const ini = (review.reviewer?.display_name ?? '?').split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase()
               return (
                 <View key={review.id} style={styles.reviewItem}>
                   <View style={styles.reviewAvatar}>
-                    {review.reviewer?.avatar_url ? (
-                      <Image source={{ uri: review.reviewer.avatar_url }} style={styles.reviewAvatarImg} />
-                    ) : (
-                      <Text style={styles.reviewAvatarText}>{initials2}</Text>
-                    )}
+                    {review.reviewer?.avatar_url
+                      ? <Image source={{ uri: review.reviewer.avatar_url }} style={styles.reviewAvatarImg} />
+                      : <Text style={styles.reviewAvatarText}>{ini}</Text>
+                    }
                   </View>
                   <View style={styles.reviewBody}>
                     <View style={styles.reviewHeader}>
-                      <TouchableOpacity onPress={() => review.reviewer?.id && router.push(`/user/${review.reviewer.id}`)}>
+                      <TouchableOpacity onPress={() => review.reviewer?.id && router.push(`/user/${review.reviewer.id}` as any)}>
                         <Text style={styles.reviewerName}>{review.reviewer?.display_name ?? 'Unknown'}</Text>
                       </TouchableOpacity>
                       <Text style={styles.reviewDate}>{formatRelativeTime(review.created_at)}</Text>
@@ -430,7 +734,6 @@ export default function PublicUserProfileScreen() {
                 </View>
               )
             })}
-
             {hasMore && (
               <TouchableOpacity onPress={loadMore} disabled={loadingMore} style={styles.loadMoreBtn}>
                 {loadingMore
@@ -441,11 +744,7 @@ export default function PublicUserProfileScreen() {
             )}
           </View>
         ) : (
-          !showForm && (
-            <Text style={styles.emptyReviews}>
-              No reviews yet.{isLoggedIn && !isSelf ? ' Be the first!' : ''}
-            </Text>
-          )
+          !showForm && <Text style={styles.emptyReviews}>No reviews yet.{isLoggedIn && !isSelf ? ' Be the first!' : ''}</Text>
         )}
       </View>
     </ScrollView>
@@ -453,90 +752,142 @@ export default function PublicUserProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  scroll: { flex: 1, backgroundColor: Colors.gray[50] },
-  container: { padding: Spacing.md, paddingBottom: 40 },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  backBtn: { flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.md, gap: 4 },
-  backText: { fontSize: FontSize.sm, color: Colors.gray[700], fontWeight: FontWeight.medium },
+  scroll:     { flex: 1, backgroundColor: Colors.gray[50] },
+  container:  { padding: Spacing.md, paddingBottom: 40 },
+  centered:   { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  backBtn:    { flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.md, gap: 4 },
+  backText:   { fontSize: FontSize.sm, color: Colors.gray[700], fontWeight: FontWeight.medium },
 
   // Profile card
-  card: { backgroundColor: Colors.white, borderRadius: Radius.lg, padding: Spacing.md, marginBottom: Spacing.md, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
-  profileRow: { flexDirection: 'row', gap: Spacing.md, alignItems: 'flex-start' },
-  avatar: { width: 72, height: 72, borderRadius: 36, backgroundColor: Colors.brand[100], justifyContent: 'center', alignItems: 'center', overflow: 'hidden', flexShrink: 0 },
-  avatarImage: { width: 72, height: 72, borderRadius: 36 },
-  avatarText: { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.brand[700] },
-  profileInfo: { flex: 1 },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flexWrap: 'wrap' },
-  displayName: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.gray[900] },
-  orgBadge: { backgroundColor: Colors.brand[100], borderRadius: Radius.full, paddingHorizontal: 8, paddingVertical: 2 },
+  card:         { backgroundColor: Colors.white, borderRadius: Radius.lg, padding: Spacing.md, marginBottom: Spacing.md, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
+  profileRow:   { flexDirection: 'row', gap: Spacing.md, alignItems: 'flex-start' },
+  avatar:       { width: 72, height: 72, borderRadius: 36, backgroundColor: Colors.brand[100], justifyContent: 'center', alignItems: 'center', overflow: 'hidden', flexShrink: 0 },
+  avatarImage:  { width: 72, height: 72, borderRadius: 36 },
+  avatarText:   { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.brand[700] },
+  profileInfo:  { flex: 1 },
+  nameRow:      { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flexWrap: 'wrap' },
+  displayName:  { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.gray[900] },
+  orgBadge:     { backgroundColor: Colors.brand[100], borderRadius: Radius.full, paddingHorizontal: 8, paddingVertical: 2 },
   orgBadgeText: { fontSize: 10, fontWeight: FontWeight.semibold, color: Colors.brand[700] },
-  city: { fontSize: FontSize.sm, color: Colors.gray[500], marginTop: 2 },
-  memberSince: { fontSize: FontSize.xs, color: Colors.gray[400], marginTop: 2 },
-  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
-  ratingNum: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: '#d97706' },
-  ratingCount: { fontSize: FontSize.xs, color: Colors.gray[400] },
-  bio: { fontSize: FontSize.sm, color: Colors.gray[600], marginTop: Spacing.sm, lineHeight: 20 },
+  city:         { fontSize: FontSize.sm, color: Colors.gray[500], marginTop: 2 },
+  memberSince:  { fontSize: FontSize.xs, color: Colors.gray[400], marginTop: 2 },
+  ratingRow:    { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+  ratingNum:    { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: '#d97706' },
+  ratingCount:  { fontSize: FontSize.xs, color: Colors.gray[400] },
+  bio:          { fontSize: FontSize.sm, color: Colors.gray[600], marginTop: Spacing.sm, lineHeight: 20 },
+
+  // Action buttons
+  actionRow:        { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.md, flexWrap: 'wrap' },
+  followRow:        { flexDirection: 'row', gap: Spacing.sm },
+  btn:              { borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: 8 },
+  btnPrimary:       { backgroundColor: Colors.brand[500] },
+  btnPrimaryText:   { color: Colors.white, fontSize: FontSize.sm, fontWeight: FontWeight.semibold },
+  btnSecondary:     { backgroundColor: Colors.gray[100], borderWidth: 1, borderColor: Colors.gray[200] },
+  btnSecondaryText: { color: Colors.gray[700], fontSize: FontSize.sm, fontWeight: FontWeight.medium },
+  btnGhost:         { backgroundColor: Colors.gray[100], borderWidth: 1, borderColor: Colors.gray[200] },
+  btnGhostText:     { color: Colors.gray[700], fontSize: FontSize.sm },
+  btnDisabled:      { opacity: 0.5 },
 
   // Stats
-  statsRow: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.md },
-  statCard: { flex: 1, backgroundColor: Colors.white, borderRadius: Radius.lg, padding: Spacing.sm, alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
-  statIcon: { fontSize: 20, marginBottom: 2 },
+  statsRow:  { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.md },
+  statCard:  { flex: 1, backgroundColor: Colors.white, borderRadius: Radius.lg, padding: Spacing.sm, alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
+  statIcon:  { fontSize: 20, marginBottom: 2 },
   statValue: { fontSize: 22, fontWeight: FontWeight.bold, color: Colors.gray[900] },
   statLabel: { fontSize: 10, color: Colors.gray[400], marginTop: 2, textAlign: 'center' },
 
+  // Tab bar
+  tabBar:          { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: Colors.gray[200] },
+  tabBtn:          { flex: 1, paddingVertical: 10, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: Colors.transparent },
+  tabBtnActive:    { borderBottomColor: Colors.brand[600] },
+  tabBtnText:      { fontSize: FontSize.sm, fontWeight: FontWeight.medium, color: Colors.gray[500] },
+  tabBtnTextActive:{ color: Colors.brand[700] },
+  tabContent:      { paddingVertical: Spacing.md, gap: Spacing.sm },
+
+  // Happenings
+  hapCard:      { backgroundColor: Colors.white, borderRadius: Radius.lg, padding: Spacing.md, gap: Spacing.xs, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
+  hapTag:       { alignSelf: 'flex-start', backgroundColor: Colors.brand[50], borderRadius: Radius.full, paddingHorizontal: 8, paddingVertical: 2 },
+  hapTagText:   { fontSize: FontSize.xs, fontWeight: FontWeight.medium, color: Colors.brand[600] },
+  hapBody:      { fontSize: FontSize.sm, color: Colors.gray[800], lineHeight: 20 },
+  hapMeta:      { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  hapTime:      { fontSize: FontSize.xs, color: Colors.gray[400] },
+  hapMetaItem:  { fontSize: FontSize.xs, color: Colors.gray[400] },
+  hapPastBadge: { backgroundColor: Colors.gray[100], borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 },
+  hapPastText:  { fontSize: 10, color: Colors.gray[500], fontWeight: FontWeight.medium },
+
+  // Events feed
+  eventRow:        { flexDirection: 'row', gap: Spacing.sm, backgroundColor: Colors.white, borderRadius: Radius.lg, padding: Spacing.sm, alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
+  eventThumb:      { width: 56, height: 56, borderRadius: Radius.sm } as any,
+  eventThumbEmpty: { backgroundColor: Colors.gray[100], justifyContent: 'center', alignItems: 'center' } as any,
+  eventInfo:       { flex: 1 },
+  eventTitle:      { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[800], lineHeight: 18 },
+  eventDate:       { fontSize: FontSize.xs, color: Colors.gray[400], marginTop: 2 },
+
+  // Locked panel
+  lockedPanel: { alignItems: 'center', paddingVertical: 40 },
+  lockedIcon:  { fontSize: 32, marginBottom: Spacing.sm },
+  lockedText:  { fontSize: FontSize.sm, color: Colors.gray[500], textAlign: 'center', marginBottom: Spacing.md },
+
+  // Communities tab
+  comSection:      { gap: Spacing.xs },
+  comSectionLabel: { fontSize: 10, fontWeight: FontWeight.semibold, color: Colors.gray[500], letterSpacing: 0.5, marginBottom: 4 },
+  comRow:          { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: Colors.white, borderRadius: Radius.lg, padding: Spacing.md, borderWidth: 1, borderColor: Colors.gray[100] },
+  comName:         { fontSize: FontSize.sm, fontWeight: FontWeight.medium, color: Colors.gray[800] },
+  comCount:        { fontSize: FontSize.xs, color: Colors.gray[400] },
+  showMoreText:    { fontSize: FontSize.xs, color: Colors.brand[600], marginTop: 4 },
+
+  // Misc
+  emptyText:   { fontSize: FontSize.sm, color: Colors.gray[400], textAlign: 'center', paddingVertical: 40 },
+  loadMoreBtn: { alignItems: 'center', paddingVertical: Spacing.md },
+  loadMoreText:{ fontSize: FontSize.sm, color: Colors.brand[600] },
+
   // Section
-  section: { gap: Spacing.sm },
+  section:       { gap: Spacing.sm },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  sectionTitle: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.gray[900] },
-  writeBtn: { fontSize: FontSize.sm, color: Colors.brand[600], fontWeight: FontWeight.medium },
+  sectionTitle:  { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.gray[900] },
+  writeBtn:      { fontSize: FontSize.sm, color: Colors.brand[600], fontWeight: FontWeight.medium },
 
   // Avg summary
-  avgCard: { backgroundColor: Colors.white, borderRadius: Radius.lg, padding: Spacing.md, flexDirection: 'row', gap: Spacing.lg, alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
-  avgLeft: { alignItems: 'center', flexShrink: 0 },
-  avgNum: { fontSize: 32, fontWeight: FontWeight.bold, color: Colors.gray[900] },
+  avgCard:  { backgroundColor: Colors.white, borderRadius: Radius.lg, padding: Spacing.md, flexDirection: 'row', gap: Spacing.lg, alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
+  avgLeft:  { alignItems: 'center', flexShrink: 0 },
+  avgNum:   { fontSize: 32, fontWeight: FontWeight.bold, color: Colors.gray[900] },
   avgCount: { fontSize: FontSize.xs, color: Colors.gray[400], marginTop: 2 },
-  avgBars: { flex: 1, gap: 4 },
-  barRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  avgBars:  { flex: 1, gap: 4 },
+  barRow:   { flexDirection: 'row', alignItems: 'center', gap: 4 },
   barLabel: { fontSize: 10, color: Colors.gray[500], width: 8, textAlign: 'right' },
-  barStar: { fontSize: 10, color: '#f59e0b' },
+  barStar:  { fontSize: 10, color: '#f59e0b' },
   barTrack: { flex: 1, height: 6, backgroundColor: Colors.gray[100], borderRadius: 3, overflow: 'hidden' },
-  barFill: { height: 6, backgroundColor: '#f59e0b', borderRadius: 3 },
+  barFill:  { height: 6, backgroundColor: '#f59e0b', borderRadius: 3 },
   barCount: { fontSize: 10, color: Colors.gray[400], width: 14, textAlign: 'right' },
 
   // Own review
-  ownReviewCard: { backgroundColor: '#eff6ff', borderRadius: Radius.lg, padding: Spacing.md, borderWidth: 1, borderColor: '#bfdbfe' },
-  ownReviewLabel: { fontSize: FontSize.xs, color: Colors.brand[600], fontWeight: FontWeight.medium, marginBottom: 6 },
+  ownReviewCard:    { backgroundColor: '#eff6ff', borderRadius: Radius.lg, padding: Spacing.md, borderWidth: 1, borderColor: '#bfdbfe' },
+  ownReviewLabel:   { fontSize: FontSize.xs, color: Colors.brand[600], fontWeight: FontWeight.medium, marginBottom: 6 },
   ownReviewContent: { gap: 4 },
-  reviewActions: { flexDirection: 'row', gap: Spacing.md, marginTop: 4 },
-  editBtn: { fontSize: FontSize.xs, color: Colors.brand[600] },
-  deleteBtn: { fontSize: FontSize.xs, color: '#ef4444' },
+  reviewActions:    { flexDirection: 'row', gap: Spacing.md, marginTop: 4 },
+  editBtn:          { fontSize: FontSize.xs, color: Colors.brand[600] },
+  deleteBtn:        { fontSize: FontSize.xs, color: '#ef4444' },
 
   // Form
-  formCard: { backgroundColor: Colors.white, borderRadius: Radius.lg, padding: Spacing.md, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 1, gap: 4 },
-  formLabel: { fontSize: FontSize.xs, fontWeight: FontWeight.medium, color: Colors.gray[600] },
-  textarea: { borderWidth: 1, borderColor: Colors.gray[200], borderRadius: Radius.md, padding: Spacing.sm, fontSize: FontSize.sm, color: Colors.gray[800], minHeight: 80, textAlignVertical: 'top', marginTop: 4 },
-  formError: { fontSize: FontSize.xs, color: '#ef4444' },
-  formButtons: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'center', marginTop: 4 },
-  submitBtn: { backgroundColor: Colors.brand[500], borderRadius: Radius.md, paddingHorizontal: 16, paddingVertical: 8 },
-  submitBtnText: { color: Colors.white, fontSize: FontSize.sm, fontWeight: FontWeight.semibold },
-  cancelBtn: { fontSize: FontSize.sm, color: Colors.gray[500], paddingVertical: 8, paddingHorizontal: 4 },
-
-  loginPrompt: { fontSize: FontSize.sm, color: Colors.gray[400], textAlign: 'center', paddingVertical: 8 },
+  formCard:        { backgroundColor: Colors.white, borderRadius: Radius.lg, padding: Spacing.md, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 1, gap: 4 },
+  formLabel:       { fontSize: FontSize.xs, fontWeight: FontWeight.medium, color: Colors.gray[600] },
+  textarea:        { borderWidth: 1, borderColor: Colors.gray[200], borderRadius: Radius.md, padding: Spacing.sm, fontSize: FontSize.sm, color: Colors.gray[800], minHeight: 80, textAlignVertical: 'top', marginTop: 4 },
+  formError:       { fontSize: FontSize.xs, color: '#ef4444' },
+  formButtons:     { flexDirection: 'row', gap: Spacing.sm, alignItems: 'center', marginTop: 4 },
+  submitBtn:       { backgroundColor: Colors.brand[500], borderRadius: Radius.md, paddingHorizontal: 16, paddingVertical: 8 },
+  submitBtnText:   { color: Colors.white, fontSize: FontSize.sm, fontWeight: FontWeight.semibold },
+  cancelBtn:       { fontSize: FontSize.sm, color: Colors.gray[500], paddingVertical: 8, paddingHorizontal: 4 },
+  loginPrompt:     { fontSize: FontSize.sm, color: Colors.gray[400], textAlign: 'center', paddingVertical: 8 },
 
   // Reviews list
-  reviewList: { gap: Spacing.md },
-  reviewItem: { flexDirection: 'row', gap: Spacing.sm, backgroundColor: Colors.white, borderRadius: Radius.lg, padding: Spacing.md, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
-  reviewAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.brand[100], justifyContent: 'center', alignItems: 'center', overflow: 'hidden', flexShrink: 0 },
-  reviewAvatarImg: { width: 36, height: 36, borderRadius: 18 },
+  reviewList:       { gap: Spacing.md },
+  reviewItem:       { flexDirection: 'row', gap: Spacing.sm, backgroundColor: Colors.white, borderRadius: Radius.lg, padding: Spacing.md, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
+  reviewAvatar:     { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.brand[100], justifyContent: 'center', alignItems: 'center', overflow: 'hidden', flexShrink: 0 },
+  reviewAvatarImg:  { width: 36, height: 36, borderRadius: 18 },
   reviewAvatarText: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.brand[700] },
-  reviewBody: { flex: 1, gap: 2 },
-  reviewHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  reviewerName: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[900] },
-  reviewDate: { fontSize: FontSize.xs, color: Colors.gray[400] },
-  reviewText: { fontSize: FontSize.sm, color: Colors.gray[600], lineHeight: 20, marginTop: 2 },
-
-  loadMoreBtn: { alignItems: 'center', paddingVertical: Spacing.md },
-  loadMoreText: { fontSize: FontSize.sm, color: Colors.brand[600] },
-
-  emptyReviews: { fontSize: FontSize.sm, color: Colors.gray[400], textAlign: 'center', paddingVertical: 24 },
+  reviewBody:       { flex: 1, gap: 2 },
+  reviewHeader:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  reviewerName:     { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[900] },
+  reviewDate:       { fontSize: FontSize.xs, color: Colors.gray[400] },
+  reviewText:       { fontSize: FontSize.sm, color: Colors.gray[600], lineHeight: 20, marginTop: 2 },
+  emptyReviews:     { fontSize: FontSize.sm, color: Colors.gray[400], textAlign: 'center', paddingVertical: 24 },
 })
