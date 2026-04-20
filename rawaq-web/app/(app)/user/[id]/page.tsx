@@ -41,7 +41,6 @@ export default async function PublicUserProfilePage({ params }: { params: Promis
   const { data: { user: viewer } } = await supabase.auth.getUser()
   const viewerId = viewer?.id ?? null
 
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
 
   const [
     profileRes,
@@ -71,8 +70,7 @@ export default async function PublicUserProfilePage({ params }: { params: Promis
     // 3. Stats
     Promise.all([
       (admin as any).from('happenings').select('id', { count: 'exact', head: true })
-        .eq('author_id', id)
-        .or(`expires_at.gt.${new Date().toISOString()},created_at.gt.${thirtyDaysAgo}`),
+        .eq('author_id', id),
       admin.from('bookings').select('id', { count: 'exact', head: true }).eq('user_id', id).eq('status', 'confirmed'),
       admin.from('community_memberships').select('id', { count: 'exact', head: true }).eq('user_id', id).eq('status', 'active'),
     ]),

@@ -8,14 +8,14 @@ interface HappeningCardProps {
   created_at: string
   expires_at: string | null
   communities: Community | null
-  reactions: Array<{ count: number }>
-  rsvps: Array<{ count: number }>
+  reaction_count: number
+  rsvp_count: number
 }
 
-export function UserHappeningCard({ body, created_at, expires_at, communities, reactions, rsvps }: HappeningCardProps) {
+export function UserHappeningCard({ body, created_at, expires_at, communities, reaction_count, rsvp_count }: HappeningCardProps) {
   const isPast = expires_at ? new Date(expires_at) < new Date() : false
-  const reactionCount = reactions?.[0]?.count ?? 0
-  const rsvpCount = rsvps?.[0]?.count ?? 0
+  const reactionCount = reaction_count ?? 0
+  const rsvpCount = rsvp_count ?? 0
 
   return (
     <div className="card p-4 space-y-2">

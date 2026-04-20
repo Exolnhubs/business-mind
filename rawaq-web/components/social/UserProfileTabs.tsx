@@ -30,8 +30,8 @@ interface Happening {
   created_at: string
   expires_at: string | null
   communities: { name: string; slug: string } | null
-  reactions: Array<{ count: number }>
-  rsvps: Array<{ count: number }>
+  reaction_count: number
+  rsvp_count: number
 }
 
 export function UserProfileTabs({ targetId, followState, isMutual, sharedCommunities }: Props) {

@@ -15,13 +15,13 @@ export async function GET(
     const before = searchParams.get('before')
 
     const admin = createSupabaseAdminClient()
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
 
+    // happenings are ephemeral — cleanup cron deletes them 1h after expiry.
+    // Show whatever is still in the DB (active + recently expired), newest first.
     let query = (admin as any)
       .from('happenings')
-      .select('id, body, created_at, expires_at, community_id, communities(name, slug), reactions:happening_reactions(count), rsvps:happening_rsvps(count)')
+      .select('id, body, created_at, expires_at, community_id, communities(name, slug), reaction_count, rsvp_count')
       .eq('author_id', id)
-      .or(`expires_at.gt.${new Date().toISOString()},created_at.gt.${thirtyDaysAgo}`)
       .order('created_at', { ascending: false })
       .limit(limit)
 
