@@ -272,7 +272,7 @@ export default function PublicUserProfileScreen() {
 
   function switchTab(next: Tab) {
     setTab(next)
-    if (next === 'events' && isMutual && !eventsLoaded) loadEvents()
+    if (next === 'events' && (isMutual || isSelf) && !eventsLoaded) loadEvents()
     if (next === 'communities' && !communitiesLoaded) loadCommunities()
   }
 
@@ -450,7 +450,7 @@ export default function PublicUserProfileScreen() {
   }
 
   function renderEventsTab() {
-    if (!isMutual) {
+    if (!isMutual && !isSelf) {
       return (
         <View style={[styles.tabContent, styles.lockedPanel]}>
           <Text style={styles.lockedIcon}>🔒</Text>

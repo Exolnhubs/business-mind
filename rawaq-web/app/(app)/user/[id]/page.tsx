@@ -119,7 +119,7 @@ export default async function PublicUserProfilePage({ params }: { params: Promis
     followState = 'pending_received'
   }
 
-  const isMutual = viewerRow?.status === 'accepted' && targetRow?.status === 'accepted'
+  const isMutual = followState === 'self' || (viewerRow?.status === 'accepted' && targetRow?.status === 'accepted')
 
   // Stats
   const [happeningsRes, bookingsRes, membershipsCountRes] = statsRes

@@ -17,8 +17,8 @@ export async function GET(
       return NextResponse.json({ error: 'mutual_follow_required' }, { status: 403 })
     }
 
-    // Admins bypass the gate
-    if (ctx.role !== 'admin' && ctx.role !== 'owner') {
+    // Admins and self bypass the gate
+    if (ctx.role !== 'admin' && ctx.role !== 'owner' && ctx.userId !== targetId) {
       const admin = createSupabaseAdminClient()
       // Check both directions are accepted
       const [{ data: viewerRow }, { data: targetRow }] = await Promise.all([
