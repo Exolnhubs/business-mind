@@ -1,7 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
-import { handleApiError } from '@/lib/errors'
-import { NextResponse } from 'next/server'
+import { handleApiError, ok } from '@/lib/errors'
 
 // GET /api/users/:id/happenings?limit=10&before=<ISO>
 // Public — no auth required
@@ -33,7 +32,7 @@ export async function GET(
     const { data, error } = await query
     if (error) throw error
 
-    return NextResponse.json({ data: data ?? [] })
+    return ok(data ?? [])
   } catch (err) {
     return handleApiError(err)
   }
