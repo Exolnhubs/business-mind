@@ -376,6 +376,27 @@ export function EventFiltersPlayful() {
           </button>
         </div>
 
+        {hasGeo && (
+          <div className="ef-radius-row">
+            <span className="ef-radius-label">📍 Within</span>
+            <input
+              type="range"
+              min={5}
+              max={100}
+              step={5}
+              value={Number(params.get('radius_km') ?? 25)}
+              onChange={(e) => {
+                const p = new URLSearchParams(paramsSnapshot)
+                p.set('radius_km', e.target.value)
+                p.delete('page')
+                replaceWithParams(p)
+              }}
+              className="ef-radius-slider"
+            />
+            <span className="ef-radius-value">{params.get('radius_km') ?? 25} km</span>
+          </div>
+        )}
+
       </div>
     </div>
   )
