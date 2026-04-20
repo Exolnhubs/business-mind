@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react'
-import { AppState, Platform } from 'react-native'
+import { AppState, Platform, I18nManager } from 'react-native'
+
+// Prevent the device OS language from forcing RTL on the entire layout.
+// The app manages its own direction via LocaleProvider.
+I18nManager.allowRTL(false)
 import { Stack, useRouter, useSegments } from 'expo-router'
 import * as Linking from 'expo-linking'
 import AsyncStorage from '@react-native-async-storage/async-storage'

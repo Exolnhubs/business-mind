@@ -1,6 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { I18nManager } from 'react-native'
 
 type Locale = 'en' | 'ar'
 
@@ -242,8 +241,6 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
     AsyncStorage.getItem('rawaq_locale').then((v) => {
       if (v === 'ar' || v === 'en') {
         setLocale(v)
-        // Apply RTL immediately for saved Arabic locale (takes effect after reload)
-        I18nManager.forceRTL(v === 'ar')
       }
     })
   }, [])
@@ -252,8 +249,6 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
     const next: Locale = locale === 'en' ? 'ar' : 'en'
     setLocale(next)
     await AsyncStorage.setItem('rawaq_locale', next)
-    // RTL note: full RTL requires app restart in RN; we handle layout direction via WritingDirection
-    I18nManager.forceRTL(next === 'ar')
   }
 
   const t = (key: string) => translations[locale][key] ?? key

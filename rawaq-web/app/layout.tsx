@@ -17,6 +17,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" dir="ltr" suppressHydrationWarning>
       <head>
+        {/* Lock direction to the app's locale choice — never the browser/OS language */}
+        <script dangerouslySetInnerHTML={{ __html: `(function(){var l=localStorage.getItem('rawaq_locale');document.documentElement.dir=l==='ar'?'rtl':'ltr';document.documentElement.lang=l==='ar'?'ar':'en';})()` }} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
