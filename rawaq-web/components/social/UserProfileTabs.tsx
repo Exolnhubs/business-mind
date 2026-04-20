@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { UserHappeningCard, UserHappeningCardSkeleton } from './UserHappeningCard'
 import { UserFollowButton } from './UserFollowButton'
@@ -97,10 +97,9 @@ export function UserProfileTabs({ targetId, followState, isMutual, sharedCommuni
     if (next === 'communities' && !communitiesLoaded) loadCommunities()
   }
 
-  // Load activity tab data on first render
-  if (!happeningsLoaded && tab === 'activity' && !happeningsLoading) {
-    loadHappenings()
-  }
+  // Load activity tab on mount (it's the default tab)
+  useEffect(() => { loadHappenings() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
 
   const tabClass = (t: Tab) =>
     `px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
