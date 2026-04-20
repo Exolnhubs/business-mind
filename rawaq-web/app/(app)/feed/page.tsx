@@ -1,12 +1,11 @@
 import { redirect } from 'next/navigation'
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
-import Link from 'next/link'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { EventCard, EventCardSkeleton } from '@/components/events/EventCard'
-import { EmptyState } from '@/components/ui/EmptyState'
 import type { EventWithOrganizer } from '@/types/database'
 import { applyResolvedEventWindow, compareEventsByResolvedStartAt } from '@/lib/events/recurrence'
+import { FeedPageHeader, FeedEmptyNoFollows, FeedEmptyNoEvents, FeedFollowingLabel, FeedPagination } from '@/components/feed/FeedStrings'
 
 export const metadata: Metadata = { title: 'Following Feed' }
 
@@ -25,14 +24,7 @@ async function FeedGrid({ userId, page }: { userId: string; page: number }) {
   const orgIds = (follows ?? []).map((f) => f.organizer_id)
 
   if (orgIds.length === 0) {
-    return (
-      <EmptyState
-        icon="👥"
-        title="You're not following anyone yet"
-        description="Follow organizers to see their upcoming events here."
-        action={<Link href="/events" className="btn-primary mt-4 inline-flex">Browse Events</Link>}
-      />
-    )
+    return <FeedEmptyNoFollows />
   }
 
   const [{ data: events, count }, { data: saves }] = await Promise.all([
@@ -63,59 +55,24 @@ async function FeedGrid({ userId, page }: { userId: string; page: number }) {
   const savedIds    = new Set((saves ?? []).map((s) => s.event_id))
   const totalPages  = Math.ceil(resolvedEvents.length / PAGE_SIZE)
 
+  const followChips = (follows ?? []).slice(0, 8).map((f) => {
+    const op = (f.organizer as unknown as { id: string; display_name: string; organizer_profile: { business_name: string } | null } | null)
+    return { id: f.organizer_id, name: op?.organizer_profile?.business_name ?? op?.display_name ?? '?', href: `/organizer/${f.organizer_id}` }
+  })
+
   return (
     <div className="space-y-6">
-      {/* Following chips */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-xs text-gray-400">Following:</span>
-        {(follows ?? []).slice(0, 8).map((f) => {
-          const op = (f.organizer as unknown as { id: string; display_name: string; organizer_profile: { business_name: string; logo_url: string | null } | null } | null)
-          return (
-            <Link
-              key={f.organizer_id}
-              href={`/organizer/${f.organizer_id}`}
-              className="text-xs bg-brand-50 text-brand-700 border border-brand-100 px-2.5 py-1 rounded-full hover:bg-brand-100 transition-colors"
-            >
-              {op?.organizer_profile?.business_name ?? op?.display_name ?? '?'}
-            </Link>
-          )
-        })}
-        {(follows?.length ?? 0) > 8 && (
-          <span className="text-xs text-gray-400">+{(follows?.length ?? 0) - 8} more</span>
-        )}
-      </div>
-
+      <FeedFollowingLabel follows={followChips} total={follows?.length ?? 0} />
       {!pagedEvents.length ? (
-        <EmptyState
-          icon="📭"
-          title="No upcoming events from people you follow"
-          description="The organizers you follow haven't posted any upcoming events yet."
-        />
+        <FeedEmptyNoEvents />
       ) : (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {pagedEvents.map((event) => (
-              <EventCard
-                key={event.id}
-                event={event}
-                isSaved={savedIds.has(event.id)}
-                showSave
-              />
+              <EventCard key={event.id} event={event} isSaved={savedIds.has(event.id)} showSave />
             ))}
           </div>
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2 pt-4">
-              {page > 1 && (
-                <Link href={`/feed?page=${page - 1}`} className="btn-secondary text-sm">← Prev</Link>
-              )}
-              <span className="text-sm text-gray-400">Page {page} of {totalPages}</span>
-              {page < totalPages && (
-                <Link href={`/feed?page=${page + 1}`} className="btn-secondary text-sm">Next →</Link>
-              )}
-            </div>
-          )}
+          {totalPages > 1 && <FeedPagination page={page} totalPages={totalPages} />}
         </>
       )}
     </div>
@@ -136,10 +93,7 @@ export default async function FeedPage({
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Following</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Upcoming events from organizers you follow</p>
-      </div>
+      <FeedPageHeader />
 
       <Suspense fallback={
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

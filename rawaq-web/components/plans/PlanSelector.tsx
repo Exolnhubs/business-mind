@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import type { ResolvedPlanDefinition, Subscription } from '@/types/plans'
+import { useLocale } from '@/contexts/locale-context'
 
 // ── Plan UI metadata (display only) ────────────────────────────────────────
 
@@ -72,6 +73,7 @@ function formatPlanAmount(amount: number): string {
 // ── Main component ──────────────────────────────────────────────────────────
 
 export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrganizer }: Props) {
+  const { t } = useLocale()
   const searchParams = useSearchParams()
   const [activePlanId, setActivePlanId] = useState(currentPlanId)
   const [loading, setLoading] = useState<string | null>(null)
@@ -114,7 +116,7 @@ export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrga
       setActivePlanId(plan.id)
       setMsg({ ok: true, text: `Switched to ${json.data?.plan_name ?? plan.name}` })
     } catch (e) {
-      setMsg({ ok: false, text: e instanceof Error ? e.message : 'Error' })
+      setMsg({ ok: false, text: e instanceof Error ? e.message : t('plans.error') })
     } finally {
       setLoading(null)
     }
@@ -136,14 +138,14 @@ export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrga
     if (!transactionId || !paymentStatus) return
 
     if (paymentStatus === 'cancelled' || paymentStatus === 'failed') {
-      setMsg({ ok: false, text: 'Membership payment was not completed.' })
+      setMsg({ ok: false, text: t('plans.payment_incomplete') })
       return
     }
 
     let cancelled = false
 
     async function poll() {
-      setMsg({ ok: true, text: 'Membership payment received. Finalizing your plan…' })
+      setMsg({ ok: true, text: t('plans.payment_received') })
 
       for (const delay of [1500, 2500, 3500, 5000, 5000]) {
         await new Promise((resolve) => setTimeout(resolve, delay))
@@ -161,7 +163,7 @@ export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrga
         const activatedPlanId = json?.data?.active_subscription?.plan_id
         if (activated && activatedPlanId) {
           setActivePlanId(activatedPlanId)
-          setMsg({ ok: true, text: 'Membership activated successfully.' })
+          setMsg({ ok: true, text: t('plans.activated') })
           window.setTimeout(() => {
             window.location.replace('/plans')
           }, 600)
@@ -170,13 +172,13 @@ export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrga
       }
 
       if (!cancelled) {
-        setMsg({ ok: true, text: 'Payment is processing. Refresh in a moment if your new plan is not visible yet.' })
+        setMsg({ ok: true, text: t('plans.processing') })
       }
     }
 
     poll().catch(() => {
       if (!cancelled) {
-        setMsg({ ok: false, text: 'We could not verify your membership payment yet.' })
+        setMsg({ ok: false, text: t('plans.verify_failed') })
       }
     })
 
@@ -194,12 +196,10 @@ export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrga
           className="font-display text-[2rem] font-black tracking-tight leading-none"
           style={{ color: 'var(--c-ink)' }}
         >
-          {isOrganizer ? 'Organizer plan' : 'Your membership'}
+          {isOrganizer ? t('plans.title_organizer') : t('plans.title_user')}
         </h1>
         <p className="mt-2 text-sm text-gray-500 max-w-[44ch] leading-relaxed">
-          {isOrganizer
-            ? 'Publish more events and keep more of what you earn as you grow.'
-            : 'Upgrade for unlimited saves and premium-only event access.'}
+          {isOrganizer ? t('plans.subtitle_organizer') : t('plans.subtitle_user')}
         </p>
       </div>
 
@@ -219,7 +219,7 @@ export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrga
               <p className="text-[12px] text-white/30 mt-1">Renews {periodEnd}</p>
             ) : (
               <p className="text-[12px] text-white/25 mt-1">
-                {(activePlan?.price_amount ?? 0) === 0 ? 'Free · no billing' : 'Active'}
+                {(activePlan?.price_amount ?? 0) === 0 ? t('plans.free_billing') : t('plans.active')}
               </p>
             )}
           </div>
@@ -379,7 +379,7 @@ export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrga
                         disabled={loading !== null}
                         className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-orange-500 hover:bg-orange-600 transition-colors disabled:opacity-40"
                       >
-                        {loading === plan.id ? 'Updating…' : 'Confirm'}
+                        {loading === plan.id ? t('plans.updating') : t('plans.confirm')}
                       </button>
                       <button
                         onClick={() => setConfirmDowngrade(null)}
@@ -398,7 +398,7 @@ export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrga
                     style={{ background: 'var(--c-gold)', color: 'var(--c-ink)' }}
                   >
                     {loading === plan.id
-                      ? 'Updating…'
+                      ? t('plans.updating')
                       : action === 'upgrade'
                       ? `Upgrade to ${plan.name}`
                       : `Switch to ${plan.name}`}
@@ -494,7 +494,7 @@ export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrga
                       disabled={loading !== null}
                       className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-orange-500 hover:bg-orange-600 transition-colors disabled:opacity-40"
                     >
-                      {loading === plan.id ? 'Updating…' : 'Confirm'}
+                      {loading === plan.id ? t('plans.updating') : t('plans.confirm')}
                     </button>
                     <button
                       onClick={() => setConfirmDowngrade(null)}
@@ -513,7 +513,7 @@ export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrga
                   }`}
                 >
                   {loading === plan.id
-                    ? 'Updating…'
+                    ? t('plans.updating')
                     : action === 'upgrade'
                     ? `Upgrade to ${plan.name}`
                     : `Switch to ${plan.name}`}
