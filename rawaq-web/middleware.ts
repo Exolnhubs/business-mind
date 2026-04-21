@@ -11,15 +11,20 @@ export async function middleware(request: NextRequest) {
       request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
       'anonymous'
 
-    const { success, reset } = await limiters.globalIp.limit(ip)
-    if (!success) {
-      return NextResponse.json(
-        { error: 'Too many requests. Please try again later.', code: 'RATE_LIMITED' },
-        {
-          status: 429,
-          headers: { 'Retry-After': String(Math.ceil((reset - Date.now()) / 1000)) },
-        },
-      )
+    try {
+      const { success, reset } = await limiters.globalIp.limit(ip)
+      if (!success) {
+        return NextResponse.json(
+          { error: 'Too many requests. Please try again later.', code: 'RATE_LIMITED' },
+          {
+            status: 429,
+            headers: { 'Retry-After': String(Math.ceil((reset - Date.now()) / 1000)) },
+          },
+        )
+      }
+    } catch (err) {
+      // Upstash unavailable — fail open so API routes still work
+      console.error('[middleware] rate limiter unavailable:', err)
     }
 
     // Skip session refresh for API routes — they authenticate independently

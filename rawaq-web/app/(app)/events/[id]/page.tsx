@@ -1,6 +1,5 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
-import Link from 'next/link'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { Badge } from '@/components/ui/Badge'
@@ -13,6 +12,27 @@ import { formatDate, formatTime, formatCurrency } from '@/lib/utils'
 import type { Community, EventOccurrence, EventWithOrganizer, CommentWithAuthor, TicketType } from '@/types/database'
 import { applyResolvedEventWindow } from '@/lib/events/recurrence'
 import { listEventOccurrences, getBookableOccurrences } from '@/lib/events/occurrences'
+import {
+  EventCoverBadgeFree,
+  EventBadgeFamilyFriendly,
+  EventBadgeMenOnly,
+  EventBadgeWomenOnly,
+  EventBadgeCancelled,
+  InfoBlockLabel,
+  EventVenueName,
+  EventAttendingCount,
+  EventCapacityRow,
+  EventFreeLabel,
+  EventAboutHeading,
+  EventOrganizerRole,
+  EventOrganizerName,
+  SidebarPriceFrom,
+  SidebarSpotsLeft,
+  EventViewOrganizerLink,
+  EventCommentsHeading,
+  EventCategoryName,
+  EventCommunityChip,
+} from '@/components/events/EventDetailStrings'
 
 function getEffectivePrice(tt: TicketType): number {
   if (tt.is_hot_offer && tt.hot_offer_price != null && tt.hot_offer_ends_at && new Date(tt.hot_offer_ends_at) > new Date()) {
@@ -146,14 +166,14 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
             )}
             <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
             <div className="absolute bottom-4 start-4 flex gap-2">
-              {(ev.is_free || (ticketTypes && ticketTypes.length > 0 && (ticketTypes as TicketType[]).every(t => t.is_free))) && <Badge variant="green">Free</Badge>}
-              {ev.is_family_friendly && <Badge variant="blue">👨‍👩‍👧 Family Friendly</Badge>}
+              {(ev.is_free || (ticketTypes && ticketTypes.length > 0 && (ticketTypes as TicketType[]).every(t => t.is_free))) && <Badge variant="green"><EventCoverBadgeFree /></Badge>}
+              {ev.is_family_friendly && <Badge variant="blue"><EventBadgeFamilyFriendly /></Badge>}
               {ev.gender_restriction !== 'mixed' && (
                 <Badge variant="yellow">
-                  {ev.gender_restriction === 'male' ? '♂ Men Only' : '♀ Women Only'}
+                  {ev.gender_restriction === 'male' ? <EventBadgeMenOnly /> : <EventBadgeWomenOnly />}
                 </Badge>
               )}
-              {ev.is_cancelled && <Badge variant="red">Cancelled</Badge>}
+              {ev.is_cancelled && <Badge variant="red"><EventBadgeCancelled /></Badge>}
             </div>
           </div>
 
@@ -161,20 +181,18 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
           <div>
             <h1 className="text-2xl font-bold text-gray-900">{ev.title}</h1>
             {ev.category && (
-              <span className="text-sm text-brand-600 font-medium mt-1 inline-block">
-                {ev.category.icon} {ev.category.name_en}
-              </span>
+              <EventCategoryName nameEn={ev.category.name_en} nameAr={ev.category.name_ar} icon={ev.category.icon} />
             )}
             {eventCommunities.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-2">
                 {eventCommunities.map((community) => (
-                  <Link
+                  <EventCommunityChip
                     key={community.id}
-                    href={`/communities/${community.slug}`}
-                    className="rounded-full border border-brand-100 bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700 hover:bg-brand-100"
-                  >
-                    {community.name}
-                  </Link>
+                    id={community.id}
+                    name={community.name}
+                    nameAr={community.name_ar ?? null}
+                    slug={community.slug}
+                  />
                 ))}
               </div>
             )}
@@ -182,26 +200,24 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
 
           {/* Info grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <InfoBlock icon="📅" label="Date & Time">
+            <InfoBlock icon="📅" labelKey="event.date_time">
               <p className="text-sm font-medium">{formatDate(ev.start_at)}</p>
               <p className="text-xs text-gray-500">{formatTime(ev.start_at)}{ev.end_at ? ` - ${formatTime(ev.end_at)}` : ''}</p>
             </InfoBlock>
 
-            <InfoBlock icon="📍" label="Location">
-              <p className="text-sm font-medium">{ev.venue_name ?? 'TBA'}</p>
+            <InfoBlock icon="📍" labelKey="event.location">
+              <EventVenueName name={ev.venue_name} />
               <p className="text-xs text-gray-500">{ev.address ? `${ev.address}, ` : ''}{ev.city}, {ev.country}</p>
             </InfoBlock>
 
-            <InfoBlock icon="👥" label="Attendees">
-              <p className="text-sm font-medium">{ev.bookings_count} attending</p>
+            <InfoBlock icon="👥" labelKey="event.attendees">
+              <EventAttendingCount count={ev.bookings_count} />
               {ev.capacity && (
-                <p className="text-xs text-gray-500">
-                  {isFull ? 'Fully booked' : `${spotsLeft} spots left`} of {ev.capacity}
-                </p>
+                <EventCapacityRow spotsLeft={spotsLeft ?? 0} capacity={ev.capacity} isFull={isFull} />
               )}
             </InfoBlock>
 
-            <InfoBlock icon="💰" label="Price">
+            <InfoBlock icon="💰" labelKey="event.price">
               {ticketTypes && ticketTypes.length > 0 ? (
                 <div className="space-y-0.5">
                   {(ticketTypes as TicketType[]).map((tt) => {
@@ -211,7 +227,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
                       <p key={tt.id} className="text-sm font-medium flex items-center gap-1.5">
                         <span className="text-gray-600">{tt.name}: </span>
                         {tt.is_free ? (
-                          <span className="text-green-600">Free</span>
+                          <EventFreeLabel />
                         ) : hotActive ? (
                           <>
                             <span className="text-gray-400 line-through text-xs">{formatCurrency(tt.price, ev.currency)}</span>
@@ -226,7 +242,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
                 </div>
               ) : (
                 <p className="text-sm font-medium">
-                  {ev.is_free ? 'Free' : formatCurrency(ev.price ?? 0, ev.currency)}
+                  {ev.is_free ? <EventFreeLabel /> : formatCurrency(ev.price ?? 0, ev.currency)}
                 </p>
               )}
             </InfoBlock>
@@ -235,7 +251,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
           {/* Description */}
           {ev.description && (
             <div>
-              <h2 className="font-semibold text-gray-900 mb-2">About this event</h2>
+              <EventAboutHeading />
               <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">{ev.description}</p>
             </div>
           )}
@@ -252,14 +268,16 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5">
-                <p className="text-sm font-semibold text-gray-900">
-                  {ev.organizer?.organizer_profile?.business_name ?? ev.organizer?.display_name ?? 'Organizer'}
-                </p>
+                <EventOrganizerName
+                  businessName={ev.organizer?.organizer_profile?.business_name ?? null}
+                  businessNameAr={ev.organizer?.organizer_profile?.business_name_ar ?? null}
+                  displayName={ev.organizer?.display_name ?? null}
+                />
                 {ev.organizer?.organizer_profile?.verified && (
                   <span title="Verified">✅</span>
                 )}
               </div>
-              <p className="text-xs text-gray-500">Event Organizer</p>
+              <EventOrganizerRole />
             </div>
           </div>
 
@@ -276,14 +294,14 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
                   <div>
                     {(() => {
                       const paid = (ticketTypes as TicketType[]).filter((t) => t.is_active && !t.is_free)
-                      if (paid.length === 0) return <span className="text-2xl font-bold text-green-600">Free</span>
+                      if (paid.length === 0) return <span className="text-2xl font-bold text-green-600"><EventCoverBadgeFree /></span>
                       const prices = paid.map((t) => getEffectivePrice(t))
                       const min = Math.min(...prices)
                       const max = Math.max(...prices)
                       const hasHot = paid.some((t) => t.is_hot_offer && !!t.hot_offer_ends_at && new Date(t.hot_offer_ends_at) > new Date())
                       return (
                         <div>
-                          <span className="text-xs text-gray-400 font-medium uppercase tracking-wide block">{hasHot ? '🔥 from' : 'from'}</span>
+                          <SidebarPriceFrom hasHot={hasHot} />
                           <span className={`text-2xl font-bold ${hasHot ? 'text-orange-600' : 'text-gray-900'}`}>{formatCurrency(min, ev.currency)}</span>
                           {max !== min && <span className="text-sm text-gray-500 ml-1">- {formatCurrency(max, ev.currency)}</span>}
                         </div>
@@ -292,11 +310,11 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
                   </div>
                 ) : (
                   <span className="text-2xl font-bold text-gray-900">
-                    {ev.is_free ? 'Free' : formatCurrency(ev.price ?? 0, ev.currency)}
+                    {ev.is_free ? <EventCoverBadgeFree /> : formatCurrency(ev.price ?? 0, ev.currency)}
                   </span>
                 )}
                 {ev.capacity && (
-                  <span className="text-xs text-gray-500">{spotsLeft ?? ev.capacity} left</span>
+                  <SidebarSpotsLeft n={spotsLeft ?? ev.capacity} />
                 )}
               </div>
               <BookingFlow
@@ -329,12 +347,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
 
           {/* Organizer profile link */}
           {ev.organizer_id && (
-            <Link
-              href={`/organizer/${ev.organizer_id}`}
-              className="block card p-3 text-xs text-brand-600 font-medium hover:bg-brand-50 text-center"
-            >
-              View organizer profile →
-            </Link>
+            <EventViewOrganizerLink organizerId={ev.organizer_id} />
           )}
 
           {/* Report event */}
@@ -345,9 +358,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
 
         {/* Comments */}
         <div className="lg:col-span-2">
-          <h2 className="font-semibold text-gray-900 mb-4">
-            Comments ({comments?.length ?? 0})
-          </h2>
+          <EventCommentsHeading count={comments?.length ?? 0} />
           <CommentThread
             eventId={id}
             initialComments={(comments ?? []) as unknown as CommentWithAuthor[]}
@@ -359,12 +370,12 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
   )
 }
 
-function InfoBlock({ icon, label, children }: { icon: string; label: string; children: React.ReactNode }) {
+function InfoBlock({ icon, labelKey, children }: { icon: string; labelKey: string; children: React.ReactNode }) {
   return (
     <div className="card p-4 flex items-start gap-3">
       <span className="text-xl">{icon}</span>
       <div>
-        <p className="text-xs text-gray-400 uppercase tracking-wide font-medium mb-0.5">{label}</p>
+        <InfoBlockLabel labelKey={labelKey} />
         {children}
       </div>
     </div>

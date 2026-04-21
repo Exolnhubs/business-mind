@@ -500,6 +500,23 @@ const translations: Record<Locale, Record<string, string>> = {
     'ticket.info.seat': 'Seat',
     'ticket.info.dob': 'Date of Birth',
     'ticket.info.relation': 'Relation',
+
+    // Event detail page extras
+    'event.organizer_role': 'Event Organizer',
+    'event.attending': '{n} attending',
+    'event.spots_of': 'of {total}',
+    'event.venue_tba': 'TBA',
+    'event.view_organizer': 'View organizer profile →',
+    'event.comments_count': 'Comments ({n})',
+    'event.price_from': 'from',
+    'event.price': 'Price',
+    'event.spots_left_short': '{n} left',
+    'event.spots_left': '{n} spots left',
+    'event.fully_booked': 'Fully booked',
+    'event.family_friendly': '👨‍👩‍👧 Family Friendly',
+    'event.men_only': '♂ Men Only',
+    'event.women_only': '♀ Women Only',
+    'event.cancelled_badge': 'Cancelled',
   },
   ar: {
     // Nav
@@ -591,6 +608,23 @@ const translations: Record<Locale, Record<string, string>> = {
     'event.tip_send': 'إرسال الدعم',
     'event.tip_success': 'تم الإرسال! 🙏',
     'event.comments': 'التعليقات',
+
+    // Event detail page extras
+    'event.organizer_role': 'منظم الفعالية',
+    'event.attending': 'يحضر {n}',
+    'event.spots_of': 'من {total}',
+    'event.venue_tba': 'يُحدد لاحقاً',
+    'event.view_organizer': 'عرض صفحة المنظم ←',
+    'event.comments_count': 'التعليقات ({n})',
+    'event.price_from': 'يبدأ من',
+    'event.price': 'السعر',
+    'event.spots_left_short': 'تبقى {n}',
+    'event.spots_left': 'تبقى {n} مقعد',
+    'event.fully_booked': 'مكتمل',
+    'event.family_friendly': '👨‍👩‍👧 مناسب للعائلات',
+    'event.men_only': '♂ للرجال فقط',
+    'event.women_only': '♀ للنساء فقط',
+    'event.cancelled_badge': 'ملغاة',
     // Auth
     'auth.login_title': 'مرحباً بعودتك',
     'auth.login_sub': 'سجّل الدخول إلى حساب رواق',
