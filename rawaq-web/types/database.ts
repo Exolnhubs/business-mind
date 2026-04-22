@@ -234,6 +234,8 @@ export interface Event {
   bookings_count: number;
   views_count: number;
   tips_total: number;
+  featured_at: string | null;
+  featured_until: string | null;
   created_at: string;
   updated_at: string;
 }
