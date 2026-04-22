@@ -1,7 +1,7 @@
 import { cn } from '@/lib/utils'
 import type { ReactNode } from 'react'
 
-type Variant = 'brand' | 'green' | 'red' | 'yellow' | 'gray' | 'blue' | 'orange'
+type Variant = 'brand' | 'green' | 'red' | 'yellow' | 'gray' | 'blue' | 'orange' | 'amber'
 
 const styles: Record<Variant, string> = {
   brand:  'bg-brand-100 text-brand-700',
@@ -11,6 +11,7 @@ const styles: Record<Variant, string> = {
   gray:   'bg-gray-100 text-gray-600',
   blue:   'bg-blue-100 text-blue-700',
   orange: 'bg-orange-100 text-orange-700',
+  amber:  'bg-amber-100 text-amber-700',
 }
 
 interface BadgeProps { variant?: Variant; className?: string; children: ReactNode }

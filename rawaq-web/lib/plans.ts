@@ -205,3 +205,7 @@ export async function getUserPlanAccess(userId: string): Promise<UserPlanAccess>
     features: normalizeFeatures(row.plan?.features),
   }
 }
+
+export function getFeaturedPerMonth(plan: OrganizerPlanAccess | null): number {
+  return getNumericPlanFeature(plan?.features, 'featured_per_month') ?? 0
+}
