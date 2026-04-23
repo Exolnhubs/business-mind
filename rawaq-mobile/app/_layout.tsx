@@ -11,6 +11,7 @@ import { StatusBar } from 'expo-status-bar'
 import * as SplashScreen from 'expo-splash-screen'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { AuthProvider, useAuth } from '@/contexts/auth-context'
+import { apiGet } from '@/lib/api'
 import { LocaleProvider } from '@/contexts/locale-context'
 import { NotificationProvider } from '@/contexts/notification-context'
 import { AnimatedSplash } from '@/components/ui/AnimatedSplash'
@@ -172,6 +173,10 @@ AppState.addEventListener('change', (state) => {
 
 export default function RootLayout() {
   const [splashDone, setSplashDone] = useState(false)
+
+  useEffect(() => {
+    void apiGet('/api/events/featured', { ttlMs: 300_000 })
+  }, [])
 
   return (
     <SafeAreaProvider>
