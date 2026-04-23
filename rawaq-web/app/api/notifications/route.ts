@@ -1,8 +1,11 @@
 import { NextRequest } from 'next/server'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
+import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { requireAuth } from '@/lib/auth'
 import { handleApiError, ok } from '@/lib/errors'
 import { ListNotificationsSchema } from '@/lib/validations/notifications'
+
+const CACHE_TTL_MS = 30_000
 
 // GET /api/notifications
 export async function GET(req: NextRequest) {
@@ -12,12 +15,13 @@ export async function GET(req: NextRequest) {
       Object.fromEntries(req.nextUrl.searchParams)
     )
 
-    const admin = createSupabaseAdminClient()
+    // First try server client for faster RLS resolution
+    const server = await createSupabaseServerClient()
     const from = (params.page - 1) * params.per_page
 
-    let query = admin
+    let query = server
       .from('notifications')
-      .select('*', { count: 'exact' })
+      .select('*')
       .eq('user_id', ctx.userId)
       .order('created_at', { ascending: false })
       .range(from, from + params.per_page - 1)
@@ -26,10 +30,10 @@ export async function GET(req: NextRequest) {
       query = query.eq('is_read', false)
     }
 
-    const { data, count, error } = await query
+    const { data, error } = await query
     if (error) throw error
 
-    return ok({ data, total: count ?? 0, page: params.page, per_page: params.per_page })
+    return ok({ data, total: data?.length ?? 0, page: params.page, per_page: params.per_page })
   } catch (err) {
     return handleApiError(err)
   }
