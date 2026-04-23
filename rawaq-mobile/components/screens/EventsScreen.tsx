@@ -205,6 +205,7 @@ export default function EventsScreen() {
   const [nearbyHappenings, setNearbyHappenings] = useState<HappeningDiscoveryItem[]>([])
   const [filteredCommunityHappenings, setFilteredCommunityHappenings] = useState<HappeningDiscoveryItem[]>([])
   const [featuredEvents, setFeaturedEvents] = useState<EventWithOrganizer[]>([])
+  const [railEventIds, setRailEventIds] = useState<Set<string>>(new Set())
   const [suggestedCommunities, setSuggestedCommunities] = useState<CommunityListItem[]>([])
   const [joiningSlug, setJoiningSlug] = useState<string | null>(null)
   const [weekendCoords, setWeekendCoords] = useState<{ lat: number; lng: number } | null>(null)
@@ -435,7 +436,8 @@ export default function EventsScreen() {
       setFeaturedEvents([])
       return
     }
-    setFeaturedEvents(data.featured ?? [])
+    const featured = data.featured ?? []
+    setFeaturedEvents(featured)
   }, [])
 
   const fallbackSearchEvents = useCallback(async (queryText: string) => {
@@ -653,7 +655,6 @@ export default function EventsScreen() {
       setRefreshing(false)
       return
     }
-    setEvents(list)
 
     // Hot offers — sorted by soonest expiry so the most urgent deal is first
     const nowMs = Date.now()
@@ -833,14 +834,14 @@ export default function EventsScreen() {
 
     const weekendCandidateIds = [...new Set(((weekendGeoRes.data ?? []) as { id: string }[]).map((entry) => entry.id))]
     const communityEventIds = [...new Set(((communityLinksRes.data ?? []) as { event_id: string }[]).map((entry) => entry.event_id))]
-    const combinedRailIds = [...new Set([...weekendCandidateIds, ...communityEventIds])]
+    const communityRailIds = [...new Set([...weekendCandidateIds, ...communityEventIds])]
 
     let railEventMap = new Map<string, EventWithOrganizer>()
-    if (combinedRailIds.length > 0) {
+    if (communityRailIds.length > 0) {
       const { data: railEventRows } = await supabase
         .from('events')
         .select(eventSelect)
-        .in('id', combinedRailIds)
+        .in('id', communityRailIds)
         .eq('is_published', true)
         .eq('is_cancelled', false)
 
@@ -878,9 +879,24 @@ export default function EventsScreen() {
       .slice(0, 6)
     setSavedInspiredEvents(filteredSavedEvents)
 
+    // Build combined set of all rail event IDs (from local vars computed in this function)
+    const allRailIds = new Set([
+      ...featuredEvents.map((e) => e.id),
+      ...hotOffers.map((e) => e.id),
+      ...weekendRailEvents.map((e) => e.id),
+      ...nextCommunityEvents.map((e) => e.id),
+      ...filteredUrgencyEvents.map((e) => e.id),
+      ...rankedSavedEvents.map((e) => e.id),
+    ])
+    setRailEventIds(allRailIds)
+
+    // Filter main list to remove events already in rails
+    const filteredList = list.filter((event) => !allRailIds.has(event.id))
+    setEvents(filteredList)
+
     setLoading(false)
     setRefreshing(false)
-  }, [debouncedSearch, categoryId, city, freeOnly, nearMe, geoCoords, radiusKm, communitySlug, showRecommendationRails, user, weekendCoords, weekendRadiusKm, joinedCommunities, fallbackSearchEvents])
+  }, [featuredEvents])
 
   const refreshEventsIfNeeded = useCallback(async (force = false) => {
     const now = Date.now()
