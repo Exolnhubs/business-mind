@@ -7,7 +7,7 @@ export function FeaturedEventsRail({ events }: { events: EventWithOrganizer[] })
   if (events.length === 0) return null
 
   return (
-    <div className="space-y-3">
+    <div className="bg-amber-50 space-y-3 rounded-2xl p-4">
       <div className="flex items-center gap-2">
         <span className="text-base font-semibold text-gray-900">Featured Events</span>
         <Badge variant="amber">Featured</Badge>
