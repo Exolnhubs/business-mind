@@ -1,10 +1,12 @@
+'use client'
+
 import Link from 'next/link'
 import { EventCard } from '@/components/events/EventCard'
 import { Badge } from '@/components/ui/Badge'
 import type { EventWithOrganizer } from '@/types/database'
 
 export function FeaturedEventsRail({ events }: { events: EventWithOrganizer[] }) {
-  if (events.length === 0) return null
+  if (!events || events.length === 0) return null
 
   return (
     <div className="space-y-3">
