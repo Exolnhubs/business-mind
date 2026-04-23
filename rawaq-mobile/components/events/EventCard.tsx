@@ -1,12 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { View, Text, TouchableOpacity, StyleSheet, Image, Animated, Alert } from 'react-native'
+import { View, Text, TouchableOpacity, StyleSheet, Image, Animated, Alert, ScrollView } from 'react-native'
 import { useRouter } from 'expo-router'
 import { Badge } from '@/components/ui/Badge'
 import { formatCurrency } from '@/lib/utils'
 import { useLocale } from '@/contexts/locale-context'
 import { useAuth } from '@/contexts/auth-context'
 import { apiDelete, apiPost } from '@/lib/api'
-import { Colors, Spacing } from '@/theme'
+import { Colors, Spacing, Radius } from '@/theme'
 import type { EventWithOrganizer } from '@/types/database'
 import { FlameBackground } from '@/components/events/FlameBackground'
 
@@ -207,6 +207,92 @@ export function EventCardSkeleton() {
     </Animated.View>
   )
 }
+
+// ── Rail Skeleton ──────────────────────────────────────────────
+export function RailSkeleton({ variant }: { variant: 'featured' | 'hot' }) {
+  const shimmer = useRef(new Animated.Value(0)).current
+
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(shimmer, { toValue: 1, duration: 900, useNativeDriver: true }),
+        Animated.timing(shimmer, { toValue: 0, duration: 900, useNativeDriver: true }),
+      ])
+    )
+    anim.start()
+    return () => anim.stop()
+  }, [shimmer])
+
+  const opacity = shimmer.interpolate({ inputRange: [0, 1], outputRange: [0.45, 0.88] })
+  const isFeatured = variant === 'featured'
+  const barColor   = isFeatured ? Colors.gray[300] : 'rgba(255,255,255,0.18)'
+  const coverColor = isFeatured ? Colors.gray[200] : 'rgba(255,255,255,0.12)'
+
+  return (
+    <View style={[
+      railSkeletonStyles.section,
+      isFeatured && {
+        backgroundColor: Colors.brand[50],
+        marginHorizontal: Spacing.lg,
+        borderRadius: Radius.lg,
+      },
+    ]}>
+      <Animated.View style={[railSkeletonStyles.header, { opacity }]}>
+        <View style={railSkeletonStyles.headerLeft}>
+          <View style={[railSkeletonStyles.eyebrow, { backgroundColor: barColor }]} />
+          <View style={[railSkeletonStyles.title,   { backgroundColor: barColor }]} />
+        </View>
+        <View style={[railSkeletonStyles.badge, { backgroundColor: barColor }]} />
+      </Animated.View>
+
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={railSkeletonStyles.scroller}
+      >
+        {[1, 2, 3].map((i) => (
+          <Animated.View key={i} style={[railSkeletonStyles.card, { opacity }]}>
+            <View style={[railSkeletonStyles.cardCover, { backgroundColor: coverColor }]} />
+            <View style={railSkeletonStyles.cardBody}>
+              <View style={[railSkeletonStyles.cardLine,      { backgroundColor: barColor }]} />
+              <View style={[railSkeletonStyles.cardLineShort, { backgroundColor: barColor }]} />
+            </View>
+          </Animated.View>
+        ))}
+      </ScrollView>
+    </View>
+  )
+}
+
+const railSkeletonStyles = StyleSheet.create({
+  section: {
+    marginBottom: Spacing.lg,
+    marginTop:    Spacing.xs,
+    marginHorizontal: -Spacing.lg,
+    paddingTop:   Spacing.md,
+    paddingBottom: Spacing.lg,
+    backgroundColor: '#1a0d04',
+    borderRadius: Radius.xl,
+    overflow: 'hidden',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.lg,
+    marginBottom: Spacing.sm,
+  },
+  headerLeft: { gap: 6 },
+  eyebrow:    { width: 60,  height: 10, borderRadius: 4 },
+  title:      { width: 160, height: 22, borderRadius: 6 },
+  badge:      { width: 50,  height: 24, borderRadius: Radius.full },
+  scroller:   { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xs, gap: Spacing.sm },
+  card:       { width: 268, borderRadius: Radius.lg, overflow: 'hidden' },
+  cardCover:  { height: 148 },
+  cardBody:   { paddingHorizontal: Spacing.sm, paddingTop: Spacing.sm, gap: 6 },
+  cardLine:       { height: 14, borderRadius: 4 },
+  cardLineShort:  { height: 12, width: '62%', borderRadius: 4 },
+})
 
 // ── Styles ────────────────────────────────────────────────────
 const cardStyles = StyleSheet.create({
