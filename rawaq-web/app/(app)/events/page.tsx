@@ -6,6 +6,7 @@ import { EventCard, EventCardSkeleton } from '@/components/events/EventCard'
 import { EventFiltersPlayful } from '@/components/events/EventFiltersPlayful'
 import { EventsPageHero } from '@/components/events/EventsPageHero'
 import { EventsPageWeekendRail } from '@/components/events/EventsPageWeekendRail'
+import { FeaturedEventsRail } from '@/components/events/FeaturedEventsRail'
 import { EventsGridEmpty, EventsGridError, EventsGridPagination } from '@/components/events/EventsGridFeedback'
 import type { EventWithOrganizer } from '@/types/database'
 import { applyResolvedEventWindow, compareEventsByResolvedStartAt } from '@/lib/events/recurrence'
@@ -145,9 +146,50 @@ interface SearchParams {
   radius_km?: string
 }
 
+const EVENT_SELECT = `
+  *,
+  organizer:profiles!organizer_id(
+    id, display_name, avatar_url,
+    organizer_profile:organizer_profiles!user_id(business_name, business_name_ar, logo_url, verified)
+  ),
+  category:event_categories(id, name_en, name_ar, icon),
+  ticket_types(id, price, is_free, is_active, is_hot_offer, hot_offer_price, hot_offer_ends_at)
+`
+
 const PAGE_SIZE = 12
 
-async function EventsGrid({ searchParams }: { searchParams: SearchParams }) {
+async function fetchFeaturedEvents(): Promise<EventWithOrganizer[]> {
+  const supabase = await createSupabaseServerClient()
+  const now = new Date().toISOString()
+
+  const { data } = await supabase
+    .from('events')
+    .select(EVENT_SELECT)
+    .eq('is_published', true)
+    .eq('is_cancelled', false)
+    .gt('featured_until', now)
+    .order('featured_until', { ascending: false })
+    .limit(6)
+
+  const rawEvents = (data ?? []) as unknown as EventWithOrganizer[]
+  return rawEvents.map((event) => applyResolvedEventWindow(event))
+}
+
+async function FeaturedSectionOrGrid({ searchParams }: { searchParams: SearchParams }) {
+  const featured = await fetchFeaturedEvents()
+  const excludeIds = featured.map((e) => e.id)
+
+  return (
+    <>
+      {featured.length > 0 && <FeaturedEventsRail events={featured} />}
+      <Suspense fallback={<EventsGridSkeleton />}>
+        <EventsGrid searchParams={searchParams} excludeIds={excludeIds} />
+      </Suspense>
+    </>
+  )
+}
+
+async function EventsGrid({ searchParams, excludeIds = [] }: { searchParams: SearchParams; excludeIds?: string[] }) {
   const supabase = await createSupabaseServerClient()
 
   const page = Math.max(1, Number(searchParams.page ?? 1))
@@ -172,6 +214,10 @@ async function EventsGrid({ searchParams }: { searchParams: SearchParams }) {
     )
     .eq('is_published', true)
     .eq('is_cancelled', false)
+
+  if (excludeIds.length > 0) {
+    query = query.not('id', 'in', `(${excludeIds.join(',')})`)
+  }
 
   if (searchParams.q) {
     const q = searchParams.q.replace(/'/g, "''")
@@ -339,9 +385,7 @@ export default async function EventsPage({
         </Suspense>
       ) : null}
 
-      <Suspense fallback={<EventsGridSkeleton />}>
-        <EventsGrid searchParams={params} />
-      </Suspense>
+      <FeaturedSectionOrGrid searchParams={params} />
     </div>
   )
 }
