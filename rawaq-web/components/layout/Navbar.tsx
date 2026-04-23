@@ -323,10 +323,7 @@ export function Navbar() {
               </div>
             </>
           ) : (
-            <div className="flex items-center gap-2">
-              <Link href="/login" className="btn-ghost text-sm">{t('nav.login')}</Link>
-              <Link href="/register" className="btn-primary text-sm">{t('nav.register')}</Link>
-            </div>
+            <Link href="/login" className="btn-primary text-sm">{t('nav.login')}</Link>
           )}
         </div>
       </nav>
