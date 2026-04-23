@@ -7,6 +7,10 @@ import { writeCommunityAuditLog } from '@/lib/community-governance'
 import { generateCommunitySlug } from '@/lib/community-slug'
 import type { CommunityApprovalStatus } from '@/types/database'
 import { z } from 'zod'
+import { Redis } from '@upstash/redis'
+
+const redis = Redis.fromEnv()
+const COMMUNITY_CACHE_TTL = 300 // 5 minutes
 
 const COMMUNITY_LEVELS = ['micro', 'interest', 'district', 'city', 'country'] as const
 const COMMUNITY_TYPES = [
@@ -108,6 +112,26 @@ const INTEREST_TO_COMMUNITY_TYPES: Record<string, (typeof COMMUNITY_TYPES)[numbe
   design: ['arts'],
 }
 
+function buildCommunityCacheKey(params: {
+  level?: string
+  type?: string
+  city?: string
+  q?: string
+  page: number
+  per_page: number
+  ancestor_slug?: string
+}): string {
+  return `communities:list:${JSON.stringify({
+    level: params.level ?? null,
+    type: params.type ?? null,
+    city: params.city ?? null,
+    q: params.q ?? null,
+    page: params.page,
+    per_page: params.per_page,
+    ancestor_slug: params.ancestor_slug ?? null,
+  })}`
+}
+
 function extractRecommendedCommunityTypes(preferences: unknown): Set<(typeof COMMUNITY_TYPES)[number]> {
   const rawInterests = typeof preferences === 'object' && preferences !== null
     ? (preferences as { interests?: unknown }).interests
@@ -139,6 +163,24 @@ export async function GET(req: NextRequest) {
     const supabase  = await createSupabaseServerClient()
     const admin     = createSupabaseAdminClient()
     const ctx       = await optionalAuth()
+
+    const urlParams = req.nextUrl.searchParams
+    const isPersonalized =
+      urlParams.get('member_only') === 'true' ||
+      urlParams.get('recommended') === 'true' ||
+      urlParams.has('user_id') ||
+      urlParams.has('approval_status') ||
+      !!ctx?.userId   // logged-in users get fresh is_member annotations
+
+    const cacheKey = isPersonalized
+      ? null
+      : buildCommunityCacheKey(params)
+
+    if (cacheKey) {
+      const cached = await redis.get(cacheKey)
+      if (cached) return ok(cached)
+    }
+
     const from      = (params.page - 1) * params.per_page
     const to        = from + params.per_page - 1
     const queryFrom = params.recommended ? 0 : from
@@ -346,13 +388,19 @@ export async function GET(req: NextRequest) {
         .slice(from, to + 1)
     }
 
-    return ok({
+    const response = {
       data: enriched,
       total: count ?? 0,
       page: params.page,
       per_page: params.per_page,
       has_more: (count ?? 0) > to + 1,
-    })
+    }
+
+    if (cacheKey) {
+      await redis.setex(cacheKey, COMMUNITY_CACHE_TTL, response)
+    }
+
+    return ok(response)
   } catch (err) {
     return handleApiError(err)
   }
