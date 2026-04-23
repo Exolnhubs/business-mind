@@ -233,13 +233,6 @@ export default function EventsScreen() {
   const isDefaultFeed = !debouncedSearch && !categoryId && !freeOnly && !nearMe && !communitySlug
   const showRecommendationRails = isDefaultFeed
 
-  // Sync city from profile (runs once profile is loaded)
-  useEffect(() => {
-    if (profile?.city && !routeCommunitySlug) {
-      setCity((cur) => cur === 'All' ? profile.city! : cur)
-    }
-  }, [profile?.city, routeCommunitySlug])
-
   // Fade the pin icon out while the user is typing, back in when cleared
   const pinOpacity = useRef(new Animated.Value(1)).current
   useEffect(() => {
