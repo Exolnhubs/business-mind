@@ -205,7 +205,6 @@ export default function EventsScreen() {
   const [nearbyHappenings, setNearbyHappenings] = useState<HappeningDiscoveryItem[]>([])
   const [filteredCommunityHappenings, setFilteredCommunityHappenings] = useState<HappeningDiscoveryItem[]>([])
   const [featuredEvents, setFeaturedEvents] = useState<EventWithOrganizer[]>([])
-  const [railEventIds, setRailEventIds] = useState<Set<string>>(new Set())
   const [suggestedCommunities, setSuggestedCommunities] = useState<CommunityListItem[]>([])
   const [joiningSlug, setJoiningSlug] = useState<string | null>(null)
   const [weekendCoords, setWeekendCoords] = useState<{ lat: number; lng: number } | null>(null)
@@ -436,8 +435,7 @@ export default function EventsScreen() {
       setFeaturedEvents([])
       return
     }
-    const featured = data.featured ?? []
-    setFeaturedEvents(featured)
+    setFeaturedEvents(data.featured ?? [])
   }, [])
 
   const fallbackSearchEvents = useCallback(async (queryText: string) => {
@@ -655,6 +653,7 @@ export default function EventsScreen() {
       setRefreshing(false)
       return
     }
+    setEvents(list)
 
     // Hot offers — sorted by soonest expiry so the most urgent deal is first
     const nowMs = Date.now()
@@ -834,14 +833,14 @@ export default function EventsScreen() {
 
     const weekendCandidateIds = [...new Set(((weekendGeoRes.data ?? []) as { id: string }[]).map((entry) => entry.id))]
     const communityEventIds = [...new Set(((communityLinksRes.data ?? []) as { event_id: string }[]).map((entry) => entry.event_id))]
-    const communityRailIds = [...new Set([...weekendCandidateIds, ...communityEventIds])]
+    const combinedRailIds = [...new Set([...weekendCandidateIds, ...communityEventIds])]
 
     let railEventMap = new Map<string, EventWithOrganizer>()
-    if (communityRailIds.length > 0) {
+    if (combinedRailIds.length > 0) {
       const { data: railEventRows } = await supabase
         .from('events')
         .select(eventSelect)
-        .in('id', communityRailIds)
+        .in('id', combinedRailIds)
         .eq('is_published', true)
         .eq('is_cancelled', false)
 
@@ -879,24 +878,9 @@ export default function EventsScreen() {
       .slice(0, 6)
     setSavedInspiredEvents(filteredSavedEvents)
 
-    // Build combined set of all rail event IDs (from local vars computed in this function)
-    const allRailIds = new Set([
-      ...featuredEvents.map((e) => e.id),
-      ...hotOffers.map((e) => e.id),
-      ...weekendRailEvents.map((e) => e.id),
-      ...nextCommunityEvents.map((e) => e.id),
-      ...filteredUrgencyEvents.map((e) => e.id),
-      ...rankedSavedEvents.map((e) => e.id),
-    ])
-    setRailEventIds(allRailIds)
-
-    // Filter main list to remove events already in rails
-    const filteredList = list.filter((event) => !allRailIds.has(event.id))
-    setEvents(filteredList)
-
     setLoading(false)
     setRefreshing(false)
-  }, [featuredEvents])
+  }, [debouncedSearch, categoryId, city, freeOnly, nearMe, geoCoords, radiusKm, communitySlug, showRecommendationRails, user, weekendCoords, weekendRadiusKm, joinedCommunities, fallbackSearchEvents])
 
   const refreshEventsIfNeeded = useCallback(async (force = false) => {
     const now = Date.now()
@@ -1252,19 +1236,19 @@ export default function EventsScreen() {
                   )}
 
                   {/* Discover communities nudge — shown when user has < 3 communities */}
-                  {/* Featured Events — pinned by organizers, shown first */}
-                  {showRecommendationRails && featuredEvents.length > 0 && (
-                    <FeaturedEventsRail
-                      events={featuredEvents}
+                  {/* Hot Offers — always first, most time-sensitive rail */}
+                  {showRecommendationRails && (
+                    <HotOffersRail
+                      events={hotOfferEvents}
                       savedIds={savedIds}
                       onSaveChange={handleSaveChange}
                     />
                   )}
 
-                  {/* Hot Offers — time-sensitive deals */}
-                  {showRecommendationRails && (
-                    <HotOffersRail
-                      events={hotOfferEvents}
+                  {/* Featured Events — pinned by organizers */}
+                  {showRecommendationRails && featuredEvents.length > 0 && (
+                    <FeaturedEventsRail
+                      events={featuredEvents}
                       savedIds={savedIds}
                       onSaveChange={handleSaveChange}
                     />
@@ -1525,14 +1509,14 @@ function FeaturedEventsRail({
   if (events.length === 0) return null
 
   return (
-    <View style={[styles.hotRailSection, { backgroundColor: Colors.brand[50], paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, marginHorizontal: Spacing.lg, borderRadius: Radius.lg }]}>
+    <View style={styles.hotRailSection}>
       <View style={styles.hotRailHeader}>
         <View>
           <Text style={styles.hotRailEyebrow}>Pinned events</Text>
-          <Text style={[styles.hotRailTitle, { color: Colors.brand[800] }]}>⭐ Featured Events</Text>
+          <Text style={styles.hotRailTitle}>⭐ Featured Events</Text>
         </View>
-        <View style={[styles.hotRailBadge, { backgroundColor: Colors.brand[200] }]}>
-          <Text style={[styles.hotRailBadgeText, { color: Colors.brand[700] }]}>{events.length}</Text>
+        <View style={[styles.hotRailBadge, { backgroundColor: Colors.yellow.light }]}>
+          <Text style={[styles.hotRailBadgeText, { color: Colors.yellow.text }]}>{events.length}</Text>
         </View>
       </View>
       <ScrollView
