@@ -1,7 +1,10 @@
 import { supabase } from './supabase'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000'
 const DEFAULT_API_GET_TTL_MS = 30_000
+const PERSISTENT_CACHE_PREFIX = 'api_cache:'
+const MAX_PERSISTENT_CACHE_SIZE = 50 // entries
 
 type ApiResult<T> = { data: T | null; error: string | null }
 type ApiGetOptions = {
@@ -17,6 +20,57 @@ type CachedGetEntry = {
 
 const getCache = new Map<string, CachedGetEntry>()
 const inflightGets = new Map<string, Promise<ApiResult<unknown>>>()
+
+// ── Persistent Cache Functions ────────────────────────────────────
+async function getPersistentCached(key: string): Promise<CachedGetEntry | null> {
+  try {
+    const json = await AsyncStorage.getItem(PERSISTENT_CACHE_PREFIX + key)
+    if (!json) return null
+    return JSON.parse(json) as CachedGetEntry
+  } catch { return null }
+}
+
+async function setPersistentCached(key: string, entry: CachedGetEntry): Promise<void> {
+  try {
+    // First, check cache size and evict oldest if needed
+    const keys = await AsyncStorage.getAllKeys()
+      .then((allKeys) => allKeys.filter((k) => k.startsWith(PERSISTENT_CACHE_PREFIX)))
+    
+    if (keys.length >= MAX_PERSISTENT_CACHE_SIZE) {
+      // Get all cache entries, find oldest, remove it
+      const entries = await AsyncStorage.multiGet(keys)
+      let oldestKey = keys[0]
+      let oldestTime = Number.MAX_SAFE_INTEGER
+      
+      for (const [k, v] of entries) {
+        try {
+          const parsed = JSON.parse(v ?? '')
+          if (parsed.updatedAt < oldestTime) {
+            oldestTime = parsed.updatedAt
+            oldestKey = k
+          }
+        } catch { /* skip invalid */ }
+      }
+      
+      await AsyncStorage.removeItem(oldestKey)
+    }
+    
+    await AsyncStorage.setItem(PERSISTENT_CACHE_PREFIX + key, JSON.stringify(entry))
+  } catch { /* ignore storage errors */ }
+}
+
+async function clearPersistentCache(prefix?: string): Promise<void> {
+  try {
+    if (!prefix) {
+      await AsyncStorage.clear()
+      return
+    }
+    
+    const keys = await AsyncStorage.getAllKeys()
+    const toRemove = keys.filter((k) => k.startsWith(PERSISTENT_CACHE_PREFIX + prefix))
+    await AsyncStorage.multiRemove(toRemove)
+  } catch { /* ignore */ }
+}
 
 async function parseJsonSafe(res: Response) {
   const text = await res.text().catch(() => '')
@@ -41,30 +95,14 @@ function buildCacheKey(path: string, userId: string | null | undefined) {
   return `${userId ?? 'anon'}:${path}`
 }
 
-export function apiInvalidate(pathPrefix?: string) {
-  if (!pathPrefix) {
-    getCache.clear()
-    inflightGets.clear()
-    return
-  }
-
-  for (const key of [...getCache.keys()]) {
-    const [, cachedPath = ''] = key.split(':', 2)
-    if (cachedPath.startsWith(pathPrefix)) {
-      getCache.delete(key)
-    }
-  }
-
-  for (const key of [...inflightGets.keys()]) {
-    const [, cachedPath = ''] = key.split(':', 2)
-    if (cachedPath.startsWith(pathPrefix)) {
-      inflightGets.delete(key)
-    }
-  }
+export async function apiInvalidate(pathPrefix?: string) {
+  getCache.clear()
+  inflightGets.clear()
+  await clearPersistentCache(pathPrefix)
 }
 
-export function apiInvalidateAll() {
-  apiInvalidate()
+export async function apiInvalidateAll() {
+  await apiInvalidate()
 }
 
 /**
@@ -81,9 +119,17 @@ export async function apiGet<T = unknown>(
   const now = Date.now()
 
   if (!skipCache && !options.force) {
+    // Check memory cache first (fastest)
     const cached = getCache.get(cacheKey)
     if (cached && now - cached.updatedAt < ttlMs) {
       return { data: cached.data as T, error: null }
+    }
+
+    // Check persistent cache as fallback
+    const persistentCached = await getPersistentCached(cacheKey)
+    if (persistentCached && now - persistentCached.updatedAt < ttlMs) {
+      getCache.set(cacheKey, persistentCached)
+      return { data: persistentCached.data as T, error: null }
     }
 
     const inflight = inflightGets.get(cacheKey)
@@ -104,7 +150,10 @@ export async function apiGet<T = unknown>(
     }
     const data = (json.data as T | undefined) ?? null
     if (!skipCache) {
-      getCache.set(cacheKey, { updatedAt: now, data })
+      const entry = { updatedAt: now, data }
+      getCache.set(cacheKey, entry)
+      // Persist to AsyncStorage for app restarts
+      await setPersistentCached(cacheKey, entry)
     }
     return { data, error: null }
   })()
