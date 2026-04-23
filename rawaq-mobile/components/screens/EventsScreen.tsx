@@ -9,7 +9,7 @@ import * as Location from 'expo-location'
 import { supabase } from '@/lib/supabase'
 import { apiDelete, apiGet, apiPost } from '@/lib/api'
 import { useAuth } from '@/contexts/auth-context'
-import { EventCard, EventCardSkeleton } from '@/components/events/EventCard'
+import { EventCard, EventCardSkeleton, RailSkeleton } from '@/components/events/EventCard'
 import { HappeningDiscoveryCard, type HappeningDiscoveryItem } from '@/components/happenings/HappeningDiscoveryCard'
 import { HappeningCommentsSheet } from '@/components/happenings/HappeningCommentsSheet'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -210,6 +210,7 @@ export default function EventsScreen() {
   const [weekendCoords, setWeekendCoords] = useState<{ lat: number; lng: number } | null>(null)
   const [weekendRadiusKm, setWeekendRadiusKm] = useState(25)
   const [loading, setLoading] = useState(true)
+  const [featuredLoading, setFeaturedLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -426,9 +427,11 @@ export default function EventsScreen() {
     )
     if (error || !data) {
       setFeaturedEvents([])
+      setFeaturedLoading(false)
       return
     }
     setFeaturedEvents(data.featured ?? [])
+    setFeaturedLoading(false)
   }, [])
 
   const fallbackSearchEvents = useCallback(async (queryText: string) => {
@@ -1229,13 +1232,17 @@ export default function EventsScreen() {
                   )}
 
                   {/* Discover communities nudge — shown when user has < 3 communities */}
-                  {/* Featured Events — pinned by organizers, shown first */}
-                  {showRecommendationRails && featuredEvents.length > 0 && (
-                    <FeaturedEventsRail
-                      events={featuredEvents}
-                      savedIds={savedIds}
-                      onSaveChange={handleSaveChange}
-                    />
+                  {/* Featured Events — skeleton while loading, real rail once resolved */}
+                  {showRecommendationRails && (
+                    featuredLoading
+                      ? <RailSkeleton variant="featured" />
+                      : featuredEvents.length > 0 && (
+                          <FeaturedEventsRail
+                            events={featuredEvents}
+                            savedIds={savedIds}
+                            onSaveChange={handleSaveChange}
+                          />
+                        )
                   )}
 
                   {/* Hot Offers — time-sensitive deals */}
