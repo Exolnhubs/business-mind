@@ -1236,19 +1236,19 @@ export default function EventsScreen() {
                   )}
 
                   {/* Discover communities nudge — shown when user has < 3 communities */}
-                  {/* Hot Offers — always first, most time-sensitive rail */}
-                  {showRecommendationRails && (
-                    <HotOffersRail
-                      events={hotOfferEvents}
+                  {/* Featured Events — pinned by organizers, shown first */}
+                  {showRecommendationRails && featuredEvents.length > 0 && (
+                    <FeaturedEventsRail
+                      events={featuredEvents}
                       savedIds={savedIds}
                       onSaveChange={handleSaveChange}
                     />
                   )}
 
-                  {/* Featured Events — pinned by organizers */}
-                  {showRecommendationRails && featuredEvents.length > 0 && (
-                    <FeaturedEventsRail
-                      events={featuredEvents}
+                  {/* Hot Offers — time-sensitive deals */}
+                  {showRecommendationRails && (
+                    <HotOffersRail
+                      events={hotOfferEvents}
                       savedIds={savedIds}
                       onSaveChange={handleSaveChange}
                     />
@@ -1509,14 +1509,14 @@ function FeaturedEventsRail({
   if (events.length === 0) return null
 
   return (
-    <View style={styles.hotRailSection}>
+    <View style={[styles.hotRailSection, { backgroundColor: Colors.brand[50], paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, marginHorizontal: Spacing.lg, borderRadius: Radius.lg }]}>
       <View style={styles.hotRailHeader}>
         <View>
           <Text style={styles.hotRailEyebrow}>Pinned events</Text>
-          <Text style={styles.hotRailTitle}>⭐ Featured Events</Text>
+          <Text style={[styles.hotRailTitle, { color: Colors.brand[800] }]}>⭐ Featured Events</Text>
         </View>
-        <View style={[styles.hotRailBadge, { backgroundColor: Colors.yellow.light }]}>
-          <Text style={[styles.hotRailBadgeText, { color: Colors.yellow.text }]}>{events.length}</Text>
+        <View style={[styles.hotRailBadge, { backgroundColor: Colors.brand[200] }]}>
+          <Text style={[styles.hotRailBadgeText, { color: Colors.brand[700] }]}>{events.length}</Text>
         </View>
       </View>
       <ScrollView
