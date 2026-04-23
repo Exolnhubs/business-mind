@@ -164,12 +164,11 @@ export async function GET(req: NextRequest) {
     const admin     = createSupabaseAdminClient()
     const ctx       = await optionalAuth()
 
-    const urlParams = req.nextUrl.searchParams
     const isPersonalized =
-      urlParams.get('member_only') === 'true' ||
-      urlParams.get('recommended') === 'true' ||
-      urlParams.has('user_id') ||
-      urlParams.has('approval_status') ||
+      params.member_only === true ||
+      params.recommended === true ||
+      !!params.user_id ||
+      !!params.approval_status ||
       !!ctx?.userId   // logged-in users get fresh is_member annotations
 
     const cacheKey = isPersonalized
@@ -177,8 +176,12 @@ export async function GET(req: NextRequest) {
       : buildCommunityCacheKey(params)
 
     if (cacheKey) {
-      const cached = await redis.get(cacheKey)
-      if (cached) return ok(cached)
+      try {
+        const cached = await redis.get(cacheKey)
+        if (cached) return ok(cached)
+      } catch {
+        // Redis unavailable — fall through to DB
+      }
     }
 
     const from      = (params.page - 1) * params.per_page
@@ -397,7 +400,11 @@ export async function GET(req: NextRequest) {
     }
 
     if (cacheKey) {
-      await redis.setex(cacheKey, COMMUNITY_CACHE_TTL, response)
+      try {
+        await redis.setex(cacheKey, COMMUNITY_CACHE_TTL, response)
+      } catch {
+        // Redis unavailable — serve uncached response
+      }
     }
 
     return ok(response)
