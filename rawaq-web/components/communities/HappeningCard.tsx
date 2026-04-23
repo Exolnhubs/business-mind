@@ -43,7 +43,7 @@ export function HappeningCard({ happening: h, onRsvp, onReact, onDelete, onRepor
         <div className="flex items-center gap-2.5">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-brand-100 text-sm font-semibold text-brand-700">
             {h.author.avatar_url
-              ? <img src={h.author.avatar_url} alt="" className="h-full w-full object-cover" />
+              ? <img src={h.author.avatar_url} alt="" loading="lazy" className="h-full w-full object-cover" />
               : avatarChar}
           </div>
           <div>

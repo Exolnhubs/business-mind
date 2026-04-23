@@ -250,7 +250,7 @@ export default function ChatPage() {
                     title={isOwn ? t('chat.you') : (msg.author?.display_name ?? t('chat.unknown'))}
                   >
                     {msg.author?.avatar_url ? (
-                      <img src={msg.author.avatar_url} alt="" className="chat-avatar-img" />
+                      <img src={msg.author.avatar_url} alt="" loading="lazy" className="chat-avatar-img" />
                     ) : (
                       (msg.author?.display_name?.[0] ?? '?').toUpperCase()
                     )}

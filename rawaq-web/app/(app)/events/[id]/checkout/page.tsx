@@ -113,7 +113,7 @@ export default async function CheckoutPage({ params, searchParams }: Props) {
           <div className="w-16 h-16 rounded-xl overflow-hidden bg-gradient-to-br from-brand-100 to-brand-200 flex items-center justify-center shrink-0">
             {event.cover_image_url ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={event.cover_image_url} alt="" className="w-full h-full object-cover" />
+              <img src={event.cover_image_url} alt="" loading="lazy" className="w-full h-full object-cover" />
             ) : (
               <span className="text-2xl">📅</span>
             )}

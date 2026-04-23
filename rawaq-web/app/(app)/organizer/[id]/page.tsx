@@ -116,7 +116,7 @@ export default async function OrganizerProfilePage({ params }: { params: Promise
       <div className="card p-6 flex flex-col sm:flex-row items-start sm:items-center gap-5">
         <div className="w-20 h-20 rounded-2xl bg-brand-100 flex items-center justify-center text-2xl font-bold text-brand-700 shrink-0 overflow-hidden">
           {orgProfile.logo_url
-            ? <img src={orgProfile.logo_url} alt={displayName} className="w-full h-full object-cover" />
+            ? <img src={orgProfile.logo_url} alt={displayName} loading="lazy" className="w-full h-full object-cover" />
             : initials
           }
         </div>

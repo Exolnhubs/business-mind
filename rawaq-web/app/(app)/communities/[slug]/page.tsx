@@ -656,7 +656,7 @@ export default function CommunityDetailPage() {
         {/* Cover image */}
         <div className="relative h-52 sm:h-64 overflow-hidden rounded-t-2xl">
           {community.cover_url ? (
-            <img src={community.cover_url} alt="" className="w-full h-full object-cover" />
+            <img src={community.cover_url} alt="" loading="lazy" className="w-full h-full object-cover" />
           ) : (
             <div
               className="w-full h-full flex items-center justify-center text-7xl"
@@ -978,7 +978,7 @@ export default function CommunityDetailPage() {
                   <Link key={ev.id} href={`/events/${ev.id}`}
                     className="flex gap-4 p-4 bg-white rounded-xl border border-gray-100 hover:border-brand-200 hover:shadow-sm transition-all">
                     {ev.cover_image_url ? (
-                      <img src={ev.cover_image_url} alt="" className="w-20 h-16 rounded-lg object-cover shrink-0" />
+                      <img src={ev.cover_image_url} alt="" loading="lazy" className="w-20 h-16 rounded-lg object-cover shrink-0" />
                     ) : (
                       <div className="w-20 h-16 rounded-lg bg-brand-50 flex items-center justify-center text-2xl shrink-0">📅</div>
                     )}
@@ -1049,7 +1049,7 @@ export default function CommunityDetailPage() {
                           <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-brand-100 text-sm font-semibold text-brand-700">
                             {member.avatar_url ? (
                               // eslint-disable-next-line @next/next/no-img-element
-                              <img src={member.avatar_url} alt="" className="h-full w-full object-cover" />
+                              <img src={member.avatar_url} alt="" loading="lazy" className="h-full w-full object-cover" />
                             ) : (
                               member.display_name.slice(0, 1).toUpperCase()
                             )}
@@ -1185,7 +1185,7 @@ export default function CommunityDetailPage() {
                           <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-orange-100 text-sm font-semibold text-orange-700">
                             {member.avatar_url ? (
                               // eslint-disable-next-line @next/next/no-img-element
-                              <img src={member.avatar_url} alt="" className="h-full w-full object-cover" />
+                              <img src={member.avatar_url} alt="" loading="lazy" className="h-full w-full object-cover" />
                             ) : (
                               member.display_name.slice(0, 1).toUpperCase()
                             )}
@@ -1344,7 +1344,7 @@ export default function CommunityDetailPage() {
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-brand-100 text-xs font-semibold text-brand-700">
                       {member.avatar_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={member.avatar_url} alt="" className="h-full w-full object-cover" />
+                        <img src={member.avatar_url} alt="" loading="lazy" className="h-full w-full object-cover" />
                       ) : (
                         member.display_name.slice(0, 1).toUpperCase()
                       )}

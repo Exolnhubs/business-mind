@@ -73,7 +73,7 @@ function CommunityCard({ community, onToggleMembership }: {
       onClick={() => router.push(`/communities/${community.slug}`)}
     >
       {community.cover_url ? (
-        <img src={community.cover_url} alt="" width={384} height={128} className="h-32 w-full object-cover" />
+        <img src={community.cover_url} alt="" width={384} height={128} loading="lazy" className="h-32 w-full object-cover" />
       ) : (
         <div className={`flex h-32 w-full items-center justify-center text-4xl ${LEVEL_COLORS[community.level].split(' ')[0]}`}>
           {LEVEL_ICONS[community.level]}

@@ -59,7 +59,7 @@ function ReviewCard({
     <div className="flex gap-3">
       <div className="w-9 h-9 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center text-sm font-bold shrink-0 overflow-hidden">
         {review.reviewer.avatar_url
-          ? <img src={review.reviewer.avatar_url} alt={review.reviewer.display_name} className="w-full h-full object-cover" />
+          ? <img src={review.reviewer.avatar_url} alt={review.reviewer.display_name} loading="lazy" className="w-full h-full object-cover" />
           : initials}
       </div>
       <div className="flex-1 min-w-0">

@@ -39,7 +39,7 @@ export function CommentItem({ comment, currentUserId, onReply, onDelete, isReply
         <div className="w-8 h-8 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center text-xs font-bold uppercase hover:opacity-80 transition-opacity">
           {comment.author?.avatar_url ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={comment.author.avatar_url} alt="" className="w-full h-full object-cover rounded-full" />
+            <img src={comment.author.avatar_url} alt="" loading="lazy" className="w-full h-full object-cover rounded-full" />
           ) : (
             (comment.author?.display_name ?? '?')[0]
           )}
@@ -77,7 +77,7 @@ export function CommentItem({ comment, currentUserId, onReply, onDelete, isReply
                   <video src={comment.media_url} controls className="w-full max-h-56 object-cover rounded-xl" />
                 ) : (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={comment.media_url} alt="attachment" className="w-full max-h-56 object-cover rounded-xl" />
+                  <img src={comment.media_url} alt="attachment" loading="lazy" className="w-full max-h-56 object-cover rounded-xl" />
                 )}
               </div>
             )}

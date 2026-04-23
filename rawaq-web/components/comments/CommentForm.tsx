@@ -78,7 +78,7 @@ export function CommentForm({ onSubmit, placeholder = 'Write a comment…', auto
         {!showUpload && mediaUrl && (
           <div className="relative inline-block">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={mediaUrl} alt="Attachment" className="h-24 rounded-lg object-cover border border-gray-200" />
+            <img src={mediaUrl} alt="Attachment" loading="lazy" className="h-24 rounded-lg object-cover border border-gray-200" />
             <button
               type="button"
               onClick={removeAttachment}

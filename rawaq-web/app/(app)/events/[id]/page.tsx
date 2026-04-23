@@ -160,7 +160,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
           <div className="relative h-56 sm:h-72 rounded-2xl overflow-hidden bg-gradient-to-br from-brand-100 to-brand-200 flex items-center justify-center">
             {ev.cover_image_url ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={ev.cover_image_url} alt={ev.title} className="absolute inset-0 w-full h-full object-cover" />
+              <img src={ev.cover_image_url} alt={ev.title} loading="lazy" className="absolute inset-0 w-full h-full object-cover" />
             ) : (
               <span className="text-8xl">{ev.category?.icon ?? '📅'}</span>
             )}
@@ -261,7 +261,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
             <div className="w-12 h-12 rounded-full bg-brand-100 flex items-center justify-center text-xl font-bold text-brand-700 shrink-0">
               {ev.organizer?.organizer_profile?.logo_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={ev.organizer.organizer_profile.logo_url} alt="" className="w-full h-full object-cover rounded-full" />
+                <img src={ev.organizer.organizer_profile.logo_url} alt="" loading="lazy" className="w-full h-full object-cover rounded-full" />
               ) : (
                 (ev.organizer?.organizer_profile?.business_name ?? ev.organizer?.display_name ?? '?')[0].toUpperCase()
               )}

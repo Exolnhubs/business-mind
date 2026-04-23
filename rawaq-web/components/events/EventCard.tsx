@@ -1,5 +1,6 @@
 'use client'
 
+import React from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { Badge } from '@/components/ui/Badge'
@@ -52,7 +53,7 @@ function getPriceDisplay(
   return { label: formatCurrency(event.price, event.currency, locale), isFree: false, hasHotOffer }
 }
 
-export function EventCard({ event, locale, isSaved = false, showSave = false, priority = false }: EventCardProps) {
+const EventCardBase = React.memo(function EventCard({ event, locale, isSaved = false, showSave = false, priority = false }: EventCardProps) {
   const { locale: contextLocale, t } = useLocale()
   const resolvedLocale = locale ?? contextLocale
   const icon = CATEGORY_EMOJI[event.category?.name_en?.toLowerCase() ?? ''] ?? '📅'
@@ -135,7 +136,8 @@ export function EventCard({ event, locale, isSaved = false, showSave = false, pr
       </div>
     </Link>
   )
-}
+})
+export { EventCardBase as EventCard }
 
 export function EventCardSkeleton() {
   return (
