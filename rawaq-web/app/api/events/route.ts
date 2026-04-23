@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { Redis } from '@upstash/redis'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireOrganizer, optionalAuth } from '@/lib/auth'
@@ -8,6 +9,13 @@ import { CreateEventSchema, ListEventsSchema } from '@/lib/validations/events'
 import { sendNotifications } from '@/lib/notifications'
 import { applyResolvedEventWindow, compareEventsByResolvedStartAt } from '@/lib/events/recurrence'
 import { ensureEventOccurrences } from '@/lib/events/occurrences'
+
+const redis = Redis.fromEnv()
+const EVENT_CACHE_TTL = 60 // 60 seconds
+
+function buildEventCacheKey(params: Record<string, unknown>): string {
+  return `events:list:${JSON.stringify(params)}`
+}
 
 function buildEventKeywordSearch(search: string) {
   const term = search
@@ -32,6 +40,20 @@ export async function GET(req: NextRequest) {
     const params = ListEventsSchema.parse(
       Object.fromEntries(req.nextUrl.searchParams)
     )
+
+    // Cache key for basic public listings (skip cache for search/organizer views)
+    const urlParams = req.nextUrl.searchParams
+    const isSimpleList = !urlParams.get('q') && !urlParams.get('search') && !urlParams.get('organizer_own') && !urlParams.get('user_id')
+    const isForce = urlParams.get('force') === 'true'
+    const cacheKey = isSimpleList && !isForce ? buildEventCacheKey(params) : null
+
+    // Try cache for public listings
+    if (cacheKey) {
+const cached = await redis.get(cacheKey)
+      if (cached) {
+        return ok(cached)
+      }
+    }
 
     const supabase = await createSupabaseServerClient()
     const ctx = await optionalAuth()
@@ -137,13 +159,20 @@ export async function GET(req: NextRequest) {
     const total = filtered.length
     const pageData = filtered.slice(from, from + params.per_page)
 
-    return ok({
+    const response = {
       data: pageData,
       total,
       page: params.page,
       per_page: params.per_page,
       has_more: total > from + params.per_page,
-    })
+    }
+
+    // Cache public listings
+    if (cacheKey) {
+      await redis.setex(cacheKey, EVENT_CACHE_TTL, response)
+    }
+
+    return ok(response)
   } catch (err) {
     return handleApiError(err)
   }
@@ -225,6 +254,9 @@ export async function POST(req: NextRequest) {
         )
       }
     }
+
+    // Invalidate events cache
+    await redis.del('events:list:*')
 
     return created(data)
   } catch (err) {
