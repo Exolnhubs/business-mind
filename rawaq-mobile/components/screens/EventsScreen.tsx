@@ -204,6 +204,7 @@ export default function EventsScreen() {
   const [activeHappenings, setActiveHappenings] = useState<HappeningDiscoveryItem[]>([])
   const [nearbyHappenings, setNearbyHappenings] = useState<HappeningDiscoveryItem[]>([])
   const [filteredCommunityHappenings, setFilteredCommunityHappenings] = useState<HappeningDiscoveryItem[]>([])
+  const [featuredEvents, setFeaturedEvents] = useState<EventWithOrganizer[]>([])
   const [suggestedCommunities, setSuggestedCommunities] = useState<CommunityListItem[]>([])
   const [joiningSlug, setJoiningSlug] = useState<string | null>(null)
   const [weekendCoords, setWeekendCoords] = useState<{ lat: number; lng: number } | null>(null)
@@ -423,6 +424,18 @@ export default function EventsScreen() {
     })
     const { data, error } = await apiGet<HappeningsDiscoverResponse>(`/api/happenings/discover?${params.toString()}`, { force })
     return error ? [] : (data?.happenings ?? [])
+  }, [])
+
+  const fetchFeaturedEvents = useCallback(async (force = false) => {
+    const { data, error } = await apiGet<{ featured: EventWithOrganizer[]; total: number }>(
+      '/api/events/featured',
+      { force, ttlMs: 300_000 }, // 5 min cache
+    )
+    if (error || !data) {
+      setFeaturedEvents([])
+      return
+    }
+    setFeaturedEvents(data.featured ?? [])
   }, [])
 
   const fallbackSearchEvents = useCallback(async (queryText: string) => {
@@ -881,6 +894,10 @@ export default function EventsScreen() {
   }, [loadDiscoveryMetadata])
 
   useEffect(() => {
+    void fetchFeaturedEvents(true)
+  }, [fetchFeaturedEvents])
+
+  useEffect(() => {
     void refreshEventsIfNeeded(true)
   }, [refreshEventsIfNeeded])
 
@@ -1228,6 +1245,15 @@ export default function EventsScreen() {
                     />
                   )}
 
+                  {/* Featured Events — pinned by organizers */}
+                  {showRecommendationRails && featuredEvents.length > 0 && (
+                    <FeaturedEventsRail
+                      events={featuredEvents}
+                      savedIds={savedIds}
+                      onSaveChange={handleSaveChange}
+                    />
+                  )}
+
                   {showRecommendationRails && user && joinedCommunities.length < 3 && suggestedCommunities.length > 0 && (
                     <View style={styles.discoverSection}>
                       <View style={styles.discoverHeader}>
@@ -1448,6 +1474,49 @@ function HotOffersRail({
         </View>
         <View style={styles.hotRailBadge}>
           <Text style={styles.hotRailBadgeText}>{events.length} deal{events.length !== 1 ? 's' : ''}</Text>
+        </View>
+      </View>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.hotRailScroller}
+      >
+        {events.map((event) => (
+          <EventCard
+            key={event.id}
+            event={event}
+            isSaved={savedIds.has(event.id)}
+            onSaveChange={onSaveChange}
+            variant="rail"
+          />
+        ))}
+      </ScrollView>
+    </View>
+  )
+}
+
+// ── Featured Events rail ───────────────────────────────────────────────────────
+
+function FeaturedEventsRail({
+  events,
+  savedIds,
+  onSaveChange,
+}: {
+  events: EventWithOrganizer[]
+  savedIds: Set<string>
+  onSaveChange: (id: string, saved: boolean) => void
+}) {
+  if (events.length === 0) return null
+
+  return (
+    <View style={styles.hotRailSection}>
+      <View style={styles.hotRailHeader}>
+        <View>
+          <Text style={styles.hotRailEyebrow}>Pinned events</Text>
+          <Text style={styles.hotRailTitle}>⭐ Featured Events</Text>
+        </View>
+        <View style={[styles.hotRailBadge, { backgroundColor: Colors.yellow.light }]}>
+          <Text style={[styles.hotRailBadgeText, { color: Colors.yellow.text }]}>{events.length}</Text>
         </View>
       </View>
       <ScrollView

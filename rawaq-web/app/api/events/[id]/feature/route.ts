@@ -1,8 +1,12 @@
 import { NextRequest } from 'next/server'
+import { Redis } from '@upstash/redis'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { requireOrganizer, requireEventOwnership } from '@/lib/auth'
 import { handleApiError, ok, ForbiddenException, NotFoundException } from '@/lib/errors'
 import { getOrganizerPlanAccess, getFeaturedPerMonth } from '@/lib/plans'
+
+const redis = Redis.fromEnv()
+const FEATURED_CACHE_KEY = 'events:featured'
 
 export async function POST(
   _req: NextRequest,
@@ -37,6 +41,9 @@ export async function POST(
         .eq('id', id)
 
       if (error) throw error
+
+      // Invalidate featured cache
+      await redis.del(FEATURED_CACHE_KEY)
 
       return ok({ featured_until: null, quota: await getQuota(supabase, ctx.userId) })
     }
@@ -76,6 +83,9 @@ export async function POST(
       .eq('id', id)
 
     if (error) throw error
+
+    // Invalidate featured cache
+    await redis.del(FEATURED_CACHE_KEY)
 
     // Re-fetch quota after update
     const updatedQuota = await getQuota(supabase, ctx.userId)
