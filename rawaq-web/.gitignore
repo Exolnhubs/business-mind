@@ -2,3 +2,8 @@ supabase/.temp/
 
 # Sentry Config File
 .env.sentry-build-plugin
+
+# Serwist-generated service worker
+public/sw.js
+public/sw.js.map
+public/swe-worker-*.js
