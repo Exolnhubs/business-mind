@@ -6,6 +6,16 @@ import { createSupabaseBrowserClient } from '@/lib/supabase/client'
 import { clientFetchInvalidateAll } from '@/lib/client-fetch'
 import type { Profile } from '@/types/database'
 
+function clearServiceWorkerCaches() {
+  if (typeof window === 'undefined') return
+  if (!('serviceWorker' in navigator)) return
+  navigator.serviceWorker.getRegistration().then((reg) => {
+    reg?.active?.postMessage({ type: 'CLEAR_CACHES' })
+  }).catch(() => {
+    // SW unavailable or not yet activated — safe to ignore.
+  })
+}
+
 interface AuthContextValue {
   user: User | null
   profile: Profile | null
@@ -52,6 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const nextUserId = session?.user?.id ?? null
       if (lastUserIdRef.current !== nextUserId) {
         clientFetchInvalidateAll()
+        clearServiceWorkerCaches()
         lastUserIdRef.current = nextUserId
       }
       setSession(session)
