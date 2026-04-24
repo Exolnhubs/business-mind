@@ -1,5 +1,5 @@
-import { ActivityIndicator, StyleSheet, View } from 'react-native'
-import { Colors } from '@/theme'
+import { TicketFlipLoader } from '@/components/ui/TicketFlipLoader'
+import { ScreenLoader } from '@/components/ui/ScreenLoader'
 
 interface SpinnerProps {
   size?: 'small' | 'large'
@@ -7,22 +7,9 @@ interface SpinnerProps {
   fullScreen?: boolean
 }
 
-export function Spinner({ size = 'small', color = Colors.brand[500], fullScreen }: SpinnerProps) {
+export function Spinner({ size = 'small', fullScreen }: SpinnerProps) {
   if (fullScreen) {
-    return (
-      <View style={styles.fullScreen}>
-        <ActivityIndicator size="large" color={color} />
-      </View>
-    )
+    return <ScreenLoader size="md" fullScreen />
   }
-  return <ActivityIndicator size={size} color={color} />
+  return <TicketFlipLoader size={size === 'large' ? 'sm' : 'xs'} />
 }
-
-const styles = StyleSheet.create({
-  fullScreen: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: Colors.gray[50],
-  },
-})

@@ -9,7 +9,7 @@ import {
 } from 'react-native'
 import { Colors, Radius, Spacing } from '@/theme'
 
-export type TicketFlipLoaderSize = 'sm' | 'md' | 'lg'
+export type TicketFlipLoaderSize = 'xs' | 'sm' | 'md' | 'lg'
 
 interface TicketFlipLoaderProps {
   size?: TicketFlipLoaderSize
@@ -17,6 +17,7 @@ interface TicketFlipLoaderProps {
 }
 
 const DIMENSIONS = {
+  xs: { w: 96, h: 128, pad: 8, headerGap: 7, barTitle: 8, barSub: 6, qr: 28 },
   sm: { w: 130, h: 174, pad: 10, headerGap: 8, barTitle: 10, barSub: 7, qr: 34 },
   md: { w: 180, h: 240, pad: 14, headerGap: 12, barTitle: 13, barSub: 9, qr: 46 },
   lg: { w: 240, h: 320, pad: 18, headerGap: 16, barTitle: 17, barSub: 12, qr: 60 },

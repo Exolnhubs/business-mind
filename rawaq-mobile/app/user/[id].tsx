@@ -411,10 +411,10 @@ export default function PublicUserProfileScreen() {
   // ── Tab panels ───────────────────────────────────────────────────────────────
   function renderActivityTab() {
     return (
-      <View style={styles.tabContent}>
-        {happeningsLoading && happenings.length === 0 && (
-          <ActivityIndicator color={Colors.brand[500]} style={{ marginVertical: 24 }} />
-        )}
+        <View style={styles.tabContent}>
+          {happeningsLoading && happenings.length === 0 && (
+            <TicketFlipLoader size="sm" />
+          )}
         {happeningsLoaded && happenings.length === 0 && (
           <Text style={styles.emptyText}>No public activity yet.</Text>
         )}
@@ -462,7 +462,7 @@ export default function PublicUserProfileScreen() {
     return (
       <View style={styles.tabContent}>
         {eventsLoading && feedEvents.length === 0 && (
-          <ActivityIndicator color={Colors.brand[500]} style={{ marginVertical: 24 }} />
+          <TicketFlipLoader size="sm" />
         )}
         {eventsLoaded && feedEvents.length === 0 && (
           <Text style={styles.emptyText}>No events attended yet.</Text>
@@ -493,7 +493,7 @@ export default function PublicUserProfileScreen() {
 
   function renderCommunitiesTab() {
     if (!communitiesLoaded) {
-      return <View style={styles.tabContent}><ActivityIndicator color={Colors.brand[500]} style={{ marginVertical: 24 }} /></View>
+      return <View style={styles.tabContent}><TicketFlipLoader size="sm" /></View>
     }
     const visible = communitiesExpanded ? allCommunities : allCommunities.slice(0, 6)
     return (

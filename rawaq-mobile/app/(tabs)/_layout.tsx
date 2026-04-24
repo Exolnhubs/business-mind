@@ -2,6 +2,7 @@ import { Tabs } from 'expo-router'
 import { Platform, View, Text, StyleSheet } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useLocale } from '@/contexts/locale-context'
+import { useNavigationLoader } from '@/contexts/navigation-loader-context'
 import { useNotifications } from '@/contexts/notification-context'
 import { Colors } from '@/theme'
 
@@ -17,10 +18,15 @@ function NotifBadge({ count }: { count: number }) {
 export default function TabsLayout() {
   const { t } = useLocale()
   const { unreadCount } = useNotifications()
+  const { beginNavigation, endNavigation } = useNavigationLoader()
 
   return (
     <Tabs
       initialRouteName="home"
+      screenListeners={{
+        transitionStart: () => beginNavigation(),
+        transitionEnd: () => endNavigation(),
+      }}
       screenOptions={{
         tabBarActiveTintColor: Colors.brand[500],
         tabBarInactiveTintColor: Colors.gray[400],

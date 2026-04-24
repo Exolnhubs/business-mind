@@ -10,6 +10,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/auth-context'
 import { EventCard } from '@/components/events/EventCard'
+import { ScreenLoader } from '@/components/ui/ScreenLoader'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
 import type { EventWithOrganizer } from '@/types/database'
 
@@ -256,7 +257,7 @@ export default function DiscoverScreen() {
 
       {/* Message list */}
       {!hydrated
-        ? <View style={styles.loadingCenter}><ActivityIndicator color={Colors.brand[500]} /></View>
+        ? <ScreenLoader fullScreen label="Loading Smart Picks" />
         : (
           <FlatList
             ref={listRef}

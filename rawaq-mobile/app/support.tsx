@@ -9,6 +9,7 @@ import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/auth-context'
+import { ScreenLoader } from '@/components/ui/ScreenLoader'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
 
 const API_URL           = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000'
@@ -223,7 +224,7 @@ export default function SupportScreen() {
 
       {/* Message list */}
       {!hydrated
-        ? <View style={styles.loadingCenter}><ActivityIndicator color={Colors.brand[500]} /></View>
+        ? <ScreenLoader fullScreen label="Loading support" />
         : (
           <FlatList
             ref={listRef}

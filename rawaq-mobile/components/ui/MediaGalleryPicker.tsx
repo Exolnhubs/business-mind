@@ -11,6 +11,7 @@ import {
 } from 'react-native'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/auth-context'
+import { TicketFlipLoader } from '@/components/ui/TicketFlipLoader'
 import { Colors, FontSize, FontWeight, Radius, Spacing } from '@/theme'
 
 interface GalleryImage {
@@ -76,7 +77,7 @@ export function MediaGalleryPicker({ visible, onSelect, onUploadNew, onClose }: 
 
         {loading ? (
           <View style={styles.center}>
-            <ActivityIndicator size="large" color={Colors.brand[500]} />
+            <TicketFlipLoader size="sm" label="Loading uploads" />
           </View>
         ) : images.length === 0 ? (
           <View style={styles.center}>

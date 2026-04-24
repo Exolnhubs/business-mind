@@ -4,7 +4,7 @@ import { AppState, Platform, I18nManager } from 'react-native'
 // Prevent the device OS language from forcing RTL on the entire layout.
 // The app manages its own direction via LocaleProvider.
 I18nManager.allowRTL(false)
-import { Stack, useRouter, useSegments } from 'expo-router'
+import { Stack, usePathname, useRouter, useSegments } from 'expo-router'
 import * as Linking from 'expo-linking'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { StatusBar } from 'expo-status-bar'
@@ -14,6 +14,7 @@ import { AuthProvider, useAuth } from '@/contexts/auth-context'
 import { apiGet } from '@/lib/api'
 import { LocaleProvider } from '@/contexts/locale-context'
 import { NotificationProvider } from '@/contexts/notification-context'
+import { NavigationLoaderProvider, useNavigationLoader } from '@/contexts/navigation-loader-context'
 import { AnimatedSplash } from '@/components/ui/AnimatedSplash'
 import { supabase } from '@/lib/supabase'
 
@@ -183,32 +184,64 @@ export default function RootLayout() {
       <LocaleProvider>
         <AuthProvider>
           <NotificationProvider>
-            <AuthGate>
-              <StatusBar style={splashDone ? 'dark' : 'light'} />
-              <Stack screenOptions={{ headerShown: false }}>
-                <Stack.Screen name="(auth)" />
-                <Stack.Screen name="(tabs)" />
-                <Stack.Screen name="onboarding" />
-                <Stack.Screen name="auth/callback" options={{ headerShown: false }} />
-                <Stack.Screen
-                  name="events/[id]"
-                  options={{
-                    headerShown: true,
-                    headerTitle: '',
-                    headerBackTitle: 'Back',
-                    headerTransparent: true,
-                  }}
+            <NavigationLoaderProvider>
+              <AuthGate>
+                <AppNavigator
+                  splashDone={splashDone}
+                  onSplashDone={() => setSplashDone(true)}
                 />
-                <Stack.Screen
-                  name="discover"
-                  options={{ headerShown: false, presentation: 'card' }}
-                />
-              </Stack>
-              {!splashDone && <AnimatedSplash onFinish={() => setSplashDone(true)} />}
-            </AuthGate>
+              </AuthGate>
+            </NavigationLoaderProvider>
           </NotificationProvider>
         </AuthProvider>
       </LocaleProvider>
     </SafeAreaProvider>
+  )
+}
+
+function AppNavigator({
+  splashDone,
+  onSplashDone,
+}: {
+  splashDone: boolean
+  onSplashDone: () => void
+}) {
+  const pathname = usePathname()
+  const { beginNavigation, endNavigation, resetNavigation } = useNavigationLoader()
+
+  useEffect(() => {
+    resetNavigation()
+  }, [pathname, resetNavigation])
+
+  return (
+    <>
+      <StatusBar style={splashDone ? 'dark' : 'light'} />
+      <Stack
+        screenOptions={{ headerShown: false }}
+        screenListeners={{
+          transitionStart: () => beginNavigation(),
+          transitionEnd: () => endNavigation(),
+        }}
+      >
+        <Stack.Screen name="(auth)" />
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="onboarding" />
+        <Stack.Screen name="auth/callback" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="events/[id]"
+          options={{
+            headerShown: true,
+            headerTitle: '',
+            headerBackTitle: 'Back',
+            headerTransparent: true,
+          }}
+        />
+        <Stack.Screen
+          name="discover"
+          options={{ headerShown: false, presentation: 'card' }}
+        />
+      </Stack>
+      {!splashDone && <AnimatedSplash onFinish={onSplashDone} />}
+    </>
   )
 }
