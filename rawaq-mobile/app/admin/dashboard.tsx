@@ -8,6 +8,7 @@ import { useRouter } from 'expo-router'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/auth-context'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
+import { TicketFlipLoader } from '@/components/ui/TicketFlipLoader'
 import { formatRelativeTime } from '@/lib/utils'
 import type { Comment, OrganizerProfile, Profile } from '@/types/database'
 
@@ -266,7 +267,7 @@ export default function AdminDashboard() {
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color={Colors.brand[500]} />
+        <TicketFlipLoader size="md" />
       </View>
     )
   }

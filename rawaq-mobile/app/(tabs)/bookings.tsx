@@ -13,6 +13,7 @@ import { useLocale } from '@/contexts/locale-context'
 import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Spinner } from '@/components/ui/Spinner'
+import { TicketFlipLoader } from '@/components/ui/TicketFlipLoader'
 import { formatDate } from '@/lib/utils'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
 import type { Booking, Event } from '@/types/database'
@@ -118,7 +119,11 @@ export default function BookingsScreen() {
     )
   }
 
-  if (loading) return <Spinner fullScreen />
+  if (loading) return (
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.gray[50] }}>
+      <TicketFlipLoader size="md" />
+    </View>
+  )
 
   const upcoming = bookings.filter((b) => {
     const startAt = getBookingStartAt(b)

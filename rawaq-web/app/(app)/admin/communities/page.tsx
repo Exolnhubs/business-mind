@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Spinner } from '@/components/ui/Spinner'
+import { TicketFlipLoader } from '@/components/ui/TicketFlipLoader'
 import type { Community, CommunityApprovalStatus } from '@/types/database'
 
 type PendingCommunity = Pick<
@@ -71,7 +72,7 @@ export default function AdminCommunitiesPage() {
 
       <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
         {loading ? (
-          <div className="flex justify-center py-12"><Spinner size="lg" /></div>
+          <div className="flex justify-center py-16"><TicketFlipLoader size="md" /></div>
         ) : communities.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-6 py-10 text-center">
             <p className="text-sm font-medium text-gray-700">No pending district communities right now.</p>

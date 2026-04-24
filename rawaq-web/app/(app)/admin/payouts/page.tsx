@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Spinner } from '@/components/ui/Spinner'
+import { TicketFlipLoader } from '@/components/ui/TicketFlipLoader'
 import { formatCurrency } from '@/lib/utils'
 
 interface PayoutRow {
@@ -124,7 +125,7 @@ export default function AdminPayoutsPage() {
       )}
 
       {loading ? (
-        <div className="flex justify-center py-12"><Spinner size="lg" /></div>
+        <div className="flex justify-center py-16"><TicketFlipLoader size="md" /></div>
       ) : payouts.length === 0 ? (
         <div className="card p-12 text-center text-gray-400">
           <div className="text-3xl mb-2">📭</div>

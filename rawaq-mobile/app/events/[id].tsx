@@ -11,6 +11,7 @@ import { apiPost, apiGet, apiDelete } from '@/lib/api'
 import { useAuth } from '@/contexts/auth-context'
 import { useLocale } from '@/contexts/locale-context'
 import { Badge } from '@/components/ui/Badge'
+import { TicketFlipLoader } from '@/components/ui/TicketFlipLoader'
 import { CommentThread } from '@/components/comments/CommentThread'
 import { formatDate, formatTime, formatCurrency } from '@/lib/utils'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
@@ -702,7 +703,7 @@ export default function EventDetailScreen() {
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color={Colors.brand[500]} />
+        <TicketFlipLoader size="md" />
       </View>
     )
   }

@@ -12,6 +12,7 @@ import { useAuth } from '@/contexts/auth-context'
 import { useLocale } from '@/contexts/locale-context'
 import { formatDate, formatTime } from '@/lib/utils'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
+import { TicketFlipLoader } from '@/components/ui/TicketFlipLoader'
 
 const APP_URL = process.env.EXPO_PUBLIC_APP_URL ?? 'https://rawaq.app'
 
@@ -134,7 +135,7 @@ export default function TicketScreen() {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color={Colors.brand[500]} />
+        <TicketFlipLoader size="md" label="Preparing your ticket…" />
       </View>
     )
   }

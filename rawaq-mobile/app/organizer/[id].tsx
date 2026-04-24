@@ -10,6 +10,7 @@ import { useAuth } from '@/contexts/auth-context'
 import { EventCard } from '@/components/events/EventCard'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Badge } from '@/components/ui/Badge'
+import { TicketFlipLoader } from '@/components/ui/TicketFlipLoader'
 import { formatDate } from '@/lib/utils'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
 import type { EventWithOrganizer, OrganizerProfile, Profile } from '@/types/database'
@@ -129,7 +130,7 @@ export default function OrganizerProfileScreen() {
   }
 
   if (loading) {
-    return <View style={styles.centered}><ActivityIndicator size="large" color={Colors.brand[500]} /></View>
+    return <View style={styles.centered}><TicketFlipLoader size="md" /></View>
   }
 
   if (!data) {

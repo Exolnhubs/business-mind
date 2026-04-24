@@ -9,6 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/api'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
+import { TicketFlipLoader } from '@/components/ui/TicketFlipLoader'
 import { formatCurrency } from '@/lib/utils'
 import type { TicketType } from '@/types/database'
 
@@ -191,7 +192,7 @@ export default function TicketTypesScreen() {
   if (loading) {
     return (
       <SafeAreaView edges={['top']} style={styles.safeArea}>
-        <View style={styles.centered}><ActivityIndicator size="large" color={Colors.brand[500]} /></View>
+        <View style={styles.centered}><TicketFlipLoader size="md" /></View>
       </SafeAreaView>
     )
   }

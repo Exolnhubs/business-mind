@@ -8,6 +8,7 @@ import * as WebBrowser from 'expo-web-browser'
 import { apiGet, apiPost } from '@/lib/api'
 import { useAuth } from '@/contexts/auth-context'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
+import { TicketFlipLoader } from '@/components/ui/TicketFlipLoader'
 import type { ResolvedPlanDefinition, Subscription } from '@/types/plans'
 
 // ── Constants ─────────────────────────────────────────────────
@@ -191,7 +192,7 @@ export default function PlansScreen() {
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator color={C_GOLD} size="large" />
+        <TicketFlipLoader size="md" />
       </View>
     )
   }

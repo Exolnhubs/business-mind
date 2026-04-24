@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/auth-context'
 import { useLocale } from '@/contexts/locale-context'
 import { Spinner } from '@/components/ui/Spinner'
+import { TicketFlipLoader } from '@/components/ui/TicketFlipLoader'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { clientFetchInvalidate, clientGetJson } from '@/lib/client-fetch'
 import type { Community, CommunityLevel } from '@/types/database'
@@ -562,7 +563,7 @@ export default function CommunitiesPage() {
 
       {/* Grid */}
       {loading && communities.length === 0 ? (
-        <div className="flex justify-center py-20"><Spinner size="lg" /></div>
+        <div className="flex justify-center py-20"><TicketFlipLoader size="md" /></div>
       ) : communities.length === 0 ? (
         <EmptyState
           icon="Groups"

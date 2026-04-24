@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useAuth } from '@/contexts/auth-context'
 import { formatRelativeTime } from '@/lib/utils'
 import { Spinner } from '@/components/ui/Spinner'
+import { TicketFlipLoader } from '@/components/ui/TicketFlipLoader'
 import { EmptyState } from '@/components/ui/EmptyState'
 import type { Notification, NotificationType } from '@/types/database'
 
@@ -127,7 +128,7 @@ export default function NotificationsPage() {
   if (authLoading || !user) {
     return (
       <div className="flex items-center justify-center h-[60vh]">
-        <Spinner size="lg" />
+        <TicketFlipLoader size="md" />
       </div>
     )
   }

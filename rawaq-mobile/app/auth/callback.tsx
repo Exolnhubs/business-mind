@@ -1,8 +1,8 @@
 import { useEffect } from 'react'
-import { View, ActivityIndicator } from 'react-native'
+import { View } from 'react-native'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { supabase } from '@/lib/supabase'
-import { Colors } from '@/theme'
+import { TicketFlipLoader } from '@/components/ui/TicketFlipLoader'
 
 export default function AuthCallbackScreen() {
   const router = useRouter()
@@ -39,7 +39,7 @@ export default function AuthCallbackScreen() {
 
   return (
     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' }}>
-      <ActivityIndicator size="large" color={Colors.brand[500]} />
+      <TicketFlipLoader size="md" label="Signing you in…" />
     </View>
   )
 }

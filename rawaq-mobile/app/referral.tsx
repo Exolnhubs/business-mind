@@ -8,6 +8,7 @@ import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { apiGet } from '@/lib/api'
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '@/theme'
+import { TicketFlipLoader } from '@/components/ui/TicketFlipLoader'
 import type { UserCoupon } from '@/types/database'
 
 interface ReferralData {
@@ -59,7 +60,7 @@ export default function ReferralScreen() {
     return (
       <SafeAreaView edges={['top']} style={styles.safeArea}>
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color={Colors.brand[500]} />
+          <TicketFlipLoader size="md" />
         </View>
       </SafeAreaView>
     )

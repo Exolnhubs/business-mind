@@ -16,6 +16,7 @@ import { useAuth } from '@/contexts/auth-context'
 import { LocationPickerModal, type PickedLocation } from '@/components/communities/LocationPickerModal'
 import { OccurrenceManager } from '@/components/organizer/OccurrenceManager'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
+import { TicketFlipLoader } from '@/components/ui/TicketFlipLoader'
 import type { Community, EventFrequency, EventVisibility } from '@/types/database'
 const TEMPLATES_KEY = 'rawaq_ticket_templates'
 
@@ -611,7 +612,7 @@ export default function EventFormScreen() {
     return (
       <SafeAreaView edges={['top']} style={styles.safeArea}>
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color={Colors.brand[500]} />
+          <TicketFlipLoader size="md" />
         </View>
       </SafeAreaView>
     )

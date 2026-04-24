@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/auth-context'
 import { Spinner } from '@/components/ui/Spinner'
+import { TicketFlipLoader } from '@/components/ui/TicketFlipLoader'
 import { clientFetchInvalidate, clientGetJson } from '@/lib/client-fetch'
 import { formatCurrency } from '@/lib/utils'
 import type { OrganizerWallet, WalletLedgerEntry, Payout } from '@/types/database'
@@ -178,7 +179,7 @@ export default function EarningsPage() {
   }
 
   if (authLoading || loading) {
-    return <div className="flex items-center justify-center h-[60vh]"><Spinner size="lg" /></div>
+    return <div className="flex items-center justify-center h-[60vh]"><TicketFlipLoader size="md" /></div>
   }
 
   const balance = wallet?.balance ?? 0

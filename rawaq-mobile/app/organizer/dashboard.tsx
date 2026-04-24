@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase'
 import { apiPatch } from '@/lib/api'
 import { useAuth } from '@/contexts/auth-context'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
+import { TicketFlipLoader } from '@/components/ui/TicketFlipLoader'
 import { formatDate } from '@/lib/utils'
 import type { EventFrequency } from '@/types/database'
 import { applyResolvedEventWindow, compareEventsByResolvedStartAt } from '@/lib/event-recurrence'
@@ -213,7 +214,7 @@ export default function OrganizerDashboard() {
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color={Colors.brand[500]} />
+        <TicketFlipLoader size="md" />
       </View>
     )
   }

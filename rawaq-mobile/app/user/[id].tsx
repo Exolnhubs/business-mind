@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase'
 import { apiPost, apiDelete, apiGet } from '@/lib/api'
 import { useAuth } from '@/contexts/auth-context'
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '@/theme'
+import { TicketFlipLoader } from '@/components/ui/TicketFlipLoader'
 import { formatDate, formatRelativeTime } from '@/lib/utils'
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -365,7 +366,7 @@ export default function PublicUserProfileScreen() {
 
   // ── Loading guard ────────────────────────────────────────────────────────────
   if (loading) {
-    return <View style={styles.centered}><ActivityIndicator size="large" color={Colors.brand[500]} /></View>
+    return <View style={styles.centered}><TicketFlipLoader size="md" /></View>
   }
   if (!profile) return null
 

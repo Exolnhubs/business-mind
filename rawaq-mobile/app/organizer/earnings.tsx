@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabase'
 import { apiPost } from '@/lib/api'
 import { useAuth } from '@/contexts/auth-context'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
+import { TicketFlipLoader } from '@/components/ui/TicketFlipLoader'
 
 interface Wallet {
   balance: number
@@ -312,7 +313,7 @@ export default function EarningsScreen() {
     return (
       <SafeAreaView edges={['top']} style={styles.safeArea}>
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color={Colors.brand[500]} />
+          <TicketFlipLoader size="md" />
         </View>
       </SafeAreaView>
     )

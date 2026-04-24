@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Spinner } from '@/components/ui/Spinner'
+import { TicketFlipLoader } from '@/components/ui/TicketFlipLoader'
 import type { UserCoupon } from '@/types/database'
 
 interface ReferralData {
@@ -80,7 +80,7 @@ export default function ReferralPage() {
     }
   }
 
-  if (loading) return <div className="flex justify-center py-16"><Spinner /></div>
+  if (loading) return <div className="flex justify-center py-16"><TicketFlipLoader size="md" /></div>
   if (!data)   return <div className="text-center py-16 text-gray-400">Could not load referral info.</div>
 
   const activeCoupons = data.coupons.filter((c) => c.promo && c.promo.used_count === 0 && new Date(c.expires_at) > new Date())

@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/auth-context'
 import { Spinner } from '@/components/ui/Spinner'
+import { TicketFlipLoader } from '@/components/ui/TicketFlipLoader'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { HappeningCard } from '@/components/communities/HappeningCard'
 import { PostHappeningForm } from '@/components/communities/PostHappeningForm'
@@ -643,7 +644,7 @@ export default function CommunityDetailPage() {
   }
 
   if (loading) {
-    return <div className="flex justify-center py-24"><Spinner size="lg" /></div>
+    return <div className="flex justify-center py-24"><TicketFlipLoader size="md" /></div>
   }
 
   if (!community) return null

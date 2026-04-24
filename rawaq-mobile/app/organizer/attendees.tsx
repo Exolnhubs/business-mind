@@ -20,6 +20,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera'
 import { apiGet, apiPost } from '@/lib/api'
 import { useAuth } from '@/contexts/auth-context'
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '@/theme'
+import { TicketFlipLoader } from '@/components/ui/TicketFlipLoader'
 import type { EventOccurrence } from '@/types/database'
 
 interface Attendee {
@@ -261,7 +262,7 @@ export default function AttendeesScreen() {
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color={Colors.brand[500]} />
+        <TicketFlipLoader size="md" />
       </View>
     )
   }

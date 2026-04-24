@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/auth-context'
 import { EventCard, EventCardSkeleton } from '@/components/events/EventCard'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { TicketFlipLoader } from '@/components/ui/TicketFlipLoader'
 import { Colors, Spacing, FontSize, FontWeight, Radius } from '@/theme'
 import type { Event, EventCategory, EventWithOrganizer, OrganizerProfile, Profile } from '@/types/database'
 import { applyResolvedEventWindow, compareEventsByResolvedStartAt } from '@/lib/event-recurrence'
@@ -298,7 +299,7 @@ export default function FeedScreen({ onExplore }: Props = {}) {
   }
 
   if (loading) {
-    return <View style={styles.centered}><ActivityIndicator size="large" color={Colors.brand[500]} /></View>
+    return <View style={styles.centered}><TicketFlipLoader size="md" /></View>
   }
 
   if (!user) {
