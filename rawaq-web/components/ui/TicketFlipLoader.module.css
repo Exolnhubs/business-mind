@@ -1,0 +1,264 @@
+/* ── Ticket flip loader ──────────────────────────────────────
+   A portrait ticket skeleton flipping around its left spine.
+   Brand tokens: --c-ink, --c-paper, --c-gold from globals.css
+   Size tokens via CSS variables on .stage for sm/md/lg variants.
+   ─────────────────────────────────────────────────────────── */
+
+.stage {
+  --tk-w:         180px;
+  --tk-h:         240px;
+  --tk-paper:     oklch(0.965 0.012 80);
+  --tk-paper-2:   oklch(0.92  0.018 78);
+  --tk-bar:       oklch(0.86  0.02  78);
+  --tk-bar-dim:   oklch(0.90  0.015 80);
+  --tk-ink:       var(--c-ink, oklch(0.12 0.025 68));
+  --tk-gold:      var(--c-gold, oklch(0.78 0.18 72));
+  --tk-gold-soft: oklch(0.78 0.18 72 / 0.35);
+
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  perspective: 1400px;
+  perspective-origin: 50% 35%;
+}
+
+.stage.sm { --tk-w: 130px; --tk-h: 174px; }
+.stage.lg { --tk-w: 240px; --tk-h: 320px; }
+
+/* Binding dots — 3 small gold dots at the top, like spiral-bound ticket pad */
+.binding {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  padding-bottom: 2px;
+}
+.bindingDot {
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--tk-gold);
+  box-shadow: 0 0 0 2px color-mix(in oklch, var(--tk-gold) 24%, transparent);
+}
+
+.book {
+  position: relative;
+  width: var(--tk-w);
+  height: var(--tk-h);
+}
+
+/* Subtle warm-black shadow suggesting the ticket pad beneath the top page */
+.book::before {
+  content: '';
+  position: absolute;
+  inset: 6px -4px -4px 2px;
+  background: linear-gradient(135deg,
+    oklch(0.16 0.028 68) 0%,
+    oklch(0.10 0.020 68) 100%);
+  border-radius: 10px;
+  box-shadow: 0 10px 24px -8px oklch(0.05 0.02 68 / 0.55);
+  z-index: 0;
+}
+
+/* The flipping page */
+.flipper {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  transform-origin: 0% 50%;
+  animation: flipTicket 2.6s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+  z-index: 1;
+}
+
+/* Two faces, stacked with backface-visibility:hidden so only one shows */
+.face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  background: linear-gradient(180deg, var(--tk-paper) 0%, var(--tk-paper-2) 100%);
+  border-radius: 10px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  box-shadow:
+    0 1px 0 0 oklch(1 0 0 / 0.8) inset,
+    0 14px 28px -12px oklch(0.1 0.02 68 / 0.45);
+  overflow: hidden;
+}
+.back {
+  transform: rotateY(180deg);
+}
+
+/* Shimmer crest sweeping across the whole face */
+.face::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 25%,
+    var(--tk-gold-soft) 48%,
+    transparent 72%
+  );
+  background-size: 260% 100%;
+  animation: shimmerSweep 1.6s linear infinite;
+  pointer-events: none;
+  mix-blend-mode: plus-lighter;
+}
+
+/* ── Ticket header: ✱ mark + RAWAQ wordmark + decorative rule ── */
+.header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.mark {
+  color: var(--tk-gold);
+  font-size: 13px;
+  line-height: 1;
+  font-weight: 900;
+  transform: translateY(-1px);
+}
+.wordmark {
+  font-family: var(--font-display, 'Barlow Semi Condensed', system-ui, sans-serif);
+  font-weight: 800;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  color: var(--tk-gold);
+  text-transform: uppercase;
+}
+.headerRule {
+  flex: 1;
+  height: 1px;
+  background: color-mix(in oklch, var(--tk-gold) 40%, transparent);
+}
+
+/* ── Skeleton bars (title, subtitle, meta) ── */
+.bars {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.bar {
+  background: var(--tk-bar);
+  border-radius: 3px;
+  height: 10px;
+}
+.barTitle    { height: 13px; width: 78%; }
+.barSubtitle { height: 9px;  width: 56%; }
+
+.meta {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.metaBar {
+  height: 7px;
+  background: var(--tk-bar-dim);
+  border-radius: 2px;
+}
+
+/* ── Perforation ── */
+.perforation {
+  position: relative;
+  margin: 14px -14px 12px;
+  height: 1px;
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    transparent 6px,
+    var(--tk-ink) 6px,
+    var(--tk-ink) 10px,
+    transparent 10px
+  );
+  background-size: 10px 1px;
+  background-repeat: repeat-x;
+  opacity: 0.22;
+}
+.perforation::before,
+.perforation::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: oklch(0.14 0.022 68);
+  transform: translateY(-50%);
+}
+.perforation::before { left: -3.5px; }
+.perforation::after  { right: -3.5px; }
+
+/* ── Stub: ticket # lines + QR placeholder ── */
+.stub {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: auto;
+}
+.stubLines {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.stubBar {
+  height: 6px;
+  background: var(--tk-bar-dim);
+  border-radius: 2px;
+}
+.stubBar1 { width: 72%; }
+.stubBar2 { width: 48%; }
+
+.qr {
+  width: 46px;
+  height: 46px;
+  padding: 3px;
+  background: var(--tk-paper);
+  border: 1px solid color-mix(in oklch, var(--tk-ink) 8%, transparent);
+  border-radius: 4px;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  grid-template-rows:    repeat(5, 1fr);
+  gap: 2px;
+}
+.qrDot {
+  background: var(--tk-ink);
+  opacity: 0.72;
+  border-radius: 1px;
+}
+.qrDot.off { opacity: 0.14; }
+
+/* ── Optional label below the loader ── */
+.label {
+  font-family: var(--font-body, 'Mulish', system-ui, sans-serif);
+  font-weight: 500;
+  font-size: 13px;
+  letter-spacing: 0.01em;
+  color: color-mix(in oklch, var(--tk-ink) 72%, transparent);
+}
+
+/* ── Keyframes ──────────────────────────────────────────── */
+
+/* Continuous flip: dwell, flip to -180, dwell, flip back, loop.
+   Uses a full 360 rotation so the spine motion always reads
+   as "left-to-right page turn" — both faces carry identical
+   skeletons so the viewer can't tell it's a full spin. */
+@keyframes flipTicket {
+  0%,  10%  { transform: rotateY(0deg); }
+  45%, 55%  { transform: rotateY(-180deg); }
+  90%, 100% { transform: rotateY(-360deg); }
+}
+
+@keyframes shimmerSweep {
+  0%   { background-position: 160% 0; }
+  100% { background-position: -160% 0; }
+}
+
+/* Reduced-motion: drop the 3D flip, keep a gentle shimmer */
+@media (prefers-reduced-motion: reduce) {
+  .flipper { animation: none; }
+  .face::after { animation-duration: 2.4s; }
+}
