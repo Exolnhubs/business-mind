@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { landingTranslationsAr, landingTranslationsEn } from '@/lib/landing-translations'
 
 type Locale = 'en' | 'ar'
 
@@ -517,6 +518,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'event.men_only': '♂ Men Only',
     'event.women_only': '♀ Women Only',
     'event.cancelled_badge': 'Cancelled',
+    ...(landingTranslationsEn as Record<string, string>),
   },
   ar: {
     // Nav
@@ -1023,6 +1025,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'ticket.info.seat': 'المقعد',
     'ticket.info.dob': 'تاريخ الميلاد',
     'ticket.info.relation': 'صلة القرابة',
+    ...(landingTranslationsAr as Record<string, string>),
   },
 }
 

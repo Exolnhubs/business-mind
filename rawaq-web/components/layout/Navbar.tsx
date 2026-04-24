@@ -209,13 +209,20 @@ export function Navbar() {
     )
   }
 
+  const isLanding = pathname === '/'
+
+  const headerBase = isLanding
+    ? 'fixed inset-x-0 top-0 z-40 transition-[background-color,border-color,box-shadow] duration-300'
+    : 'sticky top-0 z-40 transition-[background-color,border-color,box-shadow] duration-300'
+  const headerTheme = isLanding
+    ? scrolled
+      ? 'navbar-landing-scrolled'
+      : 'navbar-landing-top'
+    : `bg-white/92 backdrop-blur-md border-b border-gray-100 ${scrolled ? 'navbar-scrolled' : ''}`
+
   return (
-    <header
-      className={`sticky top-0 z-40 bg-white/92 backdrop-blur-md border-b border-gray-100 transition-shadow duration-300 ${
-        scrolled ? 'navbar-scrolled' : ''
-      }`}
-    >
-      <nav className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16 gap-6">
+    <header className={`${headerBase} ${headerTheme}`}>
+      <nav className={`max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16 gap-6 ${isLanding ? 'nav--dark' : ''}`}>
         {/* Logo */}
         <Link href="/" className="nav-logo flex items-center gap-2 shrink-0">
           <span className="nav-wand leading-none"><Image src="/icon.png" alt="" width={150} height={28} /></span>
@@ -257,10 +264,10 @@ export function Navbar() {
                   onClick={() => setMenuOpen((o) => !o)}
                   className="flex items-center gap-2 btn-ghost px-3 py-1.5"
                 >
-                  <span className="w-7 h-7 rounded-full bg-brand-100 text-brand-700 text-xs font-bold flex items-center justify-center uppercase">
+                  <span className="nav-user-chip w-7 h-7 rounded-full bg-brand-100 text-brand-700 text-xs font-bold flex items-center justify-center uppercase">
                     {profile?.display_name?.[0] ?? user.email?.[0] ?? '?'}
                   </span>
-                  <span className="hidden sm:block text-sm font-medium text-gray-700 max-w-[120px] truncate">
+                  <span className="nav-user-name hidden sm:block text-sm font-medium text-gray-700 max-w-[120px] truncate">
                     {profile?.display_name ?? user.email}
                   </span>
                   <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
