@@ -194,13 +194,13 @@ export default function EventsScreen() {
   const routeResetToken = typeof params.reset === 'string' ? params.reset : null
   const [events, setEvents] = useState<EventWithOrganizer[]>([])
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set())
-  const [savedInspiredEvents, setSavedInspiredEvents] = useState<EventWithOrganizer[]>([])
+  const [, setSavedInspiredEvents] = useState<EventWithOrganizer[]>([])
   const [almostSoldOutEvents, setAlmostSoldOutEvents] = useState<EventWithOrganizer[]>([])
   const [nearYouWeekendEvents, setNearYouWeekendEvents] = useState<EventWithOrganizer[]>([])
-  const [myCommunityEvents, setMyCommunityEvents] = useState<EventWithOrganizer[]>([])
+  const [, setMyCommunityEvents] = useState<EventWithOrganizer[]>([])
   const [hotOfferEvents, setHotOfferEvents] = useState<EventWithOrganizer[]>([])
   const [nearYouWeekendHappenings, setNearYouWeekendHappenings] = useState<HappeningDiscoveryItem[]>([])
-  const [myCommunityHappenings, setMyCommunityHappenings] = useState<HappeningDiscoveryItem[]>([])
+  const [, setMyCommunityHappenings] = useState<HappeningDiscoveryItem[]>([])
   const [activeHappenings, setActiveHappenings] = useState<HappeningDiscoveryItem[]>([])
   const [nearbyHappenings, setNearbyHappenings] = useState<HappeningDiscoveryItem[]>([])
   const [filteredCommunityHappenings, setFilteredCommunityHappenings] = useState<HappeningDiscoveryItem[]>([])
@@ -942,7 +942,6 @@ export default function EventsScreen() {
   }
 
   const {
-    communityDiscoveryItems,
     weekendDiscoveryItems,
     filteredCommunityItems,
     activeNowItems,
@@ -952,16 +951,14 @@ export default function EventsScreen() {
     const filteredCommunityRail = claimUniqueHappenings(filteredCommunityHappenings, claimedIds)
     const nearbyRail = claimUniqueHappenings(nearbyHappenings, claimedIds)
     const weekendRail = claimUniqueHappenings(nearYouWeekendHappenings, claimedIds)
-    const communityRail = claimUniqueHappenings(myCommunityHappenings, claimedIds)
     const activeRail = claimUniqueHappenings(activeHappenings, claimedIds)
     return {
-      communityDiscoveryItems: interleaveDiscoveryItems(myCommunityEvents, communityRail, 8),
       weekendDiscoveryItems: interleaveDiscoveryItems(nearYouWeekendEvents, weekendRail, 8),
       filteredCommunityItems: interleaveDiscoveryItems(events.slice(0, 6), filteredCommunityRail, 8),
       activeNowItems: interleaveDiscoveryItems([], activeRail, 8),
       nearbyHappeningItems: interleaveDiscoveryItems([], nearbyRail, 8),
     }
-  }, [events, filteredCommunityHappenings, nearbyHappenings, nearYouWeekendHappenings, myCommunityHappenings, activeHappenings, myCommunityEvents, nearYouWeekendEvents])
+  }, [events, filteredCommunityHappenings, nearbyHappenings, nearYouWeekendHappenings, activeHappenings, nearYouWeekendEvents])
   const showDiscoveryHeader = showRecommendationRails || nearMe || !!communitySlug
 
   const keyExtractor = useCallback((e: EventWithOrganizer) => e.id, [])
@@ -1294,20 +1291,6 @@ export default function EventsScreen() {
                     </View>
                   )}
 
-                  {showRecommendationRails && (
-                    <MixedDiscoveryRail
-                      title="In Your Communities"
-                      subtitle="Events and happenings from the communities you've joined."
-                      items={communityDiscoveryItems}
-                      savedIds={savedIds}
-                      onSaveChange={handleSaveChange}
-                      onToggleHappeningRsvp={toggleDiscoveryHappeningRsvp}
-                      onToggleHappeningReact={toggleDiscoveryHappeningReact}
-                      onOpenHappeningComments={setSelectedHappening}
-                      accent="community"
-                    />
-                  )}
-
                   {/* Active Now — communities with live happenings */}
                   {showRecommendationRails && (activeCommunities.length > 0 || activeNowItems.length > 0) && (
                     <>
@@ -1384,15 +1367,6 @@ export default function EventsScreen() {
                       emptyActionLabel={weekendCoords ? undefined : 'Enable location'}
                       onEmptyAction={weekendCoords ? undefined : requestWeekendLocation}
                       forceShow
-                    />
-                  )}
-                  {savedInspiredEvents.length > 0 && (
-                    <RecommendationRail
-                      title="Because You Saved..."
-                      subtitle="Fresh picks that match the events you bookmarked."
-                      events={savedInspiredEvents}
-                      savedIds={savedIds}
-                      onSaveChange={handleSaveChange}
                     />
                   )}
                 </View>
