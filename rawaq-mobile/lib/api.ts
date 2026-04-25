@@ -61,14 +61,11 @@ async function setPersistentCached(key: string, entry: CachedGetEntry): Promise<
 
 async function clearPersistentCache(prefix?: string): Promise<void> {
   try {
-    if (!prefix) {
-      await AsyncStorage.clear()
-      return
-    }
-    
-    const keys = await AsyncStorage.getAllKeys()
-    const toRemove = keys.filter((k) => k.startsWith(PERSISTENT_CACHE_PREFIX + prefix))
-    await AsyncStorage.multiRemove(toRemove)
+    const allKeys = await AsyncStorage.getAllKeys()
+    const toRemove = allKeys.filter((k) =>
+      k.startsWith(prefix ? PERSISTENT_CACHE_PREFIX + prefix : PERSISTENT_CACHE_PREFIX)
+    )
+    if (toRemove.length > 0) await AsyncStorage.multiRemove(toRemove)
   } catch { /* ignore */ }
 }
 
@@ -96,8 +93,19 @@ function buildCacheKey(path: string, userId: string | null | undefined) {
 }
 
 export async function apiInvalidate(pathPrefix?: string) {
-  getCache.clear()
-  inflightGets.clear()
+  if (!pathPrefix) {
+    getCache.clear()
+    inflightGets.clear()
+  } else {
+    for (const key of [...getCache.keys()]) {
+      const [, cachedPath = ''] = key.split(':', 2)
+      if (cachedPath.startsWith(pathPrefix)) getCache.delete(key)
+    }
+    for (const key of [...inflightGets.keys()]) {
+      const [, cachedPath = ''] = key.split(':', 2)
+      if (cachedPath.startsWith(pathPrefix)) inflightGets.delete(key)
+    }
+  }
   await clearPersistentCache(pathPrefix)
 }
 
