@@ -272,3 +272,64 @@ export async function clientGetJson<T>(
     inflightGets.delete(cacheKey)
   }
 }
+
+type MutationOptions = {
+  signal?: AbortSignal
+  silent?: boolean
+  timeoutMs?: number
+}
+
+async function clientMutation<T>(
+  method: 'POST' | 'PATCH' | 'DELETE',
+  path: string,
+  body: unknown | undefined,
+  options: MutationOptions = {},
+): Promise<T> {
+  if (!isOnline()) {
+    const classified: ClassifiedError = { kind: 'offline' }
+    emitToast(classified, undefined, options.silent)
+    throw new Error('offline')
+  }
+
+  const init: RequestInit = {
+    method,
+    credentials: 'same-origin',
+    headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  }
+
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
+  const attempt = await fetchWithTimeout(path, init, timeoutMs, options.signal)
+
+  let classified: ClassifiedError | null = null
+  if (attempt.res) classified = classifyResponse(attempt.res)
+  else classified = classifyThrown(attempt.thrown, { isOnline: isOnline(), timedOut: attempt.timedOut })
+
+  if (attempt.res && attempt.res.ok) {
+    clientFetchInvalidateAll()
+    return parseJsonSafe<T>(attempt.res)
+  }
+
+  if (attempt.res) {
+    const errJson = await parseJsonSafe<{ error?: string }>(attempt.res)
+    if (classified && classified.kind !== 'auth' && classified.kind !== 'client' && classified.kind !== 'unknown') {
+      emitToast(classified, undefined, options.silent)
+    }
+    throw new Error(errJson.error ?? `Request failed (${attempt.res.status})`)
+  }
+
+  if (classified) emitToast(classified, undefined, options.silent)
+  throw attempt.thrown ?? new Error('Network error')
+}
+
+export function clientPostJson<T = unknown>(path: string, body?: unknown, options?: MutationOptions): Promise<T> {
+  return clientMutation<T>('POST', path, body, options)
+}
+
+export function clientPatchJson<T = unknown>(path: string, body?: unknown, options?: MutationOptions): Promise<T> {
+  return clientMutation<T>('PATCH', path, body, options)
+}
+
+export function clientDeleteJson<T = unknown>(path: string, options?: MutationOptions): Promise<T> {
+  return clientMutation<T>('DELETE', path, undefined, options)
+}
