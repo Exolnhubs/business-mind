@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 import { AuthProvider } from '@/contexts/auth-context'
 import { LocaleProvider } from '@/contexts/locale-context'
+import { ErrorToastProvider } from '@/components/feedback/ErrorToast'
 import { CustomCursor } from '@/components/ui/CustomCursor'
 import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister'
 import { Analytics } from "@vercel/analytics/next"
@@ -31,9 +32,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ServiceWorkerRegister />
         <CustomCursor />
         <LocaleProvider>
-          <AuthProvider>
-            {children}
-          </AuthProvider>
+          <ErrorToastProvider>
+            <AuthProvider>
+              {children}
+            </AuthProvider>
+          </ErrorToastProvider>
         </LocaleProvider>
         <Analytics />
         <SpeedInsights />
