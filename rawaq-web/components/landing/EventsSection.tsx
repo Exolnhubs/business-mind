@@ -85,7 +85,7 @@ function EventCard({
         }}
       >
         <div className="lp-event-card-img-placeholder" style={{ color: `${color}55` }}>
-          [ event photo ]
+          {/* [ event photo ] */}
           <br />
           {title}
         </div>
