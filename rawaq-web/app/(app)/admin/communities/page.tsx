@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Spinner } from '@/components/ui/Spinner'
 import { TicketFlipLoader } from '@/components/ui/TicketFlipLoader'
+import { clientPatchJson, isToastHandledError } from '@/lib/client-fetch'
 import type { Community, CommunityApprovalStatus } from '@/types/database'
 
 type PendingCommunity = Pick<
@@ -38,16 +39,11 @@ export default function AdminCommunitiesPage() {
   async function updateApproval(slug: string, approvalStatus: CommunityApprovalStatus) {
     setActionLoading(`${slug}:${approvalStatus}`)
     try {
-      const res = await fetch(`/api/communities/${slug}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ approval_status: approvalStatus }),
-      })
-
-      if (res.ok) {
-        setCommunities((prev) => prev.filter((entry) => entry.slug !== slug))
-      } else {
-        window.alert('Failed to update community approval state')
+      await clientPatchJson(`/api/communities/${slug}`, { approval_status: approvalStatus })
+      setCommunities((prev) => prev.filter((entry) => entry.slug !== slug))
+    } catch (error) {
+      if (!isToastHandledError(error)) {
+        window.alert(error instanceof Error ? error.message : 'Failed to update community approval state')
       }
     } finally {
       setActionLoading(null)

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useTransition } from 'react'
+import { clientDeleteJson, clientPatchJson, clientPostJson, isToastHandledError } from '@/lib/client-fetch'
 import type { PromoCode } from '@/types/database'
 
 const EMPTY_FORM = {
@@ -79,31 +80,36 @@ export default function PromoCodesPage() {
         min_order_amount: Number(form.min_order_amount),
         expires_at: form.expires_at ? new Date(form.expires_at).toISOString() : null,
       }
-      const res = await fetch('/api/promo-codes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      if (!res.ok) { const j = await res.json().catch(() => ({})); setError(j.error ?? j.message ?? 'Failed to create'); return }
-      setShowForm(false)
-      setForm(EMPTY_FORM)
-      loadPromos()
+      try {
+        await clientPostJson('/api/promo-codes', payload)
+        setShowForm(false)
+        setForm(EMPTY_FORM)
+        loadPromos()
+      } catch (error) {
+        if (!isToastHandledError(error)) {
+          setError(error instanceof Error ? error.message : 'Failed to create')
+        }
+      }
     })
   }
 
   async function toggleActive(promo: PromoCode) {
-    await fetch(`/api/promo-codes/${promo.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ is_active: !promo.is_active }),
-    })
-    loadPromos()
+    try {
+      await clientPatchJson(`/api/promo-codes/${promo.id}`, { is_active: !promo.is_active })
+      loadPromos()
+    } catch {
+      // Toast-handled transient failures and validation errors both leave local state unchanged.
+    }
   }
 
   async function deletePromo(promo: PromoCode) {
     if (!confirm(`Delete code "${promo.code}"?`)) return
-    await fetch(`/api/promo-codes/${promo.id}`, { method: 'DELETE' })
-    loadPromos()
+    try {
+      await clientDeleteJson(`/api/promo-codes/${promo.id}`)
+      loadPromos()
+    } catch {
+      // Toast-handled transient failures and validation errors both leave local state unchanged.
+    }
   }
 
   if (loading) return <div className="p-8 text-center text-gray-400">Loading…</div>

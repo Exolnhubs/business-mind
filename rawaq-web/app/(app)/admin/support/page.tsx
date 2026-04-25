@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { clientPatchJson, isToastHandledError } from '@/lib/client-fetch'
 
 type TicketStatus = 'open' | 'in_progress' | 'resolved' | 'closed'
 
@@ -60,12 +61,12 @@ export default function AdminSupportPage() {
   async function updateTicket(id: string, updates: { status?: TicketStatus; admin_notes?: string }) {
     setUpdating(id)
     try {
-      await fetch(`/api/admin/support/${id}`, {
-        method:  'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(updates),
-      })
+      await clientPatchJson(`/api/admin/support/${id}`, updates)
       await load()
+    } catch (error) {
+      if (!isToastHandledError(error)) {
+        window.alert(error instanceof Error ? error.message : 'Failed to update ticket')
+      }
     } finally {
       setUpdating(null)
     }

@@ -7,7 +7,7 @@ import { useLocale } from '@/contexts/locale-context'
 import { Spinner } from '@/components/ui/Spinner'
 import { TicketFlipLoader } from '@/components/ui/TicketFlipLoader'
 import { EmptyState } from '@/components/ui/EmptyState'
-import { clientFetchInvalidate, clientGetJson } from '@/lib/client-fetch'
+import { clientFetchInvalidate, clientGetJson, clientPostJson, clientDeleteJson } from '@/lib/client-fetch'
 import type { Community, CommunityLevel } from '@/types/database'
 
 type CommunityWithMembership = Community & { is_member: boolean; event_count?: number }
@@ -51,19 +51,21 @@ function CommunityCard({ community, onToggleMembership }: {
   async function handleJoinLeave(e: React.MouseEvent<HTMLButtonElement>) {
     e.stopPropagation()
     setLoading(true)
-    const method = community.is_member ? 'DELETE' : 'POST'
     const endpoint = community.is_member
       ? `/api/communities/${community.slug}/leave`
       : `/api/communities/${community.slug}/join`
-    const res = await fetch(endpoint, { method })
-    if (res.ok) {
+    try {
+      const json = community.is_member
+        ? await clientDeleteJson<{ data?: MembershipMutationResponse }>(endpoint)
+        : await clientPostJson<{ data?: MembershipMutationResponse }>(endpoint, {})
       clientFetchInvalidate('/api/communities')
-      const json = await res.json() as { data?: MembershipMutationResponse }
       onToggleMembership(
         community.slug,
         json.data?.is_member ?? !community.is_member,
         json.data?.member_count,
       )
+    } catch {
+      // Toast-handled transient failures and validation errors both leave local state unchanged.
     }
     setLoading(false)
   }
@@ -267,8 +269,8 @@ export default function CommunitiesPage() {
 
   async function joinCommunityRecommendation(community: CommunityWithMembership) {
     setSuggestedJoining(community.slug)
-    const res = await fetch(`/api/communities/${community.slug}/join`, { method: 'POST' })
-    if (res.ok) {
+    try {
+      await clientPostJson(`/api/communities/${community.slug}/join`, {})
       clientFetchInvalidate('/api/communities')
       setTrending((prev) => prev.filter((c) => c.slug !== community.slug))
       setRecommended((prev) => prev.filter((c) => c.slug !== community.slug))
@@ -276,6 +278,8 @@ export default function CommunitiesPage() {
       setCommunities((prev) =>
         prev.map((c) => c.slug === community.slug ? { ...c, is_member: true, member_count: c.member_count + 1 } : c)
       )
+    } catch {
+      // Toast-handled transient failures and validation errors both leave local state unchanged.
     }
     setSuggestedJoining(null)
   }

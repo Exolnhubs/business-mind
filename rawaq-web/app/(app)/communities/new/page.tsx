@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/auth-context'
+import { clientPostJson, isToastHandledError } from '@/lib/client-fetch'
 import type { Community, CommunityLevel, CommunityType } from '@/types/database'
 
 const LEVEL_OPTIONS: Array<{
@@ -164,10 +165,8 @@ function NewCommunityPageContent() {
     setSubmitting(true)
     setError(null)
 
-    const res = await fetch('/api/communities', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+    try {
+      const json = await clientPostJson<{ data?: { slug?: string } }>('/api/communities', {
         name: form.name,
         name_ar: form.name_ar || null,
         description: form.description || null,
@@ -179,22 +178,21 @@ function NewCommunityPageContent() {
         cover_url: form.cover_url || null,
         is_private: form.is_private,
         parent_slug: parentCommunity?.slug ?? null,
-      }),
-    })
-
-    const json = await res.json().catch(() => ({}))
-    if (!res.ok) {
-      setError(
-        res.status === 429
-          ? "You've created 3 communities this month. You can create more after 30 days from your oldest recent community."
-          : (json.error ?? 'Unable to create community')
-      )
+      })
+      const slug = json.data?.slug as string | undefined
+      router.push(slug ? `/communities/${slug}` : '/communities')
+    } catch (error) {
+      if (!isToastHandledError(error)) {
+        const message = error instanceof Error ? error.message : 'Unable to create community'
+        setError(
+          message.includes('creation limit')
+            ? "You've created 3 communities this month. You can create more after 30 days from your oldest recent community."
+            : message
+        )
+      }
+    } finally {
       setSubmitting(false)
-      return
     }
-
-    const slug = json.data?.slug as string | undefined
-    router.push(slug ? `/communities/${slug}` : '/communities')
   }
 
   if (loading) {

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Spinner } from '@/components/ui/Spinner'
 import { TicketFlipLoader } from '@/components/ui/TicketFlipLoader'
+import { clientGetJson, clientPatchJson, isToastHandledError } from '@/lib/client-fetch'
 import { formatCurrency } from '@/lib/utils'
 
 interface VerifyResult {
@@ -80,10 +81,19 @@ export default function AdminRefundsPage() {
 
   async function verify(id: string) {
     setVerifyingId(id)
-    const res  = await fetch(`/api/admin/refunds/${id}/verify`)
-    const json = await res.json()
-    setVerifyingId(null)
-    setVerifyResult((prev) => ({ ...prev, [id]: json.data ?? { verified: false, error: 'No response' } }))
+    try {
+      const json = await clientGetJson<{ data?: VerifyResult }>(`/api/admin/refunds/${id}/verify`, { retry: false })
+      setVerifyResult((prev) => ({ ...prev, [id]: json.data ?? { verified: false, error: 'No response' } }))
+    } catch (error) {
+      if (!isToastHandledError(error)) {
+        setVerifyResult((prev) => ({
+          ...prev,
+          [id]: { verified: false, error: error instanceof Error ? error.message : 'Verification failed' },
+        }))
+      }
+    } finally {
+      setVerifyingId(null)
+    }
   }
 
   async function transition(id: string, status: 'approved' | 'completed' | 'rejected', method?: string) {
@@ -94,20 +104,17 @@ export default function AdminRefundsPage() {
     if (gatewayRef) body.gateway_ref = gatewayRef
     if (method)     body.refund_method = method
 
-    const res  = await fetch(`/api/admin/refunds/${id}`, {
-      method:  'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(body),
-    })
-    const json = await res.json()
-    setActionId(null)
-    setGatewayRef('')
-
-    if (res.ok) {
+    try {
+      await clientPatchJson(`/api/admin/refunds/${id}`, body)
       setMsg({ ok: true, text: `Refund marked as ${status}.` })
       load(tab)
-    } else {
-      setMsg({ ok: false, text: json.error ?? 'Action failed.' })
+    } catch (error) {
+      if (!isToastHandledError(error)) {
+        setMsg({ ok: false, text: error instanceof Error ? error.message : 'Action failed.' })
+      }
+    } finally {
+      setActionId(null)
+      setGatewayRef('')
     }
   }
 

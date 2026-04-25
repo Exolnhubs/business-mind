@@ -527,8 +527,11 @@ export default function EventsScreen() {
       ? await apiDelete<{ rsvp: boolean; rsvp_count: number }>(`/api/happenings/${happening.id}/rsvp`)
       : await apiPost<{ rsvp: boolean; rsvp_count: number }>(`/api/happenings/${happening.id}/rsvp`, {})
 
-    if (error || !data) {
-      Alert.alert('Happenings unavailable', error ?? 'Could not update RSVP.')
+    if (error) {
+      Alert.alert('Happenings unavailable', error)
+      return
+    }
+    if (!data) {
       return
     }
 
@@ -549,8 +552,11 @@ export default function EventsScreen() {
       ? await apiDelete<{ reacted: boolean; reaction_count: number }>(`/api/happenings/${happening.id}/react`)
       : await apiPost<{ reacted: boolean; reaction_count: number }>(`/api/happenings/${happening.id}/react`, {})
 
-    if (error || !data) {
-      Alert.alert('Happenings unavailable', error ?? 'Could not update reaction.')
+    if (error) {
+      Alert.alert('Happenings unavailable', error)
+      return
+    }
+    if (!data) {
       return
     }
 

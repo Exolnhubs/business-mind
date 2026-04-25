@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { clientPatchJson, isToastHandledError } from '@/lib/client-fetch'
 import type { ReportStatus } from '@/types/database'
 
 type Report = {
@@ -53,13 +54,16 @@ export default function AdminReportsPage() {
 
   async function handleAction(id: string, action: 'resolve' | 'dismiss') {
     setResolving(id)
-    await fetch(`/api/admin/reports/${id}`, {
-      method:  'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ action, resolution_note: noteMap[id] }),
-    })
-    await load()
-    setResolving(null)
+    try {
+      await clientPatchJson(`/api/admin/reports/${id}`, { action, resolution_note: noteMap[id] })
+      await load()
+    } catch (error) {
+      if (!isToastHandledError(error)) {
+        window.alert(error instanceof Error ? error.message : 'Action failed')
+      }
+    } finally {
+      setResolving(null)
+    }
   }
 
   return (

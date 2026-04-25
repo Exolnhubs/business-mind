@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Spinner } from '@/components/ui/Spinner'
 import { TicketFlipLoader } from '@/components/ui/TicketFlipLoader'
+import { clientPatchJson, isToastHandledError } from '@/lib/client-fetch'
 import { formatCurrency } from '@/lib/utils'
 
 interface PayoutRow {
@@ -72,21 +73,18 @@ export default function AdminPayoutsPage() {
     if (status === 'completed' && gatewayRef) body.gateway_ref = gatewayRef
     if (status === 'failed'    && failReason) body.failure_reason = failReason
 
-    const res  = await fetch(`/api/admin/payouts/${id}`, {
-      method:  'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(body),
-    })
-    const json = await res.json()
-    setActionId(null)
-    setGatewayRef('')
-    setFailReason('')
-
-    if (res.ok) {
+    try {
+      await clientPatchJson(`/api/admin/payouts/${id}`, body)
       setMsg({ ok: true, text: `Payout marked as ${status}.` })
       load(tab)
-    } else {
-      setMsg({ ok: false, text: json.error ?? 'Action failed.' })
+    } catch (error) {
+      if (!isToastHandledError(error)) {
+        setMsg({ ok: false, text: error instanceof Error ? error.message : 'Action failed.' })
+      }
+    } finally {
+      setActionId(null)
+      setGatewayRef('')
+      setFailReason('')
     }
   }
 

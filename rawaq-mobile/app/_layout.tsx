@@ -16,6 +16,7 @@ import { LocaleProvider } from '@/contexts/locale-context'
 import { NotificationProvider } from '@/contexts/notification-context'
 import { NavigationLoaderProvider, useNavigationLoader } from '@/contexts/navigation-loader-context'
 import { AnimatedSplash } from '@/components/ui/AnimatedSplash'
+import { ErrorToastHost } from '@/components/feedback/ErrorToast'
 import { supabase } from '@/lib/supabase'
 
 SplashScreen.preventAutoHideAsync()
@@ -194,6 +195,7 @@ export default function RootLayout() {
             </NavigationLoaderProvider>
           </NotificationProvider>
         </AuthProvider>
+        <ErrorToastHost />
       </LocaleProvider>
     </SafeAreaProvider>
   )

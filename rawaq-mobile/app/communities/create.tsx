@@ -179,15 +179,16 @@ export default function CreateCommunityScreen() {
 
     setSubmitting(false)
 
-    if (error || !data?.slug) {
+    if (error) {
       Alert.alert(
         'Could not create community',
         error?.includes('creation limit')
           ? "You've created 3 communities this month. You can create more after 30 days from your oldest recent community."
-          : (error ?? 'Please try again.')
+          : error
       )
       return
     }
+    if (!data?.slug) return
 
     router.replace(`/communities/${data.slug}` as any)
   }

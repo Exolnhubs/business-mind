@@ -8,6 +8,7 @@ import { formatRelativeTime } from '@/lib/utils'
 import { Spinner } from '@/components/ui/Spinner'
 import { TicketFlipLoader } from '@/components/ui/TicketFlipLoader'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { clientPatchJson } from '@/lib/client-fetch'
 import type { Notification, NotificationType } from '@/types/database'
 
 const ICONS: Record<NotificationType, string> = {
@@ -117,8 +118,12 @@ export default function NotificationsPage() {
 
   async function markAllRead() {
     setMarking(true)
-    await fetch('/api/notifications', { method: 'PATCH' })
-    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })))
+    try {
+      await clientPatchJson('/api/notifications', {})
+      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })))
+    } catch {
+      // Toast-handled transient failures and validation errors both leave local state unchanged.
+    }
     setMarking(false)
   }
 

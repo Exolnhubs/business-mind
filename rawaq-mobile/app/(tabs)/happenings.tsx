@@ -66,8 +66,11 @@ export default function HappeningsTab() {
     const { data, error } = happening.user_has_rsvp
       ? await apiDelete<{ rsvp: boolean; rsvp_count: number }>(`/api/happenings/${happening.id}/rsvp`)
       : await apiPost<{ rsvp: boolean; rsvp_count: number }>(`/api/happenings/${happening.id}/rsvp`, {})
-    if (error || !data) {
-      Alert.alert('Happenings unavailable', error ?? 'Could not update RSVP.')
+    if (error) {
+      Alert.alert('Happenings unavailable', error)
+      return
+    }
+    if (!data) {
       return
     }
     patchHappening(happening.id, (item) => ({ ...item, user_has_rsvp: data.rsvp, rsvp_count: data.rsvp_count }))
@@ -81,8 +84,11 @@ export default function HappeningsTab() {
     const { data, error } = happening.user_has_reacted
       ? await apiDelete<{ reacted: boolean; reaction_count: number }>(`/api/happenings/${happening.id}/react`)
       : await apiPost<{ reacted: boolean; reaction_count: number }>(`/api/happenings/${happening.id}/react`, {})
-    if (error || !data) {
-      Alert.alert('Happenings unavailable', error ?? 'Could not update reaction.')
+    if (error) {
+      Alert.alert('Happenings unavailable', error)
+      return
+    }
+    if (!data) {
       return
     }
     patchHappening(happening.id, (item) => ({ ...item, user_has_reacted: data.reacted, reaction_count: data.reaction_count }))

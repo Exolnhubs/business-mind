@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/auth-context'
 import { useLocale } from '@/contexts/locale-context'
 import { createSupabaseBrowserClient } from '@/lib/supabase/client'
+import { clientPatchJson, clientPostJson, isToastHandledError } from '@/lib/client-fetch'
 import { Spinner } from '@/components/ui/Spinner'
 import { FileUpload } from '@/components/ui/FileUpload'
 import { PlanStatusCard } from '@/components/plans/PlanStatusCard'
@@ -181,20 +182,17 @@ export default function ProfilePage() {
       phone: profileForm.phone || null,
     }
 
-    const res = await fetch('/api/profiles/me', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
-
-    if (res.ok) {
+    try {
+      await clientPatchJson('/api/profiles/me', body)
       await refreshProfile()
       setProfileMsg({ ok: true, text: t('profile.saved_ok') })
-    } else {
-      const { error } = await res.json()
-      setProfileMsg({ ok: false, text: error ?? t('profile.saved_err') })
+    } catch (error) {
+      if (!isToastHandledError(error)) {
+        setProfileMsg({ ok: false, text: error instanceof Error ? error.message : t('profile.saved_err') })
+      }
+    } finally {
+      setSavingProfile(false)
     }
-    setSavingProfile(false)
   }
 
   async function saveOrganizerProfile(e: FormEvent) {
@@ -206,10 +204,8 @@ export default function ProfilePage() {
     // The API for this lives in a future phase; we call PATCH /api/profiles/me
     // for now with a nested organizer_profile object that the route handles
     // via supabase service client.
-    const res = await fetch('/api/organizer/profile', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+    try {
+      await clientPatchJson('/api/organizer/profile', {
         business_name: orgForm.business_name,
         business_name_ar: orgForm.business_name_ar || null,
         description: orgForm.description || null,
@@ -217,16 +213,15 @@ export default function ProfilePage() {
         website: orgForm.website || null,
         phone: orgForm.phone || null,
         logo_url: orgForm.logo_url || null,
-      }),
-    })
-
-    if (res.ok) {
+      })
       setOrgMsg({ ok: true, text: t('profile.business_saved_ok') })
-    } else {
-      const { error } = await res.json().catch(() => ({ error: null }))
-      setOrgMsg({ ok: false, text: error ?? t('profile.business_saved_err') })
+    } catch (error) {
+      if (!isToastHandledError(error)) {
+        setOrgMsg({ ok: false, text: error instanceof Error ? error.message : t('profile.business_saved_err') })
+      }
+    } finally {
+      setSavingOrg(false)
     }
-    setSavingOrg(false)
   }
 
   async function handleEmailChange(e: FormEvent) {
@@ -247,24 +242,21 @@ export default function ProfilePage() {
     if (!orgReqForm.business_name.trim()) return
     setSubmittingOrgReq(true)
     setOrgReqMsg(null)
-    const res = await fetch('/api/organizer/request', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+    try {
+      const { data } = await clientPostJson<{ data: { id: string; status: string; business_name: string } | null }>('/api/organizer/request', {
         business_name: orgReqForm.business_name.trim(),
         description:   orgReqForm.description.trim() || null,
-      }),
-    })
-    if (res.ok) {
-      const { data } = await res.json()
+      })
       setOrgRequest(data)
       setShowOrgForm(false)
       setOrgReqMsg(null)
-    } else {
-      const { error } = await res.json().catch(() => ({ error: null }))
-      setOrgReqMsg({ ok: false, text: error ?? 'Failed to submit request.' })
+    } catch (error) {
+      if (!isToastHandledError(error)) {
+        setOrgReqMsg({ ok: false, text: error instanceof Error ? error.message : 'Failed to submit request.' })
+      }
+    } finally {
+      setSubmittingOrgReq(false)
     }
-    setSubmittingOrgReq(false)
   }
 
   const setP = (k: keyof ProfileForm) =>

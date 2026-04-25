@@ -93,15 +93,18 @@ export default function BookingsScreen() {
     })
 
     setSubmitting(false)
-    setRefundTarget(null)
-    setUserNote('')
 
     if (error) {
       Alert.alert('Error', error)
       return
     }
+    if (!data) {
+      return
+    }
 
     const autoRefunded = (data as any)?.auto_refunded === true
+    setRefundTarget(null)
+    setUserNote('')
     Alert.alert(
       'Ticket cancelled',
       autoRefunded

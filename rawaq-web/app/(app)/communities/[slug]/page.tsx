@@ -10,7 +10,14 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { HappeningCard } from '@/components/communities/HappeningCard'
 import { PostHappeningForm } from '@/components/communities/PostHappeningForm'
 import { useHappenings } from '@/hooks/useHappenings'
-import { clientFetchInvalidate, clientGetJson } from '@/lib/client-fetch'
+import {
+  clientDeleteJson,
+  clientFetchInvalidate,
+  clientGetJson,
+  clientPatchJson,
+  clientPostJson,
+  isToastHandledError,
+} from '@/lib/client-fetch'
 import { formatDate } from '@/lib/utils'
 import type { Community, CommunityLevel, CommunityRole, Event } from '@/types/database'
 
@@ -309,15 +316,15 @@ export default function CommunityDetailPage() {
     if (!user) { router.push('/login'); return }
     if (!community) return
     setJoining(true)
-    const method   = community.is_member ? 'DELETE' : 'POST'
     const endpoint = community.is_member
       ? `/api/communities/${slug}/leave`
       : `/api/communities/${slug}/join`
-    const res = await fetch(endpoint, { method })
-    if (res.ok) {
+    try {
+      const json = community.is_member
+        ? await clientDeleteJson<{ data?: MembershipMutationResponse }>(endpoint)
+        : await clientPostJson<{ data?: MembershipMutationResponse }>(endpoint, {})
       clientFetchInvalidate(`/api/communities/${slug}`, cacheScopeKey)
       clientFetchInvalidate('/api/communities')
-      const json = await res.json() as { data?: MembershipMutationResponse }
       setCommunity((prev) =>
         prev
           ? {
@@ -332,6 +339,10 @@ export default function CommunityDetailPage() {
       if (json.data?.message) {
         window.alert(json.data.message)
       }
+    } catch (error) {
+      if (!isToastHandledError(error)) {
+        window.alert(error instanceof Error ? error.message : 'Membership update failed')
+      }
     }
     setJoining(false)
   }
@@ -340,19 +351,23 @@ export default function CommunityDetailPage() {
     if (!user) { router.push('/login'); return }
     if (!community) return
     setFollowing(true)
-    const method = community.is_following ? 'DELETE' : 'POST'
     const endpoint = community.is_following
       ? `/api/communities/${slug}/unfollow`
       : `/api/communities/${slug}/follow`
-    const res = await fetch(endpoint, { method })
-    if (res.ok) {
+    try {
+      const json = community.is_following
+        ? await clientDeleteJson<{ data?: FollowMutationResponse }>(endpoint)
+        : await clientPostJson<{ data?: FollowMutationResponse }>(endpoint, {})
       clientFetchInvalidate(`/api/communities/${slug}`, cacheScopeKey)
-      const json = await res.json() as { data?: FollowMutationResponse }
       setCommunity((prev) =>
         prev
           ? { ...prev, is_following: json.data?.is_following ?? !prev.is_following }
           : prev
       )
+    } catch (error) {
+      if (!isToastHandledError(error)) {
+        window.alert(error instanceof Error ? error.message : 'Follow update failed')
+      }
     }
     setFollowing(false)
   }
@@ -364,10 +379,10 @@ export default function CommunityDetailPage() {
       const endpoint = child.is_member
         ? `/api/communities/${child.slug}/leave`
         : `/api/communities/${child.slug}/join`
-      const res = await fetch(endpoint, { method: child.is_member ? 'DELETE' : 'POST' })
-      if (res.ok) {
+      const json = child.is_member
+        ? await clientDeleteJson<{ data?: MembershipMutationResponse }>(endpoint)
+        : await clientPostJson<{ data?: MembershipMutationResponse }>(endpoint, {})
         clientFetchInvalidate('/api/communities')
-        const json = await res.json() as { data?: MembershipMutationResponse }
         setChildren((prev) => prev.map((entry) =>
           entry.id === child.id
             ? {
@@ -379,6 +394,9 @@ export default function CommunityDetailPage() {
               }
             : entry
         ))
+    } catch (error) {
+      if (!isToastHandledError(error)) {
+        window.alert(error instanceof Error ? error.message : 'Membership update failed')
       }
     } finally {
       setChildJoiningSlug(null)
@@ -388,16 +406,14 @@ export default function CommunityDetailPage() {
   async function assignCommunityAdmin(userId: string) {
     setMemberActionLoading(`assign-${userId}`)
     try {
-      const res = await fetch(`/api/communities/${slug}/admins`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId }),
-      })
-      if (res.ok) {
-        clientFetchInvalidate(`/api/communities/${slug}/admins`, cacheScopeKey)
-        clientFetchInvalidate(`/api/communities/${slug}/audit-logs`, cacheScopeKey)
-        await loadAdmins(true)
-        await loadAuditLogs(true)
+      await clientPostJson(`/api/communities/${slug}/admins`, { user_id: userId })
+      clientFetchInvalidate(`/api/communities/${slug}/admins`, cacheScopeKey)
+      clientFetchInvalidate(`/api/communities/${slug}/audit-logs`, cacheScopeKey)
+      await loadAdmins(true)
+      await loadAuditLogs(true)
+    } catch (error) {
+      if (!isToastHandledError(error)) {
+        window.alert(error instanceof Error ? error.message : 'Failed to assign community admin')
       }
     } finally {
       setMemberActionLoading(null)
@@ -407,12 +423,14 @@ export default function CommunityDetailPage() {
   async function revokeCommunityAdmin(userId: string) {
     setMemberActionLoading(`revoke-${userId}`)
     try {
-      const res = await fetch(`/api/communities/${slug}/admins/${userId}`, { method: 'DELETE' })
-      if (res.ok) {
-        clientFetchInvalidate(`/api/communities/${slug}/admins`, cacheScopeKey)
-        clientFetchInvalidate(`/api/communities/${slug}/audit-logs`, cacheScopeKey)
-        await loadAdmins(true)
-        await loadAuditLogs(true)
+      await clientDeleteJson(`/api/communities/${slug}/admins/${userId}`)
+      clientFetchInvalidate(`/api/communities/${slug}/admins`, cacheScopeKey)
+      clientFetchInvalidate(`/api/communities/${slug}/audit-logs`, cacheScopeKey)
+      await loadAdmins(true)
+      await loadAuditLogs(true)
+    } catch (error) {
+      if (!isToastHandledError(error)) {
+        window.alert(error instanceof Error ? error.message : 'Failed to revoke community admin')
       }
     } finally {
       setMemberActionLoading(null)
@@ -422,26 +440,20 @@ export default function CommunityDetailPage() {
   async function saveCommunitySettings() {
     setSavingSettings(true)
     try {
-      const res = await fetch(`/api/communities/${slug}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: settingsForm.name.trim(),
-          name_ar: settingsForm.name_ar.trim() || null,
-          description: settingsForm.description.trim() || null,
-          description_ar: settingsForm.description_ar.trim() || null,
-          city: settingsForm.city.trim() || null,
-          cover_url: settingsForm.cover_url.trim() || null,
-          is_private: settingsForm.is_private,
-        }),
+      const json = await clientPatchJson<{ data: Community }>(`/api/communities/${slug}`, {
+        name: settingsForm.name.trim(),
+        name_ar: settingsForm.name_ar.trim() || null,
+        description: settingsForm.description.trim() || null,
+        description_ar: settingsForm.description_ar.trim() || null,
+        city: settingsForm.city.trim() || null,
+        cover_url: settingsForm.cover_url.trim() || null,
+        is_private: settingsForm.is_private,
       })
-
-      if (res.ok) {
-        clientFetchInvalidate(`/api/communities/${slug}`, cacheScopeKey)
-        const json = await res.json() as { data: Community }
-        setCommunity((prev) => (prev ? { ...prev, ...json.data } : prev))
-      } else {
-        window.alert('Failed to update community settings')
+      clientFetchInvalidate(`/api/communities/${slug}`, cacheScopeKey)
+      setCommunity((prev) => (prev ? { ...prev, ...json.data } : prev))
+    } catch (error) {
+      if (!isToastHandledError(error)) {
+        window.alert(error instanceof Error ? error.message : 'Failed to update community settings')
       }
     } finally {
       setSavingSettings(false)
@@ -452,17 +464,14 @@ export default function CommunityDetailPage() {
     if (!community) return
     setVerifying(true)
     try {
-      const res = await fetch(`/api/communities/${slug}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ is_verified: !community.is_verified }),
+      const json = await clientPatchJson<{ data: Community }>(`/api/communities/${slug}`, {
+        is_verified: !community.is_verified,
       })
-      if (res.ok) {
-        clientFetchInvalidate(`/api/communities/${slug}`, cacheScopeKey)
-        const json = await res.json() as { data: Community }
-        setCommunity((prev) => (prev ? { ...prev, ...json.data } : prev))
-      } else {
-        window.alert('Failed to update verification status')
+      clientFetchInvalidate(`/api/communities/${slug}`, cacheScopeKey)
+      setCommunity((prev) => (prev ? { ...prev, ...json.data } : prev))
+    } catch (error) {
+      if (!isToastHandledError(error)) {
+        window.alert(error instanceof Error ? error.message : 'Failed to update verification status')
       }
     } finally {
       setVerifying(false)
@@ -494,19 +503,19 @@ export default function CommunityDetailPage() {
     setMemberActionLoading('bulk-remove-timed-out')
     try {
       for (const member of community.timed_out_members) {
-        await fetch(`/api/communities/${slug}/members/${member.id}/sanctions`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sanction_type: 'removed',
-            reason: 'Removed after timeout period by bulk moderation action',
-          }),
+        await clientPostJson(`/api/communities/${slug}/members/${member.id}/sanctions`, {
+          sanction_type: 'removed',
+          reason: 'Removed after timeout period by bulk moderation action',
         })
       }
       clientFetchInvalidate(`/api/communities/${slug}`, cacheScopeKey)
       clientFetchInvalidate(`/api/communities/${slug}/audit-logs`, cacheScopeKey)
       await loadCommunity(true)
       await loadAuditLogs(true)
+    } catch (error) {
+      if (!isToastHandledError(error)) {
+        window.alert(error instanceof Error ? error.message : 'Failed to remove timed-out members')
+      }
     } finally {
       setMemberActionLoading(null)
     }
@@ -533,15 +542,18 @@ export default function CommunityDetailPage() {
     if (!reason?.trim()) return
     setMemberActionLoading(`warn-${userId}`)
     try {
-      await fetch(`/api/communities/${slug}/members/${userId}/warnings`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ severity: 'medium', reason: reason.trim() }),
+      await clientPostJson(`/api/communities/${slug}/members/${userId}/warnings`, {
+        severity: 'medium',
+        reason: reason.trim(),
       })
       clientFetchInvalidate(`/api/communities/${slug}/audit-logs`, cacheScopeKey)
       await loadAuditLogs(true)
       if (selectedMemberHistory?.member.id === userId) {
         await loadMemberHistory(selectedMemberHistory.member, true)
+      }
+    } catch (error) {
+      if (!isToastHandledError(error)) {
+        window.alert(error instanceof Error ? error.message : 'Failed to issue warning')
       }
     } finally {
       setMemberActionLoading(null)
@@ -561,20 +573,20 @@ export default function CommunityDetailPage() {
     }
     setMemberActionLoading(`${sanctionType}-${userId}`)
     try {
-      await fetch(`/api/communities/${slug}/members/${userId}/sanctions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sanction_type: sanctionType,
-          reason: reason.trim(),
-          ends_at: endsAt,
-        }),
+      await clientPostJson(`/api/communities/${slug}/members/${userId}/sanctions`, {
+        sanction_type: sanctionType,
+        reason: reason.trim(),
+        ends_at: endsAt,
       })
       clientFetchInvalidate(`/api/communities/${slug}`, cacheScopeKey)
       clientFetchInvalidate(`/api/communities/${slug}/audit-logs`, cacheScopeKey)
       await loadAuditLogs(true)
       if (selectedMemberHistory?.member.id === userId) {
         await loadMemberHistory(selectedMemberHistory.member, true)
+      }
+    } catch (error) {
+      if (!isToastHandledError(error)) {
+        window.alert(error instanceof Error ? error.message : 'Failed to issue sanction')
       }
     } finally {
       setMemberActionLoading(null)
@@ -584,20 +596,18 @@ export default function CommunityDetailPage() {
   async function updateReport(reportItem: HappeningReportEntry, status: 'resolved' | 'dismissed') {
     setReportActionLoading(`${reportItem.happening_id}:${reportItem.reporter_id}:${status}`)
     try {
-      const res = await fetch(`/api/communities/${slug}/reports/happenings`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          happening_id: reportItem.happening_id,
-          reporter_id: reportItem.reporter_id,
-          status,
-        }),
+      await clientPatchJson(`/api/communities/${slug}/reports/happenings`, {
+        happening_id: reportItem.happening_id,
+        reporter_id: reportItem.reporter_id,
+        status,
       })
-      if (res.ok) {
-        clientFetchInvalidate(`/api/communities/${slug}/reports/happenings`, cacheScopeKey)
-        clientFetchInvalidate(`/api/communities/${slug}/audit-logs`, cacheScopeKey)
-        setReports((prev) => prev.filter((entry) => !(entry.happening_id === reportItem.happening_id && entry.reporter_id === reportItem.reporter_id)))
-        await loadAuditLogs(true)
+      clientFetchInvalidate(`/api/communities/${slug}/reports/happenings`, cacheScopeKey)
+      clientFetchInvalidate(`/api/communities/${slug}/audit-logs`, cacheScopeKey)
+      setReports((prev) => prev.filter((entry) => !(entry.happening_id === reportItem.happening_id && entry.reporter_id === reportItem.reporter_id)))
+      await loadAuditLogs(true)
+    } catch (error) {
+      if (!isToastHandledError(error)) {
+        window.alert(error instanceof Error ? error.message : 'Failed to update report')
       }
     } finally {
       setReportActionLoading(null)

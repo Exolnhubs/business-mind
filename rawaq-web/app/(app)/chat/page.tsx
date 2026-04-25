@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createSupabaseBrowserClient } from '@/lib/supabase/client'
 import { useAuth } from '@/contexts/auth-context'
 import { useLocale } from '@/contexts/locale-context'
+import { clientPostJson } from '@/lib/client-fetch'
 import { formatRelativeTime } from '@/lib/utils'
 import { Spinner } from '@/components/ui/Spinner'
 
@@ -141,18 +142,12 @@ export default function ChatPage() {
     setMessages((prev) => [...prev, optimistic])
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 30)
 
-    const res = await fetch('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: text, mentions: [] }),
-    })
-
-    if (!res.ok) {
+    try {
+      const { data: real } = await clientPostJson<{ data: ChatMessage }>('/api/chat', { content: text, mentions: [] })
+      setMessages((prev) => prev.map((m) => (m.id === tempId ? { ...real, isNew: false } : m)))
+    } catch {
       setMessages((prev) => prev.filter((m) => m.id !== tempId))
       setContent(text)
-    } else {
-      const { data: real } = await res.json() as { data: ChatMessage }
-      setMessages((prev) => prev.map((m) => (m.id === tempId ? { ...real, isNew: false } : m)))
     }
 
     setSending(false)

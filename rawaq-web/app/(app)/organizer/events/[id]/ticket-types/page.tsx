@@ -3,6 +3,7 @@
 import { useState, useEffect, useTransition } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { clientDeleteJson, clientPatchJson, clientPostJson, isToastHandledError } from '@/lib/client-fetch'
 import { formatCurrency } from '@/lib/utils'
 import type { TicketType } from '@/types/database'
 
@@ -113,19 +114,29 @@ export default function ManageTicketTypesPage() {
       }
 
       const url    = editing ? `/api/events/${eventId}/ticket-types/${editing.id}` : `/api/events/${eventId}/ticket-types`
-      const method = editing ? 'PATCH' : 'POST'
-      const res    = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-      if (!res.ok) { const j = await res.json().catch(() => ({})); setError(j.error ?? j.message ?? 'Failed to save'); return }
-      setShowForm(false)
-      load()
+      try {
+        if (editing) await clientPatchJson(url, payload)
+        else await clientPostJson(url, payload)
+        setShowForm(false)
+        load()
+      } catch (error) {
+        if (!isToastHandledError(error)) {
+          setError(error instanceof Error ? error.message : 'Failed to save')
+        }
+      }
     })
   }
 
   async function deleteType(t: TicketType) {
     if (!confirm(`Remove "${t.name}"? Existing bookings won't be affected.`)) return
-    const res = await fetch(`/api/events/${eventId}/ticket-types/${t.id}`, { method: 'DELETE' })
-    if (res.ok) load()
-    else { const j = await res.json().catch(() => ({})); alert(j.error ?? 'Delete failed') }
+    try {
+      await clientDeleteJson(`/api/events/${eventId}/ticket-types/${t.id}`)
+      load()
+    } catch (error) {
+      if (!isToastHandledError(error)) {
+        alert(error instanceof Error ? error.message : 'Delete failed')
+      }
+    }
   }
 
   if (loading) return <div className="p-8 text-center text-gray-400">Loading…</div>

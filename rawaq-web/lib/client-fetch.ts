@@ -209,7 +209,7 @@ export async function clientGetJson<T>(
     if (!isOnline()) {
       const classified: ClassifiedError = { kind: 'offline' }
       emitToast(classified, () => { void clientGetJson<T>(path, options) }, options.silent)
-      throw new Error('offline')
+      throw makeRequestError('offline', true)
     }
 
     const init: RequestInit = {
@@ -250,16 +250,20 @@ export async function clientGetJson<T>(
     if (attempt.res && classified) {
       const errJson = await parseJsonSafe<{ error?: string }>(attempt.res)
       if (classified.kind === 'auth' || classified.kind === 'client' || classified.kind === 'unknown') {
-        throw new Error(errJson.error ?? `Request failed (${attempt.res.status})`)
+        throw makeRequestError(errJson.error ?? `Request failed (${attempt.res.status})`)
       }
       emitToast(classified, () => { void clientGetJson<T>(path, options) }, options.silent)
-      throw new Error(errJson.error ?? `Request failed (${attempt.res.status})`)
+      throw makeRequestError(errJson.error ?? `Request failed (${attempt.res.status})`, true)
     }
 
     if (classified) {
       emitToast(classified, () => { void clientGetJson<T>(path, options) }, options.silent)
+      if (classified.kind !== 'auth' && classified.kind !== 'client' && classified.kind !== 'unknown') {
+        const message = attempt.thrown instanceof Error ? attempt.thrown.message : 'Network error'
+        throw makeRequestError(message, true)
+      }
     }
-    throw attempt.thrown ?? new Error('Network error')
+    throw (attempt.thrown instanceof Error ? attempt.thrown : makeRequestError('Network error'))
   })()
 
   if (!skipCache) {
@@ -279,6 +283,23 @@ type MutationOptions = {
   timeoutMs?: number
 }
 
+type ToastHandledError = Error & { toastHandled: true }
+
+function makeRequestError(message: string, toastHandled = false): Error {
+  const error = new Error(message) as Error & { toastHandled?: true }
+  if (toastHandled) error.toastHandled = true
+  return error
+}
+
+export function isToastHandledError(error: unknown): error is ToastHandledError {
+  return Boolean(
+    error &&
+    typeof error === 'object' &&
+    'toastHandled' in error &&
+    (error as { toastHandled?: unknown }).toastHandled === true,
+  )
+}
+
 async function clientMutation<T>(
   method: 'POST' | 'PATCH' | 'DELETE',
   path: string,
@@ -288,7 +309,7 @@ async function clientMutation<T>(
   if (!isOnline()) {
     const classified: ClassifiedError = { kind: 'offline' }
     emitToast(classified, undefined, options.silent)
-    throw new Error('offline')
+    throw makeRequestError('offline', true)
   }
 
   const init: RequestInit = {
@@ -314,12 +335,19 @@ async function clientMutation<T>(
     const errJson = await parseJsonSafe<{ error?: string }>(attempt.res)
     if (classified && classified.kind !== 'auth' && classified.kind !== 'client' && classified.kind !== 'unknown') {
       emitToast(classified, undefined, options.silent)
+      throw makeRequestError(errJson.error ?? `Request failed (${attempt.res.status})`, true)
     }
-    throw new Error(errJson.error ?? `Request failed (${attempt.res.status})`)
+    throw makeRequestError(errJson.error ?? `Request failed (${attempt.res.status})`)
   }
 
-  if (classified) emitToast(classified, undefined, options.silent)
-  throw attempt.thrown ?? new Error('Network error')
+  if (classified) {
+    emitToast(classified, undefined, options.silent)
+    if (classified.kind !== 'auth' && classified.kind !== 'client' && classified.kind !== 'unknown') {
+      const message = attempt.thrown instanceof Error ? attempt.thrown.message : 'Network error'
+      throw makeRequestError(message, true)
+    }
+  }
+  throw (attempt.thrown instanceof Error ? attempt.thrown : makeRequestError('Network error'))
 }
 
 export function clientPostJson<T = unknown>(path: string, body?: unknown, options?: MutationOptions): Promise<T> {

@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useLocale } from '@/contexts/locale-context'
 import { Badge } from '@/components/ui/Badge'
 import { Spinner } from '@/components/ui/Spinner'
+import { clientPostJson, isToastHandledError } from '@/lib/client-fetch'
 import { formatDate } from '@/lib/utils'
 import type { BookingRow } from './page'
 
@@ -48,15 +49,11 @@ export default function BookingsClient({ initialBookings }: { initialBookings: B
     setSubmitting(true)
     setRefundMsg(null)
 
-    const res = await fetch(`/api/bookings/${refundTarget.id}/refund`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_note: userNote.trim() || undefined }),
-    })
-    const json = await res.json()
-    setSubmitting(false)
-
-    if (res.ok) {
+    try {
+      const json = await clientPostJson<{ data?: { auto_refunded?: boolean } }>(
+        `/api/bookings/${refundTarget.id}/refund`,
+        { user_note: userNote.trim() || undefined },
+      )
       setBookings((prev) =>
         prev.map((b) => b.id === refundTarget.id ? { ...b, status: 'cancelled' } : b),
       )
@@ -67,8 +64,15 @@ export default function BookingsClient({ initialBookings }: { initialBookings: B
         ok: true,
         text: autoRefunded ? t('bookings.refund_ok_auto') : t('bookings.refund_ok_queued'),
       })
-    } else {
-      setRefundMsg({ ok: false, text: json.error ?? t('bookings.refund_err_generic') })
+    } catch (error) {
+      if (!isToastHandledError(error)) {
+        setRefundMsg({
+          ok: false,
+          text: error instanceof Error ? error.message : t('bookings.refund_err_generic'),
+        })
+      }
+    } finally {
+      setSubmitting(false)
     }
   }
 

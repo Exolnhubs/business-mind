@@ -261,8 +261,11 @@ export default function EarningsScreen() {
       Alert.alert('Error', error)
       return
     }
+    if (!data?.bank_account) {
+      return
+    }
 
-    setBankAccount(data?.bank_account ?? null)
+    setBankAccount(data.bank_account)
     setShowModal(false)
     Alert.alert('Saved', 'Your banking details have been saved. You can now request a withdrawal.')
   }
@@ -281,8 +284,6 @@ export default function EarningsScreen() {
     setSubmitting(true)
     const { data, error } = await apiPost('/api/organizer/payouts', { amount })
     setSubmitting(false)
-    setShowModal(false)
-    setPayoutAmt('')
 
     if (error === 'Bank account required') {
       setBankAccount(null)
@@ -298,6 +299,12 @@ export default function EarningsScreen() {
       Alert.alert('Error', error)
       return
     }
+    if (!data) {
+      return
+    }
+
+    setShowModal(false)
+    setPayoutAmt('')
 
     Alert.alert(
       'Withdrawal requested',

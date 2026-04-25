@@ -98,8 +98,11 @@ export function CommentThread({
       mentions: [],
     })
 
-    if (error || !data) {
-      Alert.alert('Error', error ?? 'Failed to post comment. Please try again.')
+    if (error) {
+      Alert.alert('Error', error)
+      return
+    }
+    if (!data) {
       return
     }
     // Register this ID so the realtime handler won't double-add it
