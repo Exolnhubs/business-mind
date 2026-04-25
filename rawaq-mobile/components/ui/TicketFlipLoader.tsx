@@ -159,7 +159,10 @@ export function TicketFlipLoader({ size = 'md', label }: TicketFlipLoaderProps) 
 
   // Flip keyframes: dwell at 0°, flip to -180°, dwell, flip to -360°. Identical
   // faces make the full spin read as "pages turning" rather than "card spinning."
-  const rotateY = rotate.interpolate({
+  // Mobile pivots around the top edge (the binding) for a vertical page-flip
+  // motion, since portrait tickets on narrow screens read better with a
+  // top-spine flip than a left-spine one.
+  const rotateX = rotate.interpolate({
     inputRange:  [0,    0.10,  0.45,      0.55,      0.90,      1],
     outputRange: ['0deg', '0deg', '-180deg', '-180deg', '-360deg', '-360deg'],
   })
@@ -184,7 +187,7 @@ export function TicketFlipLoader({ size = 'md', label }: TicketFlipLoaderProps) 
             {
               width:  dims.w,
               height: dims.h,
-              transform: [{ perspective: 1400 }, { rotateY }],
+              transform: [{ perspective: 1400 }, { rotateX }],
             },
           ]}
         >
@@ -241,9 +244,9 @@ const styles = StyleSheet.create({
   },
   flipper: {
     position: 'absolute',
-    // Rotation happens around the center of the element. Mobile doesn't
-    // support transform-origin; accepting center-axis rotation as the
-    // cross-platform trade-off.
+    // Pivot around the top edge so the page hinges from the binding dots
+    // above, like tearing a sheet from a top-bound ticket pad.
+    transformOrigin: 'top',
   },
   face: {
     position: 'absolute',
@@ -263,7 +266,7 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   back: {
-    transform: [{ rotateY: '180deg' }],
+    transform: [{ rotateX: '180deg' }],
   },
 
   header: {

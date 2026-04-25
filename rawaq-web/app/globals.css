@@ -245,9 +245,9 @@ body {
   position: absolute;
   inset: 0;
   background-image:
-    repeating-linear-gradient(  0deg, oklch(1 0 0 / 0.055) 0px, transparent 1px, transparent 39px, oklch(1 0 0 / 0.055) 40px),
-    repeating-linear-gradient( 90deg, oklch(1 0 0 / 0.055) 0px, transparent 1px, transparent 39px, oklch(1 0 0 / 0.055) 40px);
-  pointer-events: none;
+    repeating-linear-gradient(  0deg, oklch(1 0 0 / 0.055) 0px, transparent 1px, transparent 55px, oklch(1 0 0 / 0.055) 40px),
+    repeating-linear-gradient( 90deg, oklch(1 0 0 / 0.055) 0px, transparent 1px, transparent 55px, oklch(1 0 0 / 0.055) 40px);
+    pointer-events: none;
 }
 
 /* Soft ambient glow — bottom-end corner (flips in RTL) */

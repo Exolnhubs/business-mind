@@ -156,7 +156,7 @@ export default function LandingPage() {
           </div>
         </section> */}
 
-        <section
+        {/* <section
           className="py-20 sm:py-28 px-4 sm:px-6 text-center relative overflow-hidden"
           style={{ backgroundColor: 'var(--c-ink)' }}
         >
@@ -197,7 +197,7 @@ export default function LandingPage() {
               </div>
             </ScrollReveal>
           </div>
-        </section>
+        </section> */}
       </main>
 
       <Footer />
