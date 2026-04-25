@@ -60,6 +60,7 @@ export function ErrorToastProvider({ children }: { children: React.ReactNode }) 
   }, [])
 
   useEffect(() => {
+    const timers = timersRef.current
     const unsub = errorEmitter.subscribe((event: ErrorEvent) => {
       const id = nextId++
       const dismissAfterMs = dismissDelayFor(event.classified)
@@ -68,17 +69,14 @@ export function ErrorToastProvider({ children }: { children: React.ReactNode }) 
         return next.length > MAX_TOASTS ? next.slice(next.length - MAX_TOASTS) : next
       })
       const timer = setTimeout(() => dismiss(id), dismissAfterMs)
-      timersRef.current.set(id, timer)
+      timers.set(id, timer)
     })
-    return unsub
-  }, [dismiss])
-
-  useEffect(() => {
     return () => {
-      timersRef.current.forEach(t => clearTimeout(t))
-      timersRef.current.clear()
+      unsub()
+      timers.forEach(t => clearTimeout(t))
+      timers.clear()
     }
-  }, [])
+  }, [dismiss])
 
   return (
     <>
@@ -86,7 +84,7 @@ export function ErrorToastProvider({ children }: { children: React.ReactNode }) 
       <div
         role="region"
         aria-live="polite"
-        aria-label="Notifications"
+        aria-label={t('errors.region.label')}
         dir={dir}
         style={{
           position: 'fixed',

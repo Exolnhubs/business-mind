@@ -165,6 +165,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'errors.rate_limited.body_no_seconds': "You've done that a lot in a short time. Please wait a moment.",
     'errors.action.retry':                 'Try again',
     'errors.action.dismiss':               'Dismiss',
+    'errors.region.label':                 'Error notifications',
     // Nav extras
     'nav.saved': 'Saved',
     'nav.saved_events': 'Saved Events',
@@ -701,6 +702,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'errors.rate_limited.body_no_seconds': 'لقد قمت بهذا كثيرًا خلال وقت قصير. يُرجى الانتظار لحظة.',
     'errors.action.retry':                 'حاول مرة أخرى',
     'errors.action.dismiss':               'إخفاء',
+    'errors.region.label':                 'إشعارات الأخطاء',
     // Nav extras
     'nav.saved': 'المحفوظة',
     'nav.saved_events': 'الفعاليات المحفوظة',
