@@ -18,7 +18,7 @@ export function classifyResponse(res: Response): ClassifiedError | null {
   if (s === 429) {
     const header = res.headers.get('Retry-After')
     const parsed = header ? parseInt(header, 10) : NaN
-    return { kind: 'rate_limited', retryAfterSec: Number.isFinite(parsed) ? parsed : null }
+    return { kind: 'rate_limited', retryAfterSec: Number.isFinite(parsed) && parsed > 0 ? parsed : null }
   }
   if (s === 401 || s === 403) return { kind: 'auth' }
   if (s >= 500 && s <= 599) return { kind: 'transient' }

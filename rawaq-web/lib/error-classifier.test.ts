@@ -16,6 +16,16 @@ test('429 without Retry-After becomes rate_limited with null', () => {
   assert.deepEqual(out, { kind: 'rate_limited', retryAfterSec: null })
 })
 
+test('429 with negative Retry-After becomes rate_limited with null', () => {
+  const out = classifyResponse(res(429, { 'Retry-After': '-5' }))
+  assert.deepEqual(out, { kind: 'rate_limited', retryAfterSec: null })
+})
+
+test('429 with Retry-After 0 becomes rate_limited with null', () => {
+  const out = classifyResponse(res(429, { 'Retry-After': '0' }))
+  assert.deepEqual(out, { kind: 'rate_limited', retryAfterSec: null })
+})
+
 test('500/502/503/504 become transient', () => {
   for (const s of [500, 502, 503, 504]) {
     assert.deepEqual(classifyResponse(res(s)), { kind: 'transient' }, `status ${s}`)
