@@ -185,9 +185,9 @@ const translations: Record<Locale, Record<string, string>> = {
     'footer.connecting': 'Connecting communities across the Arab world',
     // Landing page
     'landing.badge': '13 Arab countries & growing',
-    'landing.hero_line1': 'Discover events',
-    'landing.hero_line2': 'across the Arab world',
-    'landing.hero_sub': 'Rawaq connects communities through sport, culture, business, and entertainment — in Arabic and English, from Riyadh to Marrakech.',
+    'landing.hero_line1': 'Where Arab communities',
+    'landing.hero_line2': 'come alive.',
+    'landing.hero_sub': 'Rawaq connects sport, culture, business, and entertainment communities across 13+ Arab countries — and brings their events together in one place.',
     'landing.browse_events': 'Browse Events →',
     'landing.browse_communities': 'Explore Communities',
     'landing.create_account': 'Create Free Account',
