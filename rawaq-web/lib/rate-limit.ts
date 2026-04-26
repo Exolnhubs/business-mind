@@ -18,18 +18,19 @@ function sw(
 }
 
 export const limiters = {
-  globalIp:       sw(300, '1 m',  'global'),
-  bookings:       sw(10,  '1 m',  'bookings'),
-  payments:       sw(5,   '1 m',  'payments'),
-  chat:           sw(10,  '1 m',  'chat'),
-  comments:       sw(15,  '1 m',  'comments'),
-  supportChat:    sw(20,  '1 m',  'support:chat'),
-  tips:           sw(5,   '1 m',  'tips'),
-  organizerReq:   sw(3,   '24 h', 'organizer:req'),
-  reactions:      sw(30,  '1 m',  'reactions'),
-  rsvp:           sw(20,  '1 m',  'rsvp'),
-  communityJoin:  sw(10,  '1 m',  'community:join'),
-  happenings:     sw(5,   '1 m',  'happenings'),
+  globalIp:               sw(300, '1 m',  'global'),
+  bookings:               sw(10,  '1 m',  'bookings'),
+  payments:               sw(5,   '1 m',  'payments'),
+  chat:                   sw(10,  '1 m',  'chat'),
+  comments:               sw(15,  '1 m',  'comments'),
+  supportChat:            sw(20,  '1 m',  'support:chat'),
+  tips:                   sw(5,   '1 m',  'tips'),
+  organizerReq:           sw(3,   '24 h', 'organizer:req'),
+  reactions:              sw(30,  '1 m',  'reactions'),
+  rsvp:                   sw(20,  '1 m',  'rsvp'),
+  communityJoin:          sw(10,  '1 m',  'community:join'),
+  happenings:             sw(5,   '1 m',  'happenings'),
+  happeningParticipants:  sw(60,  '1 m',  'happening:participants'),
 }
 
 export async function checkRateLimit(
