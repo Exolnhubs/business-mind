@@ -5,6 +5,7 @@ import {
 } from 'react-native'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '@/lib/supabase'
 import { apiPost, apiDelete, apiGet } from '@/lib/api'
 import { useAuth } from '@/contexts/auth-context'
@@ -85,6 +86,7 @@ export default function PublicUserProfileScreen() {
   const router = useRouter()
   const { user } = useAuth()
   const { id } = useLocalSearchParams<{ id: string }>()
+  const insets = useSafeAreaInsets()
 
   // Profile + stats
   const [profile, setProfile]                   = useState<Profile | null>(null)
@@ -366,7 +368,7 @@ export default function PublicUserProfileScreen() {
 
   // ── Loading guard ────────────────────────────────────────────────────────────
   if (loading) {
-    return <View style={styles.centered}><TicketFlipLoader size="md" /></View>
+    return <View style={[styles.centered, { paddingTop: insets.top }]}><TicketFlipLoader size="md" /></View>
   }
   if (!profile) return null
 
@@ -540,7 +542,7 @@ export default function PublicUserProfileScreen() {
   return (
     <ScrollView
       style={styles.scroll}
-      contentContainerStyle={styles.container}
+      contentContainerStyle={[styles.container, { paddingTop: insets.top + Spacing.md }]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.brand[500]} />}
     >
       {/* Back */}

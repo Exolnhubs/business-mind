@@ -6,6 +6,7 @@ import {
 } from 'react-native'
 import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as Device from 'expo-device'
 import * as ImagePicker from 'expo-image-picker'
 import Constants from 'expo-constants'
@@ -50,6 +51,7 @@ export default function ProfileScreen() {
   const { user, profile, signOut, refreshProfile } = useAuth()
   const { t, locale, toggleLocale } = useLocale()
   const router = useRouter()
+  const insets = useSafeAreaInsets()
   const [pushEnabled, setPushEnabled] = useState(false)
   const [pushLoading, setPushLoading] = useState(false)
   const [smartPicksEnabled, setSmartPicksEnabled] = useState(true)
@@ -362,7 +364,7 @@ export default function ProfileScreen() {
 
   if (!user) {
     return (
-      <View style={styles.centered}>
+      <View style={[styles.centered, { paddingTop: insets.top + Spacing['3xl'] }]}>
         <Text style={{ fontSize: 48 }}>👤</Text>
         <Text style={styles.guestTitle}>{t('profile.not_signed_in')}</Text>
         <TouchableOpacity style={styles.btn} onPress={() => router.push('/(auth)/login')}>
@@ -385,7 +387,7 @@ export default function ProfileScreen() {
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {/* Avatar & name */}
-        <View style={styles.hero}>
+        <View style={[styles.hero, { paddingTop: insets.top + Spacing['3xl'] }]}>
           <TouchableOpacity onPress={pickAndUploadAvatar} disabled={avatarUploading} style={styles.avatarWrap}>
             {profile?.avatar_url ? (
               <Image source={{ uri: profile.avatar_url }} style={styles.avatarImage} />
