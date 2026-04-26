@@ -12,13 +12,19 @@ export async function middleware(request: NextRequest) {
       'anonymous'
 
     try {
-      const { success, reset } = await limiters.globalIp.limit(ip)
-      if (!success) {
+      // Race the Redis check against a 600 ms deadline so a slow or cold
+      // Upstash connection (TLS re-establishment after inactivity) never
+      // blocks real traffic for more than that.
+      const result = await Promise.race([
+        limiters.globalIp.limit(ip),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 600)),
+      ])
+      if (result !== null && !result.success) {
         return NextResponse.json(
           { error: 'Too many requests. Please try again later.', code: 'RATE_LIMITED' },
           {
             status: 429,
-            headers: { 'Retry-After': String(Math.ceil((reset - Date.now()) / 1000)) },
+            headers: { 'Retry-After': String(Math.ceil((result.reset - Date.now()) / 1000)) },
           },
         )
       }

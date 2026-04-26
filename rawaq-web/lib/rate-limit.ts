@@ -2,7 +2,12 @@ import { Ratelimit } from '@upstash/ratelimit'
 import { Redis } from '@upstash/redis'
 import { RateLimitException } from './errors'
 
-const redis = Redis.fromEnv()
+// Single Redis instance — reused across requests within the same warm function
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+  enableAutoPipelining: true,  // batch commands into fewer HTTP round-trips
+})
 
 function sw(
   requests: number,
@@ -13,7 +18,8 @@ function sw(
     redis,
     limiter: Ratelimit.slidingWindow(requests, window),
     prefix: `rl:${prefix}`,
-    analytics: true,
+    // analytics removed — without waitUntil it runs as a second synchronous
+    // HTTP call to Upstash on every API request, doubling Redis round-trips
   })
 }
 

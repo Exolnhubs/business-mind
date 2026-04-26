@@ -5,48 +5,57 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/auth-context'
 import { useLocale } from '@/contexts/locale-context'
 import { Spinner } from '@/components/ui/Spinner'
-import { TicketFlipLoader } from '@/components/ui/TicketFlipLoader'
-import { EmptyState } from '@/components/ui/EmptyState'
 import { clientFetchInvalidate, clientGetJson, clientPostJson, clientDeleteJson } from '@/lib/client-fetch'
-import type { Community, CommunityLevel } from '@/types/database'
+import type { Community, CommunityLevel, CommunityRole, CommunityMembershipStatus } from '@/types/database'
 
-type CommunityWithMembership = Community & { is_member: boolean; event_count?: number }
+// ── Types ─────────────────────────────────────────────────────
+type CommunityWithMembership = Community & {
+  is_member: boolean
+  event_count?: number
+}
 type TrendingCommunity = CommunityWithMembership & { trending_score?: number }
 type MembershipMutationResponse = { is_member?: boolean; member_count?: number }
 
-const LEVEL_LABEL_KEYS: Record<CommunityLevel, string> = {
-  micro:    'comm.level.micro',
-  interest: 'comm.level.interest',
-  district: 'comm.level.district',
-  city:     'comm.level.city',
-  country:  'comm.level.country',
-}
-
-const LEVEL_ICONS: Record<CommunityLevel, string> = {
-  micro:    '🏘️',
-  interest: '🎯',
-  district: '🏙️',
-  city:     '🌆',
-  country:  '🌍',
-}
-
+// ── Level config ──────────────────────────────────────────────
 const LEVEL_COLORS: Record<CommunityLevel, string> = {
-  micro:    'bg-emerald-50 border-emerald-200 text-emerald-700',
-  interest: 'bg-violet-50 border-violet-200 text-violet-700',
-  district: 'bg-amber-50 border-amber-200 text-amber-700',
-  city:     'bg-blue-50 border-blue-200 text-blue-700',
-  country:  'bg-rose-50 border-rose-200 text-rose-700',
+  micro:    '#3dba6a',
+  interest: '#8b6be8',
+  district: '#f5a623',
+  city:     '#2ab8a0',
+  country:  '#e85d3a',
 }
 
 const ALL_LEVELS: CommunityLevel[] = ['micro', 'interest', 'district', 'city', 'country']
 
-function CommunityCard({ community, onToggleMembership }: {
+// ── Search icon ───────────────────────────────────────────────
+function SearchIcon() {
+  return (
+    <svg width={16} height={16} viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth={2}
+      style={{ color: 'oklch(0.52 0.015 72)', flexShrink: 0 }}>
+      <circle cx={11} cy={11} r={8} />
+      <path strokeLinecap="round" d="m21 21-4.35-4.35" />
+    </svg>
+  )
+}
+
+// ── Dark Community Card ───────────────────────────────────────
+function CommunityCardDark({
+  community,
+  onToggleMembership,
+}: {
   community: CommunityWithMembership
   onToggleMembership: (slug: string, joined: boolean, memberCount?: number) => void
 }) {
   const [loading, setLoading] = useState(false)
   const router = useRouter()
-  const { t } = useLocale()
+  const { t, locale } = useLocale()
+  const isAr = locale === 'ar'
+  const ff = isAr ? 'var(--font-arabic)' : 'var(--font-display)'
+  const fb = isAr ? 'var(--font-arabic)' : 'var(--font-sans)'
+  const color = LEVEL_COLORS[community.level]
+  const name = isAr && community.name_ar ? community.name_ar : community.name
+  const desc = isAr && community.description_ar ? community.description_ar : community.description
 
   async function handleJoinLeave(e: React.MouseEvent<HTMLButtonElement>) {
     e.stopPropagation()
@@ -64,72 +73,114 @@ function CommunityCard({ community, onToggleMembership }: {
         json.data?.is_member ?? !community.is_member,
         json.data?.member_count,
       )
-    } catch {
-      // Toast-handled transient failures and validation errors both leave local state unchanged.
-    }
+    } catch { /* toast-handled */ }
     setLoading(false)
   }
 
   return (
     <article
-      className="group cursor-pointer overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-md"
+      className="dark-comm-card"
       onClick={() => router.push(`/communities/${community.slug}`)}
     >
+      {/* Cover image or gradient */}
       {community.cover_url ? (
-        <img src={community.cover_url} alt="" width={384} height={128} loading="lazy" className="h-32 w-full object-cover" />
+        <img
+          src={community.cover_url}
+          alt=""
+          style={{ width: '100%', height: 120, objectFit: 'cover' }}
+        />
       ) : (
-        <div className={`flex h-32 w-full items-center justify-center text-4xl ${LEVEL_COLORS[community.level].split(' ')[0]}`}>
-          {LEVEL_ICONS[community.level]}
+        <div style={{
+          height: 120,
+          background: `linear-gradient(135deg, ${color}28, ${color}08)`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          position: 'relative',
+        }}>
+          <span style={{
+            fontSize: 40, fontFamily: ff, fontWeight: 800, color: `${color}50`,
+          }}>
+            {name[0]}
+          </span>
+          {community.is_verified && (
+            <div style={{
+              position: 'absolute', top: 10, insetInlineStart: 10,
+              background: 'oklch(0.10 0.02 68 / 0.85)', backdropFilter: 'blur(8px)',
+              fontSize: 10, fontWeight: 600, padding: '3px 10px', borderRadius: 20,
+              color: '#2ab8a0', border: '1px solid #2ab8a035',
+            }}>
+              ✓ {t('comm.verified')}
+            </div>
+          )}
         </div>
       )}
-      <div className="p-5">
-        <div className="mb-3 flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h2 className="line-clamp-1 font-semibold text-gray-900 transition-colors group-hover:text-brand-600">
-              {community.name}
-            </h2>
-            {community.name_ar && (
-              <p className="mt-0.5 text-xs text-gray-400" dir="rtl">{community.name_ar}</p>
-            )}
+
+      {/* Body */}
+      <div style={{
+        padding: '14px 16px', flex: 1, display: 'flex',
+        flexDirection: 'column', gap: 8,
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div style={{
+            fontFamily: ff, fontWeight: 600, fontSize: 15,
+            color: 'oklch(0.94 0.01 82)', lineHeight: 1.3,
+          }}>
+            {name}
           </div>
-          {community.is_verified && (
-            <span className="shrink-0 rounded-full bg-brand-50 px-2 py-1 text-[11px] font-semibold text-brand-700">
-              {t('comm.verified')}
-            </span>
-          )}
-        </div>
-
-        <div className="mb-3 flex flex-wrap items-center gap-2">
-          <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${LEVEL_COLORS[community.level]}`}>
-            {LEVEL_ICONS[community.level]} {t(LEVEL_LABEL_KEYS[community.level])}
+          <span style={{
+            background: `${color}18`, color,
+            fontSize: 9, fontWeight: 700, padding: '3px 9px',
+            borderRadius: 20, fontFamily: ff, letterSpacing: '0.05em',
+            whiteSpace: 'nowrap', marginInlineStart: 8,
+            textTransform: 'uppercase',
+          }}>
+            {t(`comm.level.${community.level}`)}
           </span>
-          {community.is_member && (
-            <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-              {t('comm.joined')}
-            </span>
-          )}
-          {community.city && (
-            <span className="text-xs text-gray-500">{community.city}</span>
-          )}
         </div>
 
-        {community.description && (
-          <p className="mb-4 line-clamp-2 text-xs leading-5 text-gray-500">{community.description}</p>
+        {desc && (
+          <div style={{
+            fontSize: 12, color: 'oklch(0.52 0.015 72)',
+            fontFamily: fb, lineHeight: 1.55,
+            display: '-webkit-box', WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical', overflow: 'hidden',
+          }}>
+            {desc}
+          </div>
         )}
 
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3 text-xs text-gray-400">
-            <span>{t('comm.member_count').replace('{n}', community.member_count.toLocaleString())}</span>
-            <span>{t('comm.event_count').replace('{n}', String(community.event_count ?? 0))}</span>
+        {/* Footer */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          marginTop: 'auto', paddingTop: 8,
+          borderTop: '1px solid oklch(1 0 0 / 0.07)',
+        }}>
+          <div style={{ display: 'flex', gap: 12 }}>
+            <span style={{ fontSize: 11, color: 'oklch(0.52 0.015 72)', fontFamily: fb }}>
+              <span style={{ color: 'oklch(0.94 0.01 82)', fontWeight: 600 }}>
+                {community.member_count.toLocaleString()}
+              </span>{' '}
+              {t('comm.member_count').replace('{n}', '').trim() || t('comm.members').replace('{n}', '').trim() || 'members'}
+            </span>
+            <span style={{ fontSize: 11, color: 'oklch(0.52 0.015 72)', fontFamily: fb }}>
+              <span style={{ color: 'oklch(0.94 0.01 82)', fontWeight: 600 }}>
+                {community.event_count ?? 0}
+              </span>{' '}
+              {t('comm.event_count').replace('{n}', '').trim() || 'events'}
+            </span>
           </div>
+
           <button
             onClick={handleJoinLeave}
             disabled={loading}
-            className={`rounded-xl px-3.5 py-2 text-xs font-semibold transition-colors ${
-              community.is_member
-                ? 'border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                : 'bg-brand-600 text-white hover:bg-brand-700'
-            }`}
+            style={{
+              background: community.is_member ? 'oklch(0.78 0.18 72 / 0.14)' : 'var(--c-gold)',
+              border: community.is_member ? '1px solid oklch(0.78 0.18 72 / 0.45)' : 'none',
+              color: community.is_member ? 'var(--c-gold)' : 'var(--c-ink)',
+              fontSize: 12, fontWeight: 700, padding: '6px 16px',
+              borderRadius: 8, cursor: 'pointer',
+              fontFamily: ff, transition: 'all 0.2s',
+              opacity: loading ? 0.6 : 1,
+            }}
           >
             {loading ? '...' : community.is_member ? t('comm.joined') : t('comm.join')}
           </button>
@@ -139,466 +190,616 @@ function CommunityCard({ community, onToggleMembership }: {
   )
 }
 
-export default function CommunitiesPage() {
-  const { user } = useAuth()
-  const router = useRouter()
-  const { t } = useLocale()
-  const cacheScopeKey = user?.id ?? null
-  const [communities, setCommunities] = useState<CommunityWithMembership[]>([])
-  const [loading, setLoading]         = useState(true)
-  const [level, setLevel]             = useState<CommunityLevel | 'all'>('all')
-  const [search, setSearch]           = useState('')
-  const [joinedOnly, setJoinedOnly]   = useState(false)
-  const [page, setPage]               = useState(1)
-  const [hasMore, setHasMore]         = useState(false)
-  const [trending, setTrending]       = useState<TrendingCommunity[]>([])
-  const [trendingLoaded, setTrendingLoaded] = useState(false)
-  const [recommended, setRecommended] = useState<CommunityWithMembership[]>([])
-  const [recommendedLoaded, setRecommendedLoaded] = useState(false)
-  const [suggested, setSuggested]     = useState<CommunityWithMembership[]>([])
-  const [suggestedJoining, setSuggestedJoining] = useState<string | null>(null)
-  const levelsRef = useRef<HTMLDivElement>(null)
-  const [levelFadeLeft,  setLevelFadeLeft]  = useState(false)
-  const [levelFadeRight, setLevelFadeRight] = useState(false)
-  const communitiesAbortRef = useRef<AbortController | null>(null)
-  const latestCommunitiesRequestRef = useRef(0)
-  const PER_PAGE = 18
-  const deferredSearch = useDeferredValue(search)
-  const suggestedCommunities = suggested.filter((community) => !recommended.some((item) => item.id === community.id))
+// ── Community suggestion rail ─────────────────────────────────
+function DarkCommRail({
+  communities,
+  title,
+  color,
+  onToggleMembership,
+}: {
+  communities: CommunityWithMembership[]
+  title: string
+  color: string
+  onToggleMembership: (slug: string, joined: boolean, memberCount?: number) => void
+}) {
+  const { locale, dir } = useLocale()
+  const isAr = locale === 'ar'
+  const ff = isAr ? 'var(--font-arabic)' : 'var(--font-display)'
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [fadeRight, setFadeRight] = useState(false)
 
-  // Drag-to-scroll for level pills (document-level so drag survives leaving the row)
+  // Drag-to-scroll
   useEffect(() => {
-    const el = levelsRef.current
+    const el = scrollRef.current
     if (!el) return
-    let isDown = false, startX = 0, scrollLeft = 0, didDrag = false
 
-    const updateFades = () => {
-      setLevelFadeLeft(el.scrollLeft > 4)
-      setLevelFadeRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 4)
-    }
+    let isDown = false
+    let startX = 0
+    let scrollLeft = 0
+    let didDrag = false
 
-    const onDocMouseMove = (e: MouseEvent) => {
+    const updateFade = () => setFadeRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 4)
+
+    const onMove = (e: MouseEvent) => {
       if (!isDown) return
       e.preventDefault()
       const walk = e.clientX - startX
       if (Math.abs(walk) > 4) didDrag = true
       el.scrollLeft = scrollLeft - walk * 1.4
     }
-    const onDocMouseUp = () => {
+    const onUp = () => {
       if (!isDown) return
       isDown = false
-      el.classList.remove('cf-levels--dragging')
-      document.removeEventListener('mousemove', onDocMouseMove)
-      document.removeEventListener('mouseup', onDocMouseUp)
+      el.style.cursor = 'grab'
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
     }
-    const onMouseDown = (e: MouseEvent) => {
+    const onDown = (e: MouseEvent) => {
       isDown = true; didDrag = false
       startX = e.clientX; scrollLeft = el.scrollLeft
-      el.classList.add('cf-levels--dragging')
-      document.addEventListener('mousemove', onDocMouseMove)
-      document.addEventListener('mouseup', onDocMouseUp)
+      el.style.cursor = 'grabbing'
+      document.addEventListener('mousemove', onMove)
+      document.addEventListener('mouseup', onUp)
     }
-    const onClickCapture = (e: MouseEvent) => { if (didDrag) { e.stopPropagation(); didDrag = false } }
-    el.addEventListener('mousedown', onMouseDown)
+    const onClickCapture = (e: MouseEvent) => {
+      if (didDrag) { e.stopPropagation(); didDrag = false }
+    }
+
+    el.style.cursor = 'grab'
+    el.addEventListener('mousedown', onDown)
     el.addEventListener('click', onClickCapture, true)
-    el.addEventListener('scroll', updateFades, { passive: true })
-    // Initial fade check
-    requestAnimationFrame(updateFades)
+    el.addEventListener('scroll', updateFade, { passive: true })
+    requestAnimationFrame(() => { if (el) setFadeRight(el.scrollWidth > el.clientWidth + 4) })
+
     return () => {
-      el.removeEventListener('mousedown', onMouseDown)
+      el.removeEventListener('mousedown', onDown)
       el.removeEventListener('click', onClickCapture, true)
-      el.removeEventListener('scroll', updateFades)
-      document.removeEventListener('mousemove', onDocMouseMove)
-      document.removeEventListener('mouseup', onDocMouseUp)
+      el.removeEventListener('scroll', updateFade)
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
     }
   }, [])
 
-  const fetchTrending = useCallback(async () => {
-    try {
-      const json = await clientGetJson<{ data: { data: TrendingCommunity[] } }>(
-        '/api/communities/trending?per_page=6&page=1',
-        { ttlMs: 60_000, scopeKey: cacheScopeKey },
-      )
-      setTrending(json.data.data ?? [])
-    } catch {
-      setTrending([])
-    } finally {
-      setTrendingLoaded(true)
-    }
+  // Re-evaluate fade when data loads
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      const el = scrollRef.current
+      if (el) setFadeRight(el.scrollWidth > el.clientWidth + 4)
+    })
+  }, [communities])
+
+  if (communities.length === 0) return null
+
+  const fadeColor = 'oklch(0.12 0.022 68)'
+
+  return (
+    <div style={{ marginBottom: 40 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+        <div style={{ width: 3, height: 18, borderRadius: 2, background: color }} />
+        <span style={{ fontSize: 16, fontWeight: 700, color: 'oklch(0.94 0.01 82)', fontFamily: ff }}>
+          {title}
+        </span>
+      </div>
+      <div style={{ position: 'relative' }}>
+        {fadeRight && (
+          <div
+            aria-hidden
+            style={{
+              position: 'absolute',
+              insetInlineEnd: 0, top: 0, bottom: 12,
+              width: 64, pointerEvents: 'none', zIndex: 1,
+              background: dir === 'rtl'
+                ? `linear-gradient(to left, ${fadeColor}, transparent)`
+                : `linear-gradient(to right, ${fadeColor}, transparent)`,
+            }}
+          />
+        )}
+        <div
+          ref={scrollRef}
+          style={{
+            display: 'flex', gap: 16, overflowX: 'auto',
+            paddingBottom: 12, scrollbarWidth: 'none',
+            WebkitOverflowScrolling: 'touch', userSelect: 'none',
+            alignItems: 'stretch',
+          } as React.CSSProperties}
+        >
+          {communities.map((c) => (
+            <div key={c.id} style={{ width: 280, flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
+              <CommunityCardDark community={c} onToggleMembership={onToggleMembership} />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Trending pill ─────────────────────────────────────────────
+function TrendingPill({
+  community,
+  onJoin,
+  joining,
+  t,
+  locale,
+}: {
+  community: TrendingCommunity
+  onJoin: (c: TrendingCommunity) => void
+  joining: string | null
+  t: (k: string) => string
+  locale: string
+}) {
+  const router = useRouter()
+  const isAr = locale === 'ar'
+  const ff = isAr ? 'var(--font-arabic)' : 'var(--font-display)'
+  const color = LEVEL_COLORS[community.level]
+  const name = isAr && community.name_ar ? community.name_ar : community.name
+
+  return (
+    <div
+      className="dark-trending-pill"
+      style={{ border: `1px solid ${color}40` }}
+      onClick={() => router.push(`/communities/${community.slug}`)}
+    >
+      <div style={{
+        width: 32, height: 32, borderRadius: '50%',
+        background: `${color}22`, border: `1px solid ${color}50`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontFamily: ff, fontWeight: 700, fontSize: 13, color,
+        flexShrink: 0,
+      }}>
+        {name[0]}
+      </div>
+      <div>
+        <div style={{ fontFamily: ff, fontSize: 12, fontWeight: 600, color: 'oklch(0.94 0.01 82)' }}>
+          {name}
+        </div>
+        <div style={{ fontSize: 10, color: 'oklch(0.52 0.015 72)' }}>
+          {community.member_count.toLocaleString()} {t('comm.members').replace('{n}', '').trim()}
+        </div>
+      </div>
+      <div style={{
+        fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+        color: 'var(--c-gold)', background: 'oklch(0.78 0.18 72 / 0.12)',
+        border: '1px solid oklch(0.78 0.18 72 / 0.3)', padding: '2px 8px', borderRadius: 20,
+        fontFamily: ff, marginInlineStart: 4,
+      }}>
+        🔥 {t('comm.trending_badge')}
+      </div>
+    </div>
+  )
+}
+
+// ── Communities Page ──────────────────────────────────────────
+export default function CommunitiesPage() {
+  const { user } = useAuth()
+  const router = useRouter()
+  const { t, locale } = useLocale()
+  const isAr = locale === 'ar'
+  const ff = isAr ? 'var(--font-arabic)' : 'var(--font-display)'
+  const fb = isAr ? 'var(--font-arabic)' : 'var(--font-sans)'
+
+  const cacheScopeKey = user?.id ?? null
+  const [communities, setCommunities] = useState<CommunityWithMembership[]>([])
+  const [loading,      setLoading]    = useState(true)
+  const [level,        setLevel]      = useState<CommunityLevel | 'all'>('all')
+  const [search,       setSearch]     = useState('')
+  const [joinedOnly,   setJoinedOnly] = useState(false)
+  const [page,         setPage]       = useState(1)
+  const [hasMore,      setHasMore]    = useState(false)
+  const [trending,     setTrending]   = useState<TrendingCommunity[]>([])
+  const [trendingLoaded, setTrendingLoaded] = useState(false)
+  const [joiningSlug,  setJoiningSlug] = useState<string | null>(null)
+  const [recommended, setRecommended] = useState<CommunityWithMembership[]>([])
+  const [suggested,   setSuggested]   = useState<CommunityWithMembership[]>([])
+
+  const abortRef = useRef<AbortController | null>(null)
+  const latestRef = useRef(0)
+  const PER_PAGE = 18
+  const deferredSearch = useDeferredValue(search)
+
+  // ── Fetch trending (real API) ──────────────────────────────
+  useEffect(() => {
+    clientGetJson<{ data: { data: TrendingCommunity[] } }>(
+      '/api/communities/trending?per_page=6&page=1',
+      { ttlMs: 60_000, scopeKey: cacheScopeKey },
+    )
+      .then((r) => setTrending(r.data.data ?? []))
+      .catch(() => setTrending([]))
+      .finally(() => setTrendingLoaded(true))
   }, [cacheScopeKey])
 
-  const fetchRecommended = useCallback(async () => {
-    if (!user) {
-      setRecommended([])
-      setRecommendedLoaded(true)
-      return
-    }
-
-    try {
-      const json = await clientGetJson<{ data: { data: CommunityWithMembership[] } }>(
-        '/api/communities?recommended=true&per_page=6&page=1',
-        { ttlMs: 60_000, scopeKey: cacheScopeKey },
-      )
-      setRecommended((json.data.data ?? []).filter((c) => !c.is_member))
-    } catch {
-      setRecommended([])
-    } finally {
-      setRecommendedLoaded(true)
-    }
+  useEffect(() => {
+    if (!user) return
+    clientGetJson<{ data: { data: CommunityWithMembership[] } }>(
+      '/api/communities?recommended=true&per_page=6',
+      { ttlMs: 120_000, scopeKey: cacheScopeKey },
+    )
+      .then((r) => setRecommended((r.data.data ?? []).filter((c) => !c.is_member)))
+      .catch(() => {})
   }, [cacheScopeKey, user])
 
-  const fetchSuggested = useCallback(async () => {
-    if (!user) {
-      setSuggested([])
-      return
-    }
-    try {
-      const json = await clientGetJson<{ data: { data: CommunityWithMembership[] } }>(
-        '/api/communities?per_page=6&page=1',
-        { ttlMs: 60_000, scopeKey: cacheScopeKey },
-      )
-      setSuggested((json.data.data ?? []).filter((c) => !c.is_member))
-    } catch {
-      setSuggested([])
-    }
-  }, [cacheScopeKey, user])
+  useEffect(() => {
+    clientGetJson<{ data: { data: CommunityWithMembership[] } }>(
+      '/api/communities?per_page=8',
+      { ttlMs: 120_000, scopeKey: cacheScopeKey },
+    )
+      .then((r) => setSuggested((r.data.data ?? []).filter((c) => !c.is_member).slice(0, 6)))
+      .catch(() => {})
+  }, [cacheScopeKey])
 
-  useEffect(() => { fetchTrending() }, [fetchTrending])
-  useEffect(() => { fetchRecommended() }, [fetchRecommended])
-  useEffect(() => { fetchSuggested() }, [fetchSuggested])
+  // ── Fetch communities (real API, debounced) ────────────────
+  const fetchCommunities = useCallback(
+    async (p: number, lvl: CommunityLevel | 'all', q: string, memberOnly = false) => {
+      const controller = new AbortController()
+      abortRef.current?.abort()
+      abortRef.current = controller
+      const rid = ++latestRef.current
+      setLoading(true)
 
-  async function joinCommunityRecommendation(community: CommunityWithMembership) {
-    setSuggestedJoining(community.slug)
+      const sp = new URLSearchParams({ page: String(p), per_page: String(PER_PAGE) })
+      if (lvl !== 'all') sp.set('level', lvl)
+      if (q.trim()) sp.set('q', q.trim())
+      if (memberOnly) sp.set('member_only', 'true')
+
+      try {
+        const json = await clientGetJson<{
+          data: { data: CommunityWithMembership[]; has_more: boolean }
+        }>(`/api/communities?${sp}`, {
+          ttlMs: 45_000, scopeKey: cacheScopeKey, signal: controller.signal,
+        })
+        if (latestRef.current !== rid) return
+        setCommunities((prev) => p === 1 ? json.data.data : [...prev, ...json.data.data])
+        setHasMore(json.data.has_more)
+        setPage(p)
+      } catch (err) {
+        if (controller.signal.aborted) return
+        if (p === 1) { setCommunities([]); setHasMore(false) }
+      } finally {
+        if (latestRef.current === rid) setLoading(false)
+      }
+    },
+    [cacheScopeKey],
+  )
+
+  useEffect(() => {
+    const tid = setTimeout(
+      () => fetchCommunities(1, level, deferredSearch, joinedOnly),
+      deferredSearch ? 220 : 0,
+    )
+    return () => clearTimeout(tid)
+  }, [level, deferredSearch, joinedOnly, fetchCommunities])
+
+  useEffect(() => () => { abortRef.current?.abort() }, [])
+
+  // ── Join from trending strip ───────────────────────────────
+  async function joinTrending(community: TrendingCommunity) {
+    setJoiningSlug(community.slug)
     try {
       await clientPostJson(`/api/communities/${community.slug}/join`, {})
       clientFetchInvalidate('/api/communities')
       setTrending((prev) => prev.filter((c) => c.slug !== community.slug))
-      setRecommended((prev) => prev.filter((c) => c.slug !== community.slug))
-      setSuggested((prev) => prev.filter((c) => c.slug !== community.slug))
       setCommunities((prev) =>
-        prev.map((c) => c.slug === community.slug ? { ...c, is_member: true, member_count: c.member_count + 1 } : c)
+        prev.map((c) =>
+          c.slug === community.slug
+            ? { ...c, is_member: true, member_count: c.member_count + 1 }
+            : c,
+        ),
       )
-    } catch {
-      // Toast-handled transient failures and validation errors both leave local state unchanged.
-    }
-    setSuggestedJoining(null)
+    } catch { /* toast-handled */ }
+    setJoiningSlug(null)
   }
 
-  const fetchCommunities = useCallback(async (p: number, lvl: CommunityLevel | 'all', q: string, memberOnly = false) => {
-    const controller = new AbortController()
-    communitiesAbortRef.current?.abort()
-    communitiesAbortRef.current = controller
-    const requestId = latestCommunitiesRequestRef.current + 1
-    latestCommunitiesRequestRef.current = requestId
-    setLoading(true)
-    const sp = new URLSearchParams({ page: String(p), per_page: String(PER_PAGE) })
-    if (lvl !== 'all') sp.set('level', lvl)
-    if (q.trim()) sp.set('q', q.trim())
-    if (memberOnly) sp.set('member_only', 'true')
-
-    try {
-      const json = await clientGetJson<{ data: { data: CommunityWithMembership[]; has_more: boolean } }>(
-        `/api/communities?${sp}`,
-        { ttlMs: 45_000, scopeKey: cacheScopeKey, signal: controller.signal },
-      )
-      if (latestCommunitiesRequestRef.current !== requestId) return
-      if (p === 1) {
-        setCommunities(json.data.data)
-      } else {
-        setCommunities((prev) => [...prev, ...json.data.data])
-      }
-      setHasMore(json.data.has_more)
-      setPage(p)
-    } catch (error) {
-      if (controller.signal.aborted || (error instanceof DOMException && error.name === 'AbortError')) {
-        return
-      }
-      if (p === 1) {
-        setCommunities([])
-        setHasMore(false)
-      }
-    } finally {
-      if (latestCommunitiesRequestRef.current === requestId) {
-        setLoading(false)
-      }
-    }
-  }, [cacheScopeKey])
-
-  useEffect(() => {
-    const t = setTimeout(() => fetchCommunities(1, level, deferredSearch, joinedOnly), deferredSearch ? 220 : 0)
-    return () => clearTimeout(t)
-  }, [level, deferredSearch, joinedOnly, fetchCommunities])
-
-  useEffect(() => {
-    return () => {
-      communitiesAbortRef.current?.abort()
-    }
-  }, [])
-
+  // ── Toggle membership in local state ──────────────────────
   function handleToggleMembership(slug: string, joined: boolean, memberCount?: number) {
+    const applyUpdate = (c: CommunityWithMembership) =>
+      c.slug !== slug ? c : {
+        ...c,
+        is_member: joined,
+        member_count: memberCount ?? (joined ? c.member_count + 1 : Math.max(c.member_count - 1, 0)),
+      }
+
     setCommunities((prev) =>
-      prev.map((c) =>
-        c.slug === slug
-          ? {
-              ...c,
-              is_member: joined,
-              member_count: memberCount ?? (joined ? c.member_count + 1 : Math.max(c.member_count - 1, 0)),
-            }
-          : c
-      ).filter((c) => !joinedOnly || c.is_member)
+      prev.map(applyUpdate).filter((c) => !joinedOnly || c.is_member),
     )
+    if (joined) {
+      setRecommended((prev) => prev.filter((c) => c.slug !== slug))
+      setSuggested((prev) => prev.filter((c) => c.slug !== slug))
+    }
+  }
+
+  const levelLabels: Record<CommunityLevel | 'all', string> = {
+    all:      t('comm.level_all'),
+    micro:    t('comm.level.micro'),
+    interest: t('comm.level.interest'),
+    district: t('comm.level.district'),
+    city:     t('comm.level.city'),
+    country:  t('comm.level.country'),
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
-      {/* Header */}
-      <div className="mb-8 rounded-3xl border border-brand-100 bg-gradient-to-br from-brand-50 via-white to-amber-50 px-6 py-8">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-600">{t('comm.heading_eyebrow')}</p>
-            <h1 className="mt-2 text-3xl font-bold text-gray-900">{t('comm.heading_title')}</h1>
-            <p className="mt-2 max-w-2xl text-sm text-gray-600">{t('comm.heading_sub')}</p>
+    <div className="page-dark">
+      {/* ── Hero ── */}
+      <section className="dark-hero">
+        {/* Star pattern */}
+        <div
+          aria-hidden
+          style={{
+            position: 'absolute', inset: 0, pointerEvents: 'none',
+            backgroundImage: `
+              repeating-linear-gradient(0deg,   oklch(1 0 0 / 0.055) 0px, transparent 1px, transparent 39px, oklch(1 0 0 / 0.055) 40px),
+              repeating-linear-gradient(90deg,  oklch(1 0 0 / 0.055) 0px, transparent 1px, transparent 39px, oklch(1 0 0 / 0.055) 40px),
+              repeating-linear-gradient(45deg,  oklch(1 0 0 / 0.028) 0px, transparent 1px, transparent 27px, oklch(1 0 0 / 0.028) 28px),
+              repeating-linear-gradient(-45deg, oklch(1 0 0 / 0.028) 0px, transparent 1px, transparent 27px, oklch(1 0 0 / 0.028) 28px)`,
+          }}
+        />
+        <div className="dark-hero-glow-a" aria-hidden />
+        <div className="dark-hero-glow-b" aria-hidden />
+
+        <div
+          className="relative max-w-7xl mx-auto px-4 sm:px-6"
+          style={{ paddingTop: '3.5rem', paddingBottom: '2.5rem' }}
+        >
+          {/* Badge */}
+          <div
+            className="animate-badge-pop"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              background: 'oklch(0.78 0.18 72 / 0.10)',
+              border: '1px solid oklch(0.78 0.18 72 / 0.28)',
+              borderRadius: 40, padding: '5px 14px', marginBottom: 20,
+            }}
+          >
+            <div style={{
+              width: 6, height: 6, borderRadius: '50%',
+              background: 'var(--c-gold)',
+              boxShadow: '0 0 6px oklch(0.78 0.18 72 / 0.8)',
+            }} />
+            <span style={{
+              fontSize: 10, fontWeight: 700, letterSpacing: '0.14em',
+              textTransform: 'uppercase', color: 'var(--c-gold)', fontFamily: ff,
+            }}>
+              {t('comm.heading_eyebrow')}
+            </span>
           </div>
-          {user && (
-            <button
-              onClick={() => setJoinedOnly((prev) => !prev)}
-              className={`inline-flex items-center gap-2 self-start rounded-full border px-4 py-2 text-sm font-semibold transition-colors ${
-                joinedOnly
-                  ? 'border-brand-600 bg-brand-600 text-white'
-                  : 'border-brand-200 bg-white text-brand-700 hover:border-brand-300'
-              }`}
-            >
-              <span>{joinedOnly ? '✓' : '◎'}</span>
-              {t('comm.my_communities')}
-            </button>
+
+          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16, marginBottom: 16 }}>
+            <div>
+              <h1
+                className="animate-hero-in"
+                style={{
+                  fontFamily: ff, fontWeight: isAr ? 800 : 700,
+                  fontSize: 'clamp(32px, 5vw, 56px)',
+                  lineHeight: 1.08, letterSpacing: isAr ? '-0.01em' : '-0.025em',
+                  color: 'oklch(0.94 0.01 82)',
+                }}
+              >
+                {t('comm.heading_title')}{' '}
+                <span style={{ color: 'var(--c-gold)' }}>
+                  {isAr ? 'أهلك.' : 'people.'}
+                </span>
+              </h1>
+              <p
+                className="animate-hero-in"
+                style={{
+                  fontSize: 15, lineHeight: 1.75, color: 'oklch(0.62 0.015 75)',
+                  fontFamily: fb, fontWeight: 300, maxWidth: 520, marginTop: 10,
+                  animationDelay: '0.12s',
+                }}
+              >
+                {t('comm.heading_sub')}
+              </p>
+            </div>
+
+            {user && (
+              <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
+                <button
+                  onClick={() => setJoinedOnly((o) => !o)}
+                  style={{
+                    background: joinedOnly ? 'var(--c-gold)' : 'transparent',
+                    border: `1px solid ${joinedOnly ? 'var(--c-gold)' : 'oklch(0.78 0.18 72 / 0.35)'}`,
+                    color: joinedOnly ? 'var(--c-ink)' : 'var(--c-gold)',
+                    fontSize: 13, fontWeight: 700, padding: '8px 18px',
+                    borderRadius: 40, cursor: 'pointer', fontFamily: ff,
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  {joinedOnly ? '✓' : '◎'} {t('comm.my_communities')}
+                </button>
+                <button
+                  onClick={() => router.push('/communities/new')}
+                  style={{
+                    background: 'oklch(0.78 0.18 72 / 0.12)',
+                    border: '1px solid oklch(0.78 0.18 72 / 0.30)',
+                    color: 'var(--c-gold)',
+                    fontSize: 13, fontWeight: 700, padding: '8px 18px',
+                    borderRadius: 40, cursor: 'pointer', fontFamily: ff,
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  + {t('comm.create')}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Trending strip */}
+          {trendingLoaded && trending.length > 0 && !joinedOnly && !search && (
+            <div className="animate-hero-in" style={{ animationDelay: '0.22s' }}>
+              <div style={{
+                fontSize: 9, fontWeight: 700, letterSpacing: '0.14em',
+                textTransform: 'uppercase', color: 'oklch(0.78 0.18 72 / 0.6)',
+                fontFamily: ff, marginBottom: 12,
+              }}>
+                {t('comm.trending')}
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                {trending.map((c) => (
+                  <TrendingPill
+                    key={c.id}
+                    community={c}
+                    onJoin={joinTrending}
+                    joining={joiningSlug}
+                    t={t}
+                    locale={locale}
+                  />
+                ))}
+              </div>
+            </div>
           )}
         </div>
-      </div>
+      </section>
 
-      {/* Trending — skeleton shown while loading to prevent CLS */}
-      {!joinedOnly && !search && (
-        trendingLoaded ? (
-          trending.length > 0 && (
-            <div className="mb-6">
-              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">{t('comm.trending')}</h2>
-              <div className="grid gap-3 md:grid-cols-3">
-                {trending.map((c) => (
+      {/* ── Sticky filter panel ── */}
+      <div style={{
+        position: 'sticky', top: 64, zIndex: 50,
+        background: 'var(--c-ink-mid)', padding: '0 1.5rem',
+      }}>
+        <div style={{ maxWidth: '80rem', margin: '0 auto' }}>
+          <div style={{
+            borderRadius: '0 0 1.25rem 1.25rem',
+            border: '1px solid oklch(0.78 0.18 72 / 0.22)',
+            borderTop: 'none',
+            boxShadow: '0 8px 32px oklch(0 0 0 / 0.28)',
+            overflow: 'hidden',
+          }}>
+            {/* Filter header */}
+            <div style={{
+              background: 'var(--c-ink)', padding: '0.75rem 1.25rem',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              position: 'relative', overflow: 'hidden',
+            }}>
+              <div aria-hidden style={{
+                position: 'absolute', inset: 0, opacity: 0.4,
+                backgroundImage: `
+                  repeating-linear-gradient(0deg, oklch(1 0 0 / 0.055) 0px, transparent 1px, transparent 39px, oklch(1 0 0 / 0.055) 40px),
+                  repeating-linear-gradient(90deg, oklch(1 0 0 / 0.055) 0px, transparent 1px, transparent 39px, oklch(1 0 0 / 0.055) 40px)`,
+              }} />
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'oklch(0.78 0.18 72 / 0.6)', fontFamily: ff }}>
+                  {t('comm.filter_eyebrow')}
+                </span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: 'oklch(0.94 0.01 82)', fontFamily: ff }}>
+                  {t('comm.filter_title')}
+                </span>
+              </div>
+              {(search || level !== 'all') && (
+                <button
+                  onClick={() => { setSearch(''); setLevel('all') }}
+                  style={{
+                    position: 'relative', fontSize: 11, fontWeight: 600,
+                    color: 'oklch(0.52 0.015 72)', background: 'transparent',
+                    border: '1px solid oklch(1 0 0 / 0.10)', padding: '3px 10px',
+                    borderRadius: 20, cursor: 'pointer', fontFamily: ff,
+                  }}
+                >
+                  {t('comm.filter_clear')}
+                </button>
+              )}
+            </div>
+
+            {/* Filter body */}
+            <div style={{
+              background: 'var(--c-ink-mid)', padding: '0.875rem 1.25rem',
+              display: 'flex', flexDirection: 'column', gap: 12,
+            }}>
+              {/* Search */}
+              <div className="dark-search-wrap">
+                <SearchIcon />
+                <input
+                  type="search"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder={t('comm.filter_search')}
+                  className="dark-search-input"
+                />
+              </div>
+
+              {/* Level pills */}
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {(['all', ...ALL_LEVELS] as (CommunityLevel | 'all')[]).map((l) => (
                   <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => router.push(`/communities/${c.slug}`)}
-                    className="rounded-2xl border border-amber-200 bg-amber-50/70 px-4 py-4 text-left shadow-sm transition-colors hover:border-amber-300 hover:bg-amber-50"
+                    key={l}
+                    onClick={() => setLevel(l)}
+                    className={`dark-cat-pill${level === l ? ' dark-cat-pill--active' : ''}`}
+                    style={{ fontFamily: ff }}
                   >
-                    <div className="mb-3 flex items-start justify-between gap-3">
-                      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-lg ${LEVEL_COLORS[c.level].split(' ')[0]}`}>
-                        {LEVEL_ICONS[c.level]}
-                      </div>
-                      <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-700">
-                        {t('comm.trending_badge')}
-                      </span>
-                    </div>
-                    <p className="line-clamp-1 text-sm font-semibold text-gray-900">{c.name}</p>
-                    <p className="mt-1 text-xs text-gray-500">
-                      {c.city ? `${c.city} · ` : ''}{t('comm.members').replace('{n}', c.member_count.toLocaleString())}
-                    </p>
+                    {levelLabels[l]}
                   </button>
                 ))}
               </div>
             </div>
-          )
-        ) : (
-          <div className="mb-6" aria-hidden="true">
-            <div className="skeleton mb-3 h-3.5 w-28 rounded" />
-            <div className="grid gap-3 md:grid-cols-3">
-              {[0, 1, 2].map((i) => <div key={i} className="skeleton h-28 rounded-2xl" />)}
-            </div>
-          </div>
-        )
-      )}
-
-      {/* Recommended — skeleton shown while loading to prevent CLS */}
-      {user && !joinedOnly && !search && (
-        recommendedLoaded ? (
-          recommended.length > 0 && (
-            <div className="mb-6">
-              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">{t('comm.recommended')}</h2>
-              <div className="flex flex-wrap gap-3">
-                {recommended.map((c) => (
-                  <div
-                    key={c.id}
-                    className="flex items-center gap-3 rounded-2xl border border-brand-100 bg-brand-50/60 px-4 py-3 shadow-sm"
-                  >
-                    <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-lg ${LEVEL_COLORS[c.level].split(' ')[0]}`}>
-                      {LEVEL_ICONS[c.level]}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="line-clamp-1 text-sm font-semibold text-gray-900">{c.name}</p>
-                      <p className="text-xs text-gray-500">
-                        {t(LEVEL_LABEL_KEYS[c.level])}{c.city ? ` · ${c.city}` : ''} · {t('comm.members').replace('{n}', c.member_count.toLocaleString())}
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => joinCommunityRecommendation(c)}
-                      disabled={suggestedJoining === c.slug}
-                      className="ml-2 rounded-xl bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-brand-700 disabled:opacity-60"
-                    >
-                      {suggestedJoining === c.slug ? '...' : t('comm.join')}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )
-        ) : (
-          <div className="mb-6" aria-hidden="true">
-            <div className="skeleton mb-3 h-3.5 w-40 rounded" />
-            <div className="flex flex-wrap gap-3">
-              {[0, 1, 2].map((i) => <div key={i} className="skeleton h-16 w-56 rounded-2xl" />)}
-            </div>
-          </div>
-        )
-      )}
-
-      {user && !joinedOnly && !search && suggestedCommunities.length > 0 && (
-        <div className="mb-6">
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">{t('comm.popular')}</h2>
-          <div className="flex flex-wrap gap-3">
-            {suggestedCommunities.map((c) => (
-              <div
-                key={c.id}
-                className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-sm"
-              >
-                <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-lg ${LEVEL_COLORS[c.level].split(' ')[0]}`}>
-                  {LEVEL_ICONS[c.level]}
-                </div>
-                <div className="min-w-0">
-                  <p className="line-clamp-1 text-sm font-semibold text-gray-900">{c.name}</p>
-                  <p className="text-xs text-gray-400">{t('comm.members').replace('{n}', c.member_count.toLocaleString())}</p>
-                </div>
-                <button
-                  onClick={() => joinCommunityRecommendation(c)}
-                  disabled={suggestedJoining === c.slug}
-                  className="ml-2 rounded-xl bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700 transition-colors disabled:opacity-60"
-                >
-                  {suggestedJoining === c.slug ? '...' : t('comm.join')}
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {user && (
-        <div className="mb-6 flex justify-end">
-          <button
-            onClick={() => router.push('/communities/new')}
-            className="inline-flex items-center gap-2 rounded-full bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-700"
-          >
-            <span>+</span>
-            {t('comm.create')}
-          </button>
-        </div>
-      )}
-
-      {/* Filters */}
-      <div className="cf-wrap">
-        {/* Dark header */}
-        <div className="cf-header">
-          <div className="ef-pattern" aria-hidden="true" />
-          <div className="ef-header-inner" style={{ position: 'relative' }}>
-            <div>
-              <p className="ef-eyebrow">{t('comm.filter_eyebrow')}</p>
-              <h3 className="ef-title">{t('comm.filter_title')}</h3>
-            </div>
-            {(search || level !== 'all') && (
-              <button
-                onClick={() => { setSearch(''); setLevel('all') }}
-                className="ef-clear-btn"
-                aria-label="Clear filters"
-              >
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
-                  <path d="M1.5 1.5L8.5 8.5M8.5 1.5L1.5 8.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                </svg>
-                {t('comm.filter_clear')}
-              </button>
-            )}
-          </div>
-        </div>
-        {/* Body */}
-        <div className="cf-body">
-          {/* Search */}
-          <div className="cf-search-wrap">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" style={{ color: 'oklch(0.58 0.012 72)', flexShrink: 0 }}>
-              <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.5"/>
-              <path d="M10.5 10.5L13.5 13.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-            </svg>
-            <input
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={t('comm.filter_search')}
-              className="ef-search-input"
-            />
-          </div>
-          {/* Level pills */}
-          <div className="cf-levels-wrap">
-            {levelFadeLeft  && <div className="cf-levels-fade cf-levels-fade--left"  aria-hidden="true" />}
-            {levelFadeRight && <div className="cf-levels-fade cf-levels-fade--right" aria-hidden="true" />}
-            <div ref={levelsRef} className="cf-levels">
-              <button
-                onClick={() => setLevel('all')}
-                className={`cf-level-btn${level === 'all' ? ' cf-level-btn--active' : ''}`}
-              >
-                {t('comm.level_all')}
-              </button>
-              {ALL_LEVELS.map((l) => (
-                <button
-                  key={l}
-                  onClick={() => setLevel(l)}
-                  className={`cf-level-btn${level === l ? ' cf-level-btn--active' : ''}`}
-                >
-                  {LEVEL_ICONS[l]} {t(LEVEL_LABEL_KEYS[l])}
-                </button>
-              ))}
-            </div>
           </div>
         </div>
       </div>
 
-      {/* Grid */}
-      {loading && communities.length === 0 ? (
-        <div className="flex justify-center py-20"><TicketFlipLoader size="md" /></div>
-      ) : communities.length === 0 ? (
-        <EmptyState
-          icon="Groups"
-          title={joinedOnly ? t('comm.empty_joined') : t('comm.empty_none')}
-          description={joinedOnly ? t('comm.empty_joined_desc') : t('comm.empty_none_desc')}
-        />
-      ) : (
-        <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {communities.map((c) => (
-              <CommunityCard
-                key={c.id}
-                community={c}
-                onToggleMembership={handleToggleMembership}
-              />
-            ))}
-          </div>
+      {/* ── Grid ── */}
+      <div style={{ maxWidth: '80rem', margin: '0 auto', padding: '2.5rem 1.5rem 5rem' }}>
+        {!search && level === 'all' && !joinedOnly && (
+          <>
+            <DarkCommRail
+              communities={recommended}
+              title={t('comm.recommended')}
+              color="#8b6be8"
+              onToggleMembership={handleToggleMembership}
+            />
+            <DarkCommRail
+              communities={suggested}
+              title={t('comm.popular')}
+              color="#2ab8a0"
+              onToggleMembership={handleToggleMembership}
+            />
+          </>
+        )}
 
-          {hasMore && (
-            <div className="text-center pt-8">
-              <button
-                onClick={() => fetchCommunities(page + 1, level, search, joinedOnly)}
-                disabled={loading}
-                className="btn-secondary"
-              >
-                {loading ? <Spinner size="sm" /> : t('comm.load_more')}
-              </button>
+        {loading && communities.length === 0 ? (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '5rem 0' }}>
+            <Spinner />
+          </div>
+        ) : communities.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '5rem 0' }}>
+            <div style={{ fontSize: 40, marginBottom: 16 }}>🏘️</div>
+            <div style={{ fontFamily: ff, fontSize: 20, fontWeight: 600, color: 'oklch(0.94 0.01 82)', marginBottom: 8 }}>
+              {joinedOnly ? t('comm.empty_joined') : t('comm.empty_none')}
             </div>
-          )}
-        </>
-      )}
+            <div style={{ fontSize: 14, color: 'oklch(0.52 0.015 72)', fontFamily: fb }}>
+              {joinedOnly ? t('comm.empty_joined_desc') : t('comm.empty_none_desc')}
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {communities.map((c) => (
+                <CommunityCardDark
+                  key={c.id}
+                  community={c}
+                  onToggleMembership={handleToggleMembership}
+                />
+              ))}
+            </div>
+
+            {hasMore && (
+              <div style={{ textAlign: 'center', paddingTop: 32 }}>
+                <button
+                  onClick={() => fetchCommunities(page + 1, level, search, joinedOnly)}
+                  disabled={loading}
+                  style={{
+                    background: 'oklch(0.14 0.022 68)',
+                    border: '1px solid oklch(0.78 0.18 72 / 0.3)',
+                    color: 'var(--c-gold)',
+                    fontSize: 13, fontWeight: 700,
+                    padding: '10px 28px', borderRadius: 40,
+                    cursor: 'pointer', fontFamily: ff,
+                    display: 'inline-flex', alignItems: 'center', gap: 8,
+                    opacity: loading ? 0.6 : 1,
+                  }}
+                >
+                  {loading ? <Spinner size="sm" /> : t('comm.load_more')}
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   )
 }
