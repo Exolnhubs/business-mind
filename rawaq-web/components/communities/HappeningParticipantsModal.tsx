@@ -42,12 +42,12 @@ export function HappeningParticipantsModal({ open, happeningId, onClose }: Props
       setLoading(true)
       setError(null)
       try {
-        const data = await clientGetJson<ParticipantsResponse>(
+        const json = await clientGetJson<{ data: ParticipantsResponse }>(
           `/api/happenings/${id}/participants?limit=${PAGE_SIZE}`,
         )
         if (!active) return
-        setTotal(data.total)
-        setParticipants(data.participants)
+        setTotal(json.data.total)
+        setParticipants(json.data.participants ?? [])
       } catch (err) {
         if (!active) return
         if (!isToastHandledError(err)) setError('Could not load participants.')
@@ -70,7 +70,7 @@ export function HappeningParticipantsModal({ open, happeningId, onClose }: Props
         <div className="py-8 text-center text-sm text-gray-400">Loading…</div>
       ) : error ? (
         <div className="py-8 text-center text-sm text-red-500">{error}</div>
-      ) : participants.length === 0 ? (
+      ) : participants?.length === 0 ? (
         <div className="py-8 text-center text-sm text-gray-400">No one has joined yet.</div>
       ) : (
         <ul className="divide-y divide-gray-100">

@@ -40,12 +40,14 @@ export async function GET(
 
     if (!happening) throw new NotFoundException('Happening not found')
 
-    const { data: rows } = await (admin as any)
+    const { data: rows, error: rowsError } = await (admin as any)
       .from('happening_rsvps')
       .select('created_at, profile:profiles!user_id(id, display_name, avatar_url, created_at)')
       .eq('happening_id', id)
       .order('created_at', { ascending: true })
       .range(offset, offset + limit - 1)
+
+    if (rowsError) throw rowsError
 
     const participants: Participant[] = ((rows ?? []) as Array<{
       created_at: string

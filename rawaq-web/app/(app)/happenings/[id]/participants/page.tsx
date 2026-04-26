@@ -36,12 +36,12 @@ export default function HappeningParticipantsPage() {
     else setLoadingMore(true)
     setError(null)
     try {
-      const data = await clientGetJson<ParticipantsResponse>(
+      const json = await clientGetJson<{ data: ParticipantsResponse }>(
         `/api/happenings/${id}/participants?limit=${PAGE_SIZE}&offset=${offset}`,
         { force: replace },
       )
-      setTotal(data.total)
-      setParticipants((prev) => (replace ? data.participants : [...prev, ...data.participants]))
+      setTotal(json.data.total)
+      setParticipants((prev) => (replace ? json.data.participants : [...prev, ...json.data.participants]))
     } catch (err) {
       if (!isToastHandledError(err)) setError('Could not load participants.')
     } finally {
