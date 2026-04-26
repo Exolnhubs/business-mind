@@ -16,6 +16,7 @@ type Props = {
   onToggleRsvp?: (happening: HappeningDiscoveryItem) => void
   onToggleReact?: (happening: HappeningDiscoveryItem) => void
   onOpenComments?: (happening: HappeningDiscoveryItem) => void
+  onShowParticipants?: (happening: HappeningDiscoveryItem) => void
 }
 
 const TYPE_META: Record<HappeningType, { label: string; icon: keyof typeof Ionicons.glyphMap; color: string; bg: string }> = {
@@ -39,6 +40,7 @@ export function HappeningDiscoveryCard({
   onToggleRsvp,
   onToggleReact,
   onOpenComments,
+  onShowParticipants,
 }: Props) {
   const router = useRouter()
   const meta = TYPE_META[happening.type]
@@ -91,6 +93,23 @@ export function HappeningDiscoveryCard({
           </Text>
           <PlanBadge planId={happening.author.plan_id} size={13} />
         </View>
+        <TouchableOpacity
+          onPress={(e) => {
+            e.stopPropagation()
+            if (happening.rsvp_count > 0) onShowParticipants?.(happening)
+          }}
+          activeOpacity={0.7}
+          disabled={happening.rsvp_count === 0}
+          style={styles.participantsRow}
+        >
+          <Ionicons name="people-outline" size={13} color={Colors.gray[600]} />
+          <Text style={styles.participantsText}>
+            {happening.rsvp_count > 0 ? `${happening.rsvp_count} joined` : 'No one joined yet'}
+          </Text>
+          {happening.rsvp_count > 0 && (
+            <Ionicons name="chevron-forward" size={12} color={Colors.gray[500]} />
+          )}
+        </TouchableOpacity>
         <View style={styles.actions}>
           <TouchableOpacity
             onPress={() => onOpenComments?.(happening)}
@@ -217,5 +236,17 @@ const styles = StyleSheet.create({
   },
   reactTextActive: {
     color: '#0f766e',
+  },
+  participantsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: Spacing.sm,
+  },
+  participantsText: {
+    flex: 1,
+    fontSize: 11,
+    color: Colors.gray[600],
+    fontWeight: FontWeight.medium,
   },
 })
