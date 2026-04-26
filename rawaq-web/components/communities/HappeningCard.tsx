@@ -27,9 +27,10 @@ interface Props {
   onReact: (h: HappeningWithAuthor) => void
   onDelete?: (id: string) => void
   onReport?: (id: string, reason: string) => void
+  onShowParticipants?: (h: HappeningWithAuthor) => void
 }
 
-export function HappeningCard({ happening: h, onRsvp, onReact, onDelete, onReport }: Props) {
+export function HappeningCard({ happening: h, onRsvp, onReact, onDelete, onReport, onShowParticipants }: Props) {
   const { user } = useAuth()
   const meta = TYPE_META[h.type]
   const [ttl] = useState(() => timeLeft(h.expires_at))
@@ -83,6 +84,24 @@ export function HappeningCard({ happening: h, onRsvp, onReact, onDelete, onRepor
           Location: {h.location_label?.trim() || 'View on map'}
         </a>
       )}
+
+      <button
+        type="button"
+        onClick={() => {
+          if (h.rsvp_count > 0) onShowParticipants?.(h)
+        }}
+        disabled={h.rsvp_count === 0}
+        className="mb-3 inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 transition-colors enabled:hover:text-brand-700 disabled:cursor-default"
+      >
+        <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+          <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+        </svg>
+        {h.rsvp_count > 0 ? `${h.rsvp_count} joined` : 'No one joined yet'}
+        {h.rsvp_count > 0 && <span aria-hidden>›</span>}
+      </button>
 
       {!isExpired && user && (
         <div className="flex items-center gap-3 border-t border-gray-50 pt-3">
