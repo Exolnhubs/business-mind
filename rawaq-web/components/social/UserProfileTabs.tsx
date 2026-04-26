@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { UserHappeningCard, UserHappeningCardSkeleton } from './UserHappeningCard'
 import { UserFollowButton } from './UserFollowButton'
@@ -41,6 +41,7 @@ export function UserProfileTabs({ targetId, followState, isMutual, sharedCommuni
   const [happeningsLoading, setHappeningsLoading] = useState(false)
   const [happeningsBefore, setHappeningsBefore] = useState<string | null>(null)
   const [happeningsHasMore, setHappeningsHasMore] = useState(true)
+  const happeningsLoadingRef = useRef(false)
 
   const [events, setEvents]               = useState<any[]>([])
   const [eventsLoaded, setEventsLoaded]   = useState(false)
@@ -53,7 +54,8 @@ export function UserProfileTabs({ targetId, followState, isMutual, sharedCommuni
   const [communitiesExpanded, setCommunitiesExpanded] = useState(false)
 
   async function loadHappenings() {
-    if (happeningsLoading) return
+    if (happeningsLoadingRef.current) return
+    happeningsLoadingRef.current = true
     setHappeningsLoading(true)
     const url = `/api/users/${targetId}/happenings?limit=10${happeningsBefore ? `&before=${happeningsBefore}` : ''}`
     const res = await fetch(url)
@@ -65,6 +67,7 @@ export function UserProfileTabs({ targetId, followState, isMutual, sharedCommuni
     }
     setHappeningsLoaded(true)
     setHappeningsLoading(false)
+    happeningsLoadingRef.current = false
   }
 
   async function loadEvents() {
