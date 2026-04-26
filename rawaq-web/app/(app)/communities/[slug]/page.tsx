@@ -8,6 +8,7 @@ import { Spinner } from '@/components/ui/Spinner'
 import { TicketFlipLoader } from '@/components/ui/TicketFlipLoader'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { HappeningCard } from '@/components/communities/HappeningCard'
+import { HappeningParticipantsModal } from '@/components/communities/HappeningParticipantsModal'
 import { PostHappeningForm } from '@/components/communities/PostHappeningForm'
 import { useHappenings } from '@/hooks/useHappenings'
 import {
@@ -150,6 +151,7 @@ export default function CommunityDetailPage() {
   const [historyLoading, setHistoryLoading] = useState(false)
   const [memberActionLoading, setMemberActionLoading] = useState<string | null>(null)
   const [reportActionLoading, setReportActionLoading] = useState<string | null>(null)
+  const [participantsHappeningId, setParticipantsHappeningId] = useState<string | null>(null)
 
   const isMember = community?.is_member ?? false
   const memberRole = community?.member_role ?? null
@@ -954,6 +956,7 @@ export default function CommunityDetailPage() {
                     onReact={handleHappeningReact}
                     onDelete={remove}
                     onReport={report}
+                    onShowParticipants={(target) => setParticipantsHappeningId(target.id)}
                   />
                 ))}
               </div>
@@ -1442,6 +1445,12 @@ export default function CommunityDetailPage() {
           </div>
         </aside>
       </div>
+
+      <HappeningParticipantsModal
+        open={participantsHappeningId !== null}
+        happeningId={participantsHappeningId}
+        onClose={() => setParticipantsHappeningId(null)}
+      />
     </div>
   )
 }
