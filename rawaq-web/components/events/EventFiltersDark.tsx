@@ -283,7 +283,7 @@ export function EventFiltersDark() {
       {expanded && (
         <div className="dark-filter-body">
           {/* Row 1: Search + City + Gender */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr 1fr', gap: 10 }}>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
             <div className="dark-search-wrap">
               <SearchIcon />
               <input
