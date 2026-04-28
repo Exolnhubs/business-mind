@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { Redis } from '@upstash/redis'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { requireOrganizer, requireEventOwnership } from '@/lib/auth'
@@ -44,6 +45,7 @@ export async function POST(
 
       // Invalidate featured cache
       await redis.del(FEATURED_CACHE_KEY)
+      revalidateTag('events-featured')
 
       return ok({ featured_until: null, quota: await getQuota(supabase, ctx.userId) })
     }
@@ -86,6 +88,7 @@ export async function POST(
 
     // Invalidate featured cache
     await redis.del(FEATURED_CACHE_KEY)
+    revalidateTag('events-featured')
 
     // Re-fetch quota after update
     const updatedQuota = await getQuota(supabase, ctx.userId)

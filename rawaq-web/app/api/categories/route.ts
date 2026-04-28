@@ -14,7 +14,9 @@ export async function GET() {
 
     if (error) throw error
 
-    return ok(data)
+    const res = ok(data)
+    res.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600')
+    return res
   } catch (err) {
     return handleApiError(err)
   }

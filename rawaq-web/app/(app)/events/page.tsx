@@ -5,9 +5,9 @@ import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { EventCardDark, EventCardDarkSkeleton } from '@/components/events/EventCardDark'
 import { EventFiltersDark } from '@/components/events/EventFiltersDark'
 import { EventsPageHeroDark } from '@/components/events/EventsPageHeroDark'
-import { EventsGridEmpty, EventsGridError, EventsGridPagination } from '@/components/events/EventsGridFeedback'
+import { EventsGridEmpty, EventsGridPagination } from '@/components/events/EventsGridFeedback'
 import type { EventWithOrganizer } from '@/types/database'
-import { applyResolvedEventWindow, compareEventsByResolvedStartAt } from '@/lib/events/recurrence'
+import { getCachedFeaturedEvents, getCachedEventsGrid, getCachedWeekendEvents } from '@/lib/events/cache'
 
 export const metadata: Metadata = { title: 'Events' }
 
@@ -29,16 +29,6 @@ interface SearchParams {
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 const PAGE_SIZE = 12
-
-const EVENT_SELECT = `
-  *,
-  organizer:profiles!organizer_id(
-    id, display_name, avatar_url,
-    organizer_profile:organizer_profiles!user_id(business_name, business_name_ar, logo_url, verified)
-  ),
-  category:event_categories(id, name_en, name_ar, icon),
-  ticket_types(id, price, is_free, is_active, is_hot_offer, hot_offer_price, hot_offer_ends_at)
-`
 
 // ── Weekend date helper ────────────────────────────────────────────────────────
 function getThisWeekendRange(): { start: string; end: string } {
@@ -132,19 +122,7 @@ function DarkEventRail({
 
 // ── Featured rail + main grid (shares excludeIds) ─────────────────────────────
 async function FeaturedRailAndGrid({ searchParams }: { searchParams: SearchParams }) {
-  const supabase = await createSupabaseServerClient()
-  const now = new Date().toISOString()
-
-  const { data } = await supabase
-    .from('events')
-    .select(EVENT_SELECT)
-    .eq('is_published', true)
-    .eq('is_cancelled', false)
-    .gt('featured_until', now)
-    .order('featured_until', { ascending: false })
-    .limit(8)
-
-  const featured = ((data ?? []) as unknown as EventWithOrganizer[]).map((e) => applyResolvedEventWindow(e))
+  const featured = await getCachedFeaturedEvents()
   const excludeIds = featured.map((e) => e.id)
 
   return (
@@ -184,35 +162,15 @@ async function WeekendRailDark({
 }) {
   if (!city && (!lat || !lng)) return null
 
-  const supabase = await createSupabaseServerClient()
   const { start, end } = getThisWeekendRange()
-  let events: EventWithOrganizer[] = []
-
-  if (lat && lng) {
-    const { data: geoIds } = await supabase.rpc('events_within_radius', {
-      user_lat: lat, user_lng: lng, radius_meters: radiusKm * 1000,
-    })
-    const ids = ((geoIds ?? []) as { id: string }[]).map((e) => e.id)
-    if (ids.length > 0) {
-      const { data } = await supabase
-        .from('events').select(EVENT_SELECT)
-        .in('id', ids).eq('is_published', true).eq('is_cancelled', false)
-      events = ((data ?? []) as unknown as EventWithOrganizer[])
-        .map((e) => applyResolvedEventWindow(e))
-        .filter((e) => e.start_at >= start && e.start_at <= end)
-        .sort(compareEventsByResolvedStartAt)
-        .slice(0, 8)
-    }
-  } else if (city) {
-    const { data } = await supabase
-      .from('events').select(EVENT_SELECT)
-      .eq('is_published', true).eq('is_cancelled', false).eq('city', city)
-    events = ((data ?? []) as unknown as EventWithOrganizer[])
-      .map((e) => applyResolvedEventWindow(e))
-      .filter((e) => e.start_at >= start && e.start_at <= end)
-      .sort((a, b) => compareEventsByResolvedStartAt(a, b))
-      .slice(0, 8)
-  }
+  const events = await getCachedWeekendEvents({
+    city,
+    lat,
+    lng,
+    radiusKm,
+    weekendStart: start,
+    weekendEnd: end,
+  })
 
   if (!events.length) return null
 
@@ -289,7 +247,7 @@ async function CommunitySpotlightDark({ slug }: { slug: string }) {
   )
 }
 
-// ── Events grid (server component — unchanged logic, new card) ─────────────────
+// ── Events grid (server component — cached public data, auth outside cache) ────
 async function EventsGrid({
   searchParams,
   excludeIds = [],
@@ -297,82 +255,26 @@ async function EventsGrid({
   searchParams: SearchParams
   excludeIds?: string[]
 }) {
-  const supabase = await createSupabaseServerClient()
   const page = Math.max(1, Number(searchParams.page ?? 1))
   const from = (page - 1) * PAGE_SIZE
-  const userPromise = supabase.auth.getUser()
 
-  let query = supabase
-    .from('events')
-    .select(EVENT_SELECT, { count: 'exact' })
-    .eq('is_published', true)
-    .eq('is_cancelled', false)
+  // Cached: pure public event data — no cookies, no auth
+  const { q, category, city, community, gender, free, family, hot, lat, lng, radius_km } = searchParams
+  const resolved = await getCachedEventsGrid(
+    { q, category, city, community, gender, free, family, hot, lat, lng, radius_km },
+    excludeIds,
+  )
 
-  if (excludeIds.length > 0) {
-    query = query.not('id', 'in', `(${excludeIds.join(',')})`)
-  }
-  if (searchParams.q) {
-    const q = searchParams.q.replace(/'/g, "''")
-    query = query.or(`title.ilike.%${q}%,title_ar.ilike.%${q}%,description.ilike.%${q}%`)
-  }
-  if (searchParams.city)   query = query.eq('city', searchParams.city)
-  if (searchParams.gender) query = query.eq('gender_restriction', searchParams.gender as import('@/types/database').GenderType)
-  if (searchParams.free === 'true')   query = query.eq('is_free', true)
-  if (searchParams.family === 'true') query = query.eq('is_family_friendly', true)
-
-  if (searchParams.hot === 'true') {
-    const { data: hotRows } = await supabase
-      .from('ticket_types')
-      .select('event_id')
-      .eq('is_hot_offer', true)
-      .eq('is_active', true)
-      .gt('hot_offer_ends_at', new Date().toISOString())
-    const hotIds = (hotRows ?? []).map((r) => r.event_id).filter(Boolean)
-    if (hotIds.length === 0) return <EventsGridEmpty />
-    query = query.in('id', hotIds)
-  }
-
-  if (searchParams.category) query = query.eq('category_id', searchParams.category)
-
-  if (searchParams.community) {
-    const { data: community } = await supabase
-      .from('communities').select('id').eq('slug', searchParams.community).single()
-    if (!community) return <EventsGridEmpty />
-    const { data: ecRows } = await supabase
-      .from('event_communities').select('event_id').eq('community_id', community.id)
-    const ids = (ecRows ?? []).map((r) => r.event_id)
-    if (ids.length === 0) return <EventsGridEmpty />
-    query = query.in('id', ids)
-  }
-
-  if (searchParams.lat && searchParams.lng) {
-    const { data: geoEvents } = await supabase.rpc('events_within_radius', {
-      user_lat: Number(searchParams.lat),
-      user_lng: Number(searchParams.lng),
-      radius_meters: Number(searchParams.radius_km ?? 25) * 1000,
-    })
-    if (geoEvents) {
-      const ids = (geoEvents as { id: string }[]).map((e) => e.id)
-      if (ids.length === 0) return <EventsGridEmpty nearby />
-      query = query.in('id', ids)
-    }
-  }
-
-  const [{ data: events, error }, { data: { user } }] = await Promise.all([query, userPromise])
+  // Auth + saved events: outside the cache, reads cookies
+  const supabase = await createSupabaseServerClient()
+  const { data: { user } } = await supabase.auth.getUser()
 
   let savedIds = new Set<string>()
   if (user) {
     const { data: saves } = await supabase
       .from('saved_events').select('event_id').eq('user_id', user.id)
-    savedIds = new Set((saves ?? []).map((s) => s.event_id))
+    savedIds = new Set((saves ?? []).map((s: { event_id: string }) => s.event_id))
   }
-
-  if (error) return <EventsGridError message={error.message} />
-
-  const resolved = ((events ?? []) as unknown as EventWithOrganizer[])
-    .map((e) => applyResolvedEventWindow(e))
-    .filter((e) => new Date(e.start_at).getTime() >= Date.now())
-    .sort(compareEventsByResolvedStartAt)
 
   if (!resolved.length) return <EventsGridEmpty />
 

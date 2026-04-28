@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { requireAuth, requireEventOwnership, optionalAuth } from '@/lib/auth'
 import { handleApiError, ok, NotFoundException, ForbiddenException } from '@/lib/errors'
@@ -121,6 +122,14 @@ export async function PATCH(
 
     if (data) {
       await ensureEventOccurrences(adminClient, data)
+    }
+
+    // Bust events cache on visibility-changing transitions
+    if (
+      (input.is_published === true && !before?.is_published) ||
+      (input.is_cancelled === true && !before?.is_cancelled)
+    ) {
+      revalidateTag('events')
     }
 
     // Sync community tags if provided
