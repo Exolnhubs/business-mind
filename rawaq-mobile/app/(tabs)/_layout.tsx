@@ -1,23 +1,12 @@
 import { Tabs } from 'expo-router'
-import { Platform, View, Text, StyleSheet } from 'react-native'
+import { Platform } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useLocale } from '@/contexts/locale-context'
 import { useNavigationLoader } from '@/contexts/navigation-loader-context'
-import { useNotifications } from '@/contexts/notification-context'
 import { Colors } from '@/theme'
-
-function NotifBadge({ count }: { count: number }) {
-  if (count <= 0) return null
-  return (
-    <View style={styles.badge}>
-      <Text style={styles.badgeText}>{count > 99 ? '99+' : String(count)}</Text>
-    </View>
-  )
-}
 
 export default function TabsLayout() {
   const { t } = useLocale()
-  const { unreadCount } = useNotifications()
   const { beginNavigation, endNavigation } = useNavigationLoader()
 
   return (
@@ -57,6 +46,16 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="events/index"
+        options={{
+          headerShown: false,
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'calendar' : 'calendar-outline'} size={24} color={color} />
+          ),
+          title: t('tab.events'),
+        }}
+      />
+      <Tabs.Screen
         name="happenings"
         options={{
           title: 'Happenings',
@@ -75,18 +74,6 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="notifications"
-        options={{
-          title: 'Notifications',
-          tabBarIcon: ({ color, focused }) => (
-            <View>
-              <Ionicons name={focused ? 'notifications' : 'notifications-outline'} size={24} color={color} />
-              <NotifBadge count={unreadCount} />
-            </View>
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="profile"
         options={{
           title: t('tab.profile'),
@@ -97,8 +84,8 @@ export default function TabsLayout() {
       />
 
       {/* ── Hidden routes ───────────────────────────────────── */}
+      <Tabs.Screen name="notifications" options={{ href: null }} />
       <Tabs.Screen name="index"        options={{ href: null }} />
-      <Tabs.Screen name="events/index" options={{ href: null }} />
       <Tabs.Screen name="feed"         options={{ href: null }} />
       <Tabs.Screen name="chat"         options={{ href: null }} />
       <Tabs.Screen name="saved"        options={{ href: null }} />
@@ -106,18 +93,3 @@ export default function TabsLayout() {
   )
 }
 
-const styles = StyleSheet.create({
-  badge: {
-    position: 'absolute',
-    top: -4,
-    right: -8,
-    minWidth: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: Colors.brand[500],
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 3,
-  },
-  badgeText: { fontSize: 10, fontWeight: '700', color: '#fff' },
-})

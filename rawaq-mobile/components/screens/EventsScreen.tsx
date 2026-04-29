@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import {
   Animated, View, Text, FlatList, TextInput, StyleSheet, Image,
   TouchableOpacity, ScrollView, RefreshControl, Alert, ActivityIndicator,
+  Dimensions,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router'
@@ -13,10 +14,12 @@ import { EventCard, EventCardSkeleton, RailSkeleton } from '@/components/events/
 import { HappeningDiscoveryCard, type HappeningDiscoveryItem } from '@/components/happenings/HappeningDiscoveryCard'
 import { HappeningCommentsSheet } from '@/components/happenings/HappeningCommentsSheet'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { Badge } from '@/components/ui/Badge'
 import { useLocale } from '@/contexts/locale-context'
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '@/theme'
 import type { Community, EventWithOrganizer } from '@/types/database'
 import { applyResolvedEventWindow, compareEventsByResolvedStartAt } from '@/lib/event-recurrence'
+import { formatCurrency } from '@/lib/utils'
 
 type JoinedCommunity = Pick<Community, 'id' | 'name' | 'name_ar' | 'slug' | 'level'>
 type CommunityListItem = JoinedCommunity & { is_member: boolean; member_count: number }
@@ -231,8 +234,12 @@ export default function EventsScreen() {
   const lastDiscoveryLoadRef = useRef(0)
   const lastEventsLoadRef = useRef(0)
   const latestEventsRequestRef = useRef(0)
-  const isDefaultFeed = !debouncedSearch && !categoryId && !freeOnly && !nearMe && !communitySlug
+  const isDefaultFeed = !debouncedSearch && !freeOnly && !nearMe && !communitySlug
   const showRecommendationRails = isDefaultFeed
+  const savedEventsList = useMemo(
+    () => events.filter((e) => savedIds.has(e.id)),
+    [events, savedIds],
+  )
 
   // Fade the pin icon out while the user is typing, back in when cleared
   const pinOpacity = useRef(new Animated.Value(1)).current
@@ -1046,78 +1053,6 @@ export default function EventsScreen() {
         </View>
       )}
 
-      {/* Category chips */}
-      <View style={styles.categoryRow}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          <TouchableOpacity
-            onPress={() => setCategoryId(null)}
-            style={[styles.chip, !categoryId && styles.chipActive]}
-          >
-            <Text style={[styles.chipText, !categoryId && styles.chipTextActive]}>{t('events.all')}</Text>
-          </TouchableOpacity>
-          {categories.map((c) => (
-            <TouchableOpacity
-              key={c.id}
-              onPress={() => setCategoryId(categoryId === c.id ? null : c.id)}
-              style={[styles.chip, categoryId === c.id && styles.chipActive]}
-            >
-              <Text style={[styles.chipText, categoryId === c.id && styles.chipTextActive]} numberOfLines={1}>
-                {c.icon ? `${c.icon} ` : ''}{locale === 'ar' && c.name_ar ? c.name_ar : c.name_en}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
-
-      {/*  Community filter chips */}
-      <View style={styles.filterRow}>
-        {joinedCommunities.length > 0 && (
-          <>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.communityScroll} contentContainerStyle={styles.communityScrollContent}>
-              <TouchableOpacity
-                onPress={() => setCommunitySlug(null)}
-                style={[styles.communityChip, !communitySlug && styles.communityChipActive]}
-              >
-                <Text style={[styles.communityChipText, !communitySlug && styles.communityChipTextActive]}>
-                  🏠 All
-                </Text>
-              </TouchableOpacity>
-              {joinedCommunities.map((c) => {
-                const name = locale === 'ar' && c.name_ar ? c.name_ar : c.name
-                const active = communitySlug === c.slug
-                return (
-                  <TouchableOpacity
-                    key={c.id}
-                    onPress={() => setCommunitySlug(active ? null : c.slug)}
-                    style={[styles.communityChip, active && styles.communityChipActive]}
-                  >
-                    <Text style={[styles.communityChipText, active && styles.communityChipTextActive]} numberOfLines={1}>
-                      {name}
-                    </Text>
-                  </TouchableOpacity>
-                )
-              })}
-
-
-              {false && (
-                <TouchableOpacity
-                  onPress={() => router.push('/communities' as any)}
-                  style={styles.communityExploreBtn}
-                >
-                  <Text style={styles.communityExploreBtnText}>Explore →</Text>
-                </TouchableOpacity>
-              )}
-            </ScrollView>
-            <TouchableOpacity
-              onPress={() => router.push('/communities' as any)}
-              style={styles.communityExploreBtn}
-            >
-              <Text style={styles.communityExploreBtnText}>communities</Text>
-            </TouchableOpacity>
-          </>
-        )}
-      </View>
-
 
       {communitySlug && (
         <View style={styles.activeCommunityBanner}>
@@ -1140,7 +1075,7 @@ export default function EventsScreen() {
         </View>
       ) : (
         <FlatList
-          data={events}
+          data={isDefaultFeed ? events.slice(0, 5) : events}
           keyExtractor={keyExtractor}
           ListHeaderComponent={
             (debouncedSearch && (orgResults.length > 0 || comResults.length > 0))
@@ -1240,7 +1175,7 @@ export default function EventsScreen() {
                     featuredLoading
                       ? <RailSkeleton variant="featured" />
                       : featuredEvents.length > 0 && (
-                          <FeaturedEventsRail
+                          <FeaturedCarousel
                             events={featuredEvents}
                             savedIds={savedIds}
                             onSaveChange={handleSaveChange}
@@ -1250,10 +1185,14 @@ export default function EventsScreen() {
 
                   {/* Hot Offers — time-sensitive deals */}
                   {showRecommendationRails && (
-                    <HotOffersRail
-                      events={hotOfferEvents}
-                      savedIds={savedIds}
-                      onSaveChange={handleSaveChange}
+                    <HotOffersRail events={hotOfferEvents} />
+                  )}
+
+                  {/* Saved Events */}
+                  {showRecommendationRails && user && (
+                    <SavedEventsRail
+                      events={savedEventsList}
+                      onSeeAll={() => router.push('/saved' as any)}
                     />
                   )}
 
@@ -1369,6 +1308,46 @@ export default function EventsScreen() {
                       forceShow
                     />
                   )}
+
+                  {/* Upcoming Events — heading + category chips */}
+                  {showRecommendationRails && (
+                    <View>
+                      <View style={styles.upcomingHeader}>
+                        <Text style={styles.upcomingTitle}>Upcoming Events</Text>
+                        <TouchableOpacity onPress={() => router.push('/events' as any)}>
+                          <Text style={styles.upcomingSeeAll}>See all →</Text>
+                        </TouchableOpacity>
+                      </View>
+                      {categories.length > 0 && (
+                        <ScrollView
+                          horizontal
+                          showsHorizontalScrollIndicator={false}
+                          contentContainerStyle={styles.categoryChipsContent}
+                          style={styles.categoryChipsScroll}
+                        >
+                          <TouchableOpacity
+                            onPress={() => setCategoryId(null)}
+                            style={[styles.chip, !categoryId && styles.chipActive]}
+                          >
+                            <Text style={[styles.chipText, !categoryId && styles.chipTextActive]}>
+                              {t('events.all')}
+                            </Text>
+                          </TouchableOpacity>
+                          {categories.map((c) => (
+                            <TouchableOpacity
+                              key={c.id}
+                              onPress={() => setCategoryId(categoryId === c.id ? null : c.id)}
+                              style={[styles.chip, categoryId === c.id && styles.chipActive]}
+                            >
+                              <Text style={[styles.chipText, categoryId === c.id && styles.chipTextActive]} numberOfLines={1}>
+                                {c.icon ? `${c.icon} ` : ''}{locale === 'ar' && c.name_ar ? c.name_ar : c.name_en}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </ScrollView>
+                      )}
+                    </View>
+                  )}
                 </View>
               )
               : null
@@ -1399,18 +1378,24 @@ export default function EventsScreen() {
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.brand[500]} />}
           ListFooterComponent={
-            showRecommendationRails && events.length > 0 && events.length <= 6 && almostSoldOutEvents.length > 0
-              ? (
-                <RecommendationRail
-                  title="Almost Sold Out"
-                  subtitle="Popular events that are close to filling up."
-                  events={almostSoldOutEvents}
-                  savedIds={savedIds}
-                  onSaveChange={handleSaveChange}
-                  urgency
-                />
-              )
-              : null
+            isDefaultFeed && events.length > 0 ? (
+              <View>
+                <TouchableOpacity
+                  style={styles.seeAllEventsBtn}
+                  onPress={() => router.push('/events' as any)}
+                  activeOpacity={0.82}
+                >
+                  <Text style={styles.seeAllEventsBtnText}>See All Events</Text>
+                  <Ionicons name="arrow-forward" size={16} color={Colors.brand[600]} />
+                </TouchableOpacity>
+                {user && joinedCommunities.length > 0 && (
+                  <YourCommunitiesSection
+                    communities={joinedCommunities}
+                    onSeeAll={() => router.push('/communities' as any)}
+                  />
+                )}
+              </View>
+            ) : null
           }
           ListEmptyComponent={
             nearMe
@@ -1432,9 +1417,20 @@ export default function EventsScreen() {
 
 const WEEKEND_RADIUS_OPTIONS = [5, 10, 25, 50, 100]
 
-// ── Hot Offers rail ───────────────────────────────────────────────────────────
+// ── Constants ─────────────────────────────────────────────────────────────────
 
-function HotOffersRail({
+const CAROUSEL_DURATION = 4000
+const SCREEN_WIDTH = Dimensions.get('window').width
+const CARD_WIDTH = SCREEN_WIDTH - 2 * Spacing.lg
+
+const FEATURED_CATEGORY_EMOJI: Record<string, string> = {
+  sports: '⚽', art: '🎨', music: '🎵', tech: '💻', food: '🍽️',
+  community: '🤝', education: '📚', health: '💪', business: '💼', entertainment: '🎭',
+}
+
+// ── Featured Carousel ─────────────────────────────────────────────────────────
+
+function FeaturedCarousel({
   events,
   savedIds,
   onSaveChange,
@@ -1443,76 +1439,345 @@ function HotOffersRail({
   savedIds: Set<string>
   onSaveChange: (id: string, saved: boolean) => void
 }) {
+  const scrollRef = useRef<ScrollView>(null)
+  const [activeIdx, setActiveIdx] = useState(0)
+  const progressAnim = useRef(new Animated.Value(0)).current
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    if (events.length <= 1) return
+    progressAnim.setValue(0)
+    const anim = Animated.timing(progressAnim, {
+      toValue: 1,
+      duration: CAROUSEL_DURATION,
+      useNativeDriver: false,
+    })
+    anim.start()
+    timerRef.current = setTimeout(() => {
+      const next = (activeIdx + 1) % events.length
+      scrollRef.current?.scrollTo({ x: next * CARD_WIDTH, animated: true })
+      setActiveIdx(next)
+    }, CAROUSEL_DURATION)
+    return () => {
+      anim.stop()
+      if (timerRef.current) clearTimeout(timerRef.current)
+    }
+  }, [activeIdx, events.length])
+
+  function onScroll(e: { nativeEvent: { contentOffset: { x: number } } }) {
+    const idx = Math.round(e.nativeEvent.contentOffset.x / CARD_WIDTH)
+    if (idx !== activeIdx && idx >= 0 && idx < events.length) setActiveIdx(idx)
+  }
+
   if (events.length === 0) return null
 
+  const progressWidth = progressAnim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] })
+
+  return (
+    <View style={styles.carouselWrapper}>
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onMomentumScrollEnd={onScroll}
+        scrollEventThrottle={16}
+      >
+        {events.map((ev) => (
+          <View key={ev.id} style={{ width: CARD_WIDTH }}>
+            <FeaturedCard event={ev} isSaved={savedIds.has(ev.id)} onSaveChange={onSaveChange} flat />
+          </View>
+        ))}
+      </ScrollView>
+      {events.length > 1 && (
+        <View style={styles.carouselDotRow}>
+          {events.map((_, i) => (
+            <View key={i} style={[styles.carouselDot, i === activeIdx && styles.carouselDotActive]} />
+          ))}
+        </View>
+      )}
+      {events.length > 1 && (
+        <View style={styles.carouselProgressTrack}>
+          <Animated.View style={[styles.carouselProgressFill, { width: progressWidth }]} />
+        </View>
+      )}
+    </View>
+  )
+}
+
+// ── Featured Card ─────────────────────────────────────────────────────────────
+
+function FeaturedCard({
+  event, isSaved, onSaveChange, flat = false,
+}: {
+  event: EventWithOrganizer
+  isSaved: boolean
+  onSaveChange: (id: string, saved: boolean) => void
+  flat?: boolean
+}) {
+  const router = useRouter()
+  const { locale } = useLocale()
+  const { user } = useAuth()
+  const [saved, setSaved] = useState(isSaved)
+  useEffect(() => { setSaved(isSaved) }, [isSaved])
+
+  const title = locale === 'ar' && event.title_ar ? event.title_ar : event.title
+  const icon = FEATURED_CATEGORY_EMOJI[event.category?.name_en?.toLowerCase() ?? ''] ?? '📅'
+  const spotsLeft = event.capacity ? event.capacity - event.bookings_count : null
+  const spotsPercent = event.capacity ? Math.min((event.bookings_count / event.capacity) * 100, 100) : null
+  const hasHotOffer = (event.ticket_types ?? []).some(
+    (tt) => tt.is_hot_offer && !!tt.hot_offer_ends_at && new Date(tt.hot_offer_ends_at) > new Date(),
+  )
+  let dateLabel = ''
+  try {
+    dateLabel = new Date(event.start_at).toLocaleDateString(locale === 'ar' ? 'ar-SA' : 'en-US', {
+      weekday: 'short', month: 'short', day: 'numeric',
+    })
+  } catch { /* noop */ }
+
+  async function toggleSave() {
+    if (!user) return
+    const next = !saved
+    setSaved(next)
+    if (next) {
+      const { error } = await apiPost(`/api/events/${event.id}/save`, {})
+      if (error) { setSaved(false); return }
+      onSaveChange(event.id, true)
+    } else {
+      const { error } = await apiDelete(`/api/events/${event.id}/save`)
+      if (error) { setSaved(true); return }
+      onSaveChange(event.id, false)
+    }
+  }
+
+  const flatOverride = flat ? { borderRadius: 0, marginBottom: 0, shadowOpacity: 0, elevation: 0 } : undefined
+
+  return (
+    <TouchableOpacity
+      style={[styles.featuredCard, flatOverride]}
+      activeOpacity={0.88}
+      onPress={() => router.push(`/events/${event.id}`)}
+    >
+      <View style={styles.featuredCover}>
+        {event.cover_image_url
+          ? <Image source={{ uri: event.cover_image_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+          : <View style={styles.featuredCoverPlaceholder}><Text style={styles.featuredCoverEmoji}>{icon}</Text></View>
+        }
+        <View style={styles.featuredCoverScrim} />
+        <View style={styles.featuredBadge}>
+          <Text style={styles.featuredBadgeText}>⭐ FEATURED</Text>
+        </View>
+        {user && (
+          <TouchableOpacity style={styles.featuredHeart} onPress={toggleSave} hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}>
+            <Text style={{ fontSize: 16 }}>{saved ? '❤️' : '🤍'}</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+      <View style={styles.featuredBody}>
+        <View style={styles.featuredTagsRow}>
+          {event.is_free && <Badge label="Free" variant="green" />}
+          {hasHotOffer && <Badge label="🔥 Hot Offer" variant="orange" />}
+          {event.category && (
+            <Badge
+              label={locale === 'ar' && event.category.name_ar ? event.category.name_ar : event.category.name_en}
+              variant="brand"
+            />
+          )}
+        </View>
+        <Text style={styles.featuredTitle} numberOfLines={2}>{title}</Text>
+        <View style={styles.featuredMeta}>
+          {dateLabel ? <Text style={styles.featuredMetaText}>📅 {dateLabel}</Text> : null}
+          {(event.city || event.venue_name) ? (
+            <Text style={styles.featuredMetaText} numberOfLines={1}>
+              📍 {event.city}{event.venue_name ? ` · ${event.venue_name}` : ''}
+            </Text>
+          ) : null}
+        </View>
+        <View style={styles.featuredFooter}>
+          <View style={{ flex: 1 }}>
+            {spotsLeft !== null && spotsLeft >= 0 && (
+              <Text style={styles.featuredSpotsText}>
+                {event.bookings_count.toLocaleString()} going{spotsLeft > 0 ? ` · ${spotsLeft} spots left` : ' · Full'}
+              </Text>
+            )}
+          </View>
+          <View style={[styles.featuredPricePill, event.is_free && styles.featuredPricePillFree]}>
+            <Text style={[styles.featuredPriceText, event.is_free && styles.featuredPriceTextFree]}>
+              {event.is_free ? 'Free' : formatCurrency(event.price ?? 0, event.currency, locale)}
+            </Text>
+          </View>
+        </View>
+        {spotsPercent !== null && (
+          <View style={styles.featuredProgressTrack}>
+            <View style={[styles.featuredProgressFill, { width: `${spotsPercent}%` }]} />
+          </View>
+        )}
+      </View>
+    </TouchableOpacity>
+  )
+}
+
+// ── Hot Offers rail ───────────────────────────────────────────────────────────
+
+function HotOfferCard({ event }: { event: EventWithOrganizer }) {
+  const router = useRouter()
+  const { locale } = useLocale()
+  const title = locale === 'ar' && event.title_ar ? event.title_ar : event.title
+  const now = new Date()
+  const hotTicket = (event.ticket_types ?? []).find(
+    (tt) => tt.is_hot_offer && !!tt.hot_offer_ends_at && new Date(tt.hot_offer_ends_at) > now,
+  )
+  const discountPct = hotTicket?.hot_offer_price != null && hotTicket.price && hotTicket.price > 0
+    ? Math.round((1 - hotTicket.hot_offer_price / hotTicket.price) * 100)
+    : null
+  const icon = FEATURED_CATEGORY_EMOJI[event.category?.name_en?.toLowerCase() ?? ''] ?? '📅'
+
+  return (
+    <TouchableOpacity
+      style={styles.hotOfferCard}
+      activeOpacity={0.85}
+      onPress={() => router.push(`/events/${event.id}`)}
+    >
+      <View style={styles.hotOfferCover}>
+        {event.cover_image_url
+          ? <Image source={{ uri: event.cover_image_url }} style={[StyleSheet.absoluteFill, { opacity: 0.72 }]} resizeMode="cover" />
+          : <View style={styles.hotOfferCoverPlaceholder}><Text style={{ fontSize: 32 }}>{icon}</Text></View>
+        }
+        {discountPct !== null && (
+          <View style={styles.hotOfferBadge}>
+            <Text style={styles.hotOfferBadgeText}>🔥 {discountPct}% OFF</Text>
+          </View>
+        )}
+      </View>
+      <View style={styles.hotOfferBody}>
+        <Text style={styles.hotOfferTitle} numberOfLines={2}>{title}</Text>
+        <View style={styles.hotOfferPriceRow}>
+          {hotTicket?.hot_offer_price != null && (
+            <Text style={styles.hotOfferPrice}>
+              {formatCurrency(hotTicket.hot_offer_price, event.currency, locale)}
+            </Text>
+          )}
+          {hotTicket?.price != null && hotTicket.price > 0 && (
+            <Text style={styles.hotOfferOriginalPrice}>
+              {formatCurrency(hotTicket.price, event.currency, locale)}
+            </Text>
+          )}
+        </View>
+      </View>
+    </TouchableOpacity>
+  )
+}
+
+function HotOffersRail({ events }: { events: EventWithOrganizer[] }) {
+  if (events.length === 0) return null
   return (
     <View style={styles.hotRailSection}>
       <View style={styles.hotRailHeader}>
-        <View>
+        <View style={styles.hotRailIconBox}>
+          <Text style={{ fontSize: 18 }}>🔥</Text>
+        </View>
+        <View style={{ flex: 1 }}>
           <Text style={styles.hotRailEyebrow}>Limited time</Text>
-          <Text style={styles.hotRailTitle}>🔥 Hot Offers</Text>
+          <Text style={styles.hotRailTitle}>Hot Offers</Text>
         </View>
         <View style={styles.hotRailBadge}>
           <Text style={styles.hotRailBadgeText}>{events.length} deal{events.length !== 1 ? 's' : ''}</Text>
         </View>
       </View>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.hotRailScroller}
-      >
-        {events.map((event) => (
-          <EventCard
-            key={event.id}
-            event={event}
-            isSaved={savedIds.has(event.id)}
-            onSaveChange={onSaveChange}
-            variant="rail"
-          />
-        ))}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hotRailScroller}>
+        {events.map((ev) => <HotOfferCard key={ev.id} event={ev} />)}
       </ScrollView>
     </View>
   )
 }
 
-// ── Featured Events rail ───────────────────────────────────────────────────────
+// ── Saved Events Rail ─────────────────────────────────────────────────────────
 
-function FeaturedEventsRail({
-  events,
-  savedIds,
-  onSaveChange,
-}: {
-  events: EventWithOrganizer[]
-  savedIds: Set<string>
-  onSaveChange: (id: string, saved: boolean) => void
-}) {
+function SavedEventsRail({ events, onSeeAll }: { events: EventWithOrganizer[]; onSeeAll?: () => void }) {
+  const router = useRouter()
+  const { locale } = useLocale()
   if (events.length === 0) return null
-
   return (
-    <View style={[styles.hotRailSection, { backgroundColor: Colors.brand[50], paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, marginHorizontal: Spacing.lg, borderRadius: Radius.lg }]}>
-      <View style={styles.hotRailHeader}>
-        <View>
-          <Text style={styles.hotRailEyebrow}>Pinned events</Text>
-          <Text style={[styles.hotRailTitle, { color: Colors.brand[800] }]}>⭐ Featured Events</Text>
+    <View style={styles.savedRailSection}>
+      <View style={styles.savedRailHeader}>
+        <View style={styles.savedRailTitleRow}>
+          <Text style={styles.savedRailTitle}>❤️ Saved</Text>
+          <View style={styles.savedCountBadge}>
+            <Text style={styles.savedCountText}>{events.length}</Text>
+          </View>
         </View>
-        <View style={[styles.hotRailBadge, { backgroundColor: Colors.brand[200] }]}>
-          <Text style={[styles.hotRailBadgeText, { color: Colors.brand[700] }]}>{events.length}</Text>
-        </View>
+        {onSeeAll && (
+          <TouchableOpacity onPress={onSeeAll} hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}>
+            <Text style={styles.savedRailSeeAll}>See all →</Text>
+          </TouchableOpacity>
+        )}
       </View>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.hotRailScroller}
-      >
-        {events.map((event) => (
-          <EventCard
-            key={event.id}
-            event={event}
-            isSaved={savedIds.has(event.id)}
-            onSaveChange={onSaveChange}
-            variant="rail"
-          />
-        ))}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.savedRailScroller}>
+        {events.map((ev) => {
+          const title = locale === 'ar' && ev.title_ar ? ev.title_ar : ev.title
+          const icon = FEATURED_CATEGORY_EMOJI[ev.category?.name_en?.toLowerCase() ?? ''] ?? '📅'
+          return (
+            <TouchableOpacity
+              key={ev.id}
+              style={styles.savedCard}
+              activeOpacity={0.82}
+              onPress={() => router.push(`/events/${ev.id}`)}
+            >
+              <View style={styles.savedCardCover}>
+                {ev.cover_image_url
+                  ? <Image source={{ uri: ev.cover_image_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+                  : <View style={styles.savedCardPlaceholder}><Text style={{ fontSize: 28 }}>{icon}</Text></View>
+                }
+              </View>
+              <View style={styles.savedCardBody}>
+                <Text style={styles.savedCardTitle} numberOfLines={2}>{title}</Text>
+                <Text style={styles.savedCardMeta} numberOfLines={1}>📍 {ev.city}</Text>
+              </View>
+            </TouchableOpacity>
+          )
+        })}
+      </ScrollView>
+    </View>
+  )
+}
+
+// ── Your Communities Section ──────────────────────────────────────────────────
+
+function YourCommunitiesSection({ communities, onSeeAll }: { communities: JoinedCommunity[]; onSeeAll: () => void }) {
+  const router = useRouter()
+  const { locale } = useLocale()
+  return (
+    <View style={styles.yourCommSection}>
+      <View style={styles.yourCommHeader}>
+        <Text style={styles.yourCommTitle}>Your Communities</Text>
+        <TouchableOpacity onPress={onSeeAll} hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}>
+          <Text style={styles.yourCommSeeAll}>See all →</Text>
+        </TouchableOpacity>
+      </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.yourCommScroll}>
+        {communities.map((c) => {
+          const name = locale === 'ar' && c.name_ar ? c.name_ar : c.name
+          return (
+            <TouchableOpacity
+              key={c.id}
+              style={styles.yourCommCard}
+              onPress={() => router.push(`/communities/${c.slug}` as any)}
+              activeOpacity={0.8}
+            >
+              <View style={styles.yourCommAvatar}>
+                <Text style={styles.yourCommAvatarText}>{name.slice(0, 1).toUpperCase()}</Text>
+              </View>
+              <Text style={styles.yourCommName} numberOfLines={2}>{name}</Text>
+              <Text style={styles.yourCommLevel}>{c.level}</Text>
+            </TouchableOpacity>
+          )
+        })}
+        <TouchableOpacity style={styles.yourCommFindCard} onPress={onSeeAll} activeOpacity={0.8}>
+          <View style={styles.yourCommFindIcon}>
+            <Ionicons name="add" size={20} color={Colors.brand[500]} />
+          </View>
+          <Text style={styles.yourCommFindText}>Find{'\n'}communities</Text>
+        </TouchableOpacity>
       </ScrollView>
     </View>
   )
@@ -1728,12 +1993,12 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.green.light,
     borderColor: Colors.green.DEFAULT,
   },
-  categoryRow: { backgroundColor: Colors.white, paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.gray[100], paddingLeft: Spacing.lg },
-  chip: { flexShrink: 0, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: Radius.full, backgroundColor: Colors.gray[100], marginRight: Spacing.sm, borderWidth: 1, borderColor: Colors.gray[200] },
+  categoryChipsScroll: { marginBottom: Spacing.md },
+  categoryChipsContent: { gap: Spacing.sm },
+  chip: { flexShrink: 0, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm - 1, borderRadius: Radius.full, backgroundColor: Colors.gray[100], borderWidth: 1, borderColor: Colors.gray[200] },
   chipActive: { backgroundColor: Colors.brand[500], borderColor: Colors.brand[500] },
   chipText: { fontSize: FontSize.sm, color: Colors.gray[600], fontWeight: FontWeight.medium },
   chipTextActive: { color: Colors.white },
-  filterRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, backgroundColor: Colors.white, borderBottomWidth: 1, borderBottomColor: Colors.gray[100] },
   miniChip: { paddingHorizontal: Spacing.md, paddingVertical: 5, borderRadius: Radius.full, borderWidth: 1, borderColor: Colors.gray[200], marginRight: Spacing.xs, backgroundColor: Colors.white },
   miniChipActive: { borderColor: Colors.brand[400], backgroundColor: Colors.brand[50] },
   miniChipActiveGreen: { borderColor: Colors.green.DEFAULT, backgroundColor: Colors.green.light },
@@ -1850,23 +2115,6 @@ const styles = StyleSheet.create({
   radiusChipActive: { backgroundColor: Colors.brand[500], borderColor: Colors.brand[500] },
   radiusChipText: { fontSize: FontSize.xs, color: Colors.brand[600] },
   radiusChipTextActive: { color: Colors.white, fontWeight: FontWeight.semibold },
-  communityRow: { backgroundColor: Colors.white, paddingVertical: Spacing.sm, paddingLeft: Spacing.lg, borderBottomWidth: 1, borderBottomColor: Colors.gray[100] },
-  communityScroll: { flex: 1 },
-  communityScrollContent: { paddingRight: Spacing.sm },
-  communityChip: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs + 1, borderRadius: Radius.full, borderWidth: 1, borderColor: Colors.gray[200], backgroundColor: Colors.gray[50], marginRight: Spacing.sm },
-  communityChipActive: { backgroundColor: Colors.brand[600], borderColor: Colors.brand[600] },
-  communityChipText: { fontSize: FontSize.xs, color: Colors.gray[700], fontWeight: FontWeight.medium },
-  communityChipTextActive: { color: Colors.white },
-  communityExploreBtn: {
-    marginLeft: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs + 1,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-    borderColor: Colors.brand[200],
-    backgroundColor: Colors.brand[50],
-  },
-  communityExploreBtnText: { fontSize: FontSize.xs, color: Colors.brand[600], fontWeight: FontWeight.medium },
 
   // Active Now rail
   activeNowSection: { paddingBottom: Spacing.lg, borderBottomWidth: 1, borderBottomColor: Colors.gray[100], marginBottom: Spacing.sm },
@@ -1949,54 +2197,119 @@ const styles = StyleSheet.create({
   searchResultBadgeText: { fontSize: 11, fontWeight: FontWeight.semibold, color: Colors.gray[700] },
   eventSearchBadgeRow: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm },
 
-  // Hot Offers rail
+  // ── Upcoming heading ────────────────────────────────────────────────────────
+  upcomingHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginTop: Spacing.lg, marginBottom: Spacing.sm,
+  },
+  upcomingTitle: { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.gray[900], letterSpacing: -0.3 },
+  upcomingSeeAll: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.brand[600] },
+
+  // ── See All Events button ────────────────────────────────────────────────────
+  seeAllEventsBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.xs,
+    marginVertical: Spacing.md, marginHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md, borderRadius: Radius.lg,
+    borderWidth: 1.5, borderColor: Colors.brand[300], backgroundColor: Colors.brand[50],
+  },
+  seeAllEventsBtnText: { fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.brand[600] },
+
+  // ── Featured Card ────────────────────────────────────────────────────────────
+  featuredCard: {
+    backgroundColor: Colors.white, borderRadius: Radius.xl, overflow: 'hidden',
+    marginBottom: Spacing.lg, shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 3,
+  },
+  featuredCover: { height: 200, backgroundColor: Colors.brand[100], justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
+  featuredCoverPlaceholder: { ...StyleSheet.absoluteFillObject, backgroundColor: Colors.brand[100], justifyContent: 'center', alignItems: 'center' },
+  featuredCoverEmoji: { fontSize: 64 },
+  featuredCoverScrim: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 60, backgroundColor: 'transparent' },
+  featuredBadge: { position: 'absolute', top: 12, left: 12, backgroundColor: Colors.brand[500], borderRadius: Radius.sm, paddingHorizontal: Spacing.md, paddingVertical: 4 },
+  featuredBadgeText: { color: Colors.white, fontSize: FontSize.xs, fontWeight: FontWeight.bold, letterSpacing: 0.5 },
+  featuredHeart: { position: 'absolute', top: 12, right: 12, backgroundColor: 'rgba(255,255,255,0.92)', borderRadius: Radius.md, padding: Spacing.sm, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 6, elevation: 3 },
+  featuredBody: { padding: Spacing.lg },
+  featuredTagsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs, marginBottom: Spacing.sm },
+  featuredTitle: { fontSize: FontSize['2xl'], fontWeight: FontWeight.bold, color: Colors.gray[900], letterSpacing: -0.3, lineHeight: 30, marginBottom: Spacing.sm },
+  featuredMeta: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.md, marginBottom: Spacing.md },
+  featuredMetaText: { fontSize: FontSize.sm, color: Colors.gray[500] },
+  featuredFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.sm },
+  featuredSpotsText: { fontSize: FontSize.xs, color: Colors.gray[400] },
+  featuredPricePill: { backgroundColor: Colors.brand[50], borderRadius: Radius.sm, paddingHorizontal: Spacing.md, paddingVertical: 4, borderWidth: 1, borderColor: Colors.brand[200] },
+  featuredPricePillFree: { backgroundColor: Colors.green.light, borderColor: Colors.green.DEFAULT },
+  featuredPriceText: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.brand[700] },
+  featuredPriceTextFree: { color: Colors.green.text },
+  featuredProgressTrack: { height: 4, backgroundColor: Colors.gray[100], borderRadius: 2, overflow: 'hidden' },
+  featuredProgressFill: { height: '100%' as const, backgroundColor: Colors.brand[500], borderRadius: 2 },
+
+  // ── Carousel ────────────────────────────────────────────────────────────────
+  carouselWrapper: {
+    marginBottom: Spacing.lg, borderRadius: Radius.xl, overflow: 'hidden',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 3,
+  },
+  carouselDotRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 5, paddingVertical: Spacing.sm, backgroundColor: Colors.white },
+  carouselDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.gray[300] },
+  carouselDotActive: { width: 18, borderRadius: 3, backgroundColor: Colors.brand[500] },
+  carouselProgressTrack: { height: 3, backgroundColor: Colors.gray[100] },
+  carouselProgressFill: { height: 3, backgroundColor: Colors.brand[500] },
+
+  // ── Hot Offers rail ──────────────────────────────────────────────────────────
   hotRailSection: {
-    marginBottom: Spacing.lg,
-    marginTop: Spacing.xs,
-    marginHorizontal: -Spacing.lg,
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing.lg,
-    backgroundColor: '#1a0d04',
-    borderRadius: Radius.xl,
-    overflow: 'hidden',
+    marginBottom: Spacing.lg, marginTop: Spacing.xs,
+    paddingTop: Spacing.md, paddingBottom: Spacing.lg,
+    backgroundColor: '#fff7ed', borderRadius: Radius.xl,
+    borderWidth: 1, borderColor: '#fed7aa',
   },
-  hotRailHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.lg,
-    marginBottom: Spacing.sm,
+  hotRailHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingHorizontal: Spacing.lg, marginBottom: Spacing.sm },
+  hotRailIconBox: { width: 36, height: 36, borderRadius: 10, backgroundColor: '#ffedd5', justifyContent: 'center', alignItems: 'center' },
+  hotRailEyebrow: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: '#f97316', textTransform: 'uppercase' as const, letterSpacing: 0.8 },
+  hotRailTitle: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: '#c2410c', letterSpacing: -0.3 },
+  hotRailBadge: { backgroundColor: '#ffedd5', borderRadius: Radius.full, borderWidth: 1, borderColor: '#fed7aa', paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs },
+  hotRailBadgeText: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: '#f97316' },
+  hotRailScroller: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xs, gap: Spacing.sm },
+  hotOfferCard: { width: 192, backgroundColor: Colors.white, borderRadius: Radius.lg, overflow: 'hidden', shadowColor: '#f97316', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 6, elevation: 4 },
+  hotOfferCover: { height: 120, backgroundColor: '#2a1108', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
+  hotOfferCoverPlaceholder: { ...StyleSheet.absoluteFillObject, backgroundColor: '#2a1108', justifyContent: 'center', alignItems: 'center' },
+  hotOfferBadge: { position: 'absolute', top: 8, left: 8, backgroundColor: '#f97316', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 },
+  hotOfferBadgeText: { fontSize: 11, fontWeight: FontWeight.bold, color: '#fff' },
+  hotOfferBody: { padding: 10 },
+  hotOfferTitle: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.gray[900], lineHeight: 18, marginBottom: 6 },
+  hotOfferPriceRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  hotOfferPrice: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: '#f97316' },
+  hotOfferOriginalPrice: { fontSize: FontSize.xs, color: Colors.gray[400], textDecorationLine: 'line-through' as const },
+
+  // ── Saved Events Rail ────────────────────────────────────────────────────────
+  savedRailSection: {
+    marginBottom: Spacing.lg, marginTop: Spacing.xs,
+    paddingTop: Spacing.md, paddingBottom: Spacing.lg,
+    backgroundColor: Colors.white, borderRadius: Radius.xl,
+    borderWidth: 1, borderColor: '#fde8c8',
   },
-  hotRailEyebrow: {
-    fontSize: FontSize.xs,
-    fontWeight: FontWeight.semibold,
-    color: '#F97316',
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    marginBottom: 2,
-  },
-  hotRailTitle: {
-    fontSize: FontSize.lg,
-    fontWeight: FontWeight.bold,
-    color: '#FBBF24',
-    letterSpacing: -0.3,
-  },
-  hotRailBadge: {
-    backgroundColor: 'rgba(249,115,22,0.18)',
-    borderRadius: Radius.full,
-    borderWidth: 1,
-    borderColor: 'rgba(249,115,22,0.35)',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-  },
-  hotRailBadgeText: {
-    fontSize: FontSize.xs,
-    fontWeight: FontWeight.semibold,
-    color: '#FB923C',
-  },
-  hotRailScroller: {
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.xs,
-    gap: Spacing.sm,
-  },
+  savedRailHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.lg, marginBottom: Spacing.sm },
+  savedRailTitleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  savedRailTitle: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.gray[900], letterSpacing: -0.2 },
+  savedCountBadge: { backgroundColor: '#fee2e2', borderRadius: Radius.full, paddingHorizontal: Spacing.sm, paddingVertical: 2, borderWidth: 1, borderColor: '#fecaca' },
+  savedCountText: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: '#ef4444' },
+  savedRailSeeAll: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.brand[600] },
+  savedRailScroller: { paddingHorizontal: Spacing.lg, gap: Spacing.sm },
+  savedCard: { width: 160, backgroundColor: Colors.white, borderRadius: Radius.lg, overflow: 'hidden', borderWidth: 1, borderColor: Colors.gray[100], shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 2 },
+  savedCardCover: { height: 100, backgroundColor: Colors.gray[100], overflow: 'hidden' },
+  savedCardPlaceholder: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.brand[50] },
+  savedCardBody: { padding: 8 },
+  savedCardTitle: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.gray[900], lineHeight: 16, marginBottom: 4 },
+  savedCardMeta: { fontSize: 10, color: Colors.gray[400] },
+
+  // ── Your Communities ─────────────────────────────────────────────────────────
+  yourCommSection: { marginTop: Spacing.lg, marginBottom: Spacing.lg },
+  yourCommHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.md },
+  yourCommTitle: { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.gray[900], letterSpacing: -0.3 },
+  yourCommSeeAll: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.brand[600] },
+  yourCommScroll: { gap: Spacing.sm, paddingBottom: Spacing.xs },
+  yourCommCard: { width: 120, backgroundColor: Colors.white, borderRadius: Radius.lg, padding: Spacing.md, borderWidth: 1, borderColor: Colors.gray[100], shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 2 },
+  yourCommAvatar: { width: 40, height: 40, borderRadius: 12, backgroundColor: Colors.brand[100], justifyContent: 'center', alignItems: 'center', marginBottom: Spacing.sm, borderWidth: 1, borderColor: Colors.brand[200] },
+  yourCommAvatarText: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.brand[700] },
+  yourCommName: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.gray[900], lineHeight: 17, marginBottom: 3 },
+  yourCommLevel: { fontSize: FontSize.xs, color: Colors.gray[400], textTransform: 'capitalize' as const },
+  yourCommFindCard: { width: 120, backgroundColor: Colors.white, borderRadius: Radius.lg, padding: Spacing.md, borderWidth: 1, borderColor: Colors.gray[200], borderStyle: 'dashed' as const, alignItems: 'center', justifyContent: 'center', gap: Spacing.sm },
+  yourCommFindIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: Colors.brand[50], justifyContent: 'center', alignItems: 'center' },
+  yourCommFindText: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.gray[500], textAlign: 'center' as const },
 })

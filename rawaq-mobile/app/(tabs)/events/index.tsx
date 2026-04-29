@@ -1,6 +1,5 @@
-import { Redirect } from 'expo-router'
+import EventsListScreen from '@/components/screens/EventsListScreen'
 
-// EventsScreen is now a component inside home.tsx — redirect any direct navigation here.
-export default function EventsTabRoute() {
-  return <Redirect href="/(tabs)/home" />
+export default function EventsTab() {
+  return <EventsListScreen />
 }

@@ -29,10 +29,6 @@ type BookingListRow = Pick<
   event: Pick<Event, 'id' | 'title' | 'title_ar' | 'start_at' | 'end_at' | 'event_frequency' | 'cover_image_url' | 'city' | 'is_free' | 'price' | 'is_cancelled'> | null
 }
 
-type BookingListItem =
-  | { type: 'header'; id: string; label: string }
-  | { type: 'item'; id: string; booking: BookingListRow }
-
 function getBookingStartAt(booking: BookingListRow) {
   return booking.occurrence?.starts_at ?? booking.event?.start_at ?? null
 }
@@ -45,6 +41,7 @@ export default function BookingsScreen() {
   const [bookings,    setBookings]    = useState<BookingListRow[]>([])
   const [loading,     setLoading]     = useState(true)
   const [refreshing,  setRefreshing]  = useState(false)
+  const [tab,         setTab]         = useState<'upcoming' | 'past'>('upcoming')
 
   // Refund modal state
   const [refundTarget, setRefundTarget] = useState<BookingListRow | null>(null)
@@ -137,92 +134,108 @@ export default function BookingsScreen() {
     return !!b.event && !!startAt && new Date(startAt) <= new Date()
   })
 
-  const all: BookingListItem[] = []
-  if (upcoming.length) {
-    all.push({ type: 'header', id: 'h1', label: `${t('bookings.upcoming')} (${upcoming.length})` })
-    all.push(...upcoming.map((booking): BookingListItem => ({ type: 'item', id: booking.id, booking })))
-  }
-  if (past.length) {
-    all.push({ type: 'header', id: 'h2', label: `${t('bookings.past')} (${past.length})` })
-    all.push(...past.map((booking): BookingListItem => ({ type: 'item', id: booking.id, booking })))
-  }
+  const listData = tab === 'upcoming' ? upcoming : past
 
   return (
     <>
-      <FlatList
-        style={styles.container}
-        data={all}
-        keyExtractor={(item) => item.id}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadBookings() }} tintColor={Colors.brand[500]} />}
-        contentContainerStyle={styles.content}
-        ListHeaderComponent={
+      <View style={styles.container}>
+        {/* Sub-tab pills */}
+        <View style={styles.subTabBar}>
           <TouchableOpacity
-            style={styles.chatCard}
-            activeOpacity={0.8}
-            onPress={() => router.push('/(tabs)/chat')}
+            style={[styles.subTab, tab === 'upcoming' && styles.subTabActive]}
+            onPress={() => setTab('upcoming')}
+            activeOpacity={0.75}
           >
-            <View style={styles.chatIconWrap}>
-              <Ionicons name="chatbubbles" size={22} color={Colors.brand[600]} />
-            </View>
-            <View style={styles.chatBody}>
-              <Text style={styles.chatTitle}>Chat with us</Text>
-              <Text style={styles.chatSubtitle}>Questions about your booking? We're here.</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={Colors.gray[400]} />
+            <Text style={[styles.subTabText, tab === 'upcoming' && styles.subTabTextActive]}>
+              {t('bookings.upcoming')}{upcoming.length > 0 ? ` (${upcoming.length})` : ''}
+            </Text>
           </TouchableOpacity>
-        }
-        ListEmptyComponent={<EmptyState icon="🎟️" title={t('bookings.empty')} description={t('bookings.join_hint')} />}
-        renderItem={({ item }) => {
-          if (item.type === 'header') {
-            return <Text style={styles.sectionHeader}>{item.label}</Text>
-          }
-          const b = item.booking
-          const title = locale === 'ar' && b.event?.title_ar ? b.event.title_ar : b.event?.title ?? 'Event'
-          const isActive     = b.status === 'confirmed' && !b.event?.is_cancelled
-          const canRefund    = canRefundBooking(b)
-          const startAt = getBookingStartAt(b)
+          <TouchableOpacity
+            style={[styles.subTab, tab === 'past' && styles.subTabActive]}
+            onPress={() => setTab('past')}
+            activeOpacity={0.75}
+          >
+            <Text style={[styles.subTabText, tab === 'past' && styles.subTabTextActive]}>
+              {t('bookings.past')}{past.length > 0 ? ` (${past.length})` : ''}
+            </Text>
+          </TouchableOpacity>
+        </View>
 
-          return (
+        <FlatList<BookingListRow>
+          style={styles.list}
+          data={listData}
+          keyExtractor={(item) => item.id}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadBookings() }} tintColor={Colors.brand[500]} />}
+          contentContainerStyle={styles.content}
+          ListHeaderComponent={
             <TouchableOpacity
-              style={styles.card}
+              style={styles.chatCard}
               activeOpacity={0.8}
-              onPress={() => b.event && router.push(`/events/${b.event.id}`)}
+              onPress={() => router.push('/(tabs)/chat')}
             >
-              <View style={styles.cardIcon}>
-                <Text style={{ fontSize: 24 }}>📅</Text>
+              <View style={styles.chatIconWrap}>
+                <Ionicons name="chatbubbles" size={22} color={Colors.brand[600]} />
               </View>
-              <View style={styles.cardBody}>
-                <Text style={styles.cardTitle} numberOfLines={1}>{title}</Text>
-                <Text style={styles.cardMeta}>
-                  {b.event && startAt ? `${formatDate(startAt, locale)} · ${b.event.city}` : ''}
-                </Text>
-                {isActive && b.ticket_id && (
-                  <TouchableOpacity
-                    style={styles.ticketBtn}
-                    onPress={() => router.push(`/bookings/${b.id}/ticket`)}
-                    hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
-                  >
-                    <Text style={styles.ticketBtnText}>🎟️ {t('ticket.view_ticket')}</Text>
-                  </TouchableOpacity>
-                )}
-                {canRefund && (
-                  <TouchableOpacity
-                    style={styles.refundBtn}
-                    onPress={() => openRefundModal(b)}
-                    hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
-                  >
-                    <Text style={styles.refundBtnText}>↩️ Cancel & Refund</Text>
-                  </TouchableOpacity>
-                )}
+              <View style={styles.chatBody}>
+                <Text style={styles.chatTitle}>Chat with us</Text>
+                <Text style={styles.chatSubtitle}>Questions about your booking? We're here.</Text>
               </View>
-              <Badge
-                label={b.event?.is_cancelled || b.status === 'cancelled' ? t('bookings.cancelled') : t('bookings.confirmed')}
-                variant={b.event?.is_cancelled || b.status === 'cancelled' ? 'red' : 'green'}
-              />
+              <Ionicons name="chevron-forward" size={18} color={Colors.gray[400]} />
             </TouchableOpacity>
-          )
-        }}
-      />
+          }
+          ListEmptyComponent={
+            tab === 'upcoming'
+              ? <EmptyState icon="🎟️" title={t('bookings.empty')} description={t('bookings.join_hint')} />
+              : <EmptyState icon="📅" title="No past events" description="Events you've attended will appear here." />
+          }
+          renderItem={({ item: b }) => {
+            const title = locale === 'ar' && b.event?.title_ar ? b.event.title_ar : b.event?.title ?? 'Event'
+            const isActive  = b.status === 'confirmed' && !b.event?.is_cancelled
+            const canRefund = canRefundBooking(b)
+            const startAt   = getBookingStartAt(b)
+
+            return (
+              <TouchableOpacity
+                style={styles.card}
+                activeOpacity={0.8}
+                onPress={() => b.event && router.push(`/events/${b.event.id}`)}
+              >
+                <View style={styles.cardIcon}>
+                  <Text style={{ fontSize: 24 }}>📅</Text>
+                </View>
+                <View style={styles.cardBody}>
+                  <Text style={styles.cardTitle} numberOfLines={1}>{title}</Text>
+                  <Text style={styles.cardMeta}>
+                    {b.event && startAt ? `${formatDate(startAt, locale)} · ${b.event.city}` : ''}
+                  </Text>
+                  {isActive && b.ticket_id && (
+                    <TouchableOpacity
+                      style={styles.ticketBtn}
+                      onPress={() => router.push(`/bookings/${b.id}/ticket`)}
+                      hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+                    >
+                      <Text style={styles.ticketBtnText}>🎟️ {t('ticket.view_ticket')}</Text>
+                    </TouchableOpacity>
+                  )}
+                  {canRefund && (
+                    <TouchableOpacity
+                      style={styles.refundBtn}
+                      onPress={() => openRefundModal(b)}
+                      hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+                    >
+                      <Text style={styles.refundBtnText}>↩️ Cancel & Refund</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+                <Badge
+                  label={b.event?.is_cancelled || b.status === 'cancelled' ? t('bookings.cancelled') : t('bookings.confirmed')}
+                  variant={b.event?.is_cancelled || b.status === 'cancelled' ? 'red' : 'green'}
+                />
+              </TouchableOpacity>
+            )
+          }}
+        />
+      </View>
 
       {/* Refund confirmation modal */}
       <Modal
@@ -296,11 +309,39 @@ function canRefundBooking(booking: BookingListRow) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.gray[50] },
+  list: { flex: 1 },
   content: { padding: Spacing.lg },
-  sectionHeader: {
-    fontSize: FontSize.xs, fontWeight: FontWeight.semibold,
-    color: Colors.gray[500], textTransform: 'uppercase',
-    letterSpacing: 0.8, marginTop: Spacing.xl, marginBottom: Spacing.sm,
+
+  // Sub-tab pills
+  subTabBar: {
+    flexDirection: 'row',
+    backgroundColor: Colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.gray[100],
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    gap: Spacing.sm,
+  },
+  subTab: {
+    flex: 1,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.full,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.gray[200],
+    backgroundColor: Colors.gray[50],
+  },
+  subTabActive: {
+    backgroundColor: Colors.brand[500],
+    borderColor: Colors.brand[500],
+  },
+  subTabText: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.semibold,
+    color: Colors.gray[500],
+  },
+  subTabTextActive: {
+    color: Colors.white,
   },
   card: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.md,

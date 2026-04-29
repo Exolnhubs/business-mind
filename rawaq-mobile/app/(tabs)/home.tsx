@@ -7,12 +7,14 @@ import EventsScreen from '@/components/screens/EventsScreen'
 import FeedScreen from './feed'
 import { HappeningComposerSheet } from '@/components/happenings/HappeningComposerSheet'
 import { useAuth } from '@/contexts/auth-context'
+import { useNotifications } from '@/contexts/notification-context'
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '@/theme'
 
 type Segment = 'explore' | 'foryou'
 
 export default function HomeScreen() {
   const { profile } = useAuth()
+  const { unreadCount } = useNotifications()
   const params = useLocalSearchParams<{ community?: string }>()
   const [segment, setSegment] = useState<Segment>('explore')
   const [feedMounted, setFeedMounted] = useState(false)
@@ -52,6 +54,8 @@ export default function HomeScreen() {
   return (
     <View style={styles.root}>
       <View style={[styles.header, { paddingTop: insets.top + Spacing.sm }]}>
+        {/* Spacer to balance the bell on the right */}
+        <View style={styles.notifPlaceholder} />
         <View style={styles.pillTrack}>
           <PillBtn
             label="Explore"
@@ -64,6 +68,21 @@ export default function HomeScreen() {
             onPress={() => handleSegmentChange('foryou')}
           />
         </View>
+        <TouchableOpacity
+          style={styles.notifBtn}
+          activeOpacity={0.75}
+          onPress={() => router.push('/notifications' as any)}
+          hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+        >
+          <Ionicons name="notifications-outline" size={22} color={Colors.gray[700]} />
+          {unreadCount > 0 && (
+            <View style={styles.notifBadge}>
+              <Text style={styles.notifBadgeText}>
+                {unreadCount > 99 ? '99+' : String(unreadCount)}
+              </Text>
+            </View>
+          )}
+        </TouchableOpacity>
       </View>
 
       <>
@@ -199,8 +218,32 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: Colors.gray[100],
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
   },
+  notifPlaceholder: { width: 36 },
+  notifBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.gray[100],
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notifBadge: {
+    position: 'absolute',
+    top: -3,
+    right: -3,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: Colors.brand[500],
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 3,
+  },
+  notifBadgeText: { fontSize: 9, fontWeight: '700' as const, color: '#fff' },
   pillTrack: {
     flexDirection: 'row',
     backgroundColor: Colors.gray[100],
