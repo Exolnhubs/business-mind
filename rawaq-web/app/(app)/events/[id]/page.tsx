@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
+import type { ReactNode } from 'react'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { Badge } from '@/components/ui/Badge'
@@ -8,34 +9,39 @@ import { SaveButton } from '@/components/events/SaveButton'
 import { TipPanel } from '@/components/events/TipPanel'
 import { ReportEventButton } from '@/components/events/ReportEventButton'
 import { CommentThread } from '@/components/comments/CommentThread'
-import { formatDate, formatTime, formatCurrency } from '@/lib/utils'
+import { MobileStickyBookingBar } from '@/components/events/MobileStickyBookingBar'
+import { formatCurrency, formatDate, formatTime } from '@/lib/utils'
 import type { Community, EventOccurrence, EventWithOrganizer, CommentWithAuthor, TicketType } from '@/types/database'
 import { applyResolvedEventWindow } from '@/lib/events/recurrence'
-import { listEventOccurrences, getBookableOccurrences } from '@/lib/events/occurrences'
+import { getBookableOccurrences, listEventOccurrences } from '@/lib/events/occurrences'
 import {
-  EventCoverBadgeFree,
+  EventAboutHeading,
+  EventAttendingCount,
+  EventBadgeCancelled,
   EventBadgeFamilyFriendly,
   EventBadgeMenOnly,
   EventBadgeWomenOnly,
-  EventBadgeCancelled,
-  InfoBlockLabel,
-  EventVenueName,
-  EventAttendingCount,
   EventCapacityRow,
+  EventCategoryName,
+  EventCommentsHeading,
+  EventCommunityChip,
+  EventCoverBadgeFree,
   EventFreeLabel,
-  EventAboutHeading,
-  EventOrganizerRole,
   EventOrganizerName,
+  EventOrganizerRole,
+  EventVenueName,
+  EventViewOrganizerLink,
   SidebarPriceFrom,
   SidebarSpotsLeft,
-  EventViewOrganizerLink,
-  EventCommentsHeading,
-  EventCategoryName,
-  EventCommunityChip,
 } from '@/components/events/EventDetailStrings'
 
 function getEffectivePrice(tt: TicketType): number {
-  if (tt.is_hot_offer && tt.hot_offer_price != null && tt.hot_offer_ends_at && new Date(tt.hot_offer_ends_at) > new Date()) {
+  if (
+    tt.is_hot_offer &&
+    tt.hot_offer_price != null &&
+    tt.hot_offer_ends_at &&
+    new Date(tt.hot_offer_ends_at) > new Date()
+  ) {
     return tt.hot_offer_price
   }
   return tt.price
@@ -52,8 +58,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
   const { id } = await params
   const supabase = await createSupabaseServerClient()
 
-  // Fetch event
-  const { data: event, error } = await supabase
+  const { data: event } = await supabase
     .from('events')
     .select(`
       *,
@@ -84,21 +89,35 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
   let confirmedOccurrenceIds: string[] = []
   let pendingOccurrenceIds: string[] = []
   let waitlistedOccurrenceIds: string[] = []
+
   if (user) {
     const [{ data: bookingRows }, { data: save }, { data: waitlistRows }] = await Promise.all([
       supabase
-        .from('bookings').select('id, occurrence_id, status')
-        .eq('event_id', id).eq('user_id', user.id).in('status', ['confirmed', 'pending']),
+        .from('bookings')
+        .select('id, occurrence_id, status')
+        .eq('event_id', id)
+        .eq('user_id', user.id)
+        .in('status', ['confirmed', 'pending']),
       supabase
-        .from('saved_events').select('event_id')
-        .eq('user_id', user.id).eq('event_id', id).single(),
+        .from('saved_events')
+        .select('event_id')
+        .eq('user_id', user.id)
+        .eq('event_id', id)
+        .single(),
       supabase
-        .from('waitlist').select('occurrence_id')
-        .eq('event_id', id).eq('user_id', user.id).eq('status', 'waiting'),
+        .from('waitlist')
+        .select('occurrence_id')
+        .eq('event_id', id)
+        .eq('user_id', user.id)
+        .eq('status', 'waiting'),
     ])
+
     const confirmedBookings = (bookingRows ?? []).filter((booking) => booking.status === 'confirmed')
     confirmedOccurrenceIds = confirmedBookings.map((booking) => booking.occurrence_id).filter(Boolean)
-    pendingOccurrenceIds = (bookingRows ?? []).filter((booking) => booking.status === 'pending').map((booking) => booking.occurrence_id).filter(Boolean)
+    pendingOccurrenceIds = (bookingRows ?? [])
+      .filter((booking) => booking.status === 'pending')
+      .map((booking) => booking.occurrence_id)
+      .filter(Boolean)
     waitlistedOccurrenceIds = (waitlistRows ?? []).map((row) => row.occurrence_id).filter(Boolean)
     hasConfirmedBooking = confirmedBookings.length > 0
     isBooked = isRecurring ? false : confirmedBookings.length > 0
@@ -106,13 +125,15 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
     isOnWaitlist = isRecurring ? false : waitlistedOccurrenceIds.length > 0
   }
 
-  // Fetch ticket types for this event
   const { data: ticketTypes } = await supabase
     .from('ticket_types')
     .select('*')
     .eq('event_id', id)
     .eq('is_active', true)
     .order('sort_order')
+
+  const tts = (ticketTypes ?? []) as TicketType[]
+  const paidTts = tts.filter((tt) => tt.is_active && !tt.is_free)
 
   const { data: eventCommunityRows } = await supabase
     .from('event_communities')
@@ -129,7 +150,6 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
     eventCommunities = (communities ?? []) as Array<Pick<Community, 'id' | 'name' | 'name_ar' | 'slug' | 'level'>>
   }
 
-  // Fetch top-level comments with authors
   const { data: comments } = await supabase
     .from('comments')
     .select(`
@@ -149,234 +169,402 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
   const spotsLeft = ev.capacity ? ev.capacity - ev.bookings_count : null
   const isFull = spotsLeft !== null && spotsLeft <= 0
 
+  const stickyPriceLabel = (() => {
+    if (ev.is_free || (tts.length > 0 && paidTts.length === 0)) return 'Free'
+    if (paidTts.length > 0) {
+      return formatCurrency(Math.min(...paidTts.map(getEffectivePrice)), ev.currency)
+    }
+    return formatCurrency(ev.price ?? 0, ev.currency)
+  })()
+
+  const organizerName = ev.organizer?.organizer_profile?.business_name
+    ?? ev.organizer?.organizer_profile?.business_name_ar
+    ?? ev.organizer?.display_name
+    ?? null
+
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <>
+      <MobileStickyBookingBar
+        priceLabel={stickyPriceLabel}
+        disabled={isFull && !isOnWaitlist}
+        isBooked={isBooked || hasConfirmedBooking}
+        isCancelled={ev.is_cancelled}
+        sentinelId="booking-panel-sentinel"
+      />
 
-        {/* ── Main content ── */}
-        <div className="lg:col-span-2 space-y-6">
+      <section
+        className="relative w-full overflow-hidden"
+        style={{ minHeight: 'min(52vh, 480px)', background: 'var(--c-ink)' }}
+      >
+        {ev.cover_image_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={ev.cover_image_url}
+            alt={ev.title}
+            className="absolute inset-0 h-full w-full object-cover"
+            style={{ opacity: 0.55 }}
+          />
+        ) : (
+          <div
+            className="absolute inset-0"
+            style={{
+              background: 'linear-gradient(135deg, oklch(0.20 0.045 68) 0%, oklch(0.14 0.030 58) 100%)',
+            }}
+          />
+        )}
 
-          {/* Cover */}
-          <div className="relative h-56 sm:h-72 rounded-2xl overflow-hidden bg-gradient-to-br from-brand-100 to-brand-200 flex items-center justify-center">
-            {ev.cover_image_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={ev.cover_image_url} alt={ev.title} loading="lazy" className="absolute inset-0 w-full h-full object-cover" />
-            ) : (
-              <span className="text-8xl">{ev.category?.icon ?? '📅'}</span>
-            )}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
-            <div className="absolute bottom-4 start-4 flex gap-2">
-              {(ev.is_free || (ticketTypes && ticketTypes.length > 0 && (ticketTypes as TicketType[]).every(t => t.is_free))) && <Badge variant="green"><EventCoverBadgeFree /></Badge>}
-              {ev.is_family_friendly && <Badge variant="blue"><EventBadgeFamilyFriendly /></Badge>}
-              {ev.gender_restriction !== 'mixed' && (
-                <Badge variant="yellow">
-                  {ev.gender_restriction === 'male' ? <EventBadgeMenOnly /> : <EventBadgeWomenOnly />}
-                </Badge>
-              )}
-              {ev.is_cancelled && <Badge variant="red"><EventBadgeCancelled /></Badge>}
-            </div>
-          </div>
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{
+            backgroundImage: [
+              'linear-gradient(45deg, oklch(1 0 0 / 0.03) 1px, transparent 1px)',
+              'linear-gradient(-45deg, oklch(1 0 0 / 0.03) 1px, transparent 1px)',
+            ].join(', '),
+            backgroundSize: '32px 32px',
+          }}
+        />
+        <div
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-48"
+          style={{ background: 'linear-gradient(to bottom, transparent, oklch(0.97 0.012 78 / 0.95))' }}
+        />
 
-          {/* Title & meta */}
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">{ev.title}</h1>
-            {ev.category && (
-              <EventCategoryName nameEn={ev.category.name_en} nameAr={ev.category.name_ar} icon={ev.category.icon} />
-            )}
-            {eventCommunities.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-2">
-                {eventCommunities.map((community) => (
-                  <EventCommunityChip
-                    key={community.id}
-                    id={community.id}
-                    name={community.name}
-                    nameAr={community.name_ar ?? null}
-                    slug={community.slug}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Info grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <InfoBlock icon="📅" labelKey="event.date_time">
-              <p className="text-sm font-medium">{formatDate(ev.start_at)}</p>
-              <p className="text-xs text-gray-500">{formatTime(ev.start_at)}{ev.end_at ? ` - ${formatTime(ev.end_at)}` : ''}</p>
-            </InfoBlock>
-
-            <InfoBlock icon="📍" labelKey="event.location">
-              <EventVenueName name={ev.venue_name} />
-              <p className="text-xs text-gray-500">{ev.address ? `${ev.address}, ` : ''}{ev.city}, {ev.country}</p>
-            </InfoBlock>
-
-            <InfoBlock icon="👥" labelKey="event.attendees">
-              <EventAttendingCount count={ev.bookings_count} />
-              {ev.capacity && (
-                <EventCapacityRow spotsLeft={spotsLeft ?? 0} capacity={ev.capacity} isFull={isFull} />
-              )}
-            </InfoBlock>
-
-            <InfoBlock icon="💰" labelKey="event.price">
-              {ticketTypes && ticketTypes.length > 0 ? (
-                <div className="space-y-0.5">
-                  {(ticketTypes as TicketType[]).map((tt) => {
-                    const effective = getEffectivePrice(tt)
-                    const hotActive = tt.is_hot_offer && tt.hot_offer_price != null && !!tt.hot_offer_ends_at && new Date(tt.hot_offer_ends_at) > new Date()
-                    return (
-                      <p key={tt.id} className="text-sm font-medium flex items-center gap-1.5">
-                        <span className="text-gray-600">{tt.name}: </span>
-                        {tt.is_free ? (
-                          <EventFreeLabel />
-                        ) : hotActive ? (
-                          <>
-                            <span className="text-gray-400 line-through text-xs">{formatCurrency(tt.price, ev.currency)}</span>
-                            <span className="text-orange-600 font-semibold">🔥 {formatCurrency(effective, ev.currency)}</span>
-                          </>
-                        ) : (
-                          <span className="text-brand-700">{formatCurrency(effective, ev.currency)}</span>
-                        )}
-                      </p>
-                    )
-                  })}
-                </div>
-              ) : (
-                <p className="text-sm font-medium">
-                  {ev.is_free ? <EventFreeLabel /> : formatCurrency(ev.price ?? 0, ev.currency)}
-                </p>
-              )}
-            </InfoBlock>
-          </div>
-
-          {/* Description */}
-          {ev.description && (
-            <div>
-              <EventAboutHeading />
-              <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">{ev.description}</p>
-            </div>
-          )}
-
-          {/* Organizer */}
-          <div className="card p-4 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-brand-100 flex items-center justify-center text-xl font-bold text-brand-700 shrink-0">
-              {ev.organizer?.organizer_profile?.logo_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={ev.organizer.organizer_profile.logo_url} alt="" loading="lazy" className="w-full h-full object-cover rounded-full" />
-              ) : (
-                (ev.organizer?.organizer_profile?.business_name ?? ev.organizer?.display_name ?? '?')[0].toUpperCase()
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5">
-                <EventOrganizerName
-                  businessName={ev.organizer?.organizer_profile?.business_name ?? null}
-                  businessNameAr={ev.organizer?.organizer_profile?.business_name_ar ?? null}
-                  displayName={ev.organizer?.display_name ?? null}
-                />
-                {ev.organizer?.organizer_profile?.verified && (
-                  <span title="Verified">✅</span>
-                )}
-              </div>
-              <EventOrganizerRole />
-            </div>
-          </div>
-
-        </div>
-
-        {/* ── Sidebar ── */}
-        <div className="space-y-4 lg:sticky lg:top-20 self-start">
-          {/* Booking CTA */}
-          {!ev.is_cancelled && (
-            <div className="card p-5 space-y-3">
-              {/* Price display */}
-              <div className="flex items-baseline justify-between">
-                {ticketTypes && ticketTypes.length > 0 ? (
-                  <div>
-                    {(() => {
-                      const paid = (ticketTypes as TicketType[]).filter((t) => t.is_active && !t.is_free)
-                      if (paid.length === 0) return <span className="text-2xl font-bold text-green-600"><EventCoverBadgeFree /></span>
-                      const prices = paid.map((t) => getEffectivePrice(t))
-                      const min = Math.min(...prices)
-                      const max = Math.max(...prices)
-                      const hasHot = paid.some((t) => t.is_hot_offer && !!t.hot_offer_ends_at && new Date(t.hot_offer_ends_at) > new Date())
-                      return (
-                        <div>
-                          <SidebarPriceFrom hasHot={hasHot} />
-                          <span className={`text-2xl font-bold ${hasHot ? 'text-orange-600' : 'text-gray-900'}`}>{formatCurrency(min, ev.currency)}</span>
-                          {max !== min && <span className="text-sm text-gray-500 ml-1">- {formatCurrency(max, ev.currency)}</span>}
-                        </div>
-                      )
-                    })()}
-                  </div>
-                ) : (
-                  <span className="text-2xl font-bold text-gray-900">
-                    {ev.is_free ? <EventCoverBadgeFree /> : formatCurrency(ev.price ?? 0, ev.currency)}
-                  </span>
-                )}
-                {ev.capacity && (
-                  <SidebarSpotsLeft n={spotsLeft ?? ev.capacity} />
-                )}
-              </div>
-              <BookingFlow
-                eventId={id}
-                isFull={isFull}
-                isBooked={isBooked}
-                isFree={ev.is_free}
-                eventPrice={ev.price}
-                currency={ev.currency}
-                ticketTypes={(ticketTypes ?? []) as TicketType[]}
-                isOnWaitlist={isOnWaitlist}
-                occurrences={occurrences as EventOccurrence[]}
-                initialOccurrenceId={(occurrences[0] as EventOccurrence | undefined)?.id ?? null}
-                confirmedOccurrenceIds={confirmedOccurrenceIds}
-                pendingOccurrenceIds={pendingOccurrenceIds}
-                waitlistedOccurrenceIds={waitlistedOccurrenceIds}
+        <div
+          className="relative z-10 mx-auto flex h-full w-full max-w-7xl flex-col justify-end px-6 pb-10"
+          style={{ minHeight: 'min(52vh, 480px)' }}
+        >
+          {ev.category && (
+            <div className="mb-3">
+              <EventCategoryName
+                nameEn={ev.category.name_en}
+                nameAr={ev.category.name_ar}
+                icon={ev.category.icon}
               />
             </div>
           )}
 
-          {/* Tip panel — only show if user has booked */}
-          {hasConfirmedBooking && ev.organizer_id && (
-            <TipPanel eventId={id} organizerId={ev.organizer_id} currency={ev.currency} />
-          )}
+          <h1
+            className="mb-4 max-w-[36ch] text-3xl font-black leading-tight text-[oklch(0.97_0.012_78)] sm:text-4xl lg:text-5xl"
+            style={{
+              fontFamily: 'var(--font-display)',
+              textShadow: '0 2px 16px oklch(0 0 0 / 0.5)',
+            }}
+          >
+            {ev.title}
+          </h1>
 
-          {/* Save button */}
-          {user && (
-            <SaveButton eventId={id} initialSaved={isSaved} size="lg" />
-          )}
-
-          {/* Organizer profile link */}
-          {ev.organizer_id && (
-            <EventViewOrganizerLink organizerId={ev.organizer_id} />
-          )}
-
-          {/* Report event */}
-          {user && user.id !== ev.organizer_id && (
-            <ReportEventButton eventId={id} />
-          )}
+          <div className="flex flex-wrap gap-2">
+            {(ev.is_free || (tts.length > 0 && paidTts.length === 0)) && (
+              <Badge variant="green"><EventCoverBadgeFree /></Badge>
+            )}
+            {ev.is_family_friendly && (
+              <Badge variant="blue"><EventBadgeFamilyFriendly /></Badge>
+            )}
+            {ev.gender_restriction !== 'mixed' && (
+              <Badge variant="yellow">
+                {ev.gender_restriction === 'male' ? <EventBadgeMenOnly /> : <EventBadgeWomenOnly />}
+              </Badge>
+            )}
+            {ev.is_cancelled && <Badge variant="red"><EventBadgeCancelled /></Badge>}
+            {eventCommunities.map((community) => (
+              <EventCommunityChip
+                key={community.id}
+                id={community.id}
+                name={community.name}
+                nameAr={community.name_ar ?? null}
+                slug={community.slug}
+              />
+            ))}
+          </div>
         </div>
+      </section>
 
-        {/* Comments */}
-        <div className="lg:col-span-2">
-          <EventCommentsHeading count={comments?.length ?? 0} />
-          <CommentThread
-            eventId={id}
-            initialComments={(comments ?? []) as unknown as CommentWithAuthor[]}
-            currentUserId={user?.id ?? null}
-          />
+      <main style={{ background: 'var(--c-muted)', paddingBottom: '5rem' }}>
+        <div className="mx-auto grid max-w-7xl grid-cols-1 gap-8 px-6 pt-10 lg:grid-cols-3">
+          <div className="space-y-8 lg:col-span-2">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <InfoStrip
+                label="Date & Time"
+                primary={formatDate(ev.start_at)}
+                secondary={`${formatTime(ev.start_at)}${ev.end_at ? ` - ${formatTime(ev.end_at)}` : ''}`}
+                icon={
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden>
+                    <rect x="2.5" y="3.5" width="15" height="14" rx="2" stroke="currentColor" strokeWidth="1.5" />
+                    <path d="M2.5 8h15" stroke="currentColor" strokeWidth="1.5" />
+                    <path d="M6.5 2v3M13.5 2v3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  </svg>
+                }
+              />
+              <InfoStrip
+                label="Location"
+                primary={<EventVenueName name={ev.venue_name} />}
+                secondary={`${ev.address ? `${ev.address}, ` : ''}${ev.city}${ev.country ? `, ${ev.country}` : ''}`}
+                icon={
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden>
+                    <path d="M10 2C7.24 2 5 4.24 5 7c0 4.25 5 11 5 11s5-6.75 5-11c0-2.76-2.24-5-5-5Z" stroke="currentColor" strokeWidth="1.5" />
+                    <circle cx="10" cy="7" r="1.75" stroke="currentColor" strokeWidth="1.5" />
+                  </svg>
+                }
+              />
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <InfoStrip
+                label="Attendees"
+                primary={<EventAttendingCount count={ev.bookings_count} />}
+                secondary={
+                  ev.capacity
+                    ? <EventCapacityRow spotsLeft={spotsLeft ?? 0} capacity={ev.capacity} isFull={isFull} />
+                    : null
+                }
+                icon={
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden>
+                    <circle cx="8" cy="7" r="3" stroke="currentColor" strokeWidth="1.5" />
+                    <path d="M2 17c0-3.314 2.686-5 6-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                    <circle cx="14" cy="9" r="2.25" stroke="currentColor" strokeWidth="1.5" />
+                    <path d="M11.5 17c0-2.485 1.343-3.75 3-3.75s3 1.265 3 3.75" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  </svg>
+                }
+              />
+              <InfoStrip
+                label="Price"
+                primary={
+                  tts.length > 0 ? (
+                    <div className="space-y-0.5">
+                      {tts.map((tt) => {
+                        const effective = getEffectivePrice(tt)
+                        const hotActive = tt.is_hot_offer && tt.hot_offer_price != null
+                          && !!tt.hot_offer_ends_at && new Date(tt.hot_offer_ends_at) > new Date()
+                        return (
+                          <p key={tt.id} className="flex items-center gap-1.5 text-sm font-medium">
+                            <span className="text-gray-500">{tt.name}:</span>
+                            {tt.is_free ? <EventFreeLabel /> : hotActive ? (
+                              <>
+                                <span className="text-xs text-gray-400 line-through">{formatCurrency(tt.price, ev.currency)}</span>
+                                <span className="font-semibold text-orange-600">{formatCurrency(effective, ev.currency)}</span>
+                              </>
+                            ) : (
+                              <span className="font-semibold" style={{ color: 'var(--c-gold-dim)' }}>
+                                {formatCurrency(effective, ev.currency)}
+                              </span>
+                            )}
+                          </p>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-sm font-medium">
+                      {ev.is_free ? <EventFreeLabel /> : (
+                        <span style={{ color: 'var(--c-gold-dim)' }}>{formatCurrency(ev.price ?? 0, ev.currency)}</span>
+                      )}
+                    </p>
+                  )
+                }
+                secondary={null}
+                icon={
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden>
+                    <circle cx="10" cy="10" r="7.5" stroke="currentColor" strokeWidth="1.5" />
+                    <path d="M10 6.5v1M10 12.5v1M7.5 10c0-1.105.895-2 2-2h1a1.5 1.5 0 0 1 0 3h-1a1.5 1.5 0 0 0 0 3h1c1.105 0 2-.895 2-2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  </svg>
+                }
+              />
+            </div>
+
+            {spotsLeft !== null && spotsLeft > 0 && spotsLeft <= 20 && !isFull && (
+              <div
+                className="flex items-center gap-3 rounded-2xl px-4 py-3"
+                style={{
+                  background: 'oklch(0.78 0.18 72 / 0.08)',
+                  border: '1px solid oklch(0.78 0.18 72 / 0.22)',
+                }}
+              >
+                <p className="text-sm font-semibold" style={{ color: 'var(--c-gold-dim)' }}>
+                  Only {spotsLeft} {spotsLeft === 1 ? 'spot' : 'spots'} left. Book before it fills up.
+                </p>
+              </div>
+            )}
+
+            {ev.description && (
+              <section>
+                <EventAboutHeading />
+                <p className="max-w-[68ch] whitespace-pre-line text-sm leading-relaxed text-gray-600">
+                  {ev.description}
+                </p>
+              </section>
+            )}
+
+            <section
+              className="flex items-center gap-4 rounded-2xl p-5"
+              style={{ background: 'white', border: '1px solid oklch(0.92 0.010 78)' }}
+            >
+              <div
+                className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl text-xl font-bold"
+                style={{ background: 'oklch(0.78 0.18 72 / 0.10)', color: 'var(--c-gold-dim)' }}
+              >
+                {ev.organizer?.organizer_profile?.logo_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={ev.organizer.organizer_profile.logo_url}
+                    alt=""
+                    loading="lazy"
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <span style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 800 }}>
+                    {(organizerName ?? '?')[0].toUpperCase()}
+                  </span>
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p
+                  className="mb-0.5 text-[10px] font-bold uppercase tracking-[0.16em]"
+                  style={{ color: 'var(--c-gold)', fontFamily: 'var(--font-display)' }}
+                >
+                  Organized by
+                </p>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <EventOrganizerName
+                    businessName={ev.organizer?.organizer_profile?.business_name ?? null}
+                    businessNameAr={ev.organizer?.organizer_profile?.business_name_ar ?? null}
+                    displayName={ev.organizer?.display_name ?? null}
+                  />
+                  {ev.organizer?.organizer_profile?.verified && (
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-label="Verified" role="img">
+                      <circle cx="8" cy="8" r="7" fill="oklch(0.55 0.15 250)" />
+                      <path d="M5 8l2 2 4-4" stroke="white" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  )}
+                </div>
+                <EventOrganizerRole />
+              </div>
+            </section>
+          </div>
+
+          <aside className="space-y-4 self-start lg:sticky lg:top-24">
+            <div id="booking-panel-sentinel" aria-hidden />
+
+            {!ev.is_cancelled && (
+              <div
+                id="booking-panel"
+                className="space-y-4 rounded-2xl p-5"
+                style={{ background: 'white', border: '1px solid oklch(0.92 0.010 78)' }}
+              >
+                <div className="flex items-end justify-between gap-3">
+                  <div>
+                    {tts.length > 0 ? (
+                      paidTts.length === 0 ? (
+                        <span
+                          className="text-2xl font-black"
+                          style={{ fontFamily: 'var(--font-display)', color: '#16a34a' }}
+                        >
+                          <EventCoverBadgeFree />
+                        </span>
+                      ) : (
+                        <div>
+                          <SidebarPriceFrom
+                            hasHot={paidTts.some((tt) =>
+                              tt.is_hot_offer &&
+                              !!tt.hot_offer_ends_at &&
+                              new Date(tt.hot_offer_ends_at) > new Date()
+                            )}
+                          />
+                          <span
+                            className="text-2xl font-black"
+                            style={{ fontFamily: 'var(--font-display)', color: 'var(--c-gold-dim)' }}
+                          >
+                            {formatCurrency(Math.min(...paidTts.map(getEffectivePrice)), ev.currency)}
+                          </span>
+                          {Math.max(...paidTts.map(getEffectivePrice)) !== Math.min(...paidTts.map(getEffectivePrice)) && (
+                            <span className="ms-1.5 text-sm text-gray-400">
+                              - {formatCurrency(Math.max(...paidTts.map(getEffectivePrice)), ev.currency)}
+                            </span>
+                          )}
+                        </div>
+                      )
+                    ) : (
+                      <span
+                        className="text-2xl font-black"
+                        style={{ fontFamily: 'var(--font-display)', color: 'var(--c-gold-dim)' }}
+                      >
+                        {ev.is_free ? <EventCoverBadgeFree /> : formatCurrency(ev.price ?? 0, ev.currency)}
+                      </span>
+                    )}
+                  </div>
+                  {ev.capacity && spotsLeft !== null && <SidebarSpotsLeft n={spotsLeft} />}
+                </div>
+
+                <div style={{ height: 1, background: 'oklch(0.92 0.010 78)' }} />
+
+                <BookingFlow
+                  eventId={id}
+                  isFull={isFull}
+                  isBooked={isBooked}
+                  isFree={ev.is_free}
+                  eventPrice={ev.price}
+                  currency={ev.currency}
+                  ticketTypes={tts}
+                  isOnWaitlist={isOnWaitlist}
+                  occurrences={occurrences as EventOccurrence[]}
+                  initialOccurrenceId={(occurrences[0] as EventOccurrence | undefined)?.id ?? null}
+                  confirmedOccurrenceIds={confirmedOccurrenceIds}
+                  pendingOccurrenceIds={pendingOccurrenceIds}
+                  waitlistedOccurrenceIds={waitlistedOccurrenceIds}
+                />
+              </div>
+            )}
+
+            {hasConfirmedBooking && ev.organizer_id && (
+              <TipPanel eventId={id} organizerId={ev.organizer_id} currency={ev.currency} />
+            )}
+            {user && <SaveButton eventId={id} initialSaved={isSaved} size="lg" />}
+            {ev.organizer_id && <EventViewOrganizerLink organizerId={ev.organizer_id} />}
+            {user && user.id !== ev.organizer_id && <ReportEventButton eventId={id} />}
+          </aside>
+
+          <section className="lg:col-span-2">
+            <EventCommentsHeading count={comments?.length ?? 0} />
+            <CommentThread
+              eventId={id}
+              initialComments={(comments ?? []) as unknown as CommentWithAuthor[]}
+              currentUserId={user?.id ?? null}
+            />
+          </section>
         </div>
-      </div>
-    </div>
+      </main>
+    </>
   )
 }
 
-function InfoBlock({ icon, labelKey, children }: { icon: string; labelKey: string; children: React.ReactNode }) {
+function InfoStrip({
+  label,
+  primary,
+  secondary,
+  icon,
+}: {
+  label: string
+  primary: ReactNode
+  secondary: ReactNode
+  icon: ReactNode
+}) {
   return (
-    <div className="card p-4 flex items-start gap-3">
-      <span className="text-xl">{icon}</span>
-      <div>
-        <InfoBlockLabel labelKey={labelKey} />
-        {children}
+    <div
+      className="flex items-start gap-3 rounded-2xl px-4 py-3.5"
+      style={{ background: 'white', border: '1px solid oklch(0.92 0.010 78)' }}
+    >
+      <div
+        className="mt-0.5 shrink-0 rounded-lg p-1.5"
+        style={{ background: 'oklch(0.78 0.18 72 / 0.08)', color: 'var(--c-gold-dim)' }}
+      >
+        {icon}
+      </div>
+      <div className="min-w-0">
+        <p
+          className="mb-0.5 text-[10px] font-bold uppercase tracking-[0.16em]"
+          style={{ fontFamily: 'var(--font-display)', color: 'var(--c-gold)' }}
+        >
+          {label}
+        </p>
+        <div className="text-sm font-semibold text-gray-900">{primary}</div>
+        {secondary && <div className="mt-0.5 text-xs text-gray-500">{secondary}</div>}
       </div>
     </div>
   )

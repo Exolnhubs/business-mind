@@ -19,7 +19,11 @@ type OrganizerPlanRow = {
   plan?: { platform_fee_pct?: number | null } | { platform_fee_pct?: number | null }[] | null
 }
 
-type OrganizerPlanJoin = OrganizerPlanRow | OrganizerPlanRow[] | null
+type OrganizerJoinRow = {
+  organizer_profile?: OrganizerPlanRow | OrganizerPlanRow[] | null
+}
+
+type OrganizerJoin = OrganizerJoinRow | OrganizerJoinRow[] | null
 
 type EventRow = Pick<
   Event,
@@ -39,7 +43,7 @@ type EventRow = Pick<
   | 'capacity'
   | 'max_group_size'
 > & {
-  organizer_plan?: OrganizerPlanJoin
+  organizer?: OrganizerJoin
 }
 
 type ProfileRow = Pick<Profile, 'display_name' | 'gender' | 'city' | 'plan_id'>
@@ -52,8 +56,10 @@ const EVENT_SELECT = `
   id, title, is_published, is_cancelled, start_at, end_at,
   event_frequency, organizer_id, gender_restriction,
   is_premium_only, is_free, price, currency, capacity, max_group_size,
-  organizer_plan:organizer_profiles!organizer_id(
-    plan:plan_definitions(platform_fee_pct)
+  organizer:profiles!organizer_id(
+    organizer_profile:organizer_profiles!user_id(
+      plan:plan_definitions(platform_fee_pct)
+    )
   )
 `
 
@@ -67,8 +73,9 @@ function first<T>(value: T | T[] | null | undefined): T | null {
 }
 
 function resolvePlatformFeePct(event: EventRow): number {
-  const organizerPlan = first(event.organizer_plan)
-  const plan = first(organizerPlan?.plan)
+  const organizer = first(event.organizer)
+  const organizerProfile = first(organizer?.organizer_profile)
+  const plan = first(organizerProfile?.plan)
   return plan?.platform_fee_pct ?? 0.10
 }
 
@@ -94,7 +101,8 @@ export async function validateBookingInput(
     .eq('id', input.event_id)
     .single()
 
-  if (eventErr || !event) throw new NotFoundException('Event')
+  if (eventErr) throw eventErr
+  if (!event) throw new NotFoundException('Event')
 
   const eventRow = event as unknown as EventRow
   if (!eventRow.is_published) throw new ForbiddenException('Event is not published')
