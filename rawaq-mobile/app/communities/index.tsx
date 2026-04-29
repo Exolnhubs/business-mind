@@ -38,7 +38,7 @@ const DATA_REFRESH_STALE_MS = 90_000
 
 export default function CommunitiesScreen() {
   const { user }   = useAuth()
-  const { locale } = useLocale()
+  const { locale, t } = useLocale()
   const router     = useRouter()
   const isRTL      = locale === 'ar'
   const insets     = useSafeAreaInsets()
@@ -211,8 +211,8 @@ export default function CommunitiesScreen() {
         </View>
         <Text style={styles.discoveryMiniName} numberOfLines={1}>{name}</Text>
         <Text style={styles.discoveryMiniMeta} numberOfLines={1}>
-          {tone !== 'popular' ? `${meta.label}${item.city ? ` · ${item.city}` : ''} · ` : ''}
-          {item.member_count.toLocaleString()} members
+          {tone !== 'popular' ? `${t(`community.level.${item.level}`)}${item.city ? ` · ${item.city}` : ''} · ` : ''}
+          {item.member_count.toLocaleString()} {t('community.members')}
         </Text>
         <TouchableOpacity
           onPress={() => handleJoinLeave(item)}
@@ -221,7 +221,7 @@ export default function CommunitiesScreen() {
         >
           {isJoining
             ? <ActivityIndicator size="small" color="#fff" />
-            : <Text style={styles.discoveryJoinText}>Join</Text>}
+            : <Text style={styles.discoveryJoinText}>{t('community.join')}</Text>}
         </TouchableOpacity>
       </TouchableOpacity>
     )
@@ -253,13 +253,13 @@ export default function CommunitiesScreen() {
               </View>
               <View style={styles.tagRow}>
                 <View style={[styles.levelTag, { backgroundColor: meta.bg }]}>
-                  <Text style={[styles.levelTagText, { color: meta.tint }]}>{meta.label}</Text>
+                  <Text style={[styles.levelTagText, { color: meta.tint }]}>{t(`community.level.${item.level}`)}</Text>
                 </View>
                 {item.city ? <Text style={styles.cityText}>{item.city}</Text> : null}
                 {item.is_member && (
                   <View style={styles.joinedTag}>
                     <Ionicons name="checkmark-circle" size={11} color="#15803d" />
-                    <Text style={styles.joinedTagText}>Joined</Text>
+                    <Text style={styles.joinedTagText}>{t('community.joined')}</Text>
                   </View>
                 )}
               </View>
@@ -274,7 +274,7 @@ export default function CommunitiesScreen() {
               {isJoining
                 ? <ActivityIndicator size="small" color={item.is_member ? '#15803d' : '#fff'} />
                 : <Text style={[styles.joinBtnText, item.is_member && styles.joinBtnTextJoined]}>
-                    {item.is_member ? 'Joined' : 'Join'}
+                    {item.is_member ? t('community.joined') : t('community.join')}
                   </Text>
               }
             </TouchableOpacity>
@@ -289,7 +289,7 @@ export default function CommunitiesScreen() {
           {/* Footer */}
           <View style={styles.cardFooter}>
             <Ionicons name="people-outline" size={13} color={Colors.gray[400]} />
-            <Text style={styles.footerText}>{item.member_count.toLocaleString()} members</Text>
+            <Text style={styles.footerText}>{item.member_count.toLocaleString()} {t('community.members')}</Text>
           </View>
         </View>
       </TouchableOpacity>
@@ -304,7 +304,7 @@ export default function CommunitiesScreen() {
         {/* Header */}
         <View style={[styles.header, { paddingTop: headerTopSpacing }]}>
           <View style={styles.headerTopRow}>
-            <Text style={styles.headerEyebrow}>Rawaq Communities</Text>
+            <Text style={styles.headerEyebrow}>{t('community.header_eyebrow')}</Text>
             {user && (
               <View style={styles.headerActions}>
                 <TouchableOpacity
@@ -320,15 +320,13 @@ export default function CommunitiesScreen() {
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
                   <Ionicons name={joinedOnly ? 'people' : 'people-outline'} size={16} color={joinedOnly ? '#fff' : Colors.brand[600]} />
-                  <Text style={[styles.myBtnText, joinedOnly && styles.myBtnTextActive]}>Mine</Text>
+                  <Text style={[styles.myBtnText, joinedOnly && styles.myBtnTextActive]}>{t('community.mine_btn')}</Text>
                 </TouchableOpacity>
               </View>
             )}
           </View>
-          <Text style={styles.headerTitle}>Find your people</Text>
-          <Text style={styles.headerSubtitle}>
-            Explore local, interest, and city circles without crowding the system area.
-          </Text>
+          <Text style={styles.headerTitle}>{t('community.header_title')}</Text>
+          <Text style={styles.headerSubtitle}>{t('community.header_subtitle')}</Text>
         </View>
 
         {/* Search */}
@@ -338,7 +336,7 @@ export default function CommunitiesScreen() {
             <TextInput
               value={search}
               onChangeText={setSearch}
-              placeholder="Search communities..."
+              placeholder={t('community.search_placeholder')}
               placeholderTextColor={Colors.gray[400]}
               style={styles.searchInput}
             />
@@ -371,7 +369,7 @@ export default function CommunitiesScreen() {
                 />
               )}
               <Text style={[styles.filterChipText, levelFilter === f.key && styles.filterChipTextActive]}>
-                {f.label}
+                {t(`community.level.${f.key}`)}
               </Text>
             </TouchableOpacity>
           )}
@@ -391,9 +389,9 @@ export default function CommunitiesScreen() {
                   <View style={styles.discoveryHeader}>
                     <View style={styles.sectionTitleRow}>
                       <View style={[styles.sectionDot, { backgroundColor: Colors.brand[400] }]} />
-                      <Text style={styles.discoveryTitle}>Recommended for you</Text>
+                      <Text style={styles.discoveryTitle}>{t('community.recommended_title')}</Text>
                     </View>
-                    <Text style={styles.discoveryHint}>Personalized by your interests and city</Text>
+                    <Text style={styles.discoveryHint}>{t('community.recommended_hint')}</Text>
                   </View>
                   <FlatList
                     horizontal
@@ -411,9 +409,9 @@ export default function CommunitiesScreen() {
                   <View style={styles.trendingHeader}>
                     <View style={styles.sectionTitleRow}>
                       <View style={[styles.sectionDot, { backgroundColor: Colors.brand[500] }]} />
-                      <Text style={styles.trendingTitle}>Trending now</Text>
+                      <Text style={styles.trendingTitle}>{t('community.trending_title')}</Text>
                     </View>
-                    <Text style={styles.trendingHint}>Fast-growing communities this week</Text>
+                    <Text style={styles.trendingHint}>{t('community.trending_hint')}</Text>
                   </View>
                   <FlatList
                     horizontal
@@ -435,7 +433,7 @@ export default function CommunitiesScreen() {
                           </View>
                           <Text style={styles.trendingName} numberOfLines={1}>{name}</Text>
                           <Text style={styles.trendingMeta} numberOfLines={1}>
-                            {item.city ? `${item.city} · ` : ''}{item.member_count.toLocaleString()} members
+                            {item.city ? `${item.city} · ` : ''}{item.member_count.toLocaleString()} {t('community.members')}
                           </Text>
                         </TouchableOpacity>
                       )
@@ -449,9 +447,9 @@ export default function CommunitiesScreen() {
                   <View style={styles.discoveryHeader}>
                     <View style={styles.sectionTitleRow}>
                       <View style={[styles.sectionDot, { backgroundColor: Colors.gray[400] }]} />
-                      <Text style={styles.discoveryTitle}>Popular communities</Text>
+                      <Text style={styles.discoveryTitle}>{t('community.popular_title')}</Text>
                     </View>
-                    <Text style={styles.discoveryHint}>Established groups people are already joining</Text>
+                    <Text style={styles.discoveryHint}>{t('community.popular_hint')}</Text>
                   </View>
                   <FlatList
                     horizontal
@@ -469,7 +467,7 @@ export default function CommunitiesScreen() {
         ListEmptyComponent={
           loading
             ? <View style={styles.center}><Spinner /></View>
-            : <EmptyState icon="🏘️" title="No communities found" description="Try a different search or filter" />
+            : <EmptyState icon="🏘️" title={t('community.empty_title')} description={t('community.empty_desc')} />
         }
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(1, search, levelFilter, joinedOnly, false, true) }} />

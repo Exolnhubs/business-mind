@@ -8,6 +8,7 @@ import { useRouter } from 'expo-router'
 import { supabase } from '@/lib/supabase'
 import { apiDelete, apiGet, apiPost } from '@/lib/api'
 import { useAuth } from '@/contexts/auth-context'
+import { useLocale } from '@/contexts/locale-context'
 import { EventCard, EventCardSkeleton } from '@/components/events/EventCard'
 import { HappeningDiscoveryCard, type HappeningDiscoveryItem } from '@/components/happenings/HappeningDiscoveryCard'
 import { HappeningCommentsSheet } from '@/components/happenings/HappeningCommentsSheet'
@@ -178,6 +179,7 @@ function claimUniqueHappenings(
 
 export default function FeedScreen({ onExplore }: Props = {}) {
   const { user } = useAuth()
+  const { t } = useLocale()
   const router = useRouter()
 
   const [events, setEvents] = useState<EventWithOrganizer[]>([])
@@ -444,7 +446,7 @@ export default function FeedScreen({ onExplore }: Props = {}) {
       : await apiPost<{ rsvp: boolean; rsvp_count: number }>(`/api/happenings/${happening.id}/rsvp`, {})
 
     if (error) {
-      Alert.alert('Happenings unavailable', error)
+      Alert.alert(t('happenings.unavailable'), error)
       return
     }
     if (!data) return
@@ -467,7 +469,7 @@ export default function FeedScreen({ onExplore }: Props = {}) {
       : await apiPost<{ reacted: boolean; reaction_count: number }>(`/api/happenings/${happening.id}/react`, {})
 
     if (error) {
-      Alert.alert('Happenings unavailable', error)
+      Alert.alert(t('happenings.unavailable'), error)
       return
     }
     if (!data) return
@@ -538,8 +540,8 @@ export default function FeedScreen({ onExplore }: Props = {}) {
         <View style={styles.savedSection}>
           <View style={styles.savedHeader}>
             <View>
-              <Text style={styles.savedEyebrow}>Quick access</Text>
-              <Text style={styles.savedTitle}>Saved events</Text>
+              <Text style={styles.savedEyebrow}>{t('feed.saved_eyebrow')}</Text>
+              <Text style={styles.savedTitle}>{t('feed.saved_title')}</Text>
             </View>
           </View>
           <FlatList
@@ -564,15 +566,15 @@ export default function FeedScreen({ onExplore }: Props = {}) {
       <View style={styles.savedSection}>
         <View style={styles.savedHeader}>
           <View>
-            <Text style={styles.savedEyebrow}>Quick access</Text>
-            <Text style={styles.savedTitle}>Saved events</Text>
+            <Text style={styles.savedEyebrow}>{t('feed.saved_eyebrow')}</Text>
+            <Text style={styles.savedTitle}>{t('feed.saved_title')}</Text>
           </View>
           <TouchableOpacity
             style={styles.savedLink}
             activeOpacity={0.8}
             onPress={() => router.push('/(tabs)/saved')}
           >
-            <Text style={styles.savedLinkText}>See all</Text>
+            <Text style={styles.savedLinkText}>{t('feed.saved_see_all')}</Text>
             <Ionicons name="arrow-forward" size={14} color={Colors.brand[700]} />
           </TouchableOpacity>
         </View>
@@ -601,8 +603,8 @@ export default function FeedScreen({ onExplore }: Props = {}) {
       <View>
         {renderSavedRail()}
         <MixedDiscoveryRail
-          title="In Your Communities"
-          subtitle="Events and happenings from the communities you have joined."
+          title={t('feed.in_communities')}
+          subtitle={t('feed.in_communities_sub')}
           items={communityDiscoveryItems}
           savedIds={savedIds}
           onSaveChange={handleSaveChange}
@@ -611,8 +613,8 @@ export default function FeedScreen({ onExplore }: Props = {}) {
           onOpenHappeningComments={setSelectedHappening}
         />
         <RecommendationRail
-          title="Because You Saved..."
-          subtitle="Fresh picks that match the events you bookmarked."
+          title={t('feed.because_saved')}
+          subtitle={t('feed.because_saved_sub')}
           events={savedInspiredEvents}
           savedIds={savedIds}
           onSaveChange={handleSaveChange}
@@ -628,9 +630,9 @@ export default function FeedScreen({ onExplore }: Props = {}) {
   if (!user) {
     return (
       <View style={styles.centered}>
-        <EmptyState icon="🔒" title="Sign in to see your feed" description="Follow organizers to see their upcoming events here." />
+        <EmptyState icon="🔒" title={t('feed.sign_in_title')} description={t('feed.sign_in_desc')} />
         <TouchableOpacity style={styles.signInBtn} onPress={() => router.push('/(auth)/login')}>
-          <Text style={styles.signInBtnText}>Sign In</Text>
+          <Text style={styles.signInBtnText}>{t('feed.sign_in')}</Text>
         </TouchableOpacity>
       </View>
     )
@@ -640,9 +642,9 @@ export default function FeedScreen({ onExplore }: Props = {}) {
     <View style={styles.container}>
       <View style={styles.header}>
         <View>
-          <Text style={styles.headerTitle}>Following</Text>
+          <Text style={styles.headerTitle}>{t('feed.following')}</Text>
           {following > 0 && (
-            <Text style={styles.headerSub}>{following} organizer{following !== 1 ? 's' : ''}</Text>
+            <Text style={styles.headerSub}>{following} {following !== 1 ? t('feed.organizers') : t('feed.organizer')}</Text>
           )}
         </View>
       </View>
@@ -654,14 +656,14 @@ export default function FeedScreen({ onExplore }: Props = {}) {
             <View style={styles.centered}>
               <EmptyState
                 icon="🔭"
-                title="No one followed yet"
-                description="Follow your favourite organizers to see their upcoming events here."
+                title={t('feed.no_followed_title')}
+                description={t('feed.no_followed_desc')}
               />
               <TouchableOpacity
                 style={styles.exploreBtn}
                 onPress={onExplore ?? (() => router.push('/(tabs)/events'))}
               >
-                <Text style={styles.exploreBtnText}>🌍 Explore events</Text>
+                <Text style={styles.exploreBtnText}>{t('feed.explore_events')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -670,8 +672,8 @@ export default function FeedScreen({ onExplore }: Props = {}) {
             {renderTopRails()}
             <EmptyState
               icon="📆"
-              title="Nothing upcoming"
-              description="The organizers you follow have not posted upcoming events yet."
+              title={t('feed.nothing_upcoming')}
+              description={t('feed.nothing_upcoming_desc')}
             />
           </View>
         )

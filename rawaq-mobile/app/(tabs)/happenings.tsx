@@ -71,7 +71,7 @@ export default function HappeningsTab() {
       ? await apiDelete<{ rsvp: boolean; rsvp_count: number }>(`/api/happenings/${happening.id}/rsvp`)
       : await apiPost<{ rsvp: boolean; rsvp_count: number }>(`/api/happenings/${happening.id}/rsvp`, {})
     if (error) {
-      Alert.alert('Happenings unavailable', error)
+      Alert.alert(t('happenings.unavailable'), error)
       return
     }
     if (!data) {
@@ -89,7 +89,7 @@ export default function HappeningsTab() {
       ? await apiDelete<{ reacted: boolean; reaction_count: number }>(`/api/happenings/${happening.id}/react`)
       : await apiPost<{ reacted: boolean; reaction_count: number }>(`/api/happenings/${happening.id}/react`, {})
     if (error) {
-      Alert.alert('Happenings unavailable', error)
+      Alert.alert(t('happenings.unavailable'), error)
       return
     }
     if (!data) {
