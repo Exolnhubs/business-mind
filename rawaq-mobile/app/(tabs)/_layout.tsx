@@ -46,7 +46,7 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="events/index"
+        name="events"
         options={{
           headerShown: false,
           tabBarIcon: ({ color, focused }) => (
