@@ -24,7 +24,12 @@ export function MobileStickyBookingBar({
 
   useEffect(() => {
     const sentinel = document.getElementById(sentinelId)
-    if (!sentinel) return
+    if (!sentinel) {
+      if (process.env.NODE_ENV === 'development') {
+        console.warn(`MobileStickyBookingBar: sentinel element "#${sentinelId}" not found`)
+      }
+      return
+    }
 
     const observer = new IntersectionObserver(
       ([entry]) => setVisible(!entry.isIntersecting),
@@ -38,6 +43,7 @@ export function MobileStickyBookingBar({
 
   return (
     <div
+      aria-hidden={!visible}
       className={cn(
         'lg:hidden fixed bottom-0 inset-x-0 z-50',
         'transition-transform duration-300 ease-out',
@@ -70,6 +76,8 @@ export function MobileStickyBookingBar({
             e.preventDefault()
             document.getElementById('booking-panel')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
           }}
+          tabIndex={disabled ? -1 : undefined}
+          aria-disabled={disabled || undefined}
           className={cn(
             'shrink-0 rounded-xl px-5 py-2.5 text-sm font-bold uppercase tracking-wide transition-all',
             'active:scale-95',
