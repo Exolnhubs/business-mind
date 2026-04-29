@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { requireAdmin } from '@/lib/auth'
+import { delCachedProfile } from '@/lib/supabase/profile-cache'
 import { handleApiError, ok, NotFoundException, ForbiddenException } from '@/lib/errors'
 
 const BanSchema = z.object({
@@ -43,6 +44,8 @@ export async function PATCH(
 
     if (error) throw error
 
+    await delCachedProfile(id)
+
     // Audit log
     await supabase.from('audit_logs').insert({
       admin_id:    ctx.userId,
@@ -78,6 +81,8 @@ export async function DELETE(
     // Deleting auth.users cascades to profiles via FK
     const { error } = await adminClient.auth.admin.deleteUser(id)
     if (error) throw error
+
+    await delCachedProfile(id)
 
     return ok({ deleted: true })
   } catch (err) {

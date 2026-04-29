@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { headers } from 'next/headers'
 import { createSupabaseServerClient } from './supabase/server'
 import { createSupabaseAdminClient } from './supabase/admin'
+import { getCachedProfile, setCachedProfile } from './supabase/profile-cache'
 import { UnauthorizedException, ForbiddenException } from './errors'
 import type { AuthContext } from '@/types/api'
 import type { UserRole } from '@/types/database'
@@ -25,6 +26,12 @@ export async function requireAuth(): Promise<AuthContext> {
     userId = data.user.id
   }
 
+  const cached = await getCachedProfile(userId)
+  if (cached) {
+    if (cached.is_banned) throw new ForbiddenException('Your account has been suspended')
+    return { userId, role: cached.role }
+  }
+
   const { data: profile } = await admin
     .from('profiles')
     .select('role, is_banned')
@@ -33,6 +40,8 @@ export async function requireAuth(): Promise<AuthContext> {
 
   if (!profile) throw new UnauthorizedException()
   if (profile.is_banned) throw new ForbiddenException('Your account has been suspended')
+
+  await setCachedProfile(userId, { role: profile.role as UserRole, is_banned: profile.is_banned })
 
   return { userId, role: profile.role as UserRole }
 }

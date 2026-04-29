@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { requireAdmin } from '@/lib/auth'
+import { delCachedProfile } from '@/lib/supabase/profile-cache'
 import { handleApiError, ok, NotFoundException } from '@/lib/errors'
 import { sendNotification } from '@/lib/notifications'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
@@ -54,6 +55,8 @@ export async function PATCH(
         .update({ role: 'organizer' })
         .eq('id', organizer.user_id)
 
+      await delCachedProfile(organizer.user_id)
+
       sendNotification({
         userId: organizer.user_id,
         type: 'organizer_approved',
@@ -64,6 +67,8 @@ export async function PATCH(
         .from('profiles')
         .update({ role: 'user' })
         .eq('id', organizer.user_id)
+
+      await delCachedProfile(organizer.user_id)
 
       sendNotification({
         userId: organizer.user_id,

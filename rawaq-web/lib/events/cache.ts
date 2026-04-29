@@ -185,5 +185,5 @@ export const getCachedEventsGrid = unstable_cache(
       .sort(compareEventsByResolvedStartAt)
   },
   ['events-grid'],
-  { tags: ['events'], revalidate: false }
+  { tags: ['events'], revalidate: 300 }
 )

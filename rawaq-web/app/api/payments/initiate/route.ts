@@ -3,38 +3,22 @@
  *
  * Creates a pending payment_transaction and initiates the gateway checkout.
  * Returns a redirect URL (or Fawry reference) for the client to act on.
- *
- * For free bookings the booking is created directly (no payment initiation).
- * For paid bookings:
- *   1. Booking is created with status='pending' (held for payment confirmation)
- *   2. Payment transaction is inserted with status='pending'
- *   3. Gateway is called → returns redirect URL
- *   4. Client redirects user to the hosted payment page
- *   5. On success: gateway webhook → confirm booking
- *
- * Body:
- *   {
- *     event_id: string
- *     ticket_type_id?: string
- *     promo_code?: string
- *     notes?: string
- *     payment_option_id: string   // e.g. 'stripe_card', 'paymob_card', 'fawry'
- *   }
  */
 
 import { NextRequest } from 'next/server'
+import { waitUntil } from '@vercel/functions'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireAuth } from '@/lib/auth'
-import { ApiException, handleApiError, ok, created, NotFoundException, ForbiddenException, ConflictException } from '@/lib/errors'
+import { ApiException, handleApiError, ok, created, ForbiddenException, ConflictException } from '@/lib/errors'
 import { CreateBookingSchema } from '@/lib/validations/bookings'
 import { z } from 'zod'
-import { getPaymentOptions, resolveGateway } from '@/lib/gateways/selector'
+import { resolveGateway } from '@/lib/gateways/selector'
 import { initiatePaymob } from '@/lib/gateways/paymob'
 import { initiateStripe } from '@/lib/gateways/stripe-gw'
 import type { InitiatePaymentParams } from '@/lib/gateways/types'
 import { sendNotification } from '@/lib/notifications'
-import { resolveTargetOccurrence } from '@/lib/events/occurrences'
 import { limiters, checkRateLimit } from '@/lib/rate-limit'
+import { validateBookingInput } from '@/lib/bookings/validate'
 
 const BodySchema = CreateBookingSchema.extend({
   payment_option_id: z.string().min(1).default('simulated'),
@@ -47,52 +31,23 @@ function round2(n: number): number {
 
 export async function POST(req: NextRequest) {
   try {
-    const ctx   = await requireAuth()
+    const ctx = await requireAuth()
     await checkRateLimit(limiters.payments, ctx.userId)
-    const body  = await req.json()
+    const body = await req.json()
     const input = BodySchema.parse(body)
 
     const admin = createSupabaseAdminClient()
+    const {
+      event,
+      occurrence,
+      profile,
+      ticketType,
+      promoCodeId,
+      discountAmount,
+      primaryPrice,
+      platformFeePct,
+    } = await validateBookingInput(admin, ctx, input)
 
-    // ── Fetch event ───────────────────────────────────────────────────────────
-    const { data: event, error: eventErr } = await admin
-      .from('events')
-      .select('id, title, is_published, is_cancelled, start_at, end_at, event_frequency, organizer_id, gender_restriction, is_premium_only, is_free, price, currency, capacity')
-      .eq('id', input.event_id)
-      .single()
-
-    if (eventErr || !event) throw new NotFoundException('Event')
-    if (!event.is_published) throw new ForbiddenException('Event is not published')
-    if (event.is_cancelled)  throw new ForbiddenException('Event has been cancelled')
-
-    const occurrence = await resolveTargetOccurrence(admin, event, ctx.userId, input.occurrence_id ?? null)
-
-    // ── Fetch user profile ────────────────────────────────────────────────────
-    const { data: profile } = await admin
-      .from('profiles')
-      .select('display_name, gender, city, plan_id, email:id')
-      .eq('id', ctx.userId)
-      .single()
-
-    if (!profile?.display_name || !profile?.gender || !profile?.city) {
-      throw new ForbiddenException('Please complete your profile (name, gender, city) before booking.')
-    }
-    if (event.gender_restriction === 'male'   && profile.gender !== 'male')   throw new ForbiddenException('This event is for men only.')
-    if (event.gender_restriction === 'female' && profile.gender !== 'female') throw new ForbiddenException('This event is for women only.')
-    if (event.is_premium_only && profile.plan_id !== 'user_premium') {
-      throw new ForbiddenException('This event is for Premium members only.')
-    }
-
-    // ── Group size cap ─────────────────────────────────────────────────────────
-    const maxGroup = (event as any).max_group_size ?? 5
-    if (input.group_size > maxGroup) {
-      throw new ForbiddenException(`Maximum group size for this event is ${maxGroup}`)
-    }
-    if (input.holders.length !== input.group_size - 1) {
-      throw new ApiException('Holder details must be provided for each extra ticket', 422)
-    }
-
-    // ── Occurrence capacity pre-check ─────────────────────────────────────────
     if (
       occurrence.capacity !== null &&
       occurrence.bookings_count + input.group_size > occurrence.capacity
@@ -100,91 +55,16 @@ export async function POST(req: NextRequest) {
       throw new ForbiddenException('Not enough spots available for your group size')
     }
 
-    // ── Ticket type ───────────────────────────────────────────────────────────
-    let ticketType: { id: string; price: number; is_free: boolean; capacity: number | null; sold_count: number; sale_starts_at: string | null; sale_ends_at: string | null } | null = null
-    if (input.ticket_type_id) {
-      const { data: tt } = await admin
-        .from('ticket_types')
-        .select('id, price, is_free, capacity, sold_count, sale_starts_at, sale_ends_at, is_active')
-        .eq('id', input.ticket_type_id)
-        .eq('event_id', input.event_id)
-        .single()
-
-      if (!tt || !(tt as { is_active: boolean }).is_active) throw new ForbiddenException('Ticket type not available')
-      const now = new Date()
-      if (tt.sale_starts_at && new Date(tt.sale_starts_at) > now) throw new ForbiddenException('Ticket sales not started')
-      if (tt.sale_ends_at   && new Date(tt.sale_ends_at)   < now) throw new ForbiddenException('Ticket sales ended')
-      const { data: occurrenceSale } = await admin
-        .from('event_occurrence_ticket_sales')
-        .select('sold_count')
-        .eq('occurrence_id', occurrence.id)
-        .eq('ticket_type_id', input.ticket_type_id)
-        .maybeSingle()
-
-      if (tt.capacity !== null && (occurrenceSale?.sold_count ?? 0) >= tt.capacity) {
-        throw new ForbiddenException('Ticket sold out')
-      }
-      ticketType = tt
-    }
-
-    // ── Promo code ────────────────────────────────────────────────────────────
-    let promoCodeId   : string | null = null
-    let discountAmount: number        = 0
-    if (input.promo_code) {
-      const code = input.promo_code.toUpperCase().trim()
-      const { data: promos } = await admin
-        .from('promo_codes')
-        .select('*')
-        .eq('code', code)
-        .eq('is_active', true)
-        .or(`event_id.eq.${input.event_id},event_id.is.null`)
-        .order('event_id', { nullsFirst: false })
-        .limit(2)
-
-      const promo = promos?.find((p) => p.event_id === input.event_id) ?? promos?.find((p) => !p.event_id)
-      if (!promo) throw new ForbiddenException('Invalid or inactive promo code')
-      if (promo.expires_at && new Date(promo.expires_at) < new Date()) throw new ForbiddenException('Promo code expired')
-      if (promo.max_uses !== null && promo.used_count >= promo.max_uses) throw new ForbiddenException('Promo code usage limit reached')
-
-      const orderPrice = ticketType ? ticketType.price : (event.price ?? 0)
-      if (orderPrice < (promo.min_order_amount ?? 0)) throw new ForbiddenException(`Minimum order: ${promo.min_order_amount}`)
-
-      promoCodeId = promo.id
-      discountAmount = promo.discount_type === 'percent'
-        ? round2(orderPrice * (promo.discount_value / 100))
-        : Math.min(promo.discount_value, orderPrice)
-    }
-
-    // ── Effective price ───────────────────────────────────────────────────────
-    // Promo applies to primary ticket only; extra tickets pay full price
-    const primaryPrice  = ticketType
-      ? Math.max(0, ticketType.price - discountAmount)
-      : event.price
-        ? Math.max(0, event.price - discountAmount)
-        : 0
-    const extraPrice    = ticketType
+    const extraPrice = ticketType
       ? ticketType.price * (input.group_size - 1)
       : (event.price ?? 0) * (input.group_size - 1)
     const effectivePrice = primaryPrice + extraPrice
-    const isFreeBooking  = effectivePrice === 0
+    const isFreeBooking = effectivePrice === 0
 
-    // ── Platform fee ──────────────────────────────────────────────────────────
-    let platformFeePct    = 0
-    let platformFeeAmount = 0
-    if (!isFreeBooking && effectivePrice > 0) {
-      const { data: orgProfile } = await admin
-        .from('organizer_profiles')
-        .select('plan:plan_definitions(platform_fee_pct)')
-        .eq('user_id', event.organizer_id)
-        .single()
-      platformFeePct    = (orgProfile?.plan as { platform_fee_pct?: number } | null)?.platform_fee_pct ?? 0.10
-      platformFeeAmount = round2(effectivePrice * platformFeePct)
-    }
+    const platformFeeAmount = !isFreeBooking && effectivePrice > 0
+      ? round2(effectivePrice * platformFeePct)
+      : 0
 
-    // ── Resolve existing booking row (any status) ────────────────────────────
-    // The UNIQUE (user_id, event_id) constraint means there is at most one row.
-    // Fetch it unconditionally so we never attempt a blind INSERT against an
-    // existing row, which would hit the constraint regardless of status.
     const { data: anyExisting } = await (admin as any)
       .from('bookings')
       .select('id, status')
@@ -194,14 +74,10 @@ export async function POST(req: NextRequest) {
 
     const existingStatus: string | null = anyExisting ? (anyExisting as any).status : null
 
-    // Block if already confirmed — the booking was paid and is active.
     if (existingStatus === 'confirmed') {
       throw new ConflictException('You already have an active booking for this session')
     }
 
-    // If a pending row exists, void any orphaned pending payment transactions
-    // so the audit trail stays clean before we reuse it.
-    // For cancelled rows we skip this — the transaction is already failed.
     if (anyExisting && existingStatus === 'pending') {
       await (admin as any)
         .from('payment_transactions')
@@ -210,131 +86,145 @@ export async function POST(req: NextRequest) {
         .eq('status', 'pending')
     }
 
-    // For free bookings → status 'confirmed' immediately (same as before)
-    // For paid bookings → status 'pending' until webhook fires
-    const bookingStatus          = isFreeBooking ? 'confirmed' : 'pending'
-    const paymentPendingUntil    = isFreeBooking ? null : new Date(Date.now() + 60 * 60 * 1000).toISOString()
+    const bookingStatus = isFreeBooking ? 'confirmed' : 'pending'
+    const paymentPendingUntil = isFreeBooking ? null : new Date(Date.now() + 60 * 60 * 1000).toISOString()
 
     const bookingFields = {
-      status:               bookingStatus,
-      notes:                input.notes ?? null,
-      group_size:           input.group_size,
-      ticket_type_id:       input.ticket_type_id ?? null,
-      promo_code_id:        promoCodeId,
-      discount_amount:      discountAmount,
-      platform_fee_pct:     platformFeePct,
-      platform_fee_amount:  platformFeeAmount,
+      status: bookingStatus,
+      notes: input.notes ?? null,
+      group_size: input.group_size,
+      ticket_type_id: input.ticket_type_id ?? null,
+      promo_code_id: promoCodeId,
+      discount_amount: discountAmount,
+      platform_fee_pct: platformFeePct,
+      platform_fee_amount: platformFeeAmount,
       payment_pending_until: paymentPendingUntil,
     }
 
     let booking: Record<string, unknown>
     if (anyExisting) {
-      // Reuse the existing row — UPDATE avoids the UNIQUE constraint entirely.
-      const { data, error } = await admin.from('bookings').update(bookingFields as any).eq('id', (anyExisting as any).id).select().single()
+      const { data, error } = await admin
+        .from('bookings')
+        .update(bookingFields as any)
+        .eq('id', (anyExisting as any).id)
+        .select()
+        .single()
       if (error) throw error
       booking = data as Record<string, unknown>
     } else {
-      const { data, error } = await admin.from('bookings').insert({ user_id: ctx.userId, event_id: input.event_id, occurrence_id: occurrence.id, ...bookingFields } as any).select().single()
+      const { data, error } = await admin
+        .from('bookings')
+        .insert({
+          user_id: ctx.userId,
+          event_id: input.event_id,
+          occurrence_id: occurrence.id,
+          ...bookingFields,
+        } as any)
+        .select()
+        .single()
       if (error) throw error
       booking = data as Record<string, unknown>
     }
 
-    // Insert dependent holder rows (position 2+)
     if (input.holders.length > 0) {
-      const holderRows = input.holders.map((h) => ({
-        booking_id:    booking.id,
-        full_name:     h.full_name,
-        date_of_birth: h.date_of_birth,
-        relation:      h.relation,
-        position:      h.position,
+      const holderRows = input.holders.map((holder) => ({
+        booking_id: booking.id,
+        full_name: holder.full_name,
+        date_of_birth: holder.date_of_birth,
+        relation: holder.relation,
+        position: holder.position,
       }))
       const { error: holderErr } = await admin.from('booking_holders').insert(holderRows as never)
       if (holderErr) throw holderErr
     }
 
-    // ── Free booking: confirm immediately ────────────────────────────────────
     if (isFreeBooking) {
-      sendNotification({ userId: ctx.userId, type: 'booking_confirmed', payload: { event_id: event.id, event_title: event.title, booking_id: booking.id as string } }).catch(() => {})
-      sendNotification({ userId: event.organizer_id, type: 'new_attendee', payload: { event_id: event.id, event_title: event.title, booking_id: booking.id as string, actor_id: ctx.userId, actor_name: profile.display_name ?? 'Someone' } }).catch(() => {})
+      queueBookingNotifications({
+        userId: ctx.userId,
+        organizerId: event.organizer_id,
+        eventId: event.id,
+        eventTitle: event.title,
+        bookingId: booking.id as string,
+        actorName: profile.display_name ?? 'Someone',
+      })
       return created({ booking, payment: null, free: true })
     }
 
-    // ── Paid booking: create pending payment_transaction ─────────────────────
-    const organizerNet  = round2(effectivePrice - platformFeeAmount)
+    const organizerNet = round2(effectivePrice - platformFeeAmount)
     const { gateway, method } = resolveGateway(event.currency ?? 'SAR', input.payment_option_id)
 
-    // Use upsert (INSERT … ON CONFLICT booking_id DO UPDATE) so that retrying
-    // after a failed/abandoned payment — where the booking row is reused —
-    // resets the existing transaction rather than hitting the UNIQUE(booking_id)
-    // constraint and returning a 409.
     const { data: txRow, error: txErr } = await (admin as any)
       .from('payment_transactions')
       .upsert({
-        user_id:          ctx.userId,
-        organizer_id:     event.organizer_id,
-        event_id:         event.id,
-        occurrence_id:    occurrence.id,
-        booking_id:       booking.id,
-        type:             'ticket',
-        status:           'pending',
-        amount:           effectivePrice,
-        platform_fee:     platformFeeAmount,
-        organizer_net:    organizerNet,
-        currency:         event.currency ?? 'SAR',
+        user_id: ctx.userId,
+        organizer_id: event.organizer_id,
+        event_id: event.id,
+        occurrence_id: occurrence.id,
+        booking_id: booking.id,
+        type: 'ticket',
+        status: 'pending',
+        amount: effectivePrice,
+        platform_fee: platformFeeAmount,
+        organizer_net: organizerNet,
+        currency: event.currency ?? 'SAR',
         gateway,
-        source:           input.source,
-        payment_method:   method,
-        is_simulated:     gateway === 'simulated',
-        gateway_payload:  { source: input.source }, // legacy breadcrumb for older rows/logging
-        // Reset gateway-specific fields so stale data from a prior attempt is cleared
-        gateway_ref:      null,
+        source: input.source,
+        payment_method: method,
+        is_simulated: gateway === 'simulated',
+        gateway_payload: { source: input.source },
+        gateway_ref: null,
         gateway_order_id: null,
-        failure_reason:   null,
+        failure_reason: null,
       }, { onConflict: 'booking_id' })
       .select('id')
       .single()
 
     if (txErr) throw txErr
 
-    // ── Simulated: confirm immediately ────────────────────────────────────────
     if (gateway === 'simulated') {
       await (admin as any)
         .from('payment_transactions')
         .update({ status: 'succeeded', gateway_ref: `sim_${Date.now()}` })
         .eq('id', txRow.id)
-      await admin.from('bookings').update({ status: 'confirmed', payment_pending_until: null } as any).eq('id', booking.id as string)
-      sendNotification({ userId: ctx.userId, type: 'booking_confirmed', payload: { event_id: event.id, event_title: event.title, booking_id: booking.id as string } }).catch(() => {})
-      sendNotification({ userId: event.organizer_id, type: 'new_attendee', payload: { event_id: event.id, event_title: event.title, booking_id: booking.id as string, actor_id: ctx.userId, actor_name: profile.display_name ?? 'Someone' } }).catch(() => {})
+      await admin
+        .from('bookings')
+        .update({ status: 'confirmed', payment_pending_until: null } as any)
+        .eq('id', booking.id as string)
+
+      queueBookingNotifications({
+        userId: ctx.userId,
+        organizerId: event.organizer_id,
+        eventId: event.id,
+        eventTitle: event.title,
+        bookingId: booking.id as string,
+        actorName: profile.display_name ?? 'Someone',
+      })
+
       return created({ booking, payment: { gateway: 'simulated', free: false }, free: false })
     }
 
-    // ── Real gateway: initiate checkout ──────────────────────────────────────
-    const appUrl    = process.env.NEXT_PUBLIC_APP_URL ?? 'https://rawaq.app'
-    const isMobile  = input.source === 'mobile'
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://rawaq.app'
+    const isMobile = input.source === 'mobile'
 
-    // Paymob uses a dashboard-configured callback URL, so successUrl/cancelUrl
-    // are only meaningful for Stripe. For mobile Stripe payments we route through
-    // a server-side relay (/api/payments/mobile-return) that issues the rawaq://
-    // deep link — Stripe rejects custom-scheme URLs as success/cancel targets.
     const successUrl = isMobile
       ? `${appUrl}/api/payments/mobile-return?booking_id=${booking.id as string}&status=success`
       : `${appUrl}/bookings/${booking.id as string}?payment=success`
-    const cancelUrl  = isMobile
+    const cancelUrl = isMobile
       ? `${appUrl}/api/payments/mobile-return?booking_id=${booking.id as string}&status=cancelled`
       : `${appUrl}/events/${event.id}?payment=cancelled`
 
     const initParams: InitiatePaymentParams = {
-      bookingId:      booking.id as string,
-      transactionId:  txRow.id,
-      amount:         effectivePrice,
-      currency:       event.currency ?? 'SAR',
-      userId:         ctx.userId,
-      organizerId:    event.organizer_id,
-      eventId:        event.id,
-      eventTitle:     event.title,
+      bookingId: booking.id as string,
+      transactionId: txRow.id,
+      amount: effectivePrice,
+      currency: event.currency ?? 'SAR',
+      userId: ctx.userId,
+      organizerId: event.organizer_id,
+      eventId: event.id,
+      eventTitle: event.title,
       platformFeePct,
       method,
-      userEmail:      undefined, // profile.email not available via this select
+      userEmail: undefined,
       successUrl,
       cancelUrl,
     }
@@ -361,27 +251,62 @@ export async function POST(req: NextRequest) {
       throw gatewayError
     }
 
-    // Store gateway order ID for webhook correlation
     const { error: gwUpdateErr } = await (admin as any)
       .from('payment_transactions')
       .update({ gateway_order_id: gatewayResult.gatewayOrderId })
       .eq('id', txRow.id)
     if (gwUpdateErr) {
-      // Non-fatal: log and continue — the booking still exists and the user can
-      // complete payment, but the webhook will fail to find the transaction.
-      console.error('[payments/initiate] Failed to store gateway_order_id:', gwUpdateErr, 'txId:', txRow.id, 'orderId:', gatewayResult.gatewayOrderId)
+      console.error(
+        '[payments/initiate] Failed to store gateway_order_id:',
+        gwUpdateErr,
+        'txId:',
+        txRow.id,
+        'orderId:',
+        gatewayResult.gatewayOrderId,
+      )
     }
 
     return ok({
-      booking_id:              booking.id,
-      transaction_id:          txRow.id,
-      gateway:                 gatewayResult.gateway,
-      redirect_url:            gatewayResult.redirectUrl,
-      fawry_reference_number:  gatewayResult.fawryReferenceNumber ?? null,
-      expires_at:              gatewayResult.expiresAt ?? null,
-      free:                    false,
+      booking_id: booking.id,
+      transaction_id: txRow.id,
+      gateway: gatewayResult.gateway,
+      redirect_url: gatewayResult.redirectUrl,
+      fawry_reference_number: gatewayResult.fawryReferenceNumber ?? null,
+      expires_at: gatewayResult.expiresAt ?? null,
+      free: false,
     })
   } catch (err) {
     return handleApiError(err)
   }
+}
+
+function queueBookingNotifications({
+  userId,
+  organizerId,
+  eventId,
+  eventTitle,
+  bookingId,
+  actorName,
+}: {
+  userId: string
+  organizerId: string
+  eventId: string
+  eventTitle: string
+  bookingId: string
+  actorName: string
+}) {
+  waitUntil(
+    sendNotification({
+      userId,
+      type: 'booking_confirmed',
+      payload: { event_id: eventId, event_title: eventTitle, booking_id: bookingId },
+    }).catch((error) => console.error('[payments/initiate] booking_confirmed notification failed:', error))
+  )
+  waitUntil(
+    sendNotification({
+      userId: organizerId,
+      type: 'new_attendee',
+      payload: { event_id: eventId, event_title: eventTitle, booking_id: bookingId, actor_id: userId, actor_name: actorName },
+    }).catch((error) => console.error('[payments/initiate] new_attendee notification failed:', error))
+  )
 }

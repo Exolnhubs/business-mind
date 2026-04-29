@@ -1,14 +1,8 @@
 import { Ratelimit } from '@upstash/ratelimit'
-import { Redis } from '@upstash/redis'
+import { redis } from '@/lib/redis'
 import { RateLimitException } from './errors'
 
 // Single Redis instance — reused across requests within the same warm function
-const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-  enableAutoPipelining: true,  // batch commands into fewer HTTP round-trips
-})
-
 function sw(
   requests: number,
   window: `${number} ${'s' | 'm' | 'h' | 'd'}`,
