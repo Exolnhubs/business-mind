@@ -108,9 +108,9 @@ export function ErrorToastProvider({ children }: { children: React.ReactNode }) 
               key={toast.id}
               style={{
                 pointerEvents: 'auto',
-                background: 'var(--c-ink, #1a1410)',
-                color: 'var(--c-paper, #fafaf7)',
-                borderInlineStart: '4px solid var(--c-gold, #d8a23a)',
+                background: '#1e1a14',
+                color: '#f5f0e8',
+                borderInlineStart: '4px solid #d8a23a',
                 padding: '12px 14px',
                 borderRadius: 8,
                 boxShadow: '0 6px 24px rgba(0,0,0,0.18)',
