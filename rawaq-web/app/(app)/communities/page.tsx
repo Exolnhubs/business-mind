@@ -4,6 +4,7 @@ import { useCallback, useDeferredValue, useEffect, useRef, useState } from 'reac
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/auth-context'
 import { useLocale } from '@/contexts/locale-context'
+import { HorizontalDragScroll } from '@/components/ui/HorizontalDragScroll'
 import { Spinner } from '@/components/ui/Spinner'
 import { clientFetchInvalidate, clientGetJson, clientPostJson, clientDeleteJson } from '@/lib/client-fetch'
 import type { Community, CommunityLevel, CommunityRole, CommunityMembershipStatus } from '@/types/database'
@@ -205,82 +206,6 @@ function DarkCommRail({
   const { locale, dir } = useLocale()
   const isAr = locale === 'ar'
   const ff = isAr ? 'var(--font-arabic)' : 'var(--font-display)'
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const [fadeRight, setFadeRight] = useState(false)
-
-  // Drag-to-scroll (horizontal + vertical → horizontal)
-  useEffect(() => {
-    const el = scrollRef.current
-    if (!el) return
-
-    let isDown = false
-    let startX = 0
-    let startY = 0
-    let scrollLeft = 0
-    let didDrag = false
-
-    const updateFade = () => setFadeRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 4)
-
-    const onMove = (e: MouseEvent) => {
-      if (!isDown) return
-      e.preventDefault()
-      const walkX = e.clientX - startX
-      const walkY = e.clientY - startY
-      // Whichever axis moved more drives the scroll; vertical drag up = scroll right
-      const walk = Math.abs(walkX) >= Math.abs(walkY) ? walkX : -walkY
-      if (Math.abs(walk) > 4) didDrag = true
-      el.scrollLeft = scrollLeft - walk * 1.4
-    }
-    const onUp = () => {
-      if (!isDown) return
-      isDown = false
-      el.style.cursor = 'grab'
-      document.removeEventListener('mousemove', onMove)
-      document.removeEventListener('mouseup', onUp)
-    }
-    const onDown = (e: MouseEvent) => {
-      isDown = true; didDrag = false
-      startX = e.clientX; startY = e.clientY
-      scrollLeft = el.scrollLeft
-      el.style.cursor = 'grabbing'
-      document.addEventListener('mousemove', onMove)
-      document.addEventListener('mouseup', onUp)
-    }
-    const onClickCapture = (e: MouseEvent) => {
-      if (didDrag) { e.stopPropagation(); didDrag = false }
-    }
-    // Vertical wheel scroll → horizontal scroll
-    const onWheel = (e: WheelEvent) => {
-      if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
-        e.preventDefault()
-        el.scrollLeft += e.deltaY * 1.5
-      }
-    }
-
-    el.style.cursor = 'grab'
-    el.addEventListener('mousedown', onDown)
-    el.addEventListener('click', onClickCapture, true)
-    el.addEventListener('scroll', updateFade, { passive: true })
-    el.addEventListener('wheel', onWheel, { passive: false })
-    requestAnimationFrame(() => { if (el) setFadeRight(el.scrollWidth > el.clientWidth + 4) })
-
-    return () => {
-      el.removeEventListener('mousedown', onDown)
-      el.removeEventListener('click', onClickCapture, true)
-      el.removeEventListener('scroll', updateFade)
-      el.removeEventListener('wheel', onWheel)
-      document.removeEventListener('mousemove', onMove)
-      document.removeEventListener('mouseup', onUp)
-    }
-  }, [])
-
-  // Re-evaluate fade when data loads
-  useEffect(() => {
-    requestAnimationFrame(() => {
-      const el = scrollRef.current
-      if (el) setFadeRight(el.scrollWidth > el.clientWidth + 4)
-    })
-  }, [communities])
 
   if (communities.length === 0) return null
 
@@ -294,36 +219,19 @@ function DarkCommRail({
           {title}
         </span>
       </div>
-      <div style={{ position: 'relative' }}>
-        {fadeRight && (
-          <div
-            aria-hidden
-            style={{
-              position: 'absolute',
-              insetInlineEnd: 0, top: 0, bottom: 12,
-              width: 64, pointerEvents: 'none', zIndex: 1,
-              background: dir === 'rtl'
-                ? `linear-gradient(to left, ${fadeColor}, transparent)`
-                : `linear-gradient(to right, ${fadeColor}, transparent)`,
-            }}
-          />
-        )}
-        <div
-          ref={scrollRef}
-          style={{
-            display: 'flex', gap: 16, overflowX: 'auto',
-            paddingBottom: 12, scrollbarWidth: 'none',
-            WebkitOverflowScrolling: 'touch', userSelect: 'none',
-            alignItems: 'stretch',
-          } as React.CSSProperties}
-        >
-          {communities.map((c) => (
-            <div key={c.id} style={{ width: 280, flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
-              <CommunityCardDark community={c} onToggleMembership={onToggleMembership} />
-            </div>
-          ))}
-        </div>
-      </div>
+      <HorizontalDragScroll
+        ariaLabel={title}
+        showEndFade
+        fadeColor={fadeColor}
+        dir={dir}
+        contentStyle={{ gap: 16, paddingBottom: 12, alignItems: 'stretch' }}
+      >
+        {communities.map((c) => (
+          <div key={c.id} style={{ width: 280, flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
+            <CommunityCardDark community={c} onToggleMembership={onToggleMembership} />
+          </div>
+        ))}
+      </HorizontalDragScroll>
     </div>
   )
 }
@@ -646,18 +554,22 @@ export default function CommunitiesPage() {
               }}>
                 {t('comm.trending')}
               </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+              <HorizontalDragScroll
+                ariaLabel={t('comm.trending')}
+                contentStyle={{ gap: 10, paddingBottom: 6 }}
+              >
                 {trending.map((c) => (
-                  <TrendingPill
-                    key={c.id}
-                    community={c}
-                    onJoin={joinTrending}
-                    joining={joiningSlug}
-                    t={t}
-                    locale={locale}
-                  />
+                  <div key={c.id} style={{ flexShrink: 0 }}>
+                    <TrendingPill
+                      community={c}
+                      onJoin={joinTrending}
+                      joining={joiningSlug}
+                      t={t}
+                      locale={locale}
+                    />
+                  </div>
                 ))}
-              </div>
+              </HorizontalDragScroll>
             </div>
           )}
         </div>

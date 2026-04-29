@@ -6,6 +6,7 @@ import { EventCardDark, EventCardDarkSkeleton } from '@/components/events/EventC
 import { EventFiltersDark } from '@/components/events/EventFiltersDark'
 import { EventsPageHeroDark } from '@/components/events/EventsPageHeroDark'
 import { EventsGridEmpty, EventsGridPagination } from '@/components/events/EventsGridFeedback'
+import { HorizontalDragScroll } from '@/components/ui/HorizontalDragScroll'
 import type { EventWithOrganizer } from '@/types/database'
 import { getCachedFeaturedEvents, getCachedEventsGrid, getCachedWeekendEvents } from '@/lib/events/cache'
 
@@ -101,21 +102,16 @@ function DarkEventRail({
       marginBottom: '2rem',
     }}>
       <DarkRailHeader eyebrow={eyebrow} title={title} color={color} />
-      <div style={{
-        display: 'flex',
-        gap: 16,
-        overflowX: 'auto',
-        paddingBottom: 12,
-        scrollbarWidth: 'none',
-        marginInlineStart: -4,
-        paddingInlineStart: 4,
-      }}>
+      <HorizontalDragScroll
+        ariaLabel={title}
+        contentStyle={{ gap: 16, paddingBottom: 12, marginInlineStart: -4, paddingInlineStart: 4 }}
+      >
         {events.map((event, i) => (
           <div key={event.id} style={{ flexShrink: 0, width: 256 }}>
             <EventCardDark event={event} priority={i < 3} />
           </div>
         ))}
-      </div>
+      </HorizontalDragScroll>
     </div>
   )
 }

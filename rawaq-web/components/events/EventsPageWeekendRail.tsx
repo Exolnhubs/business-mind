@@ -1,6 +1,7 @@
 'use client'
 
 import { EventCard } from '@/components/events/EventCard'
+import { HorizontalDragScroll } from '@/components/ui/HorizontalDragScroll'
 import { useLocale } from '@/contexts/locale-context'
 import type { EventWithOrganizer } from '@/types/database'
 
@@ -46,13 +47,17 @@ export function EventsPageWeekendRail({
           {' · '}{getWeekendLabel(locale, t('events.weekend.today'))}
         </p>
       </div>
-      <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
+      <HorizontalDragScroll
+        ariaLabel={t('events.weekend.nearby_title')}
+        contentClassName="gap-3 pb-1 px-1"
+        style={{ marginInline: -4 }}
+      >
         {events.map((event) => (
           <div key={event.id} className="shrink-0 w-56">
             <EventCard event={event} />
           </div>
         ))}
-      </div>
+      </HorizontalDragScroll>
     </div>
   )
 }
