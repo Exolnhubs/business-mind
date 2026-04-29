@@ -338,7 +338,7 @@ export function BookingFlow({
             onClick={goToCheckout}
             disabled={loading || (hasOccurrences && !selectedOccurrenceId) || (hasTypes && !selectedTypeId)}
             className={cn(
-              'w-full rounded-2xl py-3.5 px-6 font-bold text-sm tracking-wide transition-all duration-150',
+              'w-full rounded-2xl py-3.5 px-6 font-bold text-sm tracking-wide uppercase transition-all duration-150',
               'bg-[var(--c-gold)] text-[var(--c-ink)] hover:brightness-105 active:scale-[0.98]',
               'disabled:opacity-40 disabled:cursor-not-allowed',
             )}
