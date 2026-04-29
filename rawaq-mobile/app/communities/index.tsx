@@ -2,7 +2,6 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import {
   View, Text, FlatList, TextInput, StyleSheet,
   TouchableOpacity, RefreshControl, ActivityIndicator,
-  Animated,
 } from 'react-native'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useFocusEffect, useRouter } from 'expo-router'
@@ -59,9 +58,6 @@ export default function CommunitiesScreen() {
   const isLoadingPageRef              = useRef(false)
   const lastListLoadRef               = useRef(0)
   const lastDiscoveryLoadRef          = useRef(0)
-  const discoveryVisibility           = useRef(new Animated.Value(1)).current
-  const [discoveryVisible, setDiscoveryVisible] = useState(true)
-  const lastScrollYRef                = useRef(0)
   const popularCommunities = popular.filter(
     (community) =>
       !recommended.some((item) => item.id === community.id) &&
@@ -300,48 +296,6 @@ export default function CommunitiesScreen() {
     )
   }
 
-  function setDiscoveryExpanded(visible: boolean) {
-    if (visible === discoveryVisible) return
-    setDiscoveryVisible(visible)
-    Animated.timing(discoveryVisibility, {
-      toValue: visible ? 1 : 0,
-      duration: 180,
-      useNativeDriver: false,
-    }).start()
-  }
-
-  function handleListScroll(event: { nativeEvent: { contentOffset: { y: number } } }) {
-    const nextY = Math.max(0, event.nativeEvent.contentOffset.y)
-    const delta = nextY - lastScrollYRef.current
-    lastScrollYRef.current = nextY
-
-    if (nextY < 24) {
-      setDiscoveryExpanded(true)
-      return
-    }
-
-    if (delta > 4) {
-      setDiscoveryExpanded(false)
-    }
-  }
-
-  const discoveryContainerStyle = {
-    opacity: discoveryVisibility,
-    maxHeight: discoveryVisibility.interpolate({
-      inputRange: [0, 1],
-      outputRange: [0, 520],
-    }),
-    transform: [
-      {
-        translateY: discoveryVisibility.interpolate({
-          inputRange: [0, 1],
-          outputRange: [-12, 0],
-        }),
-      },
-    ],
-    overflow: 'hidden' as const,
-  }
-
   const headerTopSpacing = Math.max(Spacing.sm, Math.min(insets.top * 0.18, Spacing.md))
 
   return (
@@ -424,108 +378,106 @@ export default function CommunitiesScreen() {
         />
       </SafeAreaView>
 
-      <Animated.View style={discoveryContainerStyle} pointerEvents={discoveryVisible ? 'auto' : 'none'}>
-      {user && !joinedOnly && search.trim().length === 0 && recommended.length > 0 && (
-        <View style={styles.discoverySection}>
-          <View style={styles.discoveryHeader}>
-            <View style={styles.sectionTitleRow}>
-              <View style={[styles.sectionDot, { backgroundColor: Colors.brand[400] }]} />
-              <Text style={styles.discoveryTitle}>Recommended for you</Text>
-            </View>
-            <Text style={styles.discoveryHint}>Personalized by your interests and city</Text>
-          </View>
-          <FlatList
-            horizontal
-            data={recommended}
-            keyExtractor={(item) => item.id}
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.discoveryRow}
-            renderItem={({ item }) => renderDiscoveryCard(item, 'recommended')}
-          />
-        </View>
-      )}
-
-      {!joinedOnly && search.trim().length === 0 && trending.length > 0 && (
-        <View style={styles.trendingSection}>
-          <View style={styles.trendingHeader}>
-            <View style={styles.sectionTitleRow}>
-              <View style={[styles.sectionDot, { backgroundColor: Colors.brand[500] }]} />
-              <Text style={styles.trendingTitle}>Trending now</Text>
-            </View>
-            <Text style={styles.trendingHint}>Fast-growing communities this week</Text>
-          </View>
-          <FlatList
-            horizontal
-            data={trending}
-            keyExtractor={(item) => item.id}
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.trendingRow}
-            renderItem={({ item }) => {
-              const meta = LEVEL_META[item.level]
-              const name = isRTL && item.name_ar ? item.name_ar : item.name
-              return (
-                <TouchableOpacity
-                  onPress={() => router.push(`/communities/${item.slug}` as any)}
-                  activeOpacity={0.88}
-                  style={styles.trendingCard}
-                >
-                  <View style={[styles.trendingIcon, { backgroundColor: meta.bg }]}>
-                    <Ionicons name={meta.icon} size={18} color={meta.tint} />
+      <FlatList
+        data={communities}
+        keyExtractor={(c) => c.id}
+        renderItem={renderItem}
+        contentContainerStyle={styles.list}
+        ListHeaderComponent={
+          !joinedOnly && search.trim().length === 0 ? (
+            <>
+              {user && recommended.length > 0 && (
+                <View style={styles.discoverySection}>
+                  <View style={styles.discoveryHeader}>
+                    <View style={styles.sectionTitleRow}>
+                      <View style={[styles.sectionDot, { backgroundColor: Colors.brand[400] }]} />
+                      <Text style={styles.discoveryTitle}>Recommended for you</Text>
+                    </View>
+                    <Text style={styles.discoveryHint}>Personalized by your interests and city</Text>
                   </View>
-                  <Text style={styles.trendingName} numberOfLines={1}>{name}</Text>
-                  <Text style={styles.trendingMeta} numberOfLines={1}>
-                    {item.city ? `${item.city} · ` : ''}{item.member_count.toLocaleString()} members
-                  </Text>
-                </TouchableOpacity>
-              )
-            }}
-          />
-        </View>
-      )}
+                  <FlatList
+                    horizontal
+                    data={recommended}
+                    keyExtractor={(item) => item.id}
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.discoveryRow}
+                    renderItem={({ item }) => renderDiscoveryCard(item, 'recommended')}
+                  />
+                </View>
+              )}
 
-      {user && !joinedOnly && search.trim().length === 0 && popularCommunities.length > 0 && (
-        <View style={styles.discoverySection}>
-          <View style={styles.discoveryHeader}>
-            <View style={styles.sectionTitleRow}>
-              <View style={[styles.sectionDot, { backgroundColor: Colors.gray[400] }]} />
-              <Text style={styles.discoveryTitle}>Popular communities</Text>
-            </View>
-            <Text style={styles.discoveryHint}>Established groups people are already joining</Text>
-          </View>
-          <FlatList
-            horizontal
-            data={popularCommunities}
-            keyExtractor={(item) => item.id}
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.discoveryRow}
-            renderItem={({ item }) => renderDiscoveryCard(item, 'popular')}
-          />
-        </View>
-      )}
-      </Animated.View>
+              {trending.length > 0 && (
+                <View style={styles.trendingSection}>
+                  <View style={styles.trendingHeader}>
+                    <View style={styles.sectionTitleRow}>
+                      <View style={[styles.sectionDot, { backgroundColor: Colors.brand[500] }]} />
+                      <Text style={styles.trendingTitle}>Trending now</Text>
+                    </View>
+                    <Text style={styles.trendingHint}>Fast-growing communities this week</Text>
+                  </View>
+                  <FlatList
+                    horizontal
+                    data={trending}
+                    keyExtractor={(item) => item.id}
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.trendingRow}
+                    renderItem={({ item }) => {
+                      const meta = LEVEL_META[item.level]
+                      const name = isRTL && item.name_ar ? item.name_ar : item.name
+                      return (
+                        <TouchableOpacity
+                          onPress={() => router.push(`/communities/${item.slug}` as any)}
+                          activeOpacity={0.88}
+                          style={styles.trendingCard}
+                        >
+                          <View style={[styles.trendingIcon, { backgroundColor: meta.bg }]}>
+                            <Ionicons name={meta.icon} size={18} color={meta.tint} />
+                          </View>
+                          <Text style={styles.trendingName} numberOfLines={1}>{name}</Text>
+                          <Text style={styles.trendingMeta} numberOfLines={1}>
+                            {item.city ? `${item.city} · ` : ''}{item.member_count.toLocaleString()} members
+                          </Text>
+                        </TouchableOpacity>
+                      )
+                    }}
+                  />
+                </View>
+              )}
 
-      {/* List */}
-      {loading
-        ? <View style={styles.center}><Spinner /></View>
-        : communities.length === 0
-          ? <EmptyState icon="🏘️" title="No communities found" description="Try a different search or filter" />
-          : (
-            <FlatList
-              data={communities}
-              keyExtractor={(c) => c.id}
-              renderItem={renderItem}
-              contentContainerStyle={styles.list}
-              onScroll={handleListScroll}
-              scrollEventThrottle={16}
-              refreshControl={
-                <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(1, search, levelFilter, joinedOnly, false, true) }} />
-              }
-              onEndReached={() => { if (hasMore && !loading && !isLoadingPageRef.current) void load(page + 1, search, levelFilter, joinedOnly, true) }}
-              onEndReachedThreshold={0.4}
-              ListFooterComponent={hasMore ? <View style={styles.center}><Spinner /></View> : null}
-            />
-          )
-      }
+              {user && popularCommunities.length > 0 && (
+                <View style={styles.discoverySection}>
+                  <View style={styles.discoveryHeader}>
+                    <View style={styles.sectionTitleRow}>
+                      <View style={[styles.sectionDot, { backgroundColor: Colors.gray[400] }]} />
+                      <Text style={styles.discoveryTitle}>Popular communities</Text>
+                    </View>
+                    <Text style={styles.discoveryHint}>Established groups people are already joining</Text>
+                  </View>
+                  <FlatList
+                    horizontal
+                    data={popularCommunities}
+                    keyExtractor={(item) => item.id}
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.discoveryRow}
+                    renderItem={({ item }) => renderDiscoveryCard(item, 'popular')}
+                  />
+                </View>
+              )}
+            </>
+          ) : null
+        }
+        ListEmptyComponent={
+          loading
+            ? <View style={styles.center}><Spinner /></View>
+            : <EmptyState icon="🏘️" title="No communities found" description="Try a different search or filter" />
+        }
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(1, search, levelFilter, joinedOnly, false, true) }} />
+        }
+        onEndReached={() => { if (hasMore && !loading && !isLoadingPageRef.current) void load(page + 1, search, levelFilter, joinedOnly, true) }}
+        onEndReachedThreshold={0.4}
+        ListFooterComponent={hasMore ? <View style={styles.center}><Spinner /></View> : null}
+      />
     </View>
   )
 }
