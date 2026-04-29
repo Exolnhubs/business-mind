@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Spinner } from '@/components/ui/Spinner'
 import { useAuth } from '@/contexts/auth-context'
-import { formatCurrency, formatDate, formatTime } from '@/lib/utils'
+import { cn, formatCurrency, formatDate, formatTime } from '@/lib/utils'
 import type { EventOccurrence, TicketType } from '@/types/database'
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -39,12 +39,14 @@ function TicketCard({
       type="button"
       disabled={unavailable}
       onClick={onSelect}
-      className={`w-full text-left rounded-xl border-2 px-4 py-3 transition-all ${unavailable
-          ? 'border-gray-100 bg-gray-50 opacity-60 cursor-not-allowed'
+      className={cn(
+        'w-full text-start rounded-2xl border-2 px-4 py-3.5 transition-all duration-150',
+        unavailable
+          ? 'border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed'
           : selected
-            ? 'border-brand-500 bg-brand-50'
-            : 'border-gray-200 hover:border-brand-300 hover:bg-gray-50'
-        }`}
+            ? 'border-brand-400 bg-brand-50 ring-2 ring-brand-300/40 ring-offset-1'
+            : 'border-gray-200 bg-white hover:border-brand-300 hover:bg-amber-50/40'
+      )}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
@@ -76,7 +78,15 @@ function TicketCard({
           })()}
         </div>
       </div>
-      {selected && <div className="mt-1.5 text-xs text-brand-600 font-medium">✓ Selected</div>}
+      {selected && (
+        <div className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-brand-700">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
+            <circle cx="6" cy="6" r="5.5" fill="oklch(0.78 0.18 72)" />
+            <path d="M3.5 6l1.75 1.75L8.5 4.5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          Selected
+        </div>
+      )}
     </button>
   )
 }
@@ -218,7 +228,10 @@ export function BookingFlow({
     <div className="space-y-3">
       {hasOccurrences && (
         <div className="space-y-2">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Choose session</p>
+          <p style={{ fontFamily: 'var(--font-display)' }}
+             className="text-[10px] font-bold uppercase tracking-[0.18em] text-gray-400 mb-2">
+            Choose Session
+          </p>
           <div className="space-y-2">
             {occurrences.slice(0, 8).map((occurrence) => {
               const selected = selectedOccurrenceId === occurrence.id
@@ -233,10 +246,14 @@ export function BookingFlow({
                     setSelectedOccurrenceId(occurrence.id)
                     setError(null)
                   }}
-                  className={`w-full rounded-xl border px-3 py-3 text-left transition-colors ${selected
-                      ? 'border-brand-500 bg-brand-50'
-                      : 'border-gray-200 hover:border-brand-300 hover:bg-gray-50'
-                    }`}
+                  className={cn(
+                    'w-full rounded-2xl border px-3.5 py-3 text-start transition-all duration-150',
+                    selected
+                      ? 'border-brand-400 bg-brand-50 ring-2 ring-brand-300/40 ring-offset-1'
+                      : full
+                        ? 'border-gray-100 bg-gray-50 opacity-60 cursor-not-allowed'
+                        : 'border-gray-200 bg-white hover:border-brand-300 hover:bg-amber-50/40'
+                  )}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -300,7 +317,10 @@ export function BookingFlow({
           {/* Ticket type selector */}
           {hasTypes && (
             <div className="space-y-2">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Select ticket</p>
+              <p style={{ fontFamily: 'var(--font-display)' }}
+                 className="text-[10px] font-bold uppercase tracking-[0.18em] text-gray-400 mb-2">
+                Select Ticket
+              </p>
               {ticketTypes.map((tt) => (
                 <TicketCard
                   key={tt.id}
@@ -317,7 +337,12 @@ export function BookingFlow({
           <button
             onClick={goToCheckout}
             disabled={loading || (hasOccurrences && !selectedOccurrenceId) || (hasTypes && !selectedTypeId)}
-            className={`w-full btn-primary ${(hasOccurrences && !selectedOccurrenceId) || (hasTypes && !selectedTypeId) ? 'opacity-60 cursor-not-allowed' : ''}`}
+            className={cn(
+              'w-full rounded-2xl py-3.5 px-6 font-bold text-sm tracking-wide transition-all duration-150',
+              'bg-[var(--c-gold)] text-[var(--c-ink)] hover:brightness-105 active:scale-[0.98]',
+              'disabled:opacity-40 disabled:cursor-not-allowed',
+            )}
+            style={{ fontFamily: 'var(--font-display)' }}
           >
             {loading ? (
               <Spinner size="sm" />
@@ -326,7 +351,7 @@ export function BookingFlow({
             ) : effectiveFree ? (
               'Proceed — Free'
             ) : (
-              `Proceed to Checkout${selectedType ? ` — ${formatCurrency(basePrice, currency)}` : ''}`
+              `Book Now${selectedType ? ` — ${formatCurrency(basePrice, currency)}` : ''}`
             )}
           </button>
         </>
