@@ -8,15 +8,43 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY ?? "");
 
 // ── System prompt ─────────────────────────────────────────────────────────────
 
-function buildSystemPrompt(organizers: { id: string; name: string }[]): string {
+function buildSystemPrompt(
+  organizers: { id: string; name: string }[],
+  context: { savedCount: number; hasFeatured: boolean; hasHotOffers: boolean; joinedCommunityNames: string[] },
+): string {
   const organizerBlock =
     organizers.length > 0
       ? `\nFOLLOWED ORGANIZERS: The user follows these organizers: ${organizers.map((o) => o.name).join(", ")}. When you have results from these organizers, mention it — e.g. "I found something from [Organizer] who you already follow 🎉". Prioritise their events when they match preferences.\n`
       : "";
 
-  return `You are Rawaq's smart, warm event discovery assistant. Your goal is to recommend events the user will genuinely love through a short, friendly conversation.
+  const savedBlock =
+    context.savedCount > 0
+      ? `\nSAVED EVENTS: The user has ${context.savedCount} saved event${context.savedCount > 1 ? "s" : ""} in their wishlist. If they mention wanting to revisit saved events, let them know they can tap the bookmark icon on the Home screen. Don't re-recommend events they've already saved unless they specifically ask.\n`
+      : "";
 
-PERSONALITY: Enthusiastic, concise, never robotic. Use 1-2 emojis per message. Keep messages to 2-3 sentences. Ask ONE question at a time.${organizerBlock}
+  const featuredBlock = context.hasFeatured
+    ? `\nFEATURED EVENTS: Rawaq currently has curated featured events — editorially selected highlights. When results include featured events, mention them as "hand-picked" or "trending right now" to create excitement.\n`
+    : "";
+
+  const hotOffersBlock = context.hasHotOffers
+    ? `\nHOT OFFERS: Some events have limited-time discounted tickets (Hot Offers 🔥). When search results include hot-offer events, highlight the discount excitement — e.g. "This one has a special deal right now — grab it before it's gone! 🔥". Always mention the savings angle.\n`
+    : "";
+
+  const communitiesBlock =
+    context.joinedCommunityNames.length > 0
+      ? `\nCOMMUNITIES: The user is a member of these Rawaq communities: ${context.joinedCommunityNames.join(", ")}. When relevant events match their community interests, say something like "This looks perfect for the ${context.joinedCommunityNames[0]} community you're in 🤝". Also, if they seem interested in a niche (e.g. running, art), suggest they explore Rawaq Communities to connect with like-minded people.\n`
+      : `\nCOMMUNITIES: Rawaq has a thriving Communities feature where users join local and interest-based groups. If the user shows interest in a recurring theme (e.g. fitness, music, tech), naturally suggest they explore Rawaq Communities — e.g. "There's also a great community for [interest] on Rawaq if you want to connect with people beyond just this event 🤝"\n`;
+
+  return `You are Rawaq's smart, warm event discovery assistant. Your goal is to recommend events the user will genuinely love through a short, friendly conversation — while naturally surfacing the best of what Rawaq has to offer.
+
+PERSONALITY: Enthusiastic, concise, never robotic. Use 1-2 emojis per message. Keep messages to 2-3 sentences. Ask ONE question at a time.
+${organizerBlock}${savedBlock}${featuredBlock}${hotOffersBlock}${communitiesBlock}
+RAWAQ FEATURES YOU KNOW ABOUT (weave these in naturally, never list them robotically):
+- Hot Offers 🔥: Limited-time discounted tickets. Always worth a mention when available.
+- Featured Events ✨: Hand-picked highlights by the Rawaq team — curated, trending, or special.
+- Saved Events 🔖: Users can bookmark events for later from any event card.
+- Communities 🤝: Local and interest-based groups users can join to connect with like-minded people and discover community events.
+
 CONVERSATION FLOW:
 1. Greet warmly. Ask which city they're in (give examples: Riyadh, Jeddah, Dubai, Cairo, Amman…)
 2. Ask what kind of events they enjoy (music 🎵, tech 💻, art 🎨, sports ⚽, food 🍽️, business 💼, education 📚, community 🤝)
@@ -28,16 +56,18 @@ Once you have city + at least one interest, output EXACTLY this on its own line:
 Then add a short "Let me search for you! 🔍" message.
 
 HANDLING SEARCH RESULTS:
-After you output [SEARCH], the system will inject a [SEARCH_CONTEXT] block showing what was found (exact matches, fallbacks, etc.). Use this to:
-- If exact results found → say something like "Great news, I found some events for you! 🎉" — the app will show the cards below.
-- If only fallback results found → naturally pivot: "I didn't find X but I did find Y nearby — want to check those out?"
-- If fallback results are from a different category → "No music events this week, but there are some great art events in Riyadh this month. Interested? 🎨"
-- If nothing at all → apologise briefly, ask if they want to try a different city, category, or time.
+After you output [SEARCH], the system will inject a [SEARCH_CONTEXT] block showing what was found. Use this to:
+- If exact results include hot-offer events → lead with the savings angle 🔥
+- If exact results include featured events → call them out as "hand-picked" or "trending" ✨
+- If exact results found (no special flags) → "Great news, I found some events for you! 🎉"
+- If only fallback results → naturally pivot: "I didn't find X but I did find Y nearby — want to check those out?"
+- If nothing at all → apologise briefly, ask if they want to try a different city, category, or time. Optionally suggest joining a relevant community to stay updated.
 
 RULES:
 - NEVER dead-end the conversation. Always offer an alternative or ask a follow-up.
 - NEVER repeat the same question twice.
 - Accept vague or partial answers and move on.
+- Mention Hot Offers, Featured Events, or Communities at most once each per session — don't spam features.
 - city must be one of: Riyadh, Jeddah, Dammam, Mecca, Medina, Khobar, Dubai, Abu Dhabi, Cairo, Alexandria, Giza, Amman, Aqaba, Kuwait City, Doha, Manama, Muscat, Salalah, Beirut, Ramallah, Casablanca, Marrakech, Tunis, Baghdad — or null.
 - interests: music, tech, art, sports, food, business, education, community, health, entertainment
 - freeOnly: true/false/null
@@ -68,6 +98,15 @@ interface FetchResult {
     | "followed_organizers"
     | "none";
   description: string;
+  hasHotOffers?: boolean;
+  hasFeatured?: boolean;
+}
+
+interface UserContext {
+  savedCount: number;
+  hasFeatured: boolean;
+  hasHotOffers: boolean;
+  joinedCommunityNames: string[];
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -107,6 +146,8 @@ async function queryEvents(
     .select(
       `
       *,
+      featured_at,
+      featured_until,
       organizer:profiles!organizer_id(
         id, display_name, avatar_url,
         organizer_profile:organizer_profiles!user_id(business_name, business_name_ar, logo_url, verified)
@@ -163,10 +204,30 @@ async function fetchEventsWithFallback(
   organizerIds: string[],
   organizerNames: string[],
 ): Promise<FetchResult> {
+  function detectFlags(events: unknown[]): { hasHotOffers: boolean; hasFeatured: boolean } {
+    const now = new Date().toISOString();
+    let hasHotOffers = false;
+    let hasFeatured = false;
+    for (const e of events as Record<string, unknown>[]) {
+      if (!hasFeatured && e.featured_at && (!e.featured_until || (e.featured_until as string) > now)) {
+        hasFeatured = true;
+      }
+      if (!hasHotOffers) {
+        const tts = e.ticket_types as { is_hot_offer?: boolean; hot_offer_ends_at?: string | null }[] | undefined;
+        if (tts?.some((t) => t.is_hot_offer && (!t.hot_offer_ends_at || t.hot_offer_ends_at > now))) {
+          hasHotOffers = true;
+        }
+      }
+      if (hasHotOffers && hasFeatured) break;
+    }
+    return { hasHotOffers, hasFeatured };
+  }
+
   // 1. Exact match
   const exact = await queryEvents(params, organizerIds);
   if (exact.length > 0) {
-    return { events: exact, strategy: "exact", description: "" };
+    const flags = detectFlags(exact);
+    return { events: exact, strategy: "exact", description: "", ...flags };
   }
 
   // 2. Relax date (keep city + category)
@@ -234,12 +295,49 @@ async function fetchEventsWithFallback(
 
 // ── POST handler ──────────────────────────────────────────────────────────────
 
+async function fetchUserContext(userId: string | null): Promise<UserContext> {
+  if (!userId) return { savedCount: 0, hasFeatured: false, hasHotOffers: false, joinedCommunityNames: [] };
+
+  const supabase = createClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  );
+
+  const now = new Date().toISOString();
+
+  const [savedRes, featuredRes, hotRes, commRes] = await Promise.all([
+    supabase.from("saved_events").select("id", { count: "exact", head: true }).eq("user_id", userId),
+    supabase.from("events").select("id", { count: "exact", head: true })
+      .eq("is_published", true).not("featured_at", "is", null)
+      .gte("start_at", now).limit(1),
+    supabase.from("ticket_types").select("id", { count: "exact", head: true })
+      .eq("is_hot_offer", true).or(`hot_offer_ends_at.is.null,hot_offer_ends_at.gt.${now}`).limit(1),
+    supabase.from("community_members").select("community:communities(name)")
+      .eq("user_id", userId).eq("status", "active").limit(5),
+  ]);
+
+  const joinedCommunityNames: string[] = [];
+  if (commRes.data) {
+    for (const row of commRes.data as { community: { name: string } | null }[]) {
+      if (row.community?.name) joinedCommunityNames.push(row.community.name);
+    }
+  }
+
+  return {
+    savedCount: savedRes.count ?? 0,
+    hasFeatured: (featuredRes.count ?? 0) > 0,
+    hasHotOffers: (hotRes.count ?? 0) > 0,
+    joinedCommunityNames,
+  };
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { messages, followedOrganizers = [] } = body as {
+    const { messages, followedOrganizers = [], userId = null } = body as {
       messages: ChatMessage[];
       followedOrganizers?: { id: string; name: string }[];
+      userId?: string | null;
     };
 
     if (!Array.isArray(messages) || messages.length === 0) {
@@ -260,9 +358,11 @@ export async function POST(req: NextRequest) {
     const organizerIds = followedOrganizers.map((o) => o.id);
     const organizerNames = followedOrganizers.map((o) => o.name);
 
+    const userContext = await fetchUserContext(userId);
+
     const model = genAI.getGenerativeModel({
       model: process.env.GEMINI_MODEL ?? "gemini-1.5-flash",
-      systemInstruction: buildSystemPrompt(followedOrganizers),
+      systemInstruction: buildSystemPrompt(followedOrganizers, userContext),
     });
 
     // ── First Gemini call ────────────────────────────────────────────────────
@@ -289,16 +389,36 @@ export async function POST(req: NextRequest) {
 
     // Exact match found — done
     if (fetchResult.strategy === "exact") {
+      const flags: string[] = [];
+      if (fetchResult.hasHotOffers) flags.push("SOME_RESULTS_HAVE_HOT_OFFER_DISCOUNTS");
+      if (fetchResult.hasFeatured) flags.push("SOME_RESULTS_ARE_FEATURED_EVENTS");
+      const flagNote = flags.length > 0 ? `\nSpecial signals in results: ${flags.join(", ")}. Highlight these naturally in your reply.` : "";
+      if (flagNote) {
+        const contextBlock = `[SEARCH_CONTEXT]\nExact results found.${flagNote}\nDo NOT output another [SEARCH] block.\n[/SEARCH_CONTEXT]`;
+        const updatedHistory: ChatMessage[] = [
+          ...messages,
+          { role: "model", parts: [{ text: rawText }] },
+          { role: "user", parts: [{ text: contextBlock }] },
+        ];
+        const chat2 = model.startChat({ history: updatedHistory.slice(0, -1) });
+        const result2 = await chat2.sendMessage(updatedHistory[updatedHistory.length - 1].parts[0].text);
+        return NextResponse.json({
+          data: { reply: result2.response.text(), events: fetchResult.events, done: true },
+        });
+      }
       return NextResponse.json({
         data: { reply: replyText, events: fetchResult.events, done: true },
       });
     }
 
     // Fallback or nothing found — inject context and ask Gemini to pivot
+    const noneExtra = fetchResult.strategy === "none" && userContext.joinedCommunityNames.length > 0
+      ? ` You can suggest they check their Rawaq Communities (${userContext.joinedCommunityNames.join(", ")}) for local event announcements.`
+      : "";
     const contextBlock =
       fetchResult.strategy === "none"
-        ? `[SEARCH_CONTEXT]\nNo events found at all for: city=${searchParams.city ?? "any"}, interests=${searchParams.interests?.join(",") ?? "any"}, dateRange=${searchParams.dateRange ?? "any"}.\nPlease apologise briefly and ask the user if they want to try a different city, category, or time period.\n[/SEARCH_CONTEXT]`
-        : `[SEARCH_CONTEXT]\n${fetchResult.description}\nFallback strategy: ${fetchResult.strategy}. Found ${fetchResult.events.length} events.\nPlease suggest these alternatives naturally and warmly. Do NOT output another [SEARCH] block.\n[/SEARCH_CONTEXT]`;
+        ? `[SEARCH_CONTEXT]\nNo events found at all for: city=${searchParams.city ?? "any"}, interests=${searchParams.interests?.join(",") ?? "any"}, dateRange=${searchParams.dateRange ?? "any"}.\nPlease apologise briefly and ask if they want to try a different city, category, or time period.${noneExtra}\n[/SEARCH_CONTEXT]`
+        : `[SEARCH_CONTEXT]\n${fetchResult.description}\nFallback strategy: ${fetchResult.strategy}. Found ${fetchResult.events.length} events.${fetchResult.hasHotOffers ? " Some include Hot Offer discounts — mention the deal angle 🔥." : ""}${fetchResult.hasFeatured ? " Some are Featured events — call them out as hand-picked ✨." : ""}\nPlease suggest these alternatives naturally and warmly. Do NOT output another [SEARCH] block.\n[/SEARCH_CONTEXT]`;
 
     // Build updated history including the first Gemini reply + the context injection
     const updatedHistory: ChatMessage[] = [

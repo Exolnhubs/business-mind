@@ -42,8 +42,15 @@ interface FollowedOrganizer { id: string; name: string }
 const WELCOME: Bubble = {
   id: 'welcome',
   role: 'bot',
-  text: "Hey! 👋 I'm your smart event guide. I'll find events you'll love through a quick chat.\n\nLet's start — which city are you in? 🌍",
+  text: "Hey! 👋 I'm your Smart Picks guide. I'll find events you'll genuinely love — including hot deals 🔥, featured picks ✨, and community events 🤝.\n\nLet's start — which city are you in? 🌍",
 }
+
+const QUICK_REPLIES = [
+  { label: '🔥 Hot deals', text: 'Show me events with hot offers or discounts' },
+  { label: '✨ Featured', text: 'Show me featured or trending events' },
+  { label: '🤝 Community events', text: 'Show me community events near me' },
+  { label: '🆓 Free events', text: "I'm only interested in free events" },
+]
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -137,7 +144,7 @@ export default function DiscoverScreen() {
       const res = await fetch(`${API_URL}/api/recommendations/chat`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ messages: newHistory, followedOrganizers: organizers }),
+        body: JSON.stringify({ messages: newHistory, followedOrganizers: organizers, userId: user?.id ?? null }),
       })
 
       const json = await res.json()
@@ -270,6 +277,22 @@ export default function DiscoverScreen() {
         )
       }
 
+      {/* Quick-reply chips — shown only at conversation start */}
+      {bubbles.length === 1 && !sending && !done && (
+        <View style={styles.quickReplies}>
+          {QUICK_REPLIES.map((qr) => (
+            <TouchableOpacity
+              key={qr.label}
+              style={styles.quickReplyChip}
+              activeOpacity={0.75}
+              onPress={() => { setInput(qr.text); }}
+            >
+              <Text style={styles.quickReplyText}>{qr.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
       {/* Input */}
       <View style={[styles.inputRow, { paddingBottom: insets.bottom + Spacing.sm }]}>
         <TextInput
@@ -352,6 +375,30 @@ const styles = StyleSheet.create({
   fallbackHint: {
     fontSize: FontSize.xs, color: Colors.gray[400],
     textAlign: 'center', marginBottom: Spacing.xs,
+  },
+
+  quickReplies: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    backgroundColor: Colors.white,
+    borderTopWidth: 1,
+    borderTopColor: Colors.gray[100],
+  },
+  quickReplyChip: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.brand[50],
+    borderWidth: 1,
+    borderColor: Colors.brand[200],
+  },
+  quickReplyText: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.medium,
+    color: Colors.brand[700],
   },
 
   inputRow: {
