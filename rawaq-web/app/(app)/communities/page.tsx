@@ -208,13 +208,14 @@ function DarkCommRail({
   const scrollRef = useRef<HTMLDivElement>(null)
   const [fadeRight, setFadeRight] = useState(false)
 
-  // Drag-to-scroll
+  // Drag-to-scroll (horizontal + vertical → horizontal)
   useEffect(() => {
     const el = scrollRef.current
     if (!el) return
 
     let isDown = false
     let startX = 0
+    let startY = 0
     let scrollLeft = 0
     let didDrag = false
 
@@ -223,7 +224,10 @@ function DarkCommRail({
     const onMove = (e: MouseEvent) => {
       if (!isDown) return
       e.preventDefault()
-      const walk = e.clientX - startX
+      const walkX = e.clientX - startX
+      const walkY = e.clientY - startY
+      // Whichever axis moved more drives the scroll; vertical drag up = scroll right
+      const walk = Math.abs(walkX) >= Math.abs(walkY) ? walkX : -walkY
       if (Math.abs(walk) > 4) didDrag = true
       el.scrollLeft = scrollLeft - walk * 1.4
     }
@@ -236,7 +240,8 @@ function DarkCommRail({
     }
     const onDown = (e: MouseEvent) => {
       isDown = true; didDrag = false
-      startX = e.clientX; scrollLeft = el.scrollLeft
+      startX = e.clientX; startY = e.clientY
+      scrollLeft = el.scrollLeft
       el.style.cursor = 'grabbing'
       document.addEventListener('mousemove', onMove)
       document.addEventListener('mouseup', onUp)
@@ -244,17 +249,26 @@ function DarkCommRail({
     const onClickCapture = (e: MouseEvent) => {
       if (didDrag) { e.stopPropagation(); didDrag = false }
     }
+    // Vertical wheel scroll → horizontal scroll
+    const onWheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+        e.preventDefault()
+        el.scrollLeft += e.deltaY * 1.5
+      }
+    }
 
     el.style.cursor = 'grab'
     el.addEventListener('mousedown', onDown)
     el.addEventListener('click', onClickCapture, true)
     el.addEventListener('scroll', updateFade, { passive: true })
+    el.addEventListener('wheel', onWheel, { passive: false })
     requestAnimationFrame(() => { if (el) setFadeRight(el.scrollWidth > el.clientWidth + 4) })
 
     return () => {
       el.removeEventListener('mousedown', onDown)
       el.removeEventListener('click', onClickCapture, true)
       el.removeEventListener('scroll', updateFade)
+      el.removeEventListener('wheel', onWheel)
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onUp)
     }
