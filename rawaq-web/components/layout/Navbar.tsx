@@ -212,8 +212,8 @@ export function Navbar() {
   const isLanding = pathname === '/'
 
   const headerBase = isLanding
-    ? 'fixed inset-x-0 top-0 z-40 transition-[background-color,border-color,box-shadow] duration-300'
-    : 'sticky top-0 z-40 transition-[background-color,border-color,box-shadow] duration-300'
+    ? 'fixed inset-x-0 top-0 z-[60] transition-[background-color,border-color,box-shadow] duration-300'
+    : 'sticky top-0 z-[60] transition-[background-color,border-color,box-shadow] duration-300'
   const headerTheme = isLanding
     ? scrolled
       ? 'navbar-landing-scrolled'
