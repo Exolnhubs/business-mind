@@ -8,6 +8,7 @@ import FeedScreen from './feed'
 import { HappeningComposerSheet } from '@/components/happenings/HappeningComposerSheet'
 import { useAuth } from '@/contexts/auth-context'
 import { useNotifications } from '@/contexts/notification-context'
+import { useLocale } from '@/contexts/locale-context'
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '@/theme'
 
 type Segment = 'explore' | 'foryou'
@@ -15,6 +16,7 @@ type Segment = 'explore' | 'foryou'
 export default function HomeScreen() {
   const { profile } = useAuth()
   const { unreadCount } = useNotifications()
+  const { t } = useLocale()
   const params = useLocalSearchParams<{ community?: string }>()
   const [segment, setSegment] = useState<Segment>('explore')
   const [feedMounted, setFeedMounted] = useState(false)
@@ -58,12 +60,12 @@ export default function HomeScreen() {
         <View style={styles.notifPlaceholder} />
         <View style={styles.pillTrack}>
           <PillBtn
-            label="Explore"
+            label={t('home.explore')}
             active={segment === 'explore'}
             onPress={() => handleSegmentChange('explore')}
           />
           <PillBtn
-            label="For You"
+            label={t('home.for_you')}
             active={segment === 'foryou'}
             onPress={() => handleSegmentChange('foryou')}
           />
@@ -101,14 +103,14 @@ export default function HomeScreen() {
             <>
               <QuickAction
                 icon="add"
-                label="New Happening"
+                label={t('home.new_happening')}
                 bottomOffset={showSmartPicksAction ? 132 : 70}
                 onPress={openHappeningComposer}
               />
               {showSmartPicksAction && (
                 <QuickAction
                   icon="sparkles"
-                  label="Smart Picks"
+                  label={t('home.smart_picks')}
                   bottomOffset={70}
                   onPress={openSmartPicks}
                 />

@@ -42,7 +42,7 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'home' : 'home-outline'} size={24} color={color} />
           ),
-          title: 'Home',
+          title: t('tab.home'),
         }}
       />
       <Tabs.Screen
@@ -58,7 +58,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="happenings"
         options={{
-          title: 'Happenings',
+          title: t('tab.happenings'),
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'radio' : 'radio-outline'} size={24} color={color} />
           ),

@@ -9,6 +9,7 @@ import { HappeningParticipantsSheet } from '@/components/happenings/HappeningPar
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Spinner } from '@/components/ui/Spinner'
 import { Colors, FontSize, FontWeight, Radius, Shadow, Spacing } from '@/theme'
+import { useLocale } from '@/contexts/locale-context'
 
 type ActiveCommunity = {
   id: string
@@ -24,6 +25,7 @@ type ActiveCommunity = {
 export default function HappeningsTab() {
   const router = useRouter()
   const { user } = useAuth()
+  const { t, locale } = useLocale()
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [happenings, setHappenings] = useState<HappeningDiscoveryItem[]>([])
@@ -119,33 +121,36 @@ export default function HappeningsTab() {
           ListHeaderComponent={
             <View>
               <View style={styles.hero}>
-                <Text style={styles.eyebrow}>Community Activity</Text>
-                <Text style={styles.title}>Happenings</Text>
-                <Text style={styles.subtitle}>Live invites, quick updates, and spontaneous meetups from across Rawaq communities.</Text>
+                <Text style={styles.eyebrow}>{t('happenings.eyebrow')}</Text>
+                <Text style={styles.title}>{t('happenings.title')}</Text>
+                <Text style={styles.subtitle}>{t('happenings.subtitle')}</Text>
               </View>
 
               {activeCommunities.length > 0 && (
                 <View style={styles.activeSection}>
                   <View style={styles.activeHeader}>
                     <View style={styles.activeDot} />
-                    <Text style={styles.activeTitle}>Active Now</Text>
-                    <Text style={styles.activeSub}>Communities with live activity</Text>
+                    <Text style={styles.activeTitle}>{t('happenings.active_now')}</Text>
+                    <Text style={styles.activeSub}>{t('happenings.active_sub')}</Text>
                   </View>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.activeScroller}>
-                    {activeCommunities.map((community) => (
-                      <TouchableOpacity
-                        key={community.id}
-                        style={styles.activeCard}
-                        activeOpacity={0.85}
-                        onPress={() => router.push(`/communities/${community.slug}` as any)}
-                      >
-                        <View style={[styles.activeAvatar, community.is_member && styles.activeAvatarMember]}>
-                          <Text style={styles.activeAvatarText}>{community.name.slice(0, 1).toUpperCase()}</Text>
-                        </View>
-                        <Text style={styles.activeName} numberOfLines={1}>{community.name}</Text>
-                        <Text style={styles.activeCount}>{community.happening_count} live</Text>
-                      </TouchableOpacity>
-                    ))}
+                    {activeCommunities.map((community) => {
+                      const name = locale === 'ar' && community.name_ar ? community.name_ar : community.name
+                      return (
+                        <TouchableOpacity
+                          key={community.id}
+                          style={styles.activeCard}
+                          activeOpacity={0.85}
+                          onPress={() => router.push(`/communities/${community.slug}` as any)}
+                        >
+                          <View style={[styles.activeAvatar, community.is_member && styles.activeAvatarMember]}>
+                            <Text style={styles.activeAvatarText}>{name.slice(0, 1).toUpperCase()}</Text>
+                          </View>
+                          <Text style={styles.activeName} numberOfLines={1}>{name}</Text>
+                          <Text style={styles.activeCount}>{community.happening_count} {t('happenings.live')}</Text>
+                        </TouchableOpacity>
+                      )
+                    })}
                   </ScrollView>
                 </View>
               )}
@@ -166,8 +171,8 @@ export default function HappeningsTab() {
           ListEmptyComponent={
             <EmptyState
               icon="📍"
-              title="No happenings right now"
-              description="Check back soon for fresh community activity and live meetups."
+              title={t('happenings.empty_title')}
+              description={t('happenings.empty_desc')}
             />
           }
         />

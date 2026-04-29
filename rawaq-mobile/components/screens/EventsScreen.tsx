@@ -1207,8 +1207,8 @@ export default function EventsScreen() {
                   {showRecommendationRails && user && joinedCommunities.length < 3 && suggestedCommunities.length > 0 && (
                     <View style={styles.discoverSection}>
                       <View style={styles.discoverHeader}>
-                        <Text style={styles.discoverTitle}>🏘 Discover Your Communities</Text>
-                        <Text style={styles.discoverSub}>Join micro & interest communities to personalise your feed</Text>
+                        <Text style={styles.discoverTitle}>{t('events.discover_communities')}</Text>
+                        <Text style={styles.discoverSub}>{t('events.discover_communities_sub')}</Text>
                       </View>
                       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: Spacing.lg, gap: Spacing.sm }}>
                         {suggestedCommunities.map((c) => {
@@ -1225,14 +1225,14 @@ export default function EventsScreen() {
                                 onPress={() => handleJoinSuggested(c.slug)}
                                 disabled={joining}
                               >
-                                <Text style={styles.discoverJoinText}>{joining ? '...' : 'Join'}</Text>
+                                <Text style={styles.discoverJoinText}>{joining ? '...' : t('events.join')}</Text>
                               </TouchableOpacity>
                             </View>
                           )
                         })}
                         <TouchableOpacity style={styles.discoverExploreCard} onPress={() => router.push('/communities' as any)}>
                           <Text style={styles.discoverExploreIcon}>→</Text>
-                          <Text style={styles.discoverExploreTxt}>Explore all</Text>
+                          <Text style={styles.discoverExploreTxt}>{t('events.explore_all')}</Text>
                         </TouchableOpacity>
                       </ScrollView>
                     </View>
@@ -1245,8 +1245,8 @@ export default function EventsScreen() {
                         <View style={styles.activeNowSection}>
                           <View style={styles.activeNowHeader}>
                             <View style={styles.activeNowDot} />
-                            <Text style={styles.activeNowTitle}>Active Now</Text>
-                            <Text style={styles.activeNowSub}>Communities with live happenings</Text>
+                            <Text style={styles.activeNowTitle}>{t('events.active_now')}</Text>
+                            <Text style={styles.activeNowSub}>{t('events.active_now_sub')}</Text>
                           </View>
                           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: Spacing.lg, gap: Spacing.md }}>
                             {activeCommunities.map((c) => {
@@ -1264,7 +1264,7 @@ export default function EventsScreen() {
                                     </View>
                                   </View>
                                   <Text style={styles.activeNowName} numberOfLines={1}>{name}</Text>
-                                  <Text style={styles.activeNowCount}>{c.happening_count} happening{c.happening_count !== 1 ? 's' : ''}</Text>
+                                  <Text style={styles.activeNowCount}>{c.happening_count} {c.happening_count !== 1 ? t('events.happenings') : t('events.happening')}</Text>
                                 </TouchableOpacity>
                               )
                             })}
@@ -1274,8 +1274,8 @@ export default function EventsScreen() {
 
                       {activeNowItems.length > 0 && (
                         <MixedDiscoveryRail
-                          title="Happening Now"
-                          subtitle="Live community activity you can jump into right away."
+                          title={t('events.happening_now')}
+                          subtitle={t('events.happening_now_sub')}
                           items={activeNowItems}
                           savedIds={savedIds}
                           onSaveChange={handleSaveChange}
@@ -1290,11 +1290,11 @@ export default function EventsScreen() {
 
                   {showRecommendationRails && (
                     <MixedDiscoveryRail
-                      title="Near You This Weekend"
+                      title={t('events.near_you_weekend')}
                       subtitle={
                         weekendCoords
-                          ? `Within ${weekendRadiusKm} km · ${getWeekendLabel()}`
-                          : `Use your location · ${getWeekendLabel()}`
+                          ? `${t('events.weekend_within_km').replace('{km}', String(weekendRadiusKm))} · ${getWeekendLabel()}`
+                          : `${t('events.weekend_use_location')} · ${getWeekendLabel()}`
                       }
                       items={weekendDiscoveryItems}
                       savedIds={savedIds}
@@ -1305,13 +1305,13 @@ export default function EventsScreen() {
                       accent="weekend"
                       radiusKm={weekendCoords ? weekendRadiusKm : undefined}
                       onRadiusChange={weekendCoords ? setWeekendRadiusKm : undefined}
-                      emptyTitle={weekendCoords ? 'No weekend activity nearby yet' : 'Turn on location'}
+                      emptyTitle={weekendCoords ? t('events.no_weekend_activity') : t('events.turn_on_location')}
                       emptyDescription={
                         weekendCoords
-                          ? 'Try widening the radius to discover more events and happenings around you this weekend.'
-                          : 'Allow location access to see events and happenings near you this weekend.'
+                          ? t('events.widen_radius')
+                          : t('events.allow_location')
                       }
-                      emptyActionLabel={weekendCoords ? undefined : 'Enable location'}
+                      emptyActionLabel={weekendCoords ? undefined : t('events.enable_location')}
                       onEmptyAction={weekendCoords ? undefined : requestWeekendLocation}
                       forceShow
                     />
@@ -1321,9 +1321,9 @@ export default function EventsScreen() {
                   {showRecommendationRails && (
                     <View>
                       <View style={styles.upcomingHeader}>
-                        <Text style={styles.upcomingTitle}>Upcoming Events</Text>
+                        <Text style={styles.upcomingTitle}>{t('events.upcoming')}</Text>
                         <TouchableOpacity onPress={() => router.push('/events' as any)}>
-                          <Text style={styles.upcomingSeeAll}>See all →</Text>
+                          <Text style={styles.upcomingSeeAll}>{t('events.see_all')}</Text>
                         </TouchableOpacity>
                       </View>
                       {categories.length > 0 && (
@@ -1364,8 +1364,8 @@ export default function EventsScreen() {
             <View>
               {index === 5 && showRecommendationRails && almostSoldOutEvents.length > 0 && (
                 <RecommendationRail
-                  title="Almost Sold Out"
-                  subtitle="Popular events that are close to filling up."
+                  title={t('events.almost_sold_out')}
+                  subtitle={t('events.almost_sold_out_sub')}
                   events={almostSoldOutEvents}
                   savedIds={savedIds}
                   onSaveChange={handleSaveChange}
@@ -1375,7 +1375,7 @@ export default function EventsScreen() {
               {debouncedSearch.length > 0 && (
                 <View style={styles.eventSearchBadgeRow}>
                   <View style={[styles.searchResultBadge, styles.searchResultBadgeEvent]}>
-                    <Text style={styles.searchResultBadgeText}>Event</Text>
+                    <Text style={styles.searchResultBadgeText}>{t('events.search_badge_event')}</Text>
                   </View>
                 </View>
               )}
@@ -1393,7 +1393,7 @@ export default function EventsScreen() {
                   onPress={() => router.push('/events' as any)}
                   activeOpacity={0.82}
                 >
-                  <Text style={styles.seeAllEventsBtnText}>See All Events</Text>
+                  <Text style={styles.seeAllEventsBtnText}>{t('events.see_all_events')}</Text>
                   <Ionicons name="arrow-forward" size={16} color={Colors.brand[600]} />
                 </TouchableOpacity>
                 {user && joinedCommunities.length > 0 && (
@@ -1407,7 +1407,7 @@ export default function EventsScreen() {
           }
           ListEmptyComponent={
             nearMe
-              ? <EmptyState icon="📍" title="No events nearby" description={`No events found within ${radiusKm} km of your location`} />
+              ? <EmptyState icon="📍" title={t('events.no_events_nearby')} description={`No events found within ${radiusKm} km of your location`} />
               : <EmptyState icon="📭" title={t('events.empty')} description={t('events.try_filters')} />
           }
         />
@@ -1524,7 +1524,7 @@ function FeaturedCard({
   flat?: boolean
 }) {
   const router = useRouter()
-  const { locale } = useLocale()
+  const { locale, t } = useLocale()
   const { user } = useAuth()
   const [saved, setSaved] = useState(isSaved)
   useEffect(() => { setSaved(isSaved) }, [isSaved])
@@ -1573,7 +1573,7 @@ function FeaturedCard({
         }
         <View style={styles.featuredCoverScrim} />
         <View style={styles.featuredBadge}>
-          <Text style={styles.featuredBadgeText}>⭐ FEATURED</Text>
+          <Text style={styles.featuredBadgeText}>{t('events.featured_badge')}</Text>
         </View>
         {user && (
           <TouchableOpacity style={styles.featuredHeart} onPress={toggleSave} hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}>
@@ -1583,8 +1583,8 @@ function FeaturedCard({
       </View>
       <View style={styles.featuredBody}>
         <View style={styles.featuredTagsRow}>
-          {event.is_free && <Badge label="Free" variant="green" />}
-          {hasHotOffer && <Badge label="🔥 Hot Offer" variant="orange" />}
+          {event.is_free && <Badge label={t('events.free_badge')} variant="green" />}
+          {hasHotOffer && <Badge label={t('events.hot_offer_badge')} variant="orange" />}
           {event.category && (
             <Badge
               label={locale === 'ar' && event.category.name_ar ? event.category.name_ar : event.category.name_en}
@@ -1605,13 +1605,13 @@ function FeaturedCard({
           <View style={{ flex: 1 }}>
             {spotsLeft !== null && spotsLeft >= 0 && (
               <Text style={styles.featuredSpotsText}>
-                {event.bookings_count.toLocaleString()} going{spotsLeft > 0 ? ` · ${spotsLeft} spots left` : ' · Full'}
+                {event.bookings_count.toLocaleString()} {t('events.going')}{spotsLeft > 0 ? ` · ${spotsLeft} ${t('events.spots_left')}` : ` · ${t('events.full')}`}
               </Text>
             )}
           </View>
           <View style={[styles.featuredPricePill, event.is_free && styles.featuredPricePillFree]}>
             <Text style={[styles.featuredPriceText, event.is_free && styles.featuredPriceTextFree]}>
-              {event.is_free ? 'Free' : formatCurrency(event.price ?? 0, event.currency, locale)}
+              {event.is_free ? t('events.free_badge') : formatCurrency(event.price ?? 0, event.currency, locale)}
             </Text>
           </View>
         </View>
@@ -1677,6 +1677,7 @@ function HotOfferCard({ event }: { event: EventWithOrganizer }) {
 }
 
 function HotOffersRail({ events }: { events: EventWithOrganizer[] }) {
+  const { t } = useLocale()
   if (events.length === 0) return null
   return (
     <View style={styles.hotRailSection}>
@@ -1685,11 +1686,11 @@ function HotOffersRail({ events }: { events: EventWithOrganizer[] }) {
           <Text style={{ fontSize: 18 }}>🔥</Text>
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.hotRailEyebrow}>Limited time</Text>
-          <Text style={styles.hotRailTitle}>Hot Offers</Text>
+          <Text style={styles.hotRailEyebrow}>{t('events.limited_time')}</Text>
+          <Text style={styles.hotRailTitle}>{t('events.hot_offers')}</Text>
         </View>
         <View style={styles.hotRailBadge}>
-          <Text style={styles.hotRailBadgeText}>{events.length} deal{events.length !== 1 ? 's' : ''}</Text>
+          <Text style={styles.hotRailBadgeText}>{events.length} {events.length !== 1 ? t('events.deals') : t('events.deal')}</Text>
         </View>
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hotRailScroller}>
@@ -1703,20 +1704,20 @@ function HotOffersRail({ events }: { events: EventWithOrganizer[] }) {
 
 function SavedEventsRail({ events, onSeeAll }: { events: EventWithOrganizer[]; onSeeAll?: () => void }) {
   const router = useRouter()
-  const { locale } = useLocale()
+  const { locale, t } = useLocale()
   if (events.length === 0) return null
   return (
     <View style={styles.savedRailSection}>
       <View style={styles.savedRailHeader}>
         <View style={styles.savedRailTitleRow}>
-          <Text style={styles.savedRailTitle}>❤️ Saved</Text>
+          <Text style={styles.savedRailTitle}>{t('events.saved_rail')}</Text>
           <View style={styles.savedCountBadge}>
             <Text style={styles.savedCountText}>{events.length}</Text>
           </View>
         </View>
         {onSeeAll && (
           <TouchableOpacity onPress={onSeeAll} hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}>
-            <Text style={styles.savedRailSeeAll}>See all →</Text>
+            <Text style={styles.savedRailSeeAll}>{t('events.see_all')}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -1753,13 +1754,13 @@ function SavedEventsRail({ events, onSeeAll }: { events: EventWithOrganizer[]; o
 
 function YourCommunitiesSection({ communities, onSeeAll }: { communities: JoinedCommunity[]; onSeeAll: () => void }) {
   const router = useRouter()
-  const { locale } = useLocale()
+  const { locale, t } = useLocale()
   return (
     <View style={styles.yourCommSection}>
       <View style={styles.yourCommHeader}>
-        <Text style={styles.yourCommTitle}>Your Communities</Text>
+        <Text style={styles.yourCommTitle}>{t('events.your_communities')}</Text>
         <TouchableOpacity onPress={onSeeAll} hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}>
-          <Text style={styles.yourCommSeeAll}>See all →</Text>
+          <Text style={styles.yourCommSeeAll}>{t('events.see_all')}</Text>
         </TouchableOpacity>
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.yourCommScroll}>
@@ -1784,7 +1785,7 @@ function YourCommunitiesSection({ communities, onSeeAll }: { communities: Joined
           <View style={styles.yourCommFindIcon}>
             <Ionicons name="add" size={20} color={Colors.brand[500]} />
           </View>
-          <Text style={styles.yourCommFindText}>Find{'\n'}communities</Text>
+          <Text style={styles.yourCommFindText}>{t('events.find_communities')}</Text>
         </TouchableOpacity>
       </ScrollView>
     </View>
