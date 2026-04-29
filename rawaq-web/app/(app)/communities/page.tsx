@@ -575,7 +575,7 @@ export default function CommunitiesPage() {
               >
                 {t('comm.heading_title')}{' '}
                 <span style={{ color: 'var(--c-gold)' }}>
-                  {isAr ? 'أهلك.' : 'people.'}
+                  {isAr ? 'ناسك.' : 'people.'}
                 </span>
               </h1>
               <p

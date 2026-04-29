@@ -87,6 +87,14 @@ function getWeekendLabel(): string {
   return `${fmt(sat)} - ${fmt(sun)}`
 }
 
+const COMMUNITY_LEVEL_ICONS: Record<string, string> = {
+  micro:    '🏘️',
+  interest: '🎯',
+  district: '🏙️',
+  city:     '🌆',
+  country:  '🌍',
+}
+
 const CITIES = [
   'All',
   // Saudi Arabia
@@ -1252,7 +1260,7 @@ export default function EventsScreen() {
                                 >
                                   <View style={styles.activeNowPulse}>
                                     <View style={[styles.activeNowAvatar, c.is_member && styles.activeNowAvatarMember]}>
-                                      <Text style={styles.activeNowAvatarText}>{name.slice(0, 1).toUpperCase()}</Text>
+                                      <Text style={styles.activeNowAvatarText}>{COMMUNITY_LEVEL_ICONS[c.level] ?? name.slice(0, 1).toUpperCase()}</Text>
                                     </View>
                                   </View>
                                   <Text style={styles.activeNowName} numberOfLines={1}>{name}</Text>
@@ -1765,7 +1773,7 @@ function YourCommunitiesSection({ communities, onSeeAll }: { communities: Joined
               activeOpacity={0.8}
             >
               <View style={styles.yourCommAvatar}>
-                <Text style={styles.yourCommAvatarText}>{name.slice(0, 1).toUpperCase()}</Text>
+                <Text style={styles.yourCommAvatarText}>{COMMUNITY_LEVEL_ICONS[c.level] ?? name.slice(0, 1).toUpperCase()}</Text>
               </View>
               <Text style={styles.yourCommName} numberOfLines={2}>{name}</Text>
               <Text style={styles.yourCommLevel}>{c.level}</Text>

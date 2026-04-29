@@ -157,7 +157,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'errors.transient.title':              'Something went wrong',
     'errors.transient.body':               "We couldn't reach the server. Please try again in a moment.",
     'errors.timeout.title':                'Taking longer than usual',
-    'errors.timeout.body':                 "Your connection seems slow. We'll wait — you can retry when ready.",
+    'errors.timeout.body':                 "Your connection seems slow. We'll wait - you can retry when ready.",
     'errors.offline.title':                "You're offline",
     'errors.offline.body':                 'Check your connection and try again.',
     'errors.rate_limited.title':           'Slow down a moment',
