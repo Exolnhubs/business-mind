@@ -33,24 +33,49 @@ if (Platform.OS === 'android') {
   })
 }
 
-// Notification type → deep-link route
-function routeForNotifType(type: string, role?: string): string {
+// Notification type + payload → deep-link route (push tap handler)
+function routeForNotifType(type: string, data: Record<string, unknown>, role?: string): string {
+  const eventId       = typeof data.event_id       === 'string' ? data.event_id       : null
+  const actorId       = typeof data.actor_id       === 'string' ? data.actor_id       : null
+  const communitySlug = typeof data.community_slug === 'string' ? data.community_slug : null
+  const bookingId     = typeof data.booking_id     === 'string' ? data.booking_id     : null
+
   switch (type) {
     case 'booking_confirmed':
+      return bookingId ? `/bookings/${bookingId}/ticket` : '/(tabs)/bookings'
     case 'booking_cancelled':
     case 'waitlist_promoted':
-    case 'event_reminder':
+    case 'event_cancelled':
       return '/(tabs)/bookings'
-    case 'new_follower':
-    case 'new_review':
+    case 'event_reminder':
+    case 'comment_reply':
+    case 'mention':
+    case 'new_comment':
+    case 'event_updated':
+    case 'new_event_published':
+    case 'community_new_event':
+      return eventId ? `/events/${eventId}` : '/(tabs)/home'
+    case 'community_happening':
+      return communitySlug ? `/communities/${communitySlug}` : '/(tabs)/home'
     case 'organizer_approved':
+      return '/organizer/dashboard'
     case 'organizer_rejected':
     case 'organizer_suspended':
+    case 'new_review':
       return '/(tabs)/profile'
     case 'tip_received':
+      return '/organizer/earnings'
     case 'new_attendee':
     case 'event_sold_out':
-      return role === 'organizer' ? '/organizer/dashboard' : '/(tabs)/profile'
+      return role === 'organizer' ? '/organizer/dashboard' : '/(tabs)/home'
+    case 'new_follower':
+    case 'follow_request':
+    case 'follow_accepted':
+    case 'say_hi':
+      return actorId ? `/user/${actorId}` : '/(tabs)/notifications'
+    case 'referral_signup_reward':
+    case 'referral_conversion_reward':
+      return '/referral'
     default:
       return '/(tabs)/notifications'
   }
@@ -155,7 +180,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
       const data = response.notification.request.content.data as Record<string, unknown>
       const type = data?.type as string ?? ''
-      const route = routeForNotifType(type, profile?.role)
+      const route = routeForNotifType(type, data, profile?.role)
       router.push(route as any)
     })
     return () => subscription.remove()

@@ -88,33 +88,49 @@ function notifText(type: string, payload: NotifPayload, t: (key: string) => stri
 }
 
 function notifRoute(type: string, payload: NotifPayload, profile: { role?: string } | null): string {
-  const eventId = typeof payload.event_id === 'string' ? payload.event_id : null
+  const eventId      = typeof payload.event_id       === 'string' ? payload.event_id       : null
+  const actorId      = typeof payload.actor_id       === 'string' ? payload.actor_id       : null
+  const communitySlug = typeof payload.community_slug === 'string' ? payload.community_slug : null
+  const bookingId    = typeof payload.booking_id     === 'string' ? payload.booking_id     : null
+
   switch (type) {
     case 'booking_confirmed':
+      return bookingId ? `/bookings/${bookingId}/ticket` : '/(tabs)/bookings'
     case 'booking_cancelled':
     case 'waitlist_promoted':
-    case 'event_reminder':
+    case 'event_cancelled':
       return '/(tabs)/bookings'
-    case 'community_new_event':
-    case 'new_event_published':
+    case 'event_reminder':
+    case 'comment_reply':
+    case 'mention':
+    case 'new_comment':
     case 'event_updated':
+    case 'new_event_published':
+    case 'community_new_event':
       return eventId ? `/events/${eventId}` : '/(tabs)/home'
-    case 'community_happening': {
-      const communitySlug = typeof payload.community_slug === 'string' ? payload.community_slug : null
-      return communitySlug ? `/communities/${communitySlug}` : '/communities'
-    }
-    case 'new_follower':
-    case 'new_review':
+    case 'community_happening':
+      return communitySlug ? `/communities/${communitySlug}` : '/(tabs)/home'
     case 'organizer_approved':
+      return '/organizer/dashboard'
     case 'organizer_rejected':
     case 'organizer_suspended':
+    case 'new_review':
       return '/(tabs)/profile'
     case 'tip_received':
+      return '/organizer/earnings'
     case 'new_attendee':
     case 'event_sold_out':
-      return profile?.role === 'organizer' ? '/organizer/dashboard' : '/(tabs)/profile'
+      return profile?.role === 'organizer' ? '/organizer/dashboard' : '/(tabs)/home'
+    case 'new_follower':
+    case 'follow_request':
+    case 'follow_accepted':
+    case 'say_hi':
+      return actorId ? `/user/${actorId}` : '/(tabs)/notifications'
+    case 'referral_signup_reward':
+    case 'referral_conversion_reward':
+      return '/referral'
     default:
-      return '/(tabs)/home'
+      return '/(tabs)/notifications'
   }
 }
 

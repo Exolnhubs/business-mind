@@ -43,31 +43,49 @@ function notificationLabel(n: Notification): { title: string; subtitle: string; 
   const p = n.payload as Record<string, string>
   switch (n.type) {
     case 'booking_confirmed':
-      return { title: 'Booking confirmed', subtitle: p.event_title ?? '', href: p.event_id ? `/events/${p.event_id}` : null }
+      return { title: 'Booking confirmed', subtitle: p.event_title ?? '', href: p.booking_id ? `/bookings/${p.booking_id}/ticket` : '/bookings' }
     case 'booking_cancelled':
-      return { title: 'Booking cancelled', subtitle: p.event_title ?? '', href: p.event_id ? `/events/${p.event_id}` : null }
+      return { title: 'Booking cancelled', subtitle: p.event_title ?? '', href: '/bookings' }
     case 'event_reminder':
       return { title: 'Event starting soon', subtitle: p.event_title ?? '', href: p.event_id ? `/events/${p.event_id}` : null }
     case 'comment_reply':
       return { title: 'Someone replied to your comment', subtitle: p.event_title ?? '', href: p.event_id ? `/events/${p.event_id}` : null }
     case 'mention':
       return { title: 'You were mentioned', subtitle: p.event_title ?? '', href: p.event_id ? `/events/${p.event_id}` : null }
+    case 'new_comment':
+      return { title: `${p.actor_name ?? 'Someone'} commented on your event`, subtitle: p.event_title ?? '', href: p.event_id ? `/events/${p.event_id}` : null }
     case 'organizer_approved':
       return { title: 'Organizer account approved! 🎉', subtitle: 'You can now create events', href: '/organizer' }
+    case 'organizer_rejected':
+      return { title: 'Organizer application update', subtitle: 'Your application was not approved', href: '/profile' }
+    case 'organizer_suspended':
+      return { title: 'Organizer account suspended', subtitle: 'Contact support for more info', href: '/profile' }
     case 'event_cancelled':
-      return { title: 'Event was cancelled', subtitle: p.event_title ?? '', href: null }
+      return { title: 'Event was cancelled', subtitle: p.event_title ?? '', href: '/bookings' }
     case 'tip_received':
-      return { title: `You received a SAR ${p.amount ?? ''} donation`, subtitle: p.event_title ?? '', href: p.event_id ? `/events/${p.event_id}` : null }
+      return { title: `You received a SAR ${p.amount ?? ''} donation`, subtitle: p.event_title ?? '', href: '/organizer/earnings' }
+    case 'waitlist_promoted':
+      return { title: "You're off the waitlist!", subtitle: p.event_title ?? '', href: p.event_id ? `/events/${p.event_id}` : '/bookings' }
+    case 'new_follower':
+      return { title: `${p.actor_name ?? 'Someone'} started following you`, subtitle: '', href: p.actor_id ? `/user/${p.actor_id}` : '/profile' }
+    case 'new_review':
+      return { title: `${p.actor_name ?? 'Someone'} left a ${p.rating ?? ''}★ review`, subtitle: '', href: p.event_id ? `/events/${p.event_id}` : '/profile' }
+    case 'new_attendee':
+      return { title: 'New ticket sold', subtitle: `${p.actor_name ?? 'Someone'} booked ${p.event_title ?? ''}`, href: p.event_id ? `/organizer/events/${p.event_id}/attendees` : '/organizer' }
     case 'event_updated':
       return { title: 'Event details updated', subtitle: p.event_title ?? '', href: p.event_id ? `/events/${p.event_id}` : null }
     case 'new_event_published':
       return { title: `New event from ${p.organizer_name ?? 'an organizer you follow'}`, subtitle: p.event_title ?? '', href: p.event_id ? `/events/${p.event_id}` : null }
     case 'event_sold_out':
-      return { title: 'Your event sold out! 🎊', subtitle: p.event_title ?? '', href: p.event_id ? `/events/${p.event_id}` : null }
+      return { title: 'Your event sold out! 🎊', subtitle: p.event_title ?? '', href: p.event_id ? `/organizer/events/${p.event_id}/attendees` : '/organizer' }
     case 'community_new_event':
       return { title: `New event in ${p.community_name ?? 'your community'}`, subtitle: p.event_title ?? '', href: p.event_id ? `/events/${p.event_id}` : null }
     case 'community_happening':
-      return { title: `${p.community_name ?? 'Community'}: something's happening`, subtitle: p.body ?? '', href: null }
+      return { title: `${p.community_name ?? 'Community'}: something's happening`, subtitle: p.body ?? '', href: p.community_slug ? `/communities/${p.community_slug}` : '/communities' }
+    case 'referral_signup_reward':
+      return { title: 'Referral reward earned! 🎁', subtitle: 'A friend joined using your link', href: '/profile/referral' }
+    case 'referral_conversion_reward':
+      return { title: 'Bonus reward unlocked! 🎉', subtitle: 'Your friend made their first booking', href: '/profile/referral' }
     case 'follow_request':
       return { title: `${p.actor_name ?? 'Someone'} wants to follow you`, subtitle: '', href: p.actor_id ? `/user/${p.actor_id}` : null }
     case 'follow_accepted':
