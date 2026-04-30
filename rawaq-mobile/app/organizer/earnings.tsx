@@ -371,7 +371,7 @@ export default function EarningsScreen() {
         {/* Banking details banner / card */}
         {!bankAccount ? (
           <TouchableOpacity style={styles.bankBanner} onPress={openWithdrawModal}>
-            <View style={{ flex: 1 }}>
+            <View style={{ flex: 1, alignItems: 'flex-start' }}>
               <Text style={styles.bankBannerTitle}>{t('earnings.add_bank_title')}</Text>
               <Text style={styles.bankBannerSub}>
                 {t('earnings.add_bank_sub')}
@@ -381,7 +381,7 @@ export default function EarningsScreen() {
           </TouchableOpacity>
         ) : (
           <View style={styles.bankCard}>
-            <View style={{ flex: 1 }}>
+            <View style={{ flex: 1, alignItems: 'flex-start' }}>
               <Text style={styles.bankCardTitle}>
                 {bankAccount.bank_name}
                 {bankAccount.is_verified && (
@@ -425,7 +425,7 @@ export default function EarningsScreen() {
           <View style={styles.card}>
             {ledger.map((entry, i) => (
               <View key={entry.id} style={[styles.ledgerRow, i > 0 && styles.borderTop]}>
-                <View style={{ flex: 1 }}>
+                <View style={{ flex: 1, alignItems: 'flex-start' }}>
                   <Text style={styles.ledgerReason}>{REASON_LABEL_KEYS[entry.reason] ? t(REASON_LABEL_KEYS[entry.reason]) : entry.reason}</Text>
                   {entry.note && <Text style={styles.ledgerNote}>{entry.note}</Text>}
                   <Text style={styles.ledgerDate}>{new Date(entry.created_at).toLocaleDateString()}</Text>
@@ -445,7 +445,7 @@ export default function EarningsScreen() {
             <View style={styles.card}>
               {payouts.map((p, i) => (
                 <View key={p.id} style={[styles.ledgerRow, i > 0 && styles.borderTop]}>
-                  <View style={{ flex: 1 }}>
+                  <View style={{ flex: 1  }}>
                     <Text style={styles.ledgerReason}>{fmt(p.amount)}</Text>
                     {p.bank_name && <Text style={styles.ledgerNote}>{p.bank_name}</Text>}
                     <Text style={styles.ledgerDate}>{new Date(p.requested_at).toLocaleDateString()}</Text>
@@ -617,7 +617,7 @@ const styles = StyleSheet.create({
   payoutBtn: { marginHorizontal: Spacing.lg, backgroundColor: Colors.brand[500], borderRadius: Radius.lg, paddingVertical: Spacing.md, alignItems: 'center', marginBottom: Spacing.xl },
   payoutBtnDisabled: { opacity: 0.4 },
   payoutBtnText: { color: Colors.white, fontWeight: FontWeight.semibold, fontSize: FontSize.base },
-  sectionTitle: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.gray[500], textTransform: 'uppercase', letterSpacing: 0.8, paddingHorizontal: Spacing.lg, marginBottom: Spacing.sm },
+  sectionTitle: { fontSize: FontSize.xs, textAlign: 'left', fontWeight: FontWeight.semibold, color: Colors.gray[500], textTransform: 'uppercase', letterSpacing: 0.8, paddingHorizontal: Spacing.lg, marginBottom: Spacing.sm },
   card: { marginHorizontal: Spacing.lg, backgroundColor: Colors.white, borderRadius: Radius.lg, overflow: 'hidden', marginBottom: Spacing.xl, ...Shadow.card },
   emptyBox: { marginHorizontal: Spacing.lg, alignItems: 'center', padding: Spacing['3xl'], backgroundColor: Colors.white, borderRadius: Radius.lg, marginBottom: Spacing.xl },
   emptyText: { fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.gray[700], marginTop: Spacing.sm },
@@ -629,14 +629,14 @@ const styles = StyleSheet.create({
   ledgerDate: { fontSize: FontSize.xs, color: Colors.gray[400], marginTop: 2 },
   ledgerAmount: { fontSize: FontSize.sm, fontWeight: FontWeight.bold },
   statusBadge: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, textTransform: 'capitalize' },
-  modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' },
-  modalSheet: { backgroundColor: Colors.white, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, padding: Spacing['2xl'], paddingBottom: Spacing['4xl'] },
-  modalTitle: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.gray[900], marginBottom: 4 },
-  modalSub: { fontSize: FontSize.sm, color: Colors.gray[500], marginBottom: Spacing.xl },
-  modalBankSummary: { backgroundColor: Colors.gray[50], borderRadius: Radius.md, padding: Spacing.md, marginBottom: Spacing.lg },
+  modalOverlay: { flex: 1, justifyContent: 'flex-end',  backgroundColor: 'rgba(0,0,0,0.4)' },
+  modalSheet: { backgroundColor: Colors.white,  borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, padding: Spacing['2xl'], paddingBottom: Spacing['4xl'] },
+  modalTitle: { fontSize: FontSize.lg,  fontWeight: FontWeight.bold, textAlign: 'left', color: Colors.gray[900], marginBottom: 4 },
+  modalSub: { fontSize: FontSize.sm, color: Colors.gray[500], textAlign: 'left', marginBottom: Spacing.xl },
+  modalBankSummary: { backgroundColor: Colors.gray[50], textAlign: 'left', borderRadius: Radius.md, padding: Spacing.md, marginBottom: Spacing.lg },
   modalBankSummaryTitle: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[800] },
   modalBankSummaryIban: { fontSize: FontSize.xs, color: Colors.gray[500], marginTop: 2, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
-  inputLabel: { fontSize: FontSize.sm, fontWeight: FontWeight.medium, color: Colors.gray[700], marginBottom: 6 },
+  inputLabel: { fontSize: FontSize.sm, fontWeight: FontWeight.medium, textAlign: 'left', color: Colors.gray[700], marginBottom: 6 },
   input: { borderWidth: 1, borderColor: Colors.gray[200], borderRadius: Radius.lg, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, fontSize: FontSize.base, color: Colors.gray[900], marginBottom: Spacing.lg },
   payoutNote: { fontSize: FontSize.xs, color: Colors.gray[400], marginBottom: Spacing.xl, textAlign: 'center' },
   modalActions: { gap: Spacing.sm },

@@ -179,8 +179,9 @@ function claimUniqueHappenings(
 
 export default function FeedScreen({ onExplore }: Props = {}) {
   const { user } = useAuth()
-  const { t } = useLocale()
+  const { t, isRTL } = useLocale()
   const router = useRouter()
+  const textDirStyle = isRTL ? styles.rtlText : styles.ltrText
 
   const [events, setEvents] = useState<EventWithOrganizer[]>([])
   const [savedEvents, setSavedEvents] = useState<EventWithOrganizer[]>([])
@@ -540,8 +541,8 @@ export default function FeedScreen({ onExplore }: Props = {}) {
         <View style={styles.savedSection}>
           <View style={styles.savedHeader}>
             <View>
-              <Text style={styles.savedEyebrow}>{t('feed.saved_eyebrow')}</Text>
-              <Text style={styles.savedTitle}>{t('feed.saved_title')}</Text>
+              <Text style={[styles.savedEyebrow, textDirStyle]}>{t('feed.saved_eyebrow')}</Text>
+              <Text style={[styles.savedTitle, textDirStyle]}>{t('feed.saved_title')}</Text>
             </View>
           </View>
           <FlatList
@@ -566,8 +567,8 @@ export default function FeedScreen({ onExplore }: Props = {}) {
       <View style={styles.savedSection}>
         <View style={styles.savedHeader}>
           <View>
-            <Text style={styles.savedEyebrow}>{t('feed.saved_eyebrow')}</Text>
-            <Text style={styles.savedTitle}>{t('feed.saved_title')}</Text>
+            <Text style={[styles.savedEyebrow, textDirStyle]}>{t('feed.saved_eyebrow')}</Text>
+            <Text style={[styles.savedTitle, textDirStyle]}>{t('feed.saved_title')}</Text>
           </View>
           <TouchableOpacity
             style={styles.savedLink}
@@ -642,9 +643,9 @@ export default function FeedScreen({ onExplore }: Props = {}) {
     <View style={styles.container}>
       <View style={styles.header}>
         <View>
-          <Text style={styles.headerTitle}>{t('feed.following')}</Text>
+          <Text style={[styles.headerTitle, textDirStyle]}>{t('feed.following')}</Text>
           {following > 0 && (
-            <Text style={styles.headerSub}>{following} {following !== 1 ? t('feed.organizers') : t('feed.organizer')}</Text>
+            <Text style={[styles.headerSub, textDirStyle]}>{following} {following !== 1 ? t('feed.organizers') : t('feed.organizer')}</Text>
           )}
         </View>
       </View>
@@ -722,13 +723,15 @@ function RecommendationRail({
   savedIds: Set<string>
   onSaveChange: (id: string, saved: boolean) => void
 }) {
+  const { isRTL } = useLocale()
+  const textDirStyle = isRTL ? styles.rtlText : styles.ltrText
   if (events.length === 0) return null
 
   return (
     <View style={styles.railSection}>
       <View style={styles.railHeader}>
-        <Text style={styles.railTitle}>{title}</Text>
-        <Text style={styles.railSubtitle}>{subtitle}</Text>
+        <Text style={[styles.railTitle, textDirStyle]}>{title}</Text>
+        <Text style={[styles.railSubtitle, textDirStyle]}>{subtitle}</Text>
       </View>
       <ScrollView
         horizontal
@@ -768,13 +771,15 @@ function MixedDiscoveryRail({
   onToggleHappeningReact: (happening: HappeningDiscoveryItem) => void
   onOpenHappeningComments?: (happening: HappeningDiscoveryItem) => void
 }) {
+  const { isRTL } = useLocale()
+  const textDirStyle = isRTL ? styles.rtlText : styles.ltrText
   if (items.length === 0) return null
 
   return (
     <View style={styles.railSection}>
       <View style={styles.railHeader}>
-        <Text style={styles.railTitle}>{title}</Text>
-        <Text style={styles.railSubtitle}>{subtitle}</Text>
+        <Text style={[styles.railTitle, textDirStyle]}>{title}</Text>
+        <Text style={[styles.railSubtitle, textDirStyle]}>{subtitle}</Text>
       </View>
       <ScrollView
         horizontal
@@ -807,6 +812,8 @@ function MixedDiscoveryRail({
 }
 
 const styles = StyleSheet.create({
+  rtlText: { textAlign: 'right', writingDirection: 'rtl' },
+  ltrText: { textAlign: 'left', writingDirection: 'ltr' },
   container: { flex: 1, backgroundColor: Colors.gray[50] },
   emptyWrap: { flex: 1 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: Spacing['2xl'] },

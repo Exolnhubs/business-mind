@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { Colors, FontSize, FontWeight, Radius, Shadow, Spacing } from '@/theme'
 import type { Community, HappeningType, HappeningWithAuthor } from '@/types/database'
 import { PlanBadge } from '@/components/ui/PlanBadge'
+import { useLocale } from '@/contexts/locale-context'
 
 export type HappeningDiscoveryItem = HappeningWithAuthor & {
   community: Pick<Community, 'id' | 'name' | 'name_ar' | 'slug' | 'level' | 'cover_url'> & { is_member?: boolean }
@@ -43,9 +44,11 @@ export function HappeningDiscoveryCard({
   onShowParticipants,
 }: Props) {
   const router = useRouter()
+  const { locale, isRTL } = useLocale()
   const meta = TYPE_META[happening.type]
   const timeLeft = getTimeLeft(happening.expires_at)
-  const communityName = happening.community.name_ar || happening.community.name
+  const communityName = locale === 'ar' && happening.community.name_ar ? happening.community.name_ar : happening.community.name
+  const textDirStyle = isRTL ? styles.rtlText : styles.ltrText
 
   async function openLocation() {
     if (happening.lat === null || happening.lng === null) return
@@ -62,33 +65,33 @@ export function HappeningDiscoveryCard({
       <View style={styles.topRow}>
         <View style={[styles.typeBadge, { backgroundColor: meta.bg }]}>
           <Ionicons name={meta.icon} size={12} color={meta.color} />
-          <Text style={[styles.typeBadgeText, { color: meta.color }]}>{meta.label}</Text>
+          <Text style={[styles.typeBadgeText, { color: meta.color }, textDirStyle]}>{meta.label}</Text>
         </View>
         {happening.distance_km !== null && happening.distance_km !== undefined ? (
           <Text style={styles.distanceText}>{happening.distance_km} km</Text>
         ) : null}
       </View>
 
-      <Text style={styles.bodyText} numberOfLines={4}>{happening.body}</Text>
+      <Text style={[styles.bodyText, textDirStyle]} numberOfLines={4}>{happening.body}</Text>
 
       <View style={styles.metaRow}>
         <Ionicons name="people-outline" size={12} color={Colors.gray[500]} />
-        <Text style={styles.metaText} numberOfLines={1}>{communityName}</Text>
+        <Text style={[styles.metaText, textDirStyle]} numberOfLines={1}>{communityName}</Text>
       </View>
       <View style={styles.metaRow}>
         <Ionicons name="time-outline" size={12} color={Colors.gray[500]} />
-        <Text style={styles.metaText}>{timeLeft}</Text>
+        <Text style={[styles.metaText, textDirStyle]}>{timeLeft}</Text>
       </View>
       {happening.location_label ? (
         <TouchableOpacity style={styles.metaRow} onPress={openLocation}>
           <Ionicons name="location-outline" size={12} color={Colors.brand[600]} />
-          <Text style={[styles.metaText, styles.locationText]} numberOfLines={1}>{happening.location_label}</Text>
+          <Text style={[styles.metaText, styles.locationText, textDirStyle]} numberOfLines={1}>{happening.location_label}</Text>
         </TouchableOpacity>
       ) : null}
 
       <View style={styles.footer}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: Spacing.sm }}>
-          <Text style={[styles.authorText, { marginBottom: 0 }]} numberOfLines={1}>
+          <Text style={[styles.authorText, { marginBottom: 0 }, textDirStyle]} numberOfLines={1}>
             {happening.author.display_name}
           </Text>
           <PlanBadge planId={happening.author.plan_id} size={13} />
@@ -103,7 +106,7 @@ export function HappeningDiscoveryCard({
           style={styles.participantsRow}
         >
           <Ionicons name="people-outline" size={13} color={Colors.gray[600]} />
-          <Text style={styles.participantsText}>
+          <Text style={[styles.participantsText, textDirStyle]}>
             {happening.rsvp_count > 0 ? `${happening.rsvp_count} joined` : 'No one joined yet'}
           </Text>
           {happening.rsvp_count > 0 && (
@@ -140,6 +143,8 @@ export function HappeningDiscoveryCard({
 }
 
 const styles = StyleSheet.create({
+  rtlText: { textAlign: 'right', writingDirection: 'rtl' },
+  ltrText: { textAlign: 'left', writingDirection: 'ltr' },
   card: {
     backgroundColor: '#f8fffe',
     borderRadius: Radius.lg,

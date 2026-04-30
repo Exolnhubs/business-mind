@@ -213,6 +213,7 @@ const styles = StyleSheet.create({
     width: 220,
     alignItems: 'flex-end',
     zIndex: 20,
+    direction: 'ltr',
   },
   header: {
     backgroundColor: Colors.white,

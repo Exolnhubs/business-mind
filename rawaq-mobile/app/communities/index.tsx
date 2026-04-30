@@ -14,7 +14,7 @@ import { Spinner } from '@/components/ui/Spinner'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
 import type { Community, CommunityLevel } from '@/types/database'
 
-type CommunityWithMembership = Community & { is_member: boolean }
+type CommunityWithMembership = Community & { is_member: boolean; event_count?: number }
 type TrendingCommunity = CommunityWithMembership & { trending_score?: number }
 type MembershipMutationResponse = { is_member?: boolean; member_count?: number }
 
@@ -36,12 +36,18 @@ const LEVEL_FILTER_OPTIONS: { key: CommunityLevel | 'all'; label: string }[] = [
 
 const DATA_REFRESH_STALE_MS = 90_000
 
+function formatCompactCount(value: number) {
+  if (value >= 1000) return `${(value / 1000).toFixed(value >= 10000 ? 0 : 1)}k`
+  return String(value)
+}
+
 export default function CommunitiesScreen() {
   const { user }   = useAuth()
   const { locale, t } = useLocale()
   const router     = useRouter()
   const isRTL      = locale === 'ar'
   const insets     = useSafeAreaInsets()
+  const textDirStyle = isRTL ? styles.rtlText : styles.ltrText
 
   const [communities, setCommunities] = useState<CommunityWithMembership[]>([])
   const [loading, setLoading]         = useState(true)
@@ -84,14 +90,9 @@ export default function CommunitiesScreen() {
   }, [user])
 
   const loadPopular = useCallback(async (force = false) => {
-    if (!user) {
-      setPopular([])
-      return
-    }
-
     const { data } = await apiGet<{ data: CommunityWithMembership[] }>('/api/communities?per_page=6&page=1', { force })
     setPopular((data?.data ?? []).filter((community) => !community.is_member))
-  }, [user])
+  }, [])
 
   const load = useCallback(async (p: number, q: string, lvl: CommunityLevel | 'all', memberOnly = false, append = false, force = false) => {
     if (isLoadingPageRef.current) return
@@ -189,111 +190,212 @@ export default function CommunitiesScreen() {
     setJoining(null)
   }
 
-  function renderDiscoveryCard(item: CommunityWithMembership, tone: 'recommended' | 'popular' | 'trending') {
+  function communityText(item: CommunityWithMembership) {
+    return {
+      name: isRTL && item.name_ar ? item.name_ar : item.name,
+      description: isRTL && item.description_ar ? item.description_ar : item.description,
+    }
+  }
+
+  function renderCommunityAvatar(item: CommunityWithMembership, size = 48) {
     const meta = LEVEL_META[item.level]
-    const name = isRTL && item.name_ar ? item.name_ar : item.name
+    return (
+      <View
+        style={[
+          styles.communityAvatar,
+          {
+            width: size,
+            height: size,
+            borderRadius: Math.round(size * 0.32),
+            backgroundColor: meta.bg,
+            borderColor: `${meta.accent}33`,
+          },
+        ]}
+      >
+        <Ionicons name={meta.icon} size={Math.round(size * 0.44)} color={meta.tint} />
+      </View>
+    )
+  }
+
+  function renderDiscoveryCard(item: CommunityWithMembership) {
+    const meta = LEVEL_META[item.level]
+    const { name, description } = communityText(item)
     const isJoining = joining === item.id
-    const toneStyle = tone === 'recommended'
-      ? styles.recommendedCard
-      : tone === 'trending'
-        ? styles.trendingCard
-        : styles.popularCard
 
     return (
       <TouchableOpacity
         key={item.id}
         onPress={() => router.push(`/communities/${item.slug}` as any)}
         activeOpacity={0.88}
-        style={toneStyle}
+        style={[styles.recommendedCard, { borderColor: `${meta.accent}30` }]}
       >
-        <View style={[styles.discoveryMiniIcon, { backgroundColor: meta.bg }]}>
-          <Ionicons name={meta.icon} size={18} color={meta.tint} />
+        <View style={[styles.cardGlow, { backgroundColor: `${meta.accent}10` }]} />
+        <View style={styles.recommendedTopRow}>
+          {renderCommunityAvatar(item, 46)}
+          {item.is_member && (
+            <View style={[styles.compactJoinedBadge, { backgroundColor: meta.bg }]}>
+              <Ionicons name="checkmark" size={11} color={meta.tint} />
+              <Text style={[styles.compactJoinedText, { color: meta.tint }]}>{t('community.joined')}</Text>
+            </View>
+          )}
         </View>
-        <Text style={styles.discoveryMiniName} numberOfLines={1}>{name}</Text>
-        <Text style={styles.discoveryMiniMeta} numberOfLines={1}>
-          {tone !== 'popular' ? `${t(`community.level.${item.level}`)}${item.city ? ` · ${item.city}` : ''} · ` : ''}
-          {item.member_count.toLocaleString()} {t('community.members')}
+        <Text style={[styles.discoveryMiniName, textDirStyle]} numberOfLines={2}>{name}</Text>
+        <Text style={[styles.discoveryMiniDesc, textDirStyle]} numberOfLines={2}>
+          {description || t(`community.level.${item.level}`)}
         </Text>
+        <View style={styles.discoveryStatsRow}>
+          <View style={styles.inlineMeta}>
+            <Ionicons name="people-outline" size={12} color={Colors.gray[500]} />
+            <Text style={[styles.discoveryMiniMeta, textDirStyle]}>{formatCompactCount(item.member_count)}</Text>
+          </View>
+          <View style={styles.activityPill}>
+            <View style={[styles.activityDot, { backgroundColor: item.member_count > 1000 ? Colors.green.DEFAULT : Colors.brand[400] }]} />
+            <Text style={[styles.activityText, textDirStyle]} numberOfLines={1}>
+              {item.member_count > 1000 ? t('community.trending_title') : t(`community.level.${item.level}`)}
+            </Text>
+          </View>
+        </View>
         <TouchableOpacity
           onPress={() => handleJoinLeave(item)}
           disabled={isJoining}
-          style={styles.discoveryJoinBtn}
+          style={[styles.discoveryJoinBtn, item.is_member && styles.discoveryJoinBtnJoined]}
         >
           {isJoining
-            ? <ActivityIndicator size="small" color="#fff" />
-            : <Text style={styles.discoveryJoinText}>{t('community.join')}</Text>}
+            ? <ActivityIndicator size="small" color={item.is_member ? Colors.gray[500] : '#fff'} />
+            : (
+              <>
+                <Ionicons name={item.is_member ? 'checkmark' : 'add'} size={13} color={item.is_member ? Colors.gray[500] : '#fff'} />
+                <Text style={[styles.discoveryJoinText, item.is_member && styles.discoveryJoinTextJoined]}>
+                  {item.is_member ? t('community.joined') : t('community.join')}
+                </Text>
+              </>
+            )}
         </TouchableOpacity>
       </TouchableOpacity>
     )
   }
 
-  function renderItem({ item }: { item: CommunityWithMembership }) {
-    const name        = isRTL && item.name_ar ? item.name_ar : item.name
-    const description = isRTL && item.description_ar ? item.description_ar : item.description
-    const isJoining   = joining === item.id
-    const meta        = LEVEL_META[item.level]
+  function renderCommunityRow(item: CommunityWithMembership, rank?: number) {
+    const meta = LEVEL_META[item.level]
+    const { name, description } = communityText(item)
+    const isJoining = joining === item.id
 
     return (
       <TouchableOpacity
-        style={styles.card}
+        key={item.id}
+        style={styles.listRow}
         onPress={() => router.push(`/communities/${item.slug}` as any)}
         activeOpacity={0.88}
       >
-        <View style={styles.cardBody}>
-          {/* Top row */}
-          <View style={styles.cardTop}>
-            <View style={[styles.iconWrap, { backgroundColor: meta.bg }]}>
-              <Ionicons name={meta.icon} size={22} color={meta.tint} />
-            </View>
+        {rank !== undefined && (
+          <Text style={[styles.rankText, rank < 3 && styles.rankTextHot]}>{rank + 1}</Text>
+        )}
+        {renderCommunityAvatar(item, 48)}
 
-            <View style={styles.cardCenter}>
-              <View style={styles.nameRow}>
-                <Text style={styles.cardName} numberOfLines={1}>{name}</Text>
-                {item.is_verified && <Ionicons name="checkmark-circle" size={15} color={Colors.brand[500]} />}
-              </View>
-              <View style={styles.tagRow}>
-                <View style={[styles.levelTag, { backgroundColor: meta.bg }]}>
-                  <Text style={[styles.levelTagText, { color: meta.tint }]}>{t(`community.level.${item.level}`)}</Text>
-                </View>
-                {item.city ? <Text style={styles.cityText}>{item.city}</Text> : null}
-                {item.is_member && (
-                  <View style={styles.joinedTag}>
-                    <Ionicons name="checkmark-circle" size={11} color="#15803d" />
-                    <Text style={styles.joinedTagText}>{t('community.joined')}</Text>
-                  </View>
-                )}
-              </View>
-            </View>
-
-            <TouchableOpacity
-              onPress={() => handleJoinLeave(item)}
-              disabled={!!isJoining}
-              style={[styles.joinBtn, item.is_member ? styles.joinBtnJoined : styles.joinBtnDefault]}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              {isJoining
-                ? <ActivityIndicator size="small" color={item.is_member ? '#15803d' : '#fff'} />
-                : <Text style={[styles.joinBtnText, item.is_member && styles.joinBtnTextJoined]}>
-                    {item.is_member ? t('community.joined') : t('community.join')}
-                  </Text>
-              }
-            </TouchableOpacity>
+        <View style={styles.rowCenter}>
+          <View style={styles.nameRow}>
+            <Text style={[styles.rowName, textDirStyle]} numberOfLines={1}>{name}</Text>
+            {item.is_verified && <Ionicons name="checkmark-circle" size={15} color={Colors.brand[500]} />}
           </View>
-
-          {/* Description */}
-          {description
-            ? <Text style={styles.desc} numberOfLines={2}>{description}</Text>
-            : null
-          }
-
-          {/* Footer */}
-          <View style={styles.cardFooter}>
-            <Ionicons name="people-outline" size={13} color={Colors.gray[400]} />
-            <Text style={styles.footerText}>{item.member_count.toLocaleString()} {t('community.members')}</Text>
+          <Text style={[styles.rowDesc, textDirStyle]} numberOfLines={1}>
+            {description || t(`community.level.${item.level}`)}
+          </Text>
+          <View style={styles.rowMetaLine}>
+            <View style={styles.inlineMeta}>
+              <Ionicons name="people-outline" size={12} color={Colors.gray[400]} />
+              <Text style={[styles.rowMetaText, textDirStyle]}>{formatCompactCount(item.member_count)} {t('community.members')}</Text>
+            </View>
+            {item.city ? (
+              <>
+                <View style={styles.metaSeparator} />
+                <View style={styles.inlineMeta}>
+                  <Ionicons name="location-outline" size={12} color={Colors.gray[400]} />
+                  <Text style={[styles.rowMetaText, textDirStyle]} numberOfLines={1}>{item.city}</Text>
+                </View>
+              </>
+            ) : null}
           </View>
         </View>
+
+        <TouchableOpacity
+          onPress={() => handleJoinLeave(item)}
+          disabled={!!isJoining}
+          style={[
+            styles.rowJoinBtn,
+            item.is_member
+              ? styles.rowJoinBtnJoined
+              : { backgroundColor: meta.bg, borderColor: `${meta.accent}55` },
+          ]}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          {isJoining
+            ? <ActivityIndicator size="small" color={item.is_member ? Colors.gray[500] : meta.tint} />
+            : (
+              <>
+                {item.is_member && <Ionicons name="checkmark" size={11} color={Colors.gray[500]} />}
+                <Text style={[styles.rowJoinText, !item.is_member && { color: meta.tint }]}>
+                  {item.is_member ? t('community.joined') : t('community.join')}
+                </Text>
+                {!item.is_member && <Ionicons name="add" size={11} color={meta.tint} />}
+              </>
+            )}
+        </TouchableOpacity>
       </TouchableOpacity>
     )
+  }
+
+  function renderCommunityChip(item: CommunityWithMembership) {
+    const meta = LEVEL_META[item.level]
+    const { name } = communityText(item)
+
+    return (
+      <TouchableOpacity
+        key={item.id}
+        onPress={() => router.push(`/communities/${item.slug}` as any)}
+        activeOpacity={0.88}
+        style={styles.nearChip}
+      >
+        {renderCommunityAvatar(item, 34)}
+        <View style={styles.nearChipTextWrap}>
+          <Text style={[styles.nearChipTitle, textDirStyle]} numberOfLines={1}>{name}</Text>
+          <View style={styles.inlineMeta}>
+            <View style={[styles.activityDot, { backgroundColor: meta.accent }]} />
+            <Text style={[styles.nearChipMeta, textDirStyle]}>{formatCompactCount(item.member_count)}</Text>
+          </View>
+        </View>
+        <Ionicons name={item.is_member ? 'checkmark' : 'chevron-forward'} size={14} color={meta.tint} />
+      </TouchableOpacity>
+    )
+  }
+
+  function renderSectionHeader({
+    icon,
+    title,
+    subtitle,
+    color = Colors.brand[500],
+  }: {
+    icon: keyof typeof Ionicons.glyphMap
+    title: string
+    subtitle?: string
+    color?: string
+  }) {
+    return (
+      <View style={styles.sectionHeader}>
+        <View style={styles.sectionTitleCluster}>
+          <View style={[styles.sectionIcon, { backgroundColor: `${color}18` }]}>
+            <Ionicons name={icon} size={15} color={color} />
+          </View>
+          <View style={styles.sectionTextWrap}>
+            <Text style={[styles.discoveryTitle, textDirStyle]}>{title}</Text>
+            {subtitle ? <Text style={[styles.discoveryHint, textDirStyle]}>{subtitle}</Text> : null}
+          </View>
+        </View>
+      </View>
+    )
+  }
+
+  function renderItem({ item }: { item: CommunityWithMembership }) {
+    return renderCommunityRow(item)
   }
 
   const headerTopSpacing = Math.max(Spacing.sm, Math.min(insets.top * 0.18, Spacing.md))
@@ -304,7 +406,10 @@ export default function CommunitiesScreen() {
         {/* Header */}
         <View style={[styles.header, { paddingTop: headerTopSpacing }]}>
           <View style={styles.headerTopRow}>
-            <Text style={styles.headerEyebrow}>{t('community.header_eyebrow')}</Text>
+            <View>
+              <Text style={styles.headerEyebrow}>RAWAQ</Text>
+              <Text style={styles.headerTitle}>{t('community.header_title')}</Text>
+            </View>
             {user && (
               <View style={styles.headerActions}>
                 <TouchableOpacity
@@ -312,27 +417,36 @@ export default function CommunitiesScreen() {
                   style={styles.addBtn}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
-                  <Ionicons name="add" size={18} color="#fff" />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => setJoinedOnly((v) => !v)}
-                  style={[styles.myBtn, joinedOnly && styles.myBtnActive]}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <Ionicons name={joinedOnly ? 'people' : 'people-outline'} size={16} color={joinedOnly ? '#fff' : Colors.brand[600]} />
-                  <Text style={[styles.myBtnText, joinedOnly && styles.myBtnTextActive]}>{t('community.mine_btn')}</Text>
+                  <Ionicons name="add" size={19} color={Colors.brand[700]} />
                 </TouchableOpacity>
               </View>
             )}
           </View>
-          <Text style={styles.headerTitle}>{t('community.header_title')}</Text>
           <Text style={styles.headerSubtitle}>{t('community.header_subtitle')}</Text>
+          <View style={styles.tabSwitch}>
+            <TouchableOpacity
+              onPress={() => setJoinedOnly(false)}
+              style={[styles.tabButton, !joinedOnly && styles.tabButtonActive]}
+            >
+              <Text style={[styles.tabButtonText, !joinedOnly && styles.tabButtonTextActive]}>
+                {locale === 'ar' ? 'اكتشف' : 'Discover'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setJoinedOnly(true)}
+              style={[styles.tabButton, joinedOnly && styles.tabButtonActive]}
+            >
+              <Text style={[styles.tabButtonText, joinedOnly && styles.tabButtonTextActive]}>
+                {t('community.mine_btn')}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Search */}
         <View style={styles.searchSection}>
           <View style={styles.searchWrap}>
-            <Ionicons name="search-outline" size={16} color={Colors.gray[400]} />
+            <Ionicons name="search-outline" size={17} color={Colors.brand[600]} />
             <TextInput
               value={search}
               onChangeText={setSearch}
@@ -365,7 +479,7 @@ export default function CommunitiesScreen() {
                 <Ionicons
                   name={LEVEL_META[f.key as CommunityLevel].icon}
                   size={13}
-                  color={levelFilter === f.key ? '#fff' : Colors.gray[600]}
+                  color={levelFilter === f.key ? Colors.brand[700] : Colors.gray[600]}
                 />
               )}
               <Text style={[styles.filterChipText, levelFilter === f.key && styles.filterChipTextActive]}>
@@ -386,78 +500,52 @@ export default function CommunitiesScreen() {
             <>
               {user && recommended.length > 0 && (
                 <View style={styles.discoverySection}>
-                  <View style={styles.discoveryHeader}>
-                    <View style={styles.sectionTitleRow}>
-                      <View style={[styles.sectionDot, { backgroundColor: Colors.brand[400] }]} />
-                      <Text style={styles.discoveryTitle}>{t('community.recommended_title')}</Text>
-                    </View>
-                    <Text style={styles.discoveryHint}>{t('community.recommended_hint')}</Text>
-                  </View>
+                  {renderSectionHeader({
+                    icon: 'star',
+                    title: t('community.recommended_title'),
+                    subtitle: t('community.recommended_hint'),
+                    color: Colors.brand[500],
+                  })}
                   <FlatList
                     horizontal
                     data={recommended}
                     keyExtractor={(item) => item.id}
                     showsHorizontalScrollIndicator={false}
                     contentContainerStyle={styles.discoveryRow}
-                    renderItem={({ item }) => renderDiscoveryCard(item, 'recommended')}
+                    renderItem={({ item }) => renderDiscoveryCard(item)}
                   />
                 </View>
               )}
 
               {trending.length > 0 && (
                 <View style={styles.trendingSection}>
-                  <View style={styles.trendingHeader}>
-                    <View style={styles.sectionTitleRow}>
-                      <View style={[styles.sectionDot, { backgroundColor: Colors.brand[500] }]} />
-                      <Text style={styles.trendingTitle}>{t('community.trending_title')}</Text>
-                    </View>
-                    <Text style={styles.trendingHint}>{t('community.trending_hint')}</Text>
+                  {renderSectionHeader({
+                    icon: 'flame',
+                    title: t('community.trending_title'),
+                    subtitle: t('community.trending_hint'),
+                    color: Colors.brand[600],
+                  })}
+                  <View style={styles.rankedList}>
+                    {trending.slice(0, 5).map((item, index) => renderCommunityRow(item, index))}
                   </View>
-                  <FlatList
-                    horizontal
-                    data={trending}
-                    keyExtractor={(item) => item.id}
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.trendingRow}
-                    renderItem={({ item }) => {
-                      const meta = LEVEL_META[item.level]
-                      const name = isRTL && item.name_ar ? item.name_ar : item.name
-                      return (
-                        <TouchableOpacity
-                          onPress={() => router.push(`/communities/${item.slug}` as any)}
-                          activeOpacity={0.88}
-                          style={styles.trendingCard}
-                        >
-                          <View style={[styles.trendingIcon, { backgroundColor: meta.bg }]}>
-                            <Ionicons name={meta.icon} size={18} color={meta.tint} />
-                          </View>
-                          <Text style={styles.trendingName} numberOfLines={1}>{name}</Text>
-                          <Text style={styles.trendingMeta} numberOfLines={1}>
-                            {item.city ? `${item.city} · ` : ''}{item.member_count.toLocaleString()} {t('community.members')}
-                          </Text>
-                        </TouchableOpacity>
-                      )
-                    }}
-                  />
                 </View>
               )}
 
-              {user && popularCommunities.length > 0 && (
-                <View style={styles.discoverySection}>
-                  <View style={styles.discoveryHeader}>
-                    <View style={styles.sectionTitleRow}>
-                      <View style={[styles.sectionDot, { backgroundColor: Colors.gray[400] }]} />
-                      <Text style={styles.discoveryTitle}>{t('community.popular_title')}</Text>
-                    </View>
-                    <Text style={styles.discoveryHint}>{t('community.popular_hint')}</Text>
-                  </View>
+              {popularCommunities.length > 0 && (
+                <View style={styles.nearSection}>
+                  {renderSectionHeader({
+                    icon: 'location-outline',
+                    title: t('community.popular_title'),
+                    subtitle: t('community.popular_hint'),
+                    color: Colors.green.DEFAULT,
+                  })}
                   <FlatList
                     horizontal
                     data={popularCommunities}
                     keyExtractor={(item) => item.id}
                     showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.discoveryRow}
-                    renderItem={({ item }) => renderDiscoveryCard(item, 'popular')}
+                    contentContainerStyle={styles.nearRow}
+                    renderItem={({ item }) => renderCommunityChip(item)}
                   />
                 </View>
               )}
@@ -482,15 +570,17 @@ export default function CommunitiesScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#faf8f5' },
+  rtlText: { textAlign: 'right', writingDirection: 'rtl' },
+  ltrText: { textAlign: 'left', writingDirection: 'ltr' },
   topChrome: {
     backgroundColor: '#fff',
     borderBottomWidth: 1,
-    borderBottomColor: Colors.gray[100],
+    borderBottomColor: '#efe9dc',
   },
 
   header: {
     paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.md,
+    paddingBottom: Spacing.sm,
     gap: Spacing.sm,
   },
   headerTopRow: {
@@ -499,143 +589,161 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: Spacing.md,
   },
-  headerEyebrow: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.brand[600], letterSpacing: 1.2, textTransform: 'uppercase' },
-  headerTitle:   { fontSize: FontSize['3xl'], fontWeight: FontWeight.bold, color: Colors.gray[900], marginTop: 2, maxWidth: '86%' },
+  headerEyebrow: { fontSize: 10, fontWeight: FontWeight.semibold, color: Colors.brand[700], letterSpacing: 1.1, textTransform: 'uppercase' },
+  headerTitle:   { fontSize: FontSize['3xl'], fontWeight: FontWeight.bold, color: Colors.gray[900], marginTop: 3, maxWidth: 260 },
   headerSubtitle: { fontSize: FontSize.xs, color: Colors.gray[500], lineHeight: 18, maxWidth: '92%' },
 
-  myBtn:         { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 3, borderRadius: Radius.full, backgroundColor: Colors.brand[50], borderWidth: 1, borderColor: Colors.brand[200], minHeight: 44 },
-  myBtnActive:   { backgroundColor: Colors.brand[600], borderColor: Colors.brand[600] },
-  myBtnText:     { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.brand[600] },
-  myBtnTextActive: { color: '#fff' },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginStart: 'auto' },
   addBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: Radius.full,
-    backgroundColor: Colors.brand[600],
+    width: 40,
+    height: 40,
+    borderRadius: Radius.lg,
+    backgroundColor: Colors.brand[50],
+    borderWidth: 1,
+    borderColor: Colors.brand[200],
     alignItems: 'center',
     justifyContent: 'center',
     ...Shadow.card,
   },
 
+  tabSwitch: {
+    flexDirection: 'row',
+    backgroundColor: '#f5f1e8',
+    borderRadius: Radius.lg,
+    padding: 3,
+    borderWidth: 1,
+    borderColor: '#ebe3d3',
+    marginTop: Spacing.xs,
+  },
+  tabButton: {
+    flex: 1,
+    paddingVertical: Spacing.sm + 1,
+    borderRadius: Radius.md,
+    alignItems: 'center',
+  },
+  tabButtonActive: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#ece5d8',
+    ...Shadow.card,
+  },
+  tabButtonText: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.gray[500] },
+  tabButtonTextActive: { color: Colors.gray[900] },
+
   searchSection: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xs },
-  searchWrap:  { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: '#fff', borderRadius: Radius.xl, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2, borderWidth: 1, borderColor: '#e8e3d8', ...Shadow.card },
+  searchWrap:  { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: '#fffdf8', borderRadius: Radius.lg, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 3, borderWidth: 1.5, borderColor: '#eadfcb', ...Shadow.card },
   searchInput: { flex: 1, fontSize: FontSize.sm, color: Colors.gray[900] },
 
   filterList: { minHeight: 56 },
   filterRow: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm, paddingBottom: Spacing.md, gap: Spacing.sm, alignItems: 'center' },
-  filterChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: Radius.full, backgroundColor: '#f8f6f2', borderWidth: 1, borderColor: Colors.gray[200], minHeight: 40 },
-  filterChipActive: { backgroundColor: Colors.brand[600], borderColor: Colors.brand[600] },
+  filterChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: Radius.full, backgroundColor: '#f8f4ec', borderWidth: 1.5, borderColor: '#ebe3d3', minHeight: 38 },
+  filterChipActive: { backgroundColor: Colors.brand[50], borderColor: Colors.brand[300] },
   filterChipText:   { fontSize: FontSize.xs, fontWeight: FontWeight.medium, color: Colors.gray[700] },
-  filterChipTextActive: { color: '#fff' },
+  filterChipTextActive: { color: Colors.brand[700] },
 
-  discoverySection: { marginBottom: Spacing.md },
-  discoveryHeader: { paddingHorizontal: Spacing.lg, marginBottom: Spacing.sm },
-  sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  sectionDot: { width: 7, height: 7, borderRadius: 4 },
+  discoverySection: { marginBottom: Spacing.xl },
+  sectionHeader: { paddingHorizontal: Spacing.lg, marginBottom: Spacing.sm },
+  sectionTitleCluster: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
+  sectionTextWrap: { flex: 1 },
+  sectionIcon: { width: 30, height: 30, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
   discoveryTitle: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.gray[900] },
   discoveryHint: { marginTop: 2, fontSize: FontSize.xs, color: Colors.gray[500] },
-  discoveryRow: { paddingHorizontal: Spacing.lg, gap: Spacing.sm },
+  discoveryRow: { paddingHorizontal: Spacing.lg, gap: Spacing.md, paddingBottom: 2 },
   recommendedCard: {
-    width: 220,
-    padding: Spacing.md,
-    borderRadius: Radius.xl,
-    backgroundColor: Colors.brand[50],
-    borderWidth: 1,
-    borderColor: Colors.brand[200],
-    ...Shadow.card,
-  },
-  popularCard: {
-    width: 220,
-    padding: Spacing.md,
+    width: 176,
+    minHeight: 202,
+    padding: 14,
     borderRadius: Radius.xl,
     backgroundColor: '#fff',
     borderWidth: 1,
-    borderColor: Colors.gray[200],
+    overflow: 'hidden',
     ...Shadow.card,
   },
-  discoveryMiniIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: Radius.lg,
+  cardGlow: { position: 'absolute', top: 0, left: 0, right: 0, height: 64 },
+  recommendedTopRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: Spacing.sm },
+  communityAvatar: { alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, flexShrink: 0 },
+  compactJoinedBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: Radius.sm, paddingHorizontal: 7, paddingVertical: 3 },
+  compactJoinedText: { fontSize: 10, fontWeight: FontWeight.bold },
+  discoveryMiniName: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.gray[900], lineHeight: 18 },
+  discoveryMiniDesc: { marginTop: 3, fontSize: FontSize.xs, color: Colors.gray[500], lineHeight: 16 },
+  discoveryStatsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.sm, marginTop: Spacing.sm },
+  inlineMeta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  discoveryMiniMeta: { fontSize: FontSize.xs, color: Colors.gray[500] },
+  activityPill: { flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 1 },
+  activityDot: { width: 6, height: 6, borderRadius: 3 },
+  activityText: { fontSize: 10, color: Colors.gray[500], maxWidth: 78 },
+  discoveryJoinBtn: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: Spacing.sm,
-  },
-  discoveryMiniName: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[900] },
-  discoveryMiniMeta: { marginTop: 4, fontSize: FontSize.xs, color: Colors.gray[500] },
-  discoveryJoinBtn: {
-    alignSelf: 'flex-start',
+    gap: 4,
     marginTop: Spacing.md,
     backgroundColor: Colors.brand[600],
-    borderRadius: Radius.full,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm + 2,
-    minWidth: 72,
-    alignItems: 'center',
-  },
-  discoveryJoinText: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: '#fff' },
-
-  trendingSection: { marginBottom: Spacing.md },
-  trendingHeader: { paddingHorizontal: Spacing.lg, marginBottom: Spacing.sm },
-  trendingTitle: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.gray[900] },
-  trendingHint: { marginTop: 2, fontSize: FontSize.xs, color: Colors.gray[500] },
-  trendingRow: { paddingHorizontal: Spacing.lg, gap: Spacing.sm },
-  trendingCard: {
-    width: 180,
-    padding: Spacing.md,
-    borderRadius: Radius.xl,
-    backgroundColor: '#fff7ed',
+    borderRadius: Radius.md,
+    paddingVertical: Spacing.sm + 1,
     borderWidth: 1,
-    borderColor: Colors.brand[300],
+    borderColor: Colors.brand[600],
+  },
+  discoveryJoinBtnJoined: { backgroundColor: '#fff', borderColor: Colors.gray[200] },
+  discoveryJoinText: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: '#fff' },
+  discoveryJoinTextJoined: { color: Colors.gray[500] },
+
+  trendingSection: { marginBottom: Spacing.xl },
+  rankedList: { marginHorizontal: Spacing.lg, backgroundColor: '#fff', borderRadius: Radius.xl, borderWidth: 1, borderColor: '#ede7dc', overflow: 'hidden', ...Shadow.card },
+
+  nearSection: { marginBottom: Spacing.xl },
+  nearRow: { paddingHorizontal: Spacing.lg, gap: Spacing.sm, paddingBottom: 2 },
+  nearChip: {
+    width: 164,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.lg,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#ede7dc',
     ...Shadow.card,
   },
-  trendingIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: Radius.lg,
+  nearChipTextWrap: { flex: 1, minWidth: 0 },
+  nearChipTitle: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.gray[900] },
+  nearChipMeta: { fontSize: 10, color: Colors.gray[500] },
+
+  list: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm, paddingBottom: Spacing['3xl'], gap: Spacing.sm },
+  listRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: Spacing.sm,
-  },
-  trendingName: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.gray[900] },
-  trendingMeta: { marginTop: 4, fontSize: FontSize.xs, color: Colors.gray[500] },
-
-  list: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm, paddingBottom: Spacing['3xl'], gap: Spacing.lg },
-
-  card: {
+    gap: Spacing.md,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
     backgroundColor: '#fff',
     borderRadius: Radius.xl,
-    overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#edeae4',
+    borderColor: '#ede7dc',
     ...Shadow.card,
   },
-  cardBody:   { flex: 1, padding: Spacing.lg },
-  cardTop:    { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.md },
-
-  iconWrap:  { width: 52, height: 52, borderRadius: Radius.xl, alignItems: 'center', justifyContent: 'center' },
-  cardCenter:{ flex: 1 },
+  rankText: { width: 20, textAlign: 'center', fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.gray[300] },
+  rankTextHot: { color: Colors.brand[500] },
+  rowCenter: { flex: 1, minWidth: 0 },
   nameRow:   { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  cardName:  { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.gray[900], flex: 1 },
-
-  tagRow:      { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginTop: 6 },
-  levelTag:    { paddingHorizontal: Spacing.sm, paddingVertical: 3, borderRadius: Radius.full },
-  levelTagText:{ fontSize: 11, fontWeight: FontWeight.semibold },
-  cityText:    { fontSize: 11, color: Colors.gray[500] },
-  joinedTag:   { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: Spacing.sm, paddingVertical: 3, borderRadius: Radius.full, backgroundColor: '#dcfce7' },
-  joinedTagText: { fontSize: 11, fontWeight: FontWeight.semibold, color: '#15803d' },
-
-  joinBtn:         { paddingHorizontal: 14, paddingVertical: 9, borderRadius: Radius.full, alignItems: 'center', justifyContent: 'center', minWidth: 68 },
-  joinBtnDefault:  { backgroundColor: Colors.brand[600] },
-  joinBtnJoined:   { backgroundColor: '#f6fef0', borderWidth: 1, borderColor: '#86efac' },
-  joinBtnText:     { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: '#fff' },
-  joinBtnTextJoined: { color: '#15803d' },
-
-  desc:       { fontSize: FontSize.xs, color: Colors.gray[500], lineHeight: 19, marginTop: Spacing.sm },
-
-  cardFooter: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: Spacing.sm },
-  footerText: { fontSize: 11, color: Colors.gray[400] },
+  rowName:  { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.gray[900], flex: 1 },
+  rowDesc: { marginTop: 2, fontSize: FontSize.xs, color: Colors.gray[500] },
+  rowMetaLine: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 5 },
+  rowMetaText: { fontSize: 11, color: Colors.gray[500], maxWidth: 90 },
+  metaSeparator: { width: 3, height: 3, borderRadius: 2, backgroundColor: Colors.gray[300] },
+  rowJoinBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: Spacing.sm + 3,
+    paddingVertical: 7,
+    borderRadius: Radius.md,
+    borderWidth: 1.5,
+    flexShrink: 0,
+  },
+  rowJoinBtnJoined: { backgroundColor: '#fff', borderColor: Colors.gray[200] },
+  rowJoinText: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.gray[500] },
 
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: Spacing['4xl'] },
 })
