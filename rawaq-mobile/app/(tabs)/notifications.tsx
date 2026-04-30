@@ -6,10 +6,9 @@ import {
 import { useFocusEffect, useRouter } from 'expo-router'
 import { useAuth } from '@/contexts/auth-context'
 import { useNotifications } from '@/contexts/notification-context'
+import { useLocale } from '@/contexts/locale-context'
 import { supabase } from '@/lib/supabase'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
-
-// ── Types ────────────────────────────────────────────────────────────────────
 
 type NotifPayload = Record<string, unknown>
 
@@ -21,59 +20,70 @@ interface Notification {
   created_at: string
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
 function notifIcon(type: string): string {
   switch (type) {
-    case 'booking_confirmed':    return '✅'
-    case 'booking_cancelled':    return '❌'
-    case 'event_reminder':       return '⏰'
+    case 'booking_confirmed':    return '\u2705'
+    case 'booking_cancelled':    return '\u274c'
+    case 'event_reminder':       return '\u23f0'
     case 'comment_reply':
     case 'mention':
-    case 'new_comment':          return '💬'
-    case 'organizer_approved':   return '🏢'
+    case 'new_comment':          return '\ud83d\udcac'
+    case 'organizer_approved':   return '\ud83c\udfe2'
     case 'organizer_rejected':
-    case 'organizer_suspended':  return '⚠️'
-    case 'event_cancelled':      return '🚫'
-    case 'tip_received':         return '💰'
-    case 'waitlist_promoted':    return '⬆️'
-    case 'new_follower':         return '👤'
-    case 'new_review':           return '⭐'
-    case 'new_attendee':         return '🎟️'
-    case 'event_updated':        return '📝'
-    case 'new_event_published':  return '🎉'
-    case 'event_sold_out':       return '🎊'
-    case 'community_new_event':  return '🗓️'
-    case 'community_happening':  return '📍'
-    default:                     return '🔔'
+    case 'organizer_suspended':  return '\u26a0\ufe0f'
+    case 'event_cancelled':      return '\ud83d\udeab'
+    case 'tip_received':         return '\ud83d\udcb0'
+    case 'waitlist_promoted':    return '\u2b06\ufe0f'
+    case 'new_follower':         return '\ud83d\udc64'
+    case 'new_review':           return '\u2b50'
+    case 'new_attendee':         return '\ud83c\udf9f\ufe0f'
+    case 'event_updated':        return '\ud83d\udcdd'
+    case 'new_event_published':  return '\ud83c\udf89'
+    case 'event_sold_out':       return '\ud83c\udf8a'
+    case 'community_new_event':  return '\ud83d\uddd3\ufe0f'
+    case 'community_happening':  return '\ud83d\udccd'
+    default:                     return '\ud83d\udd14'
   }
 }
 
-function notifText(type: string, payload: NotifPayload): string {
-  const et = (payload.event_title as string) ?? 'an event'
-  const an = (payload.actor_name  as string) ?? 'Someone'
+function interpolate(template: string, values: Record<string, string>): string {
+  return Object.entries(values).reduce(
+    (text, [key, value]) => text.split(`{${key}}`).join(value),
+    template,
+  )
+}
+
+function payloadText(payload: NotifPayload, key: string, fallback: string): string {
+  const value = payload[key]
+  if (typeof value === 'string' || typeof value === 'number') return String(value)
+  return fallback
+}
+
+function notifText(type: string, payload: NotifPayload, t: (key: string) => string): string {
+  const et = payloadText(payload, 'event_title', t('notifications.fallback_event'))
+  const an = payloadText(payload, 'actor_name', t('notifications.fallback_actor'))
   switch (type) {
-    case 'booking_confirmed':   return `Your booking for "${et}" is confirmed`
-    case 'booking_cancelled':   return `Your booking for "${et}" has been cancelled`
-    case 'event_reminder':      return `"${et}" starts in ${payload.reminder ?? '1 hour'}`
-    case 'comment_reply':       return `${an} replied to your comment`
-    case 'mention':             return `${an} mentioned you in a comment`
-    case 'organizer_approved':  return 'Your organizer account has been approved!'
-    case 'organizer_rejected':  return 'Your organizer application was not approved'
-    case 'organizer_suspended': return 'Your organizer account has been suspended'
-    case 'event_cancelled':     return `"${et}" has been cancelled`
-    case 'tip_received':        return `You received a ${payload.amount} ${payload.currency} donation for "${et}"`
-    case 'waitlist_promoted':   return `You're off the waitlist for "${et}"!`
-    case 'new_follower':        return `${an} started following you`
-    case 'new_review':          return `${an} left you a ${payload.rating}★ review`
-    case 'new_attendee':        return `${an} just booked "${et}"`
-    case 'new_comment':         return `${an} commented on "${et}"`
-    case 'event_updated':       return `"${et}" has been updated — check the new details`
-    case 'new_event_published': return `${payload.organizer_name ?? 'An organizer'} published "${et}"`
-    case 'event_sold_out':      return `Your event "${et}" just sold out! 🎊`
-    case 'community_new_event':  return `New event in ${payload.community_name ?? 'your community'}: "${et}"`
-    case 'community_happening':  return `${payload.community_name ?? 'Community'}: ${payload.body ?? 'Something\'s happening'}`
-    default:                     return 'New notification'
+    case 'booking_confirmed':   return interpolate(t('notifications.booking_confirmed'), { event: et })
+    case 'booking_cancelled':   return interpolate(t('notifications.booking_cancelled'), { event: et })
+    case 'event_reminder':      return interpolate(t('notifications.event_reminder'), { event: et, reminder: payloadText(payload, 'reminder', t('notifications.fallback_reminder')) })
+    case 'comment_reply':       return interpolate(t('notifications.comment_reply'), { actor: an })
+    case 'mention':             return interpolate(t('notifications.mention'), { actor: an })
+    case 'organizer_approved':  return t('notifications.organizer_approved')
+    case 'organizer_rejected':  return t('notifications.organizer_rejected')
+    case 'organizer_suspended': return t('notifications.organizer_suspended')
+    case 'event_cancelled':     return interpolate(t('notifications.event_cancelled'), { event: et })
+    case 'tip_received':        return interpolate(t('notifications.tip_received'), { amount: payloadText(payload, 'amount', ''), currency: payloadText(payload, 'currency', ''), event: et })
+    case 'waitlist_promoted':   return interpolate(t('notifications.waitlist_promoted'), { event: et })
+    case 'new_follower':        return interpolate(t('notifications.new_follower'), { actor: an })
+    case 'new_review':          return interpolate(t('notifications.new_review'), { actor: an, rating: payloadText(payload, 'rating', '') })
+    case 'new_attendee':        return interpolate(t('notifications.new_attendee'), { actor: an, event: et })
+    case 'new_comment':         return interpolate(t('notifications.new_comment'), { actor: an, event: et })
+    case 'event_updated':       return interpolate(t('notifications.event_updated'), { event: et })
+    case 'new_event_published': return interpolate(t('notifications.new_event_published'), { organizer: payloadText(payload, 'organizer_name', t('notifications.fallback_organizer')), event: et })
+    case 'event_sold_out':      return interpolate(t('notifications.event_sold_out'), { event: et })
+    case 'community_new_event':  return interpolate(t('notifications.community_new_event'), { community: payloadText(payload, 'community_name', t('notifications.fallback_community')), event: et })
+    case 'community_happening':  return interpolate(t('notifications.community_happening'), { community: payloadText(payload, 'community_name', t('notifications.fallback_community_name')), body: payloadText(payload, 'body', t('notifications.fallback_body')) })
+    default:                     return t('notifications.new')
   }
 }
 
@@ -108,18 +118,16 @@ function notifRoute(type: string, payload: NotifPayload, profile: { role?: strin
   }
 }
 
-function relativeTime(dateStr: string): string {
+function relativeTime(dateStr: string, locale: string, t: (key: string) => string): string {
   const mins = Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000)
-  if (mins < 1)   return 'Just now'
-  if (mins < 60)  return `${mins}m ago`
+  if (mins < 1) return t('notifications.time.just_now')
+  if (mins < 60) return interpolate(t('notifications.time.minutes_ago'), { count: String(mins) })
   const hrs = Math.floor(mins / 60)
-  if (hrs < 24)   return `${hrs}h ago`
+  if (hrs < 24) return interpolate(t('notifications.time.hours_ago'), { count: String(hrs) })
   const days = Math.floor(hrs / 24)
-  if (days < 7)   return `${days}d ago`
-  return new Date(dateStr).toLocaleDateString()
+  if (days < 7) return interpolate(t('notifications.time.days_ago'), { count: String(days) })
+  return new Date(dateStr).toLocaleDateString(locale === 'ar' ? 'ar-EG' : 'en-US')
 }
-
-// ── Skeleton ─────────────────────────────────────────────────────────────────
 
 function NotifSkeleton() {
   return (
@@ -133,12 +141,12 @@ function NotifSkeleton() {
   )
 }
 
-// ── Screen ───────────────────────────────────────────────────────────────────
-
 export default function NotificationsScreen() {
   const { user, profile } = useAuth()
   const { resetUnread } = useNotifications()
+  const { t, locale, isRTL } = useLocale()
   const router = useRouter()
+  const textDirStyle = isRTL ? styles.rtlText : styles.ltrText
 
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [loading, setLoading]             = useState(true)
@@ -158,7 +166,6 @@ export default function NotificationsScreen() {
 
     setNotifications((data ?? []) as Notification[])
 
-    // Mark all unread as read
     const hasUnread = (data ?? []).some((n: { is_read: boolean }) => !n.is_read)
     if (hasUnread) {
       await supabase
@@ -173,14 +180,13 @@ export default function NotificationsScreen() {
     else           setLoading(false)
   }
 
-  // Reload every time this screen comes into focus
   useFocusEffect(useCallback(() => { load() }, [user]))
 
   if (!user) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.emptyIcon}>🔔</Text>
-        <Text style={styles.emptyTitle}>Sign in to see notifications</Text>
+        <Text style={styles.emptyIcon}>{'\ud83d\udd14'}</Text>
+        <Text style={[styles.emptyTitle, textDirStyle]}>{t('notifications.sign_in_required')}</Text>
       </View>
     )
   }
@@ -199,9 +205,9 @@ export default function NotificationsScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} />}
           ListEmptyComponent={
             <View style={styles.emptyWrap}>
-              <Text style={styles.emptyIcon}>🔔</Text>
-              <Text style={styles.emptyTitle}>No notifications yet</Text>
-              <Text style={styles.emptySub}>We'll let you know when something happens</Text>
+              <Text style={styles.emptyIcon}>{'\ud83d\udd14'}</Text>
+              <Text style={[styles.emptyTitle, textDirStyle]}>{t('notifications.empty_title')}</Text>
+              <Text style={[styles.emptySub, textDirStyle]}>{t('notifications.empty_sub')}</Text>
             </View>
           }
           renderItem={({ item }) => (
@@ -214,10 +220,10 @@ export default function NotificationsScreen() {
                 <Text style={styles.iconText}>{notifIcon(item.type)}</Text>
               </View>
               <View style={styles.rowContent}>
-                <Text style={[styles.rowText, !item.is_read && styles.rowTextBold]} numberOfLines={2}>
-                  {notifText(item.type, item.payload)}
+                <Text style={[styles.rowText, textDirStyle, !item.is_read && styles.rowTextBold]} numberOfLines={2}>
+                  {notifText(item.type, item.payload, t)}
                 </Text>
-                <Text style={styles.rowTime}>{relativeTime(item.created_at)}</Text>
+                <Text style={[styles.rowTime, textDirStyle]}>{relativeTime(item.created_at, locale, t)}</Text>
               </View>
               {!item.is_read && <View style={styles.unreadDot} />}
             </TouchableOpacity>
@@ -230,6 +236,8 @@ export default function NotificationsScreen() {
 }
 
 const styles = StyleSheet.create({
+  rtlText: { textAlign: 'right', writingDirection: 'rtl' },
+  ltrText: { textAlign: 'left', writingDirection: 'ltr' },
   container:    { flex: 1, backgroundColor: Colors.gray[50] },
   list:         { paddingTop: Spacing.sm, paddingBottom: Spacing['4xl'] },
   centered:     { flex: 1, justifyContent: 'center', alignItems: 'center', padding: Spacing['3xl'] },
@@ -255,4 +263,3 @@ const styles = StyleSheet.create({
   unreadDot:    { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.brand[500], flexShrink: 0 },
   separator:    { height: 1, backgroundColor: Colors.gray[50] },
 })
-
