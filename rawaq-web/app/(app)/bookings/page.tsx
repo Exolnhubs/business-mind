@@ -9,6 +9,7 @@ export type BookingRow = {
   id: string
   status: string
   ticket_id: string | null
+  created_at: string
   occurrence: {
     starts_at: string
     ends_at: string | null
@@ -34,7 +35,7 @@ export default async function BookingsPage() {
   const { data: bookingsRaw } = await supabase
     .from('bookings')
     .select(`
-      id, status, ticket_id,
+      id, status, ticket_id, created_at,
       occurrence:event_occurrences!occurrence_id(starts_at, ends_at),
       event:events!event_id(id, title, start_at, end_at, city, is_free, price, is_cancelled)
     `)

@@ -169,11 +169,14 @@ export default function BookingsClient({ initialBookings }: { initialBookings: B
   )
 }
 
+const REFUND_WINDOW_MS = 24 * 60 * 60 * 1000
+
 function canRefundBooking(booking: BookingRow) {
   const startAt = getBookingStartAt(booking)
   const isUpcoming = !!startAt && new Date(startAt) > new Date()
   const isPaid = !booking.event?.is_free && (booking.event?.price ?? 0) > 0
-  return booking.status === 'confirmed' && !booking.event?.is_cancelled && isPaid && isUpcoming
+  const withinWindow = Date.now() - new Date(booking.created_at).getTime() <= REFUND_WINDOW_MS
+  return booking.status === 'confirmed' && !booking.event?.is_cancelled && isPaid && isUpcoming && withinWindow
 }
 
 function BookingSection({

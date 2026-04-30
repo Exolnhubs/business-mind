@@ -50,7 +50,7 @@ export async function POST(
     const { data: booking, error: bookingErr } = await (admin as any)
       .from("bookings")
       .select(
-        "id, user_id, event_id, status, ticket_type_id, event:events(id, title, title_ar, is_free)",
+        "id, user_id, event_id, status, ticket_type_id, created_at, event:events(id, title, title_ar, is_free)",
       )
       .eq("id", id)
       .maybeSingle();
@@ -59,6 +59,15 @@ export async function POST(
     if (booking.user_id !== ctx.userId) throw new ForbiddenException();
     if (booking.status !== "confirmed") {
       throw new BadRequestException("Only confirmed bookings can be refunded.");
+    }
+
+    // ── 1b. Enforce 24-hour refund window ─────────────────────────────────────
+    const msPerHour = 60 * 60 * 1000
+    const hoursSinceBooking = (Date.now() - new Date(booking.created_at).getTime()) / msPerHour
+    if (hoursSinceBooking > 24) {
+      throw new BadRequestException(
+        "Refunds are only available within 24 hours of booking. The refund window for this ticket has closed.",
+      )
     }
 
     const event = booking.event as {

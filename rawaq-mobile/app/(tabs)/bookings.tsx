@@ -299,12 +299,15 @@ export default function BookingsScreen() {
   )
 }
 
+const REFUND_WINDOW_MS = 24 * 60 * 60 * 1000
+
 function canRefundBooking(booking: BookingListRow) {
   const isActive = booking.status === 'confirmed' && !booking.event?.is_cancelled
   const isPaid = !booking.event?.is_free && (booking.event?.price ?? 0) > 0
   const startAt = getBookingStartAt(booking)
   const isUpcoming = !!startAt && new Date(startAt) > new Date()
-  return isActive && isPaid && isUpcoming
+  const withinWindow = Date.now() - new Date(booking.created_at).getTime() <= REFUND_WINDOW_MS
+  return isActive && isPaid && isUpcoming && withinWindow
 }
 
 const styles = StyleSheet.create({
