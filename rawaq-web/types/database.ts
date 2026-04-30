@@ -492,6 +492,14 @@ export interface EventReport {
   created_at: string;
 }
 
+export interface FeaturedEventLog {
+  id: string;
+  event_id: string;
+  organizer_id: string;
+  featured_at: string;
+  featured_until: string;
+}
+
 export interface AuditLog {
   id: string;
   admin_id: string;
@@ -840,6 +848,12 @@ export type Database = {
           >
         >;
         Update: R<Partial<Event>>;
+        Relationships: [];
+      };
+      featured_events_log: {
+        Row: R<FeaturedEventLog>;
+        Insert: R<Omit<FeaturedEventLog, "id">>;
+        Update: R<Partial<FeaturedEventLog>>;
         Relationships: [];
       };
       event_occurrences: {
