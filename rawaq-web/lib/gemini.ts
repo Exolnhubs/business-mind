@@ -1,4 +1,8 @@
-const DEFAULT_GEMINI_MODEL = "gemini-2.0-flash";
+const DEFAULT_PRIMARY_MODEL = "gemini-2.5-flash";
+// Safety-net fallbacks tried in order when the primary is overloaded/unavailable.
+// gemini-2.0-flash runs on separate infrastructure; gemini-2.0-flash-lite is
+// extremely lightweight and almost never returns 503.
+const BUILT_IN_FALLBACKS = ["gemini-2.0-flash", "gemini-2.0-flash-lite"];
 const TRANSIENT_STATUSES = new Set([429, 500, 502, 503, 504]);
 
 interface GeminiRunContext {
@@ -28,13 +32,14 @@ function isQuotaExhausted(error: unknown): boolean {
 }
 
 export function getGeminiModelCandidates(): string[] {
-  const primary = process.env.GEMINI_MODEL?.trim() || DEFAULT_GEMINI_MODEL;
+  const primary = process.env.GEMINI_MODEL?.trim() || DEFAULT_PRIMARY_MODEL;
   const fallbackEnv = process.env.GEMINI_FALLBACK_MODELS ?? process.env.GEMINI_FALLBACK_MODEL;
-  const fallbacks = fallbackEnv
+  const envFallbacks = fallbackEnv
     ? fallbackEnv.split(",").map((model) => model.trim()).filter(Boolean)
-    : [DEFAULT_GEMINI_MODEL];
+    : [];
 
-  return Array.from(new Set([primary, ...fallbacks]));
+  // env-configured fallbacks come first, then built-ins as the final safety net
+  return Array.from(new Set([primary, ...envFallbacks, ...BUILT_IN_FALLBACKS]));
 }
 
 function delay(ms: number): Promise<void> {
