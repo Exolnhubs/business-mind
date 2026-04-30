@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireAuth } from '@/lib/auth'
-import { handleApiError, ok } from '@/lib/errors'
+import { handleApiError, ok, ApiException } from '@/lib/errors'
 import { z } from 'zod'
 import { limiters, checkRateLimit } from '@/lib/rate-limit'
 import { isTransientGeminiError, runGeminiWithFallback } from '@/lib/gemini'
@@ -167,7 +167,9 @@ export async function POST(req: NextRequest) {
 
     return ok({ reply, ticket })
   } catch (err) {
-    if (isTransientGeminiError(err)) {
+    // ApiException (including RateLimitException with statusCode 429) must go
+    // through handleApiError — not the Gemini busy path, which checks status 429.
+    if (!(err instanceof ApiException) && isTransientGeminiError(err)) {
       return ok({
         reply: 'The support assistant is busy right now. Please try again in a moment.',
         ticket: null,

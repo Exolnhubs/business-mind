@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { createClient } from "@supabase/supabase-js";
-import { handleApiError } from "@/lib/errors";
+import { handleApiError, ApiException } from "@/lib/errors";
 import { isTransientGeminiError, runGeminiWithFallback } from "@/lib/gemini";
 import type { Database } from "@/types/database";
 
@@ -459,7 +459,9 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (err) {
-    if (isTransientGeminiError(err)) {
+    // ApiException (including RateLimitException with statusCode 429) must go
+    // through handleApiError — not the Gemini busy path, which checks status 429.
+    if (!(err instanceof ApiException) && isTransientGeminiError(err)) {
       return NextResponse.json({
         data: {
           reply: "The recommendation assistant is busy right now. Please try again in a moment.",
