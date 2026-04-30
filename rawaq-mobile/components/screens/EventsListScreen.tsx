@@ -18,11 +18,11 @@ interface Category { id: string; name_en: string; name_ar: string; icon: string 
 type EventsApiListResponse = { data: EventWithOrganizer[]; total: number; has_more: boolean }
 
 const SEARCH_DEBOUNCE_MS = 350
-const DATE_CHIPS: { label: string; value: DateFilter }[] = [
-  { label: 'All', value: 'all' },
-  { label: 'Today', value: 'today' },
-  { label: 'Weekend', value: 'weekend' },
-  { label: 'This Week', value: 'week' },
+const DATE_CHIPS: { labelKey: string; value: DateFilter }[] = [
+  { labelKey: 'events.date_filter.all', value: 'all' },
+  { labelKey: 'events.date_filter.today', value: 'today' },
+  { labelKey: 'events.date_filter.weekend', value: 'weekend' },
+  { labelKey: 'events.date_filter.this_week', value: 'week' },
 ]
 
 function getDateRange(filter: DateFilter): { date_from: string; date_to?: string } {
@@ -47,7 +47,7 @@ function getDateRange(filter: DateFilter): { date_from: string; date_to?: string
 
 export default function EventsListScreen() {
   const insets = useSafeAreaInsets()
-  const { locale } = useLocale()
+  const { locale, t } = useLocale()
 
   const [events, setEvents] = useState<EventWithOrganizer[]>([])
   const [loading, setLoading] = useState(true)
@@ -103,7 +103,7 @@ export default function EventsListScreen() {
             <Ionicons name="search-outline" size={16} color={Colors.gray[400]} />
             <TextInput
               style={styles.searchInput}
-              placeholder="Search events..."
+              placeholder={t('events.search')}
               placeholderTextColor={Colors.gray[400]}
               value={search}
               onChangeText={setSearch}
@@ -137,7 +137,7 @@ export default function EventsListScreen() {
               style={[styles.chip, dateFilter === chip.value && styles.chipActive]}
             >
               <Text style={[styles.chipText, dateFilter === chip.value && styles.chipTextActive]}>
-                {chip.label}
+                {t(chip.labelKey)}
               </Text>
             </TouchableOpacity>
           ))}
@@ -150,7 +150,7 @@ export default function EventsListScreen() {
               onPress={() => setCategoryId(null)}
               style={[styles.chip, categoryId === null && styles.chipActive]}
             >
-              <Text style={[styles.chipText, categoryId === null && styles.chipTextActive]}>All</Text>
+              <Text style={[styles.chipText, categoryId === null && styles.chipTextActive]}>{t('events.category_all')}</Text>
             </TouchableOpacity>
             {categories.map(cat => {
               const name = locale === 'ar' && cat.name_ar ? cat.name_ar : cat.name_en
@@ -188,7 +188,7 @@ export default function EventsListScreen() {
             />
           }
           ListEmptyComponent={
-            <EmptyState title="No events found" description="Try adjusting your filters or search" icon="📅" />
+            <EmptyState title={t('events.empty')} description={t('events.try_filters')} icon="📅" />
           }
           showsVerticalScrollIndicator={false}
         />

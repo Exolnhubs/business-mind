@@ -8,6 +8,7 @@ import { useRouter } from 'expo-router'
 import { supabase } from '@/lib/supabase'
 import { apiPatch } from '@/lib/api'
 import { useAuth } from '@/contexts/auth-context'
+import { useLocale } from '@/contexts/locale-context'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
 import { TicketFlipLoader } from '@/components/ui/TicketFlipLoader'
 import { formatDate } from '@/lib/utils'
@@ -45,14 +46,9 @@ type OrganizerDashboardCache = {
 
 let organizerDashboardCache: OrganizerDashboardCache | null = null
 
-const EVENT_FREQUENCY_LABELS: Record<EventFrequency, string> = {
-  one_time: 'One Time',
-  weekly: 'Weekly',
-  monthly: 'Monthly',
-}
-
 export default function OrganizerDashboard() {
   const { user } = useAuth()
+  const { t, locale } = useLocale()
   const router  = useRouter()
   const insets = useSafeAreaInsets()
 
@@ -192,10 +188,10 @@ export default function OrganizerDashboard() {
   }
 
   async function cancelEvent(ev: OrgEvent) {
-    Alert.alert('Cancel Event', `Cancel "${ev.title}"? This cannot be undone.\n\nAll confirmed attendees will be notified.`, [
-      { text: 'Keep', style: 'cancel' },
+    Alert.alert(t('organizer_dashboard.cancel_event_title'), t('organizer_dashboard.cancel_event_body').replace('{title}', ev.title), [
+      { text: t('organizer_dashboard.keep'), style: 'cancel' },
       {
-        text: 'Cancel Event',
+        text: t('organizer_dashboard.cancel_event_title'),
         style: 'destructive',
         onPress: async () => {
           const { error } = await apiPatch(`/api/events/${ev.id}`, { is_cancelled: true, is_published: false })
@@ -210,6 +206,16 @@ export default function OrganizerDashboard() {
   const active        = events.filter((e) => e.is_published && !e.is_cancelled).length
   const totalBookings = events.reduce((s, e) => s + e.bookings_count, 0)
   const headerTopSpacing = Math.max(Spacing.sm, Math.min(insets.top * 0.18, Spacing.md))
+  const planLabel = {
+    org_basic: t('organizer_dashboard.plan_basic'),
+    org_pro: t('organizer_dashboard.plan_pro'),
+    org_elite: t('organizer_dashboard.plan_elite'),
+  }[planId] ?? t('organizer_dashboard.plan_basic')
+  const monthUsageLabel = eventsLimit !== null
+    ? t('organizer_dashboard.events_this_month')
+      .replace('{used}', String(eventsUsed))
+      .replace('{limit}', String(eventsLimit))
+    : t('organizer_dashboard.events_this_month_unlimited').replace('{used}', String(eventsUsed))
 
   if (loading) {
     return (
@@ -224,8 +230,8 @@ export default function OrganizerDashboard() {
     return (
       <View style={styles.centered}>
         <Text style={{ fontSize: 48, marginBottom: 12 }}>🚫</Text>
-        <Text style={styles.blockedTitle}>Account Banned</Text>
-        <Text style={styles.blockedSub}>Your account has been suspended. Contact support for assistance.</Text>
+        <Text style={styles.blockedTitle}>{t('organizer_dashboard.account_banned')}</Text>
+        <Text style={styles.blockedSub}>{t('organizer_dashboard.account_banned_sub')}</Text>
       </View>
     )
   }
@@ -235,8 +241,8 @@ export default function OrganizerDashboard() {
     return (
       <View style={styles.centered}>
         <Text style={{ fontSize: 48, marginBottom: 12 }}>⏳</Text>
-        <Text style={styles.blockedTitle}>Pending Approval</Text>
-        <Text style={styles.blockedSub}>Your organizer account is under review. You'll be notified once approved.</Text>
+        <Text style={styles.blockedTitle}>{t('organizer_dashboard.pending_approval')}</Text>
+        <Text style={styles.blockedSub}>{t('organizer_dashboard.pending_approval_sub')}</Text>
       </View>
     )
   }
@@ -245,8 +251,8 @@ export default function OrganizerDashboard() {
     return (
       <View style={styles.centered}>
         <Text style={{ fontSize: 48, marginBottom: 12 }}>❌</Text>
-        <Text style={styles.blockedTitle}>Application Rejected</Text>
-        <Text style={styles.blockedSub}>Your organizer application was not approved. Contact support for details.</Text>
+        <Text style={styles.blockedTitle}>{t('organizer_dashboard.application_rejected')}</Text>
+        <Text style={styles.blockedSub}>{t('organizer_dashboard.application_rejected_sub')}</Text>
       </View>
     )
   }
@@ -255,11 +261,11 @@ export default function OrganizerDashboard() {
     return (
       <View style={styles.centered}>
         <Text style={{ fontSize: 48, marginBottom: 12 }}>⛔</Text>
-        <Text style={styles.blockedTitle}>Account Suspended</Text>
+        <Text style={styles.blockedTitle}>{t('organizer_dashboard.account_suspended')}</Text>
         <Text style={styles.blockedSub}>
           {suspendReason
-            ? `Your account has been suspended.\nReason: ${suspendReason}`
-            : 'Your account has been suspended. Contact support if you think this is an error.'}
+            ? t('organizer_dashboard.account_suspended_reason').replace('{reason}', suspendReason)
+            : t('organizer_dashboard.account_suspended_sub')}
         </Text>
       </View>
     )
@@ -275,24 +281,24 @@ export default function OrganizerDashboard() {
       {/* Header */}
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>{orgName || 'My Dashboard'}</Text>
-          <Text style={styles.headerSub}>Manage your events</Text>
+          <Text style={styles.headerTitle}>{orgName || t('profile.my_dashboard')}</Text>
+          <Text style={styles.headerSub}>{t('organizer_dashboard.manage_events')}</Text>
         </View>
         <TouchableOpacity
           style={styles.createBtn}
           onPress={() => router.push('/organizer/event-form')}
         >
-          <Text style={styles.createBtnText}>+ Create</Text>
+          <Text style={styles.createBtnText}>{t('organizer_dashboard.create')}</Text>
         </TouchableOpacity>
       </View>
 
       {/* Stats */}
       <View style={styles.statsRow}>
         {[
-          { icon: '📅', label: 'Active', value: active },
-          { icon: '🎟️', label: 'Bookings', value: totalBookings },
-          { icon: '💝', label: 'Donations', value: `SAR ${totalTips.toFixed(0)}` },
-          { icon: '📊', label: 'Total', value: events.length },
+          { icon: '📅', label: t('organizer_dashboard.active'), value: active },
+          { icon: '🎟️', label: t('organizer_dashboard.bookings'), value: totalBookings },
+          { icon: '💝', label: t('organizer_dashboard.donations'), value: `${totalTips.toLocaleString(locale, { maximumFractionDigits: 0 })} SAR` },
+          { icon: '📊', label: t('organizer_dashboard.total'), value: events.length },
         ].map((s) => (
           <View key={s.label} style={styles.statCard}>
             <Text style={styles.statIcon}>{s.icon}</Text>
@@ -306,21 +312,13 @@ export default function OrganizerDashboard() {
       <TouchableOpacity style={styles.planCard} onPress={() => router.push('/plans')} activeOpacity={0.85}>
         <View style={styles.planCardLeft}>
           <Text style={styles.planCardTitle}>
-            {{
-              org_basic: '🔵 Basic Plan',
-              org_pro:   '🟣 Pro Plan',
-              org_elite: '🟡 Elite Plan',
-            }[planId] ?? '🔵 Basic Plan'}
+            {planLabel}
           </Text>
-          <Text style={styles.planCardSub}>
-            {eventsLimit !== null
-              ? `${eventsUsed} / ${eventsLimit} events this month`
-              : `${eventsUsed} events this month (unlimited)`}
-          </Text>
+          <Text style={styles.planCardSub}>{monthUsageLabel}</Text>
         </View>
         {planId === 'org_basic' && (
           <View style={styles.upgradeBadge}>
-            <Text style={styles.upgradeBadgeText}>Upgrade ›</Text>
+            <Text style={styles.upgradeBadgeText}>{t('organizer_dashboard.upgrade')}</Text>
           </View>
         )}
         {planId !== 'org_basic' && (
@@ -329,20 +327,20 @@ export default function OrganizerDashboard() {
       </TouchableOpacity>
 
       {/* Events list */}
-      <Text style={styles.sectionTitle}>Your Events</Text>
+      <Text style={styles.sectionTitle}>{t('organizer_dashboard.your_events')}</Text>
 
       {events.length === 0 ? (
         <View style={styles.onboardingCard}>
           <Text style={styles.onboardingEmoji}>🎉</Text>
-          <Text style={styles.onboardingTitle}>Welcome, organizer!</Text>
+          <Text style={styles.onboardingTitle}>{t('organizer_dashboard.welcome_title')}</Text>
           <Text style={styles.onboardingSub}>
-            You're all set to start creating events. Share your passion, bring people together, and grow your audience.
+            {t('organizer_dashboard.welcome_sub')}
           </Text>
           <View style={styles.onboardingSteps}>
             {[
-              { icon: '📝', text: 'Create your first event' },
-              { icon: '🎟️', text: 'Add ticket types and pricing' },
-              { icon: '📣', text: 'Publish and share with followers' },
+              { icon: '📝', text: t('organizer_dashboard.step_create') },
+              { icon: '🎟️', text: t('organizer_dashboard.step_tickets') },
+              { icon: '📣', text: t('organizer_dashboard.step_publish') },
             ].map((step) => (
               <View key={step.text} style={styles.onboardingStep}>
                 <Text style={styles.onboardingStepIcon}>{step.icon}</Text>
@@ -351,7 +349,7 @@ export default function OrganizerDashboard() {
             ))}
           </View>
           <TouchableOpacity style={[styles.createBtn, { marginTop: Spacing.lg, paddingHorizontal: Spacing['2xl'] }]} onPress={() => router.push('/organizer/event-form')}>
-            <Text style={styles.createBtnText}>Create your first event</Text>
+            <Text style={styles.createBtnText}>{t('organizer_dashboard.step_create')}</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -367,14 +365,18 @@ export default function OrganizerDashboard() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.eventTitle} numberOfLines={1}>{ev.title}</Text>
                   <Text style={styles.eventMeta}>{formatDate(ev.start_at)}</Text>
-                  <Text style={styles.eventMeta}>{EVENT_FREQUENCY_LABELS[ev.event_frequency ?? 'one_time']}</Text>
+                  <Text style={styles.eventMeta}>{t(`organizer_dashboard.frequency.${ev.event_frequency ?? 'one_time'}`)}</Text>
                   <Text style={styles.eventMeta}>
-                    {ev.bookings_count}{ev.capacity ? `/${ev.capacity}` : ''} booked
+                    {ev.bookings_count}{ev.capacity ? `/${ev.capacity}` : ''} {t('organizer_dashboard.booked')}
                   </Text>
                 </View>
                 <View style={[styles.badge, { backgroundColor: statusColor.light }]}>
                   <Text style={[styles.badgeText, { color: statusColor.text }]}>
-                    {ev.is_cancelled ? 'Cancelled' : ev.is_published ? 'Live' : 'Draft'}
+                    {ev.is_cancelled
+                      ? t('organizer_dashboard.status_cancelled')
+                      : ev.is_published
+                        ? t('organizer_dashboard.status_live')
+                        : t('organizer_dashboard.status_draft')}
                   </Text>
                 </View>
               </View>
@@ -386,7 +388,7 @@ export default function OrganizerDashboard() {
                       onPress={() => router.push(`/organizer/attendees?eventId=${ev.id}&title=${encodeURIComponent(ev.title)}`)}
                     >
                       <Text style={[styles.actionBtnText, { color: Colors.brand[600] ?? Colors.brand[500] }]}>
-                        🎟 Attendees ({ev.bookings_count})
+                        {t('organizer_dashboard.attendees').replace('{count}', String(ev.bookings_count))}
                       </Text>
                     </TouchableOpacity>
                   )}
@@ -397,28 +399,28 @@ export default function OrganizerDashboard() {
                       onPress={() => togglePublish(ev)}
                     >
                       <Text style={[styles.actionBtnText, { color: ev.is_published ? Colors.gray[700] : Colors.white }]}>
-                        {ev.is_published ? 'Unpublish' : 'Publish'}
+                        {ev.is_published ? t('organizer_dashboard.unpublish') : t('organizer_dashboard.publish')}
                       </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={[styles.actionBtn, { backgroundColor: Colors.gray[100] }]}
                       onPress={() => router.push(`/organizer/event-form?id=${ev.id}`)}
                     >
-                      <Text style={[styles.actionBtnText, { color: Colors.gray[700] }]}>Edit</Text>
+                      <Text style={[styles.actionBtnText, { color: Colors.gray[700] }]}>{t('organizer_dashboard.edit')}</Text>
                     </TouchableOpacity>
                     {ev.event_frequency !== 'one_time' && (
                       <TouchableOpacity
                         style={[styles.actionBtn, { backgroundColor: Colors.gray[100] }]}
                         onPress={() => router.push(`/organizer/event-form?id=${ev.id}`)}
                       >
-                        <Text style={[styles.actionBtnText, { color: Colors.gray[700] }]}>Sessions</Text>
+                        <Text style={[styles.actionBtnText, { color: Colors.gray[700] }]}>{t('organizer_dashboard.sessions')}</Text>
                       </TouchableOpacity>
                     )}
                     <TouchableOpacity
                       style={[styles.actionBtn, { backgroundColor: Colors.red.light }]}
                       onPress={() => cancelEvent(ev)}
                     >
-                      <Text style={[styles.actionBtnText, { color: Colors.red.text }]}>Cancel</Text>
+                      <Text style={[styles.actionBtnText, { color: Colors.red.text }]}>{t('organizer_dashboard.cancel')}</Text>
                     </TouchableOpacity>
                   </>
                 )}
@@ -476,4 +478,3 @@ const styles = StyleSheet.create({
   upgradeBadgeText: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.white },
   planArrow:     { fontSize: 22, color: Colors.gray[400] },
 })
-

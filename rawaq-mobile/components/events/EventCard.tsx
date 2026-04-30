@@ -45,9 +45,10 @@ export const EventCard = React.memo(function EventCard({
   variant = 'default',
 }: EventCardProps) {
   const router = useRouter()
-  const { locale } = useLocale()
+  const { locale, isRTL } = useLocale()
   const { user } = useAuth()
   const [saved, setSaved] = useState(initialSaved)
+  const textDirStyle = isRTL ? cardStyles.rtlText : cardStyles.ltrText
 
   useEffect(() => { setSaved(initialSaved) }, [initialSaved])
 
@@ -150,14 +151,14 @@ export const EventCard = React.memo(function EventCard({
 
       {/* ── Body ─────────────────────────────────────────── */}
       <View style={[cardStyles.body, hasHotOffer && cardStyles.bodyHot]}>
-        <Text style={cardStyles.title} numberOfLines={2}>{title}</Text>
+        <Text style={[cardStyles.title, {textAlign: 'left'}]} numberOfLines={2}>{title}</Text>
 
-        <Text style={cardStyles.location} numberOfLines={1}>
+        <Text style={[cardStyles.location, {textAlign: 'left'}]} numberOfLines={1}>
           📍 {event.city}{event.venue_name ? ` · ${event.venue_name}` : ''}
         </Text>
 
         <View style={cardStyles.footer}>
-          <Text style={cardStyles.organizer} numberOfLines={1}>
+          <Text style={[cardStyles.organizer, {textAlign: 'left'}]} numberOfLines={1}>
             {event.organizer?.organizer_profile?.business_name ?? event.organizer?.display_name ?? ''}
           </Text>
           <View style={[cardStyles.pricePill, event.is_free && cardStyles.pricePillFree]}>
@@ -169,7 +170,7 @@ export const EventCard = React.memo(function EventCard({
 
         {almostFull && (
           <View style={cardStyles.urgencyRow}>
-            <Text style={cardStyles.urgencyText}>
+            <Text style={[cardStyles.urgencyText, textDirStyle]}>
               ⚡ {spotsLeft} spot{spotsLeft !== 1 ? 's' : ''} left
             </Text>
           </View>
@@ -296,6 +297,8 @@ const railSkeletonStyles = StyleSheet.create({
 
 // ── Styles ────────────────────────────────────────────────────
 const cardStyles = StyleSheet.create({
+  rtlText: { textAlign: 'right', writingDirection: 'rtl' },
+  ltrText: { textAlign: 'left', writingDirection: 'ltr' },
   card: {
     backgroundColor: '#fff',
     borderRadius: 16,
