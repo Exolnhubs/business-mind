@@ -209,8 +209,8 @@ const styles = StyleSheet.create({
   },
   actionsLayer: {
     position: 'absolute',
-    right: Spacing.lg,
-    width: 220,
+    left: 0,
+    right: 0,
     alignItems: 'flex-end',
     zIndex: 20,
     direction: 'ltr',
@@ -288,10 +288,11 @@ const styles = StyleSheet.create({
     shadowRadius: 18,
     elevation: 8,
     zIndex: 22,
+    marginRight: Spacing.lg,
   },
   quickActionRow: {
     position: 'absolute',
-    right: 0,
+    right: Spacing.lg,
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,

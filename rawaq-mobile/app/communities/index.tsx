@@ -19,19 +19,19 @@ type TrendingCommunity = CommunityWithMembership & { trending_score?: number }
 type MembershipMutationResponse = { is_member?: boolean; member_count?: number }
 
 const LEVEL_META: Record<CommunityLevel, { label: string; icon: keyof typeof Ionicons.glyphMap; tint: string; bg: string; accent: string }> = {
-  micro:    { label: 'Micro',    icon: 'home-outline',     tint: '#166534', bg: '#dcfce7', accent: '#16a34a' },
+  micro: { label: 'Micro', icon: 'home-outline', tint: '#166534', bg: '#dcfce7', accent: '#16a34a' },
   interest: { label: 'Interest', icon: 'sparkles-outline', tint: '#6d28d9', bg: '#ede9fe', accent: '#7c3aed' },
   district: { label: 'District', icon: 'business-outline', tint: '#92400e', bg: '#fef3c7', accent: '#d97706' },
-  city:     { label: 'City',     icon: 'location-outline', tint: '#1e40af', bg: '#dbeafe', accent: '#2563eb' },
-  country:  { label: 'Country',  icon: 'earth-outline',    tint: '#9f1239', bg: '#ffe4e6', accent: '#e11d48' },
+  city: { label: 'City', icon: 'location-outline', tint: '#1e40af', bg: '#dbeafe', accent: '#2563eb' },
+  country: { label: 'Country', icon: 'earth-outline', tint: '#9f1239', bg: '#ffe4e6', accent: '#e11d48' },
 }
 
 const LEVEL_FILTER_OPTIONS: { key: CommunityLevel | 'all'; label: string }[] = [
-  { key: 'all',      label: 'All' },
-  { key: 'micro',    label: 'Micro' },
+  { key: 'all', label: 'All' },
+  { key: 'micro', label: 'Micro' },
   { key: 'interest', label: 'Interest' },
   { key: 'district', label: 'District' },
-  { key: 'city',     label: 'City' },
+  { key: 'city', label: 'City' },
 ]
 
 const DATA_REFRESH_STALE_MS = 90_000
@@ -42,28 +42,26 @@ function formatCompactCount(value: number) {
 }
 
 export default function CommunitiesScreen() {
-  const { user }   = useAuth()
+  const { user } = useAuth()
   const { locale, t } = useLocale()
-  const router     = useRouter()
-  const isRTL      = locale === 'ar'
-  const insets     = useSafeAreaInsets()
-  const textDirStyle = isRTL ? styles.rtlText : styles.ltrText
-
+  const router = useRouter()
+  const isRTL = locale === 'ar'
+  const insets = useSafeAreaInsets()
   const [communities, setCommunities] = useState<CommunityWithMembership[]>([])
-  const [loading, setLoading]         = useState(true)
-  const [refreshing, setRefreshing]   = useState(false)
-  const [search, setSearch]           = useState('')
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [search, setSearch] = useState('')
   const [levelFilter, setLevelFilter] = useState<CommunityLevel | 'all'>('all')
-  const [joinedOnly, setJoinedOnly]   = useState(false)
-  const [page, setPage]               = useState(1)
-  const [hasMore, setHasMore]         = useState(false)
-  const [trending, setTrending]       = useState<TrendingCommunity[]>([])
+  const [joinedOnly, setJoinedOnly] = useState(false)
+  const [page, setPage] = useState(1)
+  const [hasMore, setHasMore] = useState(false)
+  const [trending, setTrending] = useState<TrendingCommunity[]>([])
   const [recommended, setRecommended] = useState<CommunityWithMembership[]>([])
-  const [popular, setPopular]         = useState<CommunityWithMembership[]>([])
-  const [joining, setJoining]         = useState<string | null>(null)
-  const isLoadingPageRef              = useRef(false)
-  const lastListLoadRef               = useRef(0)
-  const lastDiscoveryLoadRef          = useRef(0)
+  const [popular, setPopular] = useState<CommunityWithMembership[]>([])
+  const [joining, setJoining] = useState<string | null>(null)
+  const isLoadingPageRef = useRef(false)
+  const lastListLoadRef = useRef(0)
+  const lastDiscoveryLoadRef = useRef(0)
   const popularCommunities = popular.filter(
     (community) =>
       !recommended.some((item) => item.id === community.id) &&
@@ -160,10 +158,10 @@ export default function CommunitiesScreen() {
         .map((community) =>
           community.id === communityId
             ? {
-                ...community,
-                is_member: nextMemberState,
-                member_count: nextMemberCount ?? (nextMemberState ? community.member_count + 1 : Math.max(community.member_count - 1, 0)),
-              }
+              ...community,
+              is_member: nextMemberState,
+              member_count: nextMemberCount ?? (nextMemberState ? community.member_count + 1 : Math.max(community.member_count - 1, 0)),
+            }
             : community,
         )
         .filter((community) => !joinedOnly || community.is_member)
@@ -239,18 +237,18 @@ export default function CommunitiesScreen() {
             </View>
           )}
         </View>
-        <Text style={[styles.discoveryMiniName, textDirStyle]} numberOfLines={2}>{name}</Text>
-        <Text style={[styles.discoveryMiniDesc, textDirStyle]} numberOfLines={2}>
+        <Text style={[styles.discoveryMiniName, {textAlign: 'left' }]} numberOfLines={2}>{name}</Text>
+        <Text style={[styles.discoveryMiniDesc, {textAlign: 'left' }]} numberOfLines={2}>
           {description || t(`community.level.${item.level}`)}
         </Text>
         <View style={styles.discoveryStatsRow}>
           <View style={styles.inlineMeta}>
             <Ionicons name="people-outline" size={12} color={Colors.gray[500]} />
-            <Text style={[styles.discoveryMiniMeta, textDirStyle]}>{formatCompactCount(item.member_count)}</Text>
+            <Text style={[styles.discoveryMiniMeta, {textAlign: 'left' }]}>{formatCompactCount(item.member_count)}</Text>
           </View>
           <View style={styles.activityPill}>
             <View style={[styles.activityDot, { backgroundColor: item.member_count > 1000 ? Colors.green.DEFAULT : Colors.brand[400] }]} />
-            <Text style={[styles.activityText, textDirStyle]} numberOfLines={1}>
+            <Text style={[styles.activityText, {textAlign: 'left' }]} numberOfLines={1}>
               {item.member_count > 1000 ? t('community.trending_title') : t(`community.level.${item.level}`)}
             </Text>
           </View>
@@ -294,23 +292,23 @@ export default function CommunitiesScreen() {
 
         <View style={styles.rowCenter}>
           <View style={styles.nameRow}>
-            <Text style={[styles.rowName, textDirStyle]} numberOfLines={1}>{name}</Text>
+            <Text style={[styles.rowName, {textAlign: 'left' }]} numberOfLines={1}>{name}</Text>
             {item.is_verified && <Ionicons name="checkmark-circle" size={15} color={Colors.brand[500]} />}
           </View>
-          <Text style={[styles.rowDesc, textDirStyle]} numberOfLines={1}>
+          <Text style={[styles.rowDesc, {textAlign: 'left' }]} numberOfLines={1}>
             {description || t(`community.level.${item.level}`)}
           </Text>
           <View style={styles.rowMetaLine}>
             <View style={styles.inlineMeta}>
               <Ionicons name="people-outline" size={12} color={Colors.gray[400]} />
-              <Text style={[styles.rowMetaText, textDirStyle]}>{formatCompactCount(item.member_count)} {t('community.members')}</Text>
+              <Text style={[styles.rowMetaText, {textAlign: 'left' }]}>{formatCompactCount(item.member_count)} {t('community.members')}</Text>
             </View>
             {item.city ? (
               <>
                 <View style={styles.metaSeparator} />
                 <View style={styles.inlineMeta}>
                   <Ionicons name="location-outline" size={12} color={Colors.gray[400]} />
-                  <Text style={[styles.rowMetaText, textDirStyle]} numberOfLines={1}>{item.city}</Text>
+                  <Text style={[styles.rowMetaText, {textAlign: 'left' }]} numberOfLines={1}>{item.city}</Text>
                 </View>
               </>
             ) : null}
@@ -357,10 +355,10 @@ export default function CommunitiesScreen() {
       >
         {renderCommunityAvatar(item, 34)}
         <View style={styles.nearChipTextWrap}>
-          <Text style={[styles.nearChipTitle, textDirStyle]} numberOfLines={1}>{name}</Text>
+          <Text style={[styles.nearChipTitle, {textAlign: 'left' }]} numberOfLines={1}>{name}</Text>
           <View style={styles.inlineMeta}>
             <View style={[styles.activityDot, { backgroundColor: meta.accent }]} />
-            <Text style={[styles.nearChipMeta, textDirStyle]}>{formatCompactCount(item.member_count)}</Text>
+            <Text style={[styles.nearChipMeta, {textAlign: 'left' }]}>{formatCompactCount(item.member_count)}</Text>
           </View>
         </View>
         <Ionicons name={item.is_member ? 'checkmark' : 'chevron-forward'} size={14} color={meta.tint} />
@@ -386,8 +384,8 @@ export default function CommunitiesScreen() {
             <Ionicons name={icon} size={15} color={color} />
           </View>
           <View style={styles.sectionTextWrap}>
-            <Text style={[styles.discoveryTitle, textDirStyle]}>{title}</Text>
-            {subtitle ? <Text style={[styles.discoveryHint, textDirStyle]}>{subtitle}</Text> : null}
+            <Text style={[styles.discoveryTitle, {textAlign: 'left' }]}>{title}</Text>
+            {subtitle ? <Text style={[styles.discoveryHint, {textAlign: 'left' }]}>{subtitle}</Text> : null}
           </View>
         </View>
       </View>
@@ -590,7 +588,7 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   headerEyebrow: { fontSize: 10, fontWeight: FontWeight.semibold, color: Colors.brand[700], letterSpacing: 1.1, textTransform: 'uppercase' },
-  headerTitle:   { fontSize: FontSize['3xl'], fontWeight: FontWeight.bold, color: Colors.gray[900], marginTop: 3, maxWidth: 260 },
+  headerTitle: { fontSize: FontSize['3xl'], fontWeight: FontWeight.bold, color: Colors.gray[900], marginTop: 3, maxWidth: 260 },
   headerSubtitle: { fontSize: FontSize.xs, color: Colors.gray[500], lineHeight: 18, maxWidth: '92%' },
 
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginStart: 'auto' },
@@ -631,19 +629,19 @@ const styles = StyleSheet.create({
   tabButtonTextActive: { color: Colors.gray[900] },
 
   searchSection: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xs },
-  searchWrap:  { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: '#fffdf8', borderRadius: Radius.lg, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 3, borderWidth: 1.5, borderColor: '#eadfcb', ...Shadow.card },
+  searchWrap: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: '#fffdf8', borderRadius: Radius.lg, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 3, borderWidth: 1.5, borderColor: '#eadfcb', ...Shadow.card },
   searchInput: { flex: 1, fontSize: FontSize.sm, color: Colors.gray[900] },
 
   filterList: { minHeight: 56 },
   filterRow: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm, paddingBottom: Spacing.md, gap: Spacing.sm, alignItems: 'center' },
   filterChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: Radius.full, backgroundColor: '#f8f4ec', borderWidth: 1.5, borderColor: '#ebe3d3', minHeight: 38 },
   filterChipActive: { backgroundColor: Colors.brand[50], borderColor: Colors.brand[300] },
-  filterChipText:   { fontSize: FontSize.xs, fontWeight: FontWeight.medium, color: Colors.gray[700] },
+  filterChipText: { fontSize: FontSize.xs, fontWeight: FontWeight.medium, color: Colors.gray[700] },
   filterChipTextActive: { color: Colors.brand[700] },
 
   discoverySection: { marginBottom: Spacing.xl },
   sectionHeader: { paddingHorizontal: Spacing.lg, marginBottom: Spacing.sm },
-  sectionTitleCluster: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
+  sectionTitleCluster: { flexDirection: 'row', textAlign: 'left', alignItems: 'flex-start', gap: Spacing.sm },
   sectionTextWrap: { flex: 1 },
   sectionIcon: { width: 30, height: 30, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
   discoveryTitle: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.gray[900] },
@@ -654,6 +652,7 @@ const styles = StyleSheet.create({
     minHeight: 202,
     padding: 14,
     borderRadius: Radius.xl,
+    textAlign: 'left', 
     backgroundColor: '#fff',
     borderWidth: 1,
     overflow: 'hidden',
@@ -687,10 +686,8 @@ const styles = StyleSheet.create({
   discoveryJoinBtnJoined: { backgroundColor: '#fff', borderColor: Colors.gray[200] },
   discoveryJoinText: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: '#fff' },
   discoveryJoinTextJoined: { color: Colors.gray[500] },
-
   trendingSection: { marginBottom: Spacing.xl },
   rankedList: { marginHorizontal: Spacing.lg, backgroundColor: '#fff', borderRadius: Radius.xl, borderWidth: 1, borderColor: '#ede7dc', overflow: 'hidden', ...Shadow.card },
-
   nearSection: { marginBottom: Spacing.xl },
   nearRow: { paddingHorizontal: Spacing.lg, gap: Spacing.sm, paddingBottom: 2 },
   nearChip: {
@@ -709,7 +706,6 @@ const styles = StyleSheet.create({
   nearChipTextWrap: { flex: 1, minWidth: 0 },
   nearChipTitle: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.gray[900] },
   nearChipMeta: { fontSize: 10, color: Colors.gray[500] },
-
   list: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm, paddingBottom: Spacing['3xl'], gap: Spacing.sm },
   listRow: {
     flexDirection: 'row',
@@ -726,8 +722,8 @@ const styles = StyleSheet.create({
   rankText: { width: 20, textAlign: 'center', fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.gray[300] },
   rankTextHot: { color: Colors.brand[500] },
   rowCenter: { flex: 1, minWidth: 0 },
-  nameRow:   { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  rowName:  { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.gray[900], flex: 1 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  rowName: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.gray[900], flex: 1 },
   rowDesc: { marginTop: 2, fontSize: FontSize.xs, color: Colors.gray[500] },
   rowMetaLine: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 5 },
   rowMetaText: { fontSize: 11, color: Colors.gray[500], maxWidth: 90 },
@@ -744,6 +740,5 @@ const styles = StyleSheet.create({
   },
   rowJoinBtnJoined: { backgroundColor: '#fff', borderColor: Colors.gray[200] },
   rowJoinText: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.gray[500] },
-
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: Spacing['4xl'] },
 })
