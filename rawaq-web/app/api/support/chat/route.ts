@@ -5,6 +5,7 @@ import { requireAuth } from '@/lib/auth'
 import { handleApiError, ok } from '@/lib/errors'
 import { z } from 'zod'
 import { limiters, checkRateLimit } from '@/lib/rate-limit'
+import { isTransientGeminiError, runGeminiWithFallback } from '@/lib/gemini'
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY ?? '')
 
@@ -80,14 +81,15 @@ export async function POST(req: NextRequest) {
       return ok({ reply: '', ticket: null })
     }
 
-    const model = genAI.getGenerativeModel({
-      model: process.env.GEMINI_MODEL ?? 'gemini-1.5-flash',
-      systemInstruction: SYSTEM_PROMPT,
-    })
-
-    const chat   = model.startChat({ history })
-    const result = await chat.sendMessage(lastMsg.parts[0].text)
-    let   reply  = result.response.text().trim()
+    let reply = await runGeminiWithFallback(async (modelName) => {
+      const model = genAI.getGenerativeModel({
+        model: modelName,
+        systemInstruction: SYSTEM_PROMPT,
+      })
+      const chat = model.startChat({ history })
+      const result = await chat.sendMessage(lastMsg.parts[0].text)
+      return result.response.text().trim()
+    }, { route: 'support/chat', operation: 'reply' })
 
     // ── Parse ticket escalation ────────────────────────────────────────────────
     let ticket: { ticket_number: string; category: string } | null = null
@@ -107,8 +109,7 @@ export async function POST(req: NextRequest) {
         const VALID_CATEGORIES = ['general', 'refund', 'harassment', 'legal', 'technical'] as const
         type ValidCategory = typeof VALID_CATEGORIES[number]
 
-        const classifyModel = genAI.getGenerativeModel({ model: process.env.GEMINI_MODEL ?? 'gemini-1.5-flash' })
-        const classifyResult = await classifyModel.generateContent(
+        const classifyPrompt =
           `Classify this support issue into exactly one of these categories: general, refund, harassment, legal, technical.\n` +
           `Harassment covers: sexual assault, inappropriate behaviour, threats, bullying, stalking, abuse.\n` +
           `Refund covers: payment disputes, overcharging, money back requests.\n` +
@@ -117,12 +118,19 @@ export async function POST(req: NextRequest) {
           `General covers: everything else.\n\n` +
           `Issue: "${payload.subject} — ${payload.description}"\n\n` +
           `Reply with ONLY the single category word, nothing else.`
-        )
-        const rawCat = classifyResult.response.text().trim().toLowerCase()
-        const category: ValidCategory =
-          (VALID_CATEGORIES as readonly string[]).includes(rawCat)
+        let category: ValidCategory = 'general'
+        try {
+          const rawCat = await runGeminiWithFallback(async (modelName) => {
+            const classifyModel = genAI.getGenerativeModel({ model: modelName })
+            const classifyResult = await classifyModel.generateContent(classifyPrompt)
+            return classifyResult.response.text().trim().toLowerCase()
+          }, { route: 'support/chat', operation: 'ticket_category' })
+          category = (VALID_CATEGORIES as readonly string[]).includes(rawCat)
             ? (rawCat as ValidCategory)
             : 'general'
+        } catch (err) {
+          console.warn('[support/chat] ticket category fallback:', err)
+        }
 
         const { data: row, error: dbErr } = await (admin as any)
           .from('support_tickets')
@@ -159,6 +167,13 @@ export async function POST(req: NextRequest) {
 
     return ok({ reply, ticket })
   } catch (err) {
+    if (isTransientGeminiError(err)) {
+      return ok({
+        reply: 'The support assistant is busy right now. Please try again in a moment.',
+        ticket: null,
+        temporaryUnavailable: true,
+      })
+    }
     return handleApiError(err)
   }
 }

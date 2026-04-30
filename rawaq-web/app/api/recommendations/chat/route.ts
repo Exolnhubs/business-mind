@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { createClient } from "@supabase/supabase-js";
 import { handleApiError } from "@/lib/errors";
+import { isTransientGeminiError, runGeminiWithFallback } from "@/lib/gemini";
 import type { Database } from "@/types/database";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY ?? "");
@@ -362,15 +363,24 @@ export async function POST(req: NextRequest) {
 
     const userContext = await fetchUserContext(userId);
 
-    const model = genAI.getGenerativeModel({
-      model: process.env.GEMINI_MODEL ?? "gemini-1.5-flash",
-      systemInstruction: buildSystemPrompt(followedOrganizers, userContext),
-    });
+    const systemInstruction = buildSystemPrompt(followedOrganizers, userContext);
+    const sendGeminiChat = async (
+      history: ChatMessage[],
+      text: string,
+      operation: string,
+    ) => runGeminiWithFallback(async (modelName) => {
+      const model = genAI.getGenerativeModel({ model: modelName, systemInstruction });
+      const chat = model.startChat({ history });
+      const result = await chat.sendMessage(text);
+      return result.response.text();
+    }, { route: "recommendations/chat", operation });
 
     // ── First Gemini call ────────────────────────────────────────────────────
-    const chat = model.startChat({ history: messages.slice(0, -1) });
-    const result = await chat.sendMessage(lastMessage.parts[0].text);
-    const rawText = result.response.text();
+    const rawText = await sendGeminiChat(
+      messages.slice(0, -1),
+      lastMessage.parts[0].text,
+      "initial",
+    );
 
     const searchParams = extractSearchParams(rawText);
     const replyText = stripSearchBlock(rawText);
@@ -402,10 +412,13 @@ export async function POST(req: NextRequest) {
           { role: "model", parts: [{ text: rawText }] },
           { role: "user", parts: [{ text: contextBlock }] },
         ];
-        const chat2 = model.startChat({ history: updatedHistory.slice(0, -1) });
-        const result2 = await chat2.sendMessage(updatedHistory[updatedHistory.length - 1].parts[0].text);
+        const exactReply = await sendGeminiChat(
+          updatedHistory.slice(0, -1),
+          updatedHistory[updatedHistory.length - 1].parts[0].text,
+          "exact_context",
+        );
         return NextResponse.json({
-          data: { reply: result2.response.text(), events: fetchResult.events, done: true },
+          data: { reply: exactReply, events: fetchResult.events, done: true },
         });
       }
       return NextResponse.json({
@@ -429,11 +442,11 @@ export async function POST(req: NextRequest) {
       { role: "user", parts: [{ text: contextBlock }] },
     ];
 
-    const chat2 = model.startChat({ history: updatedHistory.slice(0, -1) });
-    const result2 = await chat2.sendMessage(
+    const pivotReply = await sendGeminiChat(
+      updatedHistory.slice(0, -1),
       updatedHistory[updatedHistory.length - 1].parts[0].text,
+      "fallback_context",
     );
-    const pivotReply = result2.response.text();
 
     return NextResponse.json({
       data: {
@@ -446,6 +459,16 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (err) {
+    if (isTransientGeminiError(err)) {
+      return NextResponse.json({
+        data: {
+          reply: "The recommendation assistant is busy right now. Please try again in a moment.",
+          events: [],
+          done: false,
+          temporaryUnavailable: true,
+        },
+      });
+    }
     return handleApiError(err);
   }
 }
