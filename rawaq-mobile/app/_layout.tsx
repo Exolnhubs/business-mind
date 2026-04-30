@@ -21,9 +21,15 @@ import { supabase } from '@/lib/supabase'
 
 SplashScreen.preventAutoHideAsync()
 
+// expo-notifications push support was removed from Android Expo Go in SDK 53.
+// Requiring the module at all on that platform triggers a fatal side-effect in
+// DevicePushTokenAutoRegistration.fx.js, so we must gate every require() on this flag.
+const IS_EXPO_GO = (require('expo-constants') as typeof import('expo-constants')).default.executionEnvironment === 'storeClient'
+
 // Create Android notification channel with HIGH importance so FCM delivers
 // notifications immediately without batching them.
-if (Platform.OS === 'android') {
+// Not needed (and not safe) inside Expo Go — skip it there.
+if (Platform.OS === 'android' && !IS_EXPO_GO) {
   const Notifications = require('expo-notifications') as typeof import('expo-notifications')
   Notifications.setNotificationChannelAsync('default', {
     name: 'Default',
@@ -171,10 +177,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!user) return
 
-    // expo-notifications is unavailable on Android Expo Go (SDK 53+)
-    const IS_EXPO_GO = require('expo-constants').default.executionEnvironment === 'storeClient'
-    const IS_ANDROID_EXPO_GO = IS_EXPO_GO && Platform.OS === 'android'
-    if (IS_ANDROID_EXPO_GO) return
+    if (IS_EXPO_GO && Platform.OS === 'android') return
 
     const Notifications = require('expo-notifications') as typeof import('expo-notifications')
     const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
