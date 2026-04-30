@@ -1,4 +1,4 @@
-const DEFAULT_GEMINI_MODEL = "gemini-1.5-flash";
+const DEFAULT_GEMINI_MODEL = "gemini-2.0-flash";
 const TRANSIENT_STATUSES = new Set([429, 500, 502, 503, 504]);
 
 interface GeminiRunContext {
@@ -18,6 +18,13 @@ export function isTransientGeminiError(error: unknown): boolean {
 
   const message = error instanceof Error ? error.message : String(error);
   return /high demand|service unavailable|overloaded|temporarily unavailable|try again later|rate limit/i.test(message);
+}
+
+// Daily quota exhaustion — retrying the same model after 250 ms is pointless.
+function isQuotaExhausted(error: unknown): boolean {
+  if (getErrorStatus(error) !== 429) return false;
+  const message = error instanceof Error ? error.message : String(error);
+  return /quota.*exceeded|free.?tier|exceeded.*quota/i.test(message);
 }
 
 export function getGeminiModelCandidates(): string[] {
@@ -58,6 +65,10 @@ export async function runGeminiWithFallback<T>(
           status: getErrorStatus(error),
           message: error instanceof Error ? error.message : String(error),
         });
+
+        // Daily quota exhaustion: retrying the same model immediately is
+        // pointless — break to try the next model candidate instead.
+        if (isQuotaExhausted(error)) break;
 
         if (attempt < attempts) {
           await delay(250 * attempt);
