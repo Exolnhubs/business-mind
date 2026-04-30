@@ -62,16 +62,7 @@ export async function POST(
 
     const quota = await getQuota(supabase, ctx.userId)
 
-    // Only block if this event hasn't already used a slot this month
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-    const { data: alreadyFeaturedThisMonth } = await supabase
-      .from('events')
-      .select('id')
-      .eq('id', id)
-      .gte('featured_at', monthStart)
-      .maybeSingle()
-
-    if (!alreadyFeaturedThisMonth && quota.used >= limit) {
+    if (quota.used >= limit) {
       throw new ForbiddenException(
         `Monthly featuring limit reached (${limit} events/month on your current plan). Unfeature another event or upgrade.`
       )
@@ -85,6 +76,13 @@ export async function POST(
       .eq('id', id)
 
     if (error) throw error
+
+    // Record this featuring action — each action (including re-features) consumes a slot
+    const { error: logErr } = await supabase
+      .from('featured_events_log')
+      .insert({ event_id: id, organizer_id: ctx.userId, featured_at: now.toISOString(), featured_until: featuredUntil })
+
+    if (logErr) throw logErr
 
     // Invalidate featured cache
     await redis.del(FEATURED_CACHE_KEY)
@@ -106,7 +104,7 @@ async function getQuota(
   const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
 
   const { count } = await supabase
-    .from('events')
+    .from('featured_events_log')
     .select('id', { count: 'exact', head: true })
     .eq('organizer_id', organizerId)
     .gte('featured_at', monthStart)

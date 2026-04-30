@@ -39,7 +39,7 @@ export default async function OrganizerDashboard() {
   if (featuredLimit > 0) {
     const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
     const { count } = await supabase
-      .from('events')
+      .from('featured_events_log')
       .select('id', { count: 'exact', head: true })
       .eq('organizer_id', user!.id)
       .gte('featured_at', monthStart)
