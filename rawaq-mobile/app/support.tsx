@@ -9,6 +9,7 @@ import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/auth-context'
+import { useLocale } from '@/contexts/locale-context'
 import { ScreenLoader } from '@/components/ui/ScreenLoader'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
 
@@ -39,20 +40,16 @@ interface Bubble {
 
 // ── Welcome message ────────────────────────────────────────────────────────────
 
-const WELCOME: Bubble = {
-  id:   'welcome',
-  role: 'bot',
-  text: "Hi! 👋 I'm Rawaq Support. I'm here to help you with bookings, events, account questions, or anything else.\n\nHow can I help you today?",
-}
-
 // ── Component ──────────────────────────────────────────────────────────────────
 
 export default function SupportScreen() {
   const router  = useRouter()
   const insets  = useSafeAreaInsets()
   const { user } = useAuth()
+  const { t } = useLocale()
+  const welcome: Bubble = { id: 'welcome', role: 'bot', text: t('support.welcome') }
 
-  const [bubbles,  setBubbles]  = useState<Bubble[]>([WELCOME])
+  const [bubbles,  setBubbles]  = useState<Bubble[]>([welcome])
   const [history,  setHistory]  = useState<ChatMessage[]>([])
   const [input,    setInput]    = useState('')
   const [sending,  setSending]  = useState(false)
@@ -115,7 +112,7 @@ export default function SupportScreen() {
       })
 
       const json = await res.json()
-      if (!res.ok) throw new Error(json.error ?? 'Request failed')
+      if (!res.ok) throw new Error(json.error ?? t('support.request_failed'))
 
       const { reply, ticket } = json.data as { reply: string; ticket: Ticket | null }
 
@@ -139,12 +136,12 @@ export default function SupportScreen() {
     } catch {
       setBubbles((prev) => [
         ...prev,
-        { id: (Date.now() + 1).toString(), role: 'bot', text: "Sorry, something went wrong. Please try again. 😔" },
+        { id: (Date.now() + 1).toString(), role: 'bot', text: t('support.error_reply') },
       ])
     } finally {
       setSending(false)
     }
-  }, [input, sending, history])
+  }, [input, sending, history, t])
 
   // ── Clear chat ─────────────────────────────────────────────────────────────
   async function clearChat() {
@@ -152,7 +149,7 @@ export default function SupportScreen() {
       AsyncStorage.removeItem(STORAGE_KEY_MSGS),
       AsyncStorage.removeItem(STORAGE_KEY_HIST),
     ])
-    setBubbles([WELCOME])
+    setBubbles([welcome])
     setHistory([])
     setInput('')
   }
@@ -172,11 +169,11 @@ export default function SupportScreen() {
         <View style={styles.ticketCard}>
           <View style={styles.ticketCardHeader}>
             <Text style={styles.ticketCardIcon}>{CATEGORY_EMOJI[ticket.category] ?? '📋'}</Text>
-            <Text style={styles.ticketCardTitle}>Support Ticket Opened</Text>
+            <Text style={styles.ticketCardTitle}>{t('support.ticket_opened')}</Text>
           </View>
           <Text style={styles.ticketNumber}>{ticket.ticket_number}</Text>
           <Text style={styles.ticketHint}>
-            Our admin team will review your case and get back to you. Keep this number for reference.
+            {t('support.ticket_hint')}
           </Text>
         </View>
       )
@@ -212,9 +209,9 @@ export default function SupportScreen() {
           <Ionicons name="arrow-back" size={22} color={Colors.gray[900]} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>Customer Support</Text>
+          <Text style={styles.headerTitle}>{t('support.title')}</Text>
           <Text style={styles.headerSub}>
-            {user ? 'Logged in · AI-powered 🎧' : 'AI-powered 🎧'}
+            {user ? t('support.logged_in_ai') : t('support.ai_powered')}
           </Text>
         </View>
         <TouchableOpacity onPress={clearChat} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -224,7 +221,7 @@ export default function SupportScreen() {
 
       {/* Message list */}
       {!hydrated
-        ? <ScreenLoader fullScreen label="Loading support" />
+        ? <ScreenLoader fullScreen label={t('support.loading')} />
         : (
           <FlatList
             ref={listRef}
@@ -241,7 +238,7 @@ export default function SupportScreen() {
       <View style={[styles.inputRow, { paddingBottom: insets.bottom + Spacing.sm }]}>
         <TextInput
           style={styles.input}
-          placeholder="Describe your issue…"
+          placeholder={t('support.placeholder')}
           placeholderTextColor={Colors.gray[400]}
           value={input}
           onChangeText={setInput}

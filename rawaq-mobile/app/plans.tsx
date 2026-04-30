@@ -7,6 +7,7 @@ import { useRouter } from 'expo-router'
 import * as WebBrowser from 'expo-web-browser'
 import { apiGet, apiPost } from '@/lib/api'
 import { useAuth } from '@/contexts/auth-context'
+import { useLocale } from '@/contexts/locale-context'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
 import { TicketFlipLoader } from '@/components/ui/TicketFlipLoader'
 import type { ResolvedPlanDefinition, Subscription } from '@/types/plans'
@@ -37,12 +38,12 @@ const PLAN_FLAGSHIP: Record<string, boolean> = {
   org_pro: true,
 }
 
-const PLAN_FEATURES: Record<string, string[]> = {
-  user_free:    ['Book & attend any public event', 'Save up to 20 events', 'Community access & happenings', 'Standard discovery experience'],
-  user_premium: ['Everything in Free', 'Unlimited saved events', 'Access premium-only events'],
-  org_basic:    ['5 events published per month', 'Up to 50 attendees per event', 'Organizer dashboard access', '10% platform fee on revenue'],
-  org_pro:      ['20 events published per month', 'Up to 200 attendees per event', 'Ticket scanner access', '6% platform fee on revenue'],
-  org_elite:    ['Unlimited events published', 'Unlimited attendees per event', 'Ticket scanner access', '3% platform fee on revenue'],
+const PLAN_FEATURE_KEYS: Record<string, string[]> = {
+  user_free:    ['plans.feature.user_free.1', 'plans.feature.user_free.2', 'plans.feature.user_free.3', 'plans.feature.user_free.4'],
+  user_premium: ['plans.feature.user_premium.1', 'plans.feature.user_premium.2', 'plans.feature.user_premium.3'],
+  org_basic:    ['plans.feature.org_basic.1', 'plans.feature.org_basic.2', 'plans.feature.org_basic.3', 'plans.feature.org_basic.4'],
+  org_pro:      ['plans.feature.org_pro.1', 'plans.feature.org_pro.2', 'plans.feature.org_pro.3', 'plans.feature.org_pro.4'],
+  org_elite:    ['plans.feature.org_elite.1', 'plans.feature.org_elite.2', 'plans.feature.org_elite.3', 'plans.feature.org_elite.4'],
 }
 
 type PlanAction = 'current' | 'upgrade' | 'downgrade'
@@ -64,6 +65,7 @@ function formatPlanAmount(amount: number): string {
 // ── Screen ─────────────────────────────────────────────────────
 export default function PlansScreen() {
   const { user, profile, refreshProfile } = useAuth()
+  const { t, locale } = useLocale()
   const router = useRouter()
 
   const [plans,        setPlans]        = useState<Plan[]>([])
@@ -83,7 +85,7 @@ export default function PlansScreen() {
     if (error) {
       setLoading(false)
       setRefreshing(false)
-      Alert.alert('Error', error)
+      Alert.alert(t('plans.error_title'), error)
       return
     }
 
@@ -134,19 +136,19 @@ export default function PlansScreen() {
               setCurrentId(statusData.active_subscription.plan_id)
               await refreshProfile()
               await load()
-              Alert.alert('Plan updated', `You are now on the ${plan.name} plan.`)
+              Alert.alert(t('plans.updated_title'), t('plans.updated_body').replace('{plan}', locale === 'ar' ? plan.name_ar : plan.name))
               break
             }
           }
 
           if (!activated) {
-            Alert.alert('Payment is processing', 'Your membership payment is being verified. Check back in a moment if your new plan is not visible yet.')
+            Alert.alert(t('plans.processing_title'), t('plans.processing_body'))
           }
           return
         }
 
         if (deepLinkStatus === 'failed' || browserResult.type === 'cancel') {
-          Alert.alert('Payment not completed', 'Your membership payment was not completed.')
+          Alert.alert(t('plans.payment_not_completed_title'), t('plans.payment_not_completed_body'))
           return
         }
       }
@@ -154,9 +156,9 @@ export default function PlansScreen() {
       setCurrentId(plan.id)
       await refreshProfile()
       await load()
-      Alert.alert('Plan updated', `You are now on the ${plan.name} plan.`)
+      Alert.alert(t('plans.updated_title'), t('plans.updated_body').replace('{plan}', locale === 'ar' ? plan.name_ar : plan.name))
     } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Failed to change plan')
+      Alert.alert(t('plans.error_title'), e instanceof Error ? e.message : t('plans.change_failed'))
     } finally {
       setSaving(null)
     }
@@ -168,14 +170,17 @@ export default function PlansScreen() {
       setConfirmId(plan.id)
     } else {
       const priceMsg = plan.price_amount > 0
-        ? `\n\nPrice: ${formatPlanAmount(plan.price_amount)} ${plan.price_currency} / month`
+        ? t('plans.price_line')
+          .replace('{price}', formatPlanAmount(plan.price_amount))
+          .replace('{currency}', plan.price_currency)
         : ''
+      const planName = locale === 'ar' ? plan.name_ar : plan.name
       Alert.alert(
-        `Upgrade to ${plan.name}`,
-        `Switch to the ${plan.name} plan?${priceMsg}`,
+        t('plans.upgrade_title').replace('{plan}', planName),
+        t('plans.switch_body').replace('{plan}', planName).replace('{price}', priceMsg),
         [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Confirm', onPress: () => doSelectPlan(plan) },
+          { text: t('common.cancel'), style: 'cancel' },
+          { text: t('common.confirm'), onPress: () => doSelectPlan(plan) },
         ],
       )
     }
@@ -184,7 +189,7 @@ export default function PlansScreen() {
   if (!user) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.emptyText}>Sign in to manage your plan.</Text>
+        <Text style={styles.emptyText}>{t('plans.sign_in')}</Text>
       </View>
     )
   }
@@ -200,7 +205,7 @@ export default function PlansScreen() {
   const activePlan = plans.find(p => p.id === currentId)
   const eventLimit = activePlan?.events_per_month ?? null
   const usagePct = eventLimit ? Math.min((eventsUsed / eventLimit) * 100, 100) : 0
-  const monthLabel = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+  const monthLabel = new Date().toLocaleDateString(locale, { month: 'long', year: 'numeric' })
 
   const usageBarColor = !eventLimit
     ? C_GOLD
@@ -218,16 +223,16 @@ export default function PlansScreen() {
     >
       {/* Back nav */}
       <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-        <Text style={styles.backText}>‹ Back</Text>
+        <Text style={styles.backText}>{t('plans.back')}</Text>
       </TouchableOpacity>
 
       {/* Page header */}
       <View style={styles.header}>
-        <Text style={styles.title}>{isOrganizer ? 'Organizer plan' : 'Your membership'}</Text>
+        <Text style={styles.title}>{isOrganizer ? t('plans.organizer_title') : t('plans.user_title')}</Text>
         <Text style={styles.subtitle}>
           {isOrganizer
-            ? 'Publish more events and keep more of what you earn as you grow.'
-            : 'Upgrade for unlimited saves and premium-only event access.'}
+            ? t('plans.organizer_subtitle')
+            : t('plans.user_subtitle')}
         </Text>
       </View>
 
@@ -235,10 +240,10 @@ export default function PlansScreen() {
       <View style={styles.statusStrip}>
         <View style={styles.statusRow}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.statusLabel}>CURRENT PLAN</Text>
-            <Text style={styles.statusPlanName}>{activePlan?.name ?? '—'}</Text>
+            <Text style={styles.statusLabel}>{t('plans.current_plan')}</Text>
+            <Text style={styles.statusPlanName}>{activePlan ? (locale === 'ar' ? activePlan.name_ar : activePlan.name) : '—'}</Text>
             {(activePlan?.price_amount ?? 0) === 0 && (
-              <Text style={styles.statusSub}>Free · no billing</Text>
+              <Text style={styles.statusSub}>{t('plans.free_no_billing')}</Text>
             )}
           </View>
 
@@ -246,9 +251,9 @@ export default function PlansScreen() {
           {isOrganizer && (
             <View style={{ flex: 1, minWidth: 160 }}>
               <View style={styles.usageHeader}>
-                <Text style={styles.usageLabel}>Events · {monthLabel}</Text>
+                <Text style={styles.usageLabel}>{t('plans.events_usage').replace('{month}', monthLabel)}</Text>
                 <Text style={[styles.usageValue, { color: usageBarColor }]}>
-                  {eventsUsed}{eventLimit !== null ? ` / ${eventLimit}` : '  ∞'}
+                  {eventsUsed}{eventLimit !== null ? ` / ${eventLimit}` : `  ${t('plans.unlimited_symbol')}`}
                 </Text>
               </View>
               <View style={styles.progressTrack}>
@@ -264,10 +269,10 @@ export default function PlansScreen() {
                 />
               </View>
               {eventLimit && usagePct >= 80 && usagePct < 100 && (
-                <Text style={styles.usageWarning}>{eventLimit - eventsUsed} remaining</Text>
+                <Text style={styles.usageWarning}>{t('plans.remaining').replace('{count}', String(eventLimit - eventsUsed))}</Text>
               )}
               {eventLimit && usagePct >= 100 && (
-                <Text style={styles.usageDanger}>Limit reached — upgrade to publish more</Text>
+                <Text style={styles.usageDanger}>{t('plans.limit_reached')}</Text>
               )}
             </View>
           )}
@@ -281,7 +286,8 @@ export default function PlansScreen() {
         const isConfirming = confirmId === plan.id
         const isLoading = saving === plan.id
         const action = getPlanAction(plan, currentId, plans)
-        const features = PLAN_FEATURES[plan.id] ?? []
+        const features = (PLAN_FEATURE_KEYS[plan.id] ?? []).map((key) => t(key))
+        const planName = locale === 'ar' ? plan.name_ar : plan.name
         const feeSaved = isOrganizer && plan.platform_fee_pct < 0.10
           ? Math.round((0.10 - plan.platform_fee_pct) * 100)
           : null
@@ -295,30 +301,30 @@ export default function PlansScreen() {
                 <Text style={styles.darkNameAr}>{plan.name_ar}</Text>
                 {isCurrent ? (
                   <View style={styles.activeBadge}>
-                    <Text style={styles.activeBadgeText}>Active</Text>
+                    <Text style={styles.activeBadgeText}>{t('common.active')}</Text>
                   </View>
                 ) : (
                   <View style={styles.bestValueBadge}>
-                    <Text style={styles.bestValueText}>Best value</Text>
+                    <Text style={styles.bestValueText}>{t('plans.best_value')}</Text>
                   </View>
                 )}
               </View>
 
               {/* Price */}
-              <Text style={styles.darkPlanName}>{plan.name}</Text>
+              <Text style={styles.darkPlanName}>{planName}</Text>
               <View style={styles.priceRow}>
                 {plan.price_amount > 0 ? (
                   <>
                     <Text style={styles.darkPrice}>{formatPlanAmount(plan.price_amount)}</Text>
-                    <Text style={styles.darkPriceUnit}>{plan.price_currency} / month</Text>
+                    <Text style={styles.darkPriceUnit}>{plan.price_currency} / {t('plans.month')}</Text>
                   </>
                 ) : (
-                  <Text style={styles.darkPriceFree}>Free</Text>
+                  <Text style={styles.darkPriceFree}>{t('plans.free')}</Text>
                 )}
               </View>
               {plan.type === 'organizer' && (
                 <Text style={styles.darkFeeText}>
-                  {(plan.platform_fee_pct * 100).toFixed(0)}% platform fee on revenue
+                  {t('plans.platform_fee').replace('{fee}', (plan.platform_fee_pct * 100).toFixed(0))}
                 </Text>
               )}
 
@@ -326,7 +332,7 @@ export default function PlansScreen() {
               {feeSaved && (
                 <View style={styles.darkSavings}>
                   <Text style={styles.darkSavingsText}>
-                    Save {feeSaved}% in platform fees vs Basic
+                    {t('plans.save_fee').replace('{fee}', String(feeSaved))}
                   </Text>
                 </View>
               )}
@@ -344,24 +350,24 @@ export default function PlansScreen() {
               {/* CTA */}
               {isCurrent ? (
                 <View style={[styles.btn, styles.btnCurrentDark]}>
-                  <Text style={styles.btnCurrentDarkText}>Current plan</Text>
+                  <Text style={styles.btnCurrentDarkText}>{t('plans.current_cta')}</Text>
                 </View>
               ) : isConfirming ? (
                 <View style={{ gap: Spacing.sm }}>
-                  <Text style={styles.confirmText}>Downgrading reduces your quota. Continue?</Text>
+                  <Text style={styles.confirmText}>{t('plans.downgrade_confirm')}</Text>
                   <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
                     <TouchableOpacity
                       style={[styles.btn, styles.btnConfirm, { flex: 1 }]}
                       onPress={() => doSelectPlan(plan)}
                       disabled={saving !== null}
                     >
-                      {isLoading ? <ActivityIndicator color={Colors.white} size="small" /> : <Text style={styles.btnConfirmText}>Confirm</Text>}
+                      {isLoading ? <ActivityIndicator color={Colors.white} size="small" /> : <Text style={styles.btnConfirmText}>{t('common.confirm')}</Text>}
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={[styles.btn, { backgroundColor: 'transparent', paddingHorizontal: Spacing.lg }]}
                       onPress={() => setConfirmId(null)}
                     >
-                      <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: FontSize.sm, fontWeight: FontWeight.medium }}>Cancel</Text>
+                      <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: FontSize.sm, fontWeight: FontWeight.medium }}>{t('common.cancel')}</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -376,7 +382,7 @@ export default function PlansScreen() {
                     <ActivityIndicator color={C_INK} size="small" />
                   ) : (
                     <Text style={styles.btnGoldText}>
-                      {action === 'upgrade' ? `Upgrade to ${plan.name}` : `Switch to ${plan.name}`}
+                      {t(action === 'upgrade' ? 'plans.upgrade_cta' : 'plans.switch_cta').replace('{plan}', planName)}
                     </Text>
                   )}
                 </TouchableOpacity>
@@ -401,26 +407,26 @@ export default function PlansScreen() {
               <Text style={styles.lightNameAr}>{plan.name_ar}</Text>
               {isCurrent && (
                 <View style={styles.activeBadgeLight}>
-                  <Text style={styles.activeBadgeLightText}>Active</Text>
+                  <Text style={styles.activeBadgeLightText}>{t('common.active')}</Text>
                 </View>
               )}
             </View>
 
             {/* Price */}
-            <Text style={styles.lightPlanName}>{plan.name}</Text>
+            <Text style={styles.lightPlanName}>{planName}</Text>
             <View style={styles.priceRow}>
               {plan.price_amount > 0 ? (
                 <>
                   <Text style={styles.lightPrice}>{formatPlanAmount(plan.price_amount)}</Text>
-                  <Text style={styles.lightPriceUnit}>{plan.price_currency} / month</Text>
+                  <Text style={styles.lightPriceUnit}>{plan.price_currency} / {t('plans.month')}</Text>
                 </>
               ) : (
-                <Text style={styles.lightPriceFree}>Free</Text>
+                <Text style={styles.lightPriceFree}>{t('plans.free')}</Text>
               )}
             </View>
             {plan.type === 'organizer' && (
               <Text style={styles.lightFeeText}>
-                {(plan.platform_fee_pct * 100).toFixed(0)}% platform fee on revenue
+                {t('plans.platform_fee').replace('{fee}', (plan.platform_fee_pct * 100).toFixed(0))}
               </Text>
             )}
 
@@ -428,7 +434,7 @@ export default function PlansScreen() {
             {feeSaved && (
               <View style={styles.lightSavings}>
                 <Text style={styles.lightSavingsText}>
-                  Save {feeSaved}% in platform fees vs Basic
+                  {t('plans.save_fee').replace('{fee}', String(feeSaved))}
                 </Text>
               </View>
             )}
@@ -446,24 +452,24 @@ export default function PlansScreen() {
             {/* CTA */}
             {isCurrent ? (
               <View style={[styles.btn, styles.btnCurrentLight]}>
-                <Text style={styles.btnCurrentLightText}>Current plan</Text>
+                <Text style={styles.btnCurrentLightText}>{t('plans.current_cta')}</Text>
               </View>
             ) : isConfirming ? (
               <View style={{ gap: Spacing.sm }}>
-                <Text style={[styles.confirmText, { color: '#ea580c' }]}>Downgrading reduces your quota. Continue?</Text>
+                <Text style={[styles.confirmText, { color: '#ea580c' }]}>{t('plans.downgrade_confirm')}</Text>
                 <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
                   <TouchableOpacity
                     style={[styles.btn, styles.btnConfirm, { flex: 1 }]}
                     onPress={() => doSelectPlan(plan)}
                     disabled={saving !== null}
                   >
-                    {isLoading ? <ActivityIndicator color={Colors.white} size="small" /> : <Text style={styles.btnConfirmText}>Confirm</Text>}
+                    {isLoading ? <ActivityIndicator color={Colors.white} size="small" /> : <Text style={styles.btnConfirmText}>{t('common.confirm')}</Text>}
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.btn, { backgroundColor: 'transparent', paddingHorizontal: Spacing.lg }]}
                     onPress={() => setConfirmId(null)}
                   >
-                    <Text style={{ color: Colors.gray[400], fontSize: FontSize.sm, fontWeight: FontWeight.medium }}>Cancel</Text>
+                    <Text style={{ color: Colors.gray[400], fontSize: FontSize.sm, fontWeight: FontWeight.medium }}>{t('common.cancel')}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -478,7 +484,7 @@ export default function PlansScreen() {
                   <ActivityIndicator color={action === 'upgrade' ? Colors.white : Colors.gray[700]} size="small" />
                 ) : (
                   <Text style={action === 'upgrade' ? styles.btnPrimaryText : styles.btnSecondaryText}>
-                    {action === 'upgrade' ? `Upgrade to ${plan.name}` : `Switch to ${plan.name}`}
+                    {t(action === 'upgrade' ? 'plans.upgrade_cta' : 'plans.switch_cta').replace('{plan}', planName)}
                   </Text>
                 )}
               </TouchableOpacity>
@@ -488,7 +494,7 @@ export default function PlansScreen() {
       })}
 
       <Text style={styles.note}>
-        Paid plans open a secure checkout. Free plan changes take effect immediately.
+        {t('plans.note')}
       </Text>
     </ScrollView>
   )

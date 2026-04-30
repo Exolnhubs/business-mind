@@ -9,6 +9,7 @@ import { useRouter } from 'expo-router'
 import { supabase } from '@/lib/supabase'
 import { apiPost } from '@/lib/api'
 import { useAuth } from '@/contexts/auth-context'
+import { useLocale } from '@/contexts/locale-context'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
 import { TicketFlipLoader } from '@/components/ui/TicketFlipLoader'
 
@@ -61,12 +62,12 @@ type EarningsCache = {
 
 let earningsCache: EarningsCache | null = null
 
-const REASON_LABELS: Record<string, string> = {
-  tip: '💝 Tip',
-  ticket_sale: '🎟️ Ticket sale',
-  refund_deducted: '↩️ Refund',
-  payout: '🏦 Payout',
-  adjustment: '⚙️ Adjustment',
+const REASON_LABEL_KEYS: Record<string, string> = {
+  tip: 'earnings.reason.tip',
+  ticket_sale: 'earnings.reason.ticket_sale',
+  refund_deducted: 'earnings.reason.refund_deducted',
+  payout: 'earnings.reason.payout',
+  adjustment: 'earnings.reason.adjustment',
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -80,6 +81,7 @@ type ModalMode = 'payout' | 'bank_account'
 
 export default function EarningsScreen() {
   const { user } = useAuth()
+  const { t, locale } = useLocale()
   const router = useRouter()
   const insets = useSafeAreaInsets()
 
@@ -242,7 +244,7 @@ export default function EarningsScreen() {
 
   async function saveBankAccount() {
     if (!bankForm.bank_name.trim() || !bankForm.account_holder_name.trim() || !bankForm.iban.trim()) {
-      Alert.alert('Missing fields', 'Bank name, account holder name, and IBAN are required.')
+      Alert.alert(t('earnings.missing_fields_title'), t('earnings.missing_fields_body'))
       return
     }
 
@@ -258,7 +260,7 @@ export default function EarningsScreen() {
     setSubmitting(false)
 
     if (error) {
-      Alert.alert('Error', error)
+      Alert.alert(t('plans.error_title'), error)
       return
     }
     if (!data?.bank_account) {
@@ -267,17 +269,17 @@ export default function EarningsScreen() {
 
     setBankAccount(data.bank_account)
     setShowModal(false)
-    Alert.alert('Saved', 'Your banking details have been saved. You can now request a withdrawal.')
+    Alert.alert(t('common.saved'), t('earnings.saved_bank_body'))
   }
 
   async function requestPayout() {
     const amount = parseFloat(payoutAmt)
     if (!amount || amount <= 0) {
-      Alert.alert('Invalid amount', 'Please enter a valid amount.')
+      Alert.alert(t('earnings.invalid_amount_title'), t('earnings.invalid_amount_body'))
       return
     }
     if (amount > availableToWithdraw) {
-      Alert.alert('Insufficient balance', `Available to withdraw: ${availableToWithdraw} ${wallet?.currency ?? 'SAR'}`)
+      Alert.alert(t('earnings.insufficient_balance_title'), t('earnings.available_to_withdraw').replace('{amount}', `${availableToWithdraw} ${wallet?.currency ?? 'SAR'}`))
       return
     }
 
@@ -288,15 +290,15 @@ export default function EarningsScreen() {
     if (error === 'Bank account required') {
       setBankAccount(null)
       Alert.alert(
-        'Banking details required',
-        'Please add your bank account details before requesting a withdrawal.',
-        [{ text: 'Add Now', onPress: openWithdrawModal }, { text: 'Cancel', style: 'cancel' }],
+        t('earnings.bank_required_title'),
+        t('earnings.bank_required_body'),
+        [{ text: t('earnings.add_now'), onPress: openWithdrawModal }, { text: t('common.cancel'), style: 'cancel' }],
       )
       return
     }
 
     if (error) {
-      Alert.alert('Error', error)
+      Alert.alert(t('plans.error_title'), error)
       return
     }
     if (!data) {
@@ -307,14 +309,14 @@ export default function EarningsScreen() {
     setPayoutAmt('')
 
     Alert.alert(
-      'Withdrawal requested',
-      'Your payout request has been submitted and will be processed within 1-3 business days.',
+      t('earnings.withdrawal_requested_title'),
+      t('earnings.withdrawal_requested_body'),
     )
     load(true)
   }
 
   const fmt = (n: number) =>
-    `${n.toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${wallet?.currency ?? 'SAR'}`
+    `${n.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${wallet?.currency ?? 'SAR'}`
 
   if (loading) {
     return (
@@ -339,9 +341,9 @@ export default function EarningsScreen() {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Text style={styles.backText}>← Back</Text>
+            <Text style={styles.backText}>{t('earnings.back')}</Text>
           </TouchableOpacity>
-          <Text style={styles.title}>Earnings</Text>
+          <Text style={styles.title}>{t('earnings.title')}</Text>
         </View>
 
         {/* Wallet cards */}
@@ -349,20 +351,20 @@ export default function EarningsScreen() {
           <View style={[styles.statCard, styles.statHighlight]}>
             <Text style={styles.statIcon}>💰</Text>
             <Text style={[styles.statValue, { color: Colors.brand[700] }]}>{fmt(availableToWithdraw)}</Text>
-            <Text style={styles.statLabel}>Available</Text>
+            <Text style={styles.statLabel}>{t('earnings.available')}</Text>
             {pendingAmount > 0 && (
-              <Text style={styles.pendingLock}>🔒 {fmt(pendingAmount)} pending</Text>
+              <Text style={styles.pendingLock}>🔒 {fmt(pendingAmount)} {t('earnings.pending')}</Text>
             )}
           </View>
           <View style={styles.statCard}>
             <Text style={styles.statIcon}>📈</Text>
             <Text style={styles.statValue}>{fmt(wallet?.total_earned ?? 0)}</Text>
-            <Text style={styles.statLabel}>Total Earned</Text>
+            <Text style={styles.statLabel}>{t('earnings.total_earned')}</Text>
           </View>
           <View style={styles.statCard}>
             <Text style={styles.statIcon}>🏦</Text>
             <Text style={styles.statValue}>{fmt(wallet?.total_withdrawn ?? 0)}</Text>
-            <Text style={styles.statLabel}>Withdrawn</Text>
+            <Text style={styles.statLabel}>{t('earnings.withdrawn')}</Text>
           </View>
         </View>
 
@@ -370,9 +372,9 @@ export default function EarningsScreen() {
         {!bankAccount ? (
           <TouchableOpacity style={styles.bankBanner} onPress={openWithdrawModal}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.bankBannerTitle}>Add banking details to withdraw</Text>
+              <Text style={styles.bankBannerTitle}>{t('earnings.add_bank_title')}</Text>
               <Text style={styles.bankBannerSub}>
-                Save your IBAN and bank info once — then withdraw in seconds.
+                {t('earnings.add_bank_sub')}
               </Text>
             </View>
             <Text style={styles.bankBannerArrow}>→</Text>
@@ -383,7 +385,7 @@ export default function EarningsScreen() {
               <Text style={styles.bankCardTitle}>
                 {bankAccount.bank_name}
                 {bankAccount.is_verified && (
-                  <Text style={styles.verifiedBadge}> ✓ Verified</Text>
+                  <Text style={styles.verifiedBadge}> ✓ {t('earnings.verified')}</Text>
                 )}
               </Text>
               <Text style={styles.bankCardIban}>
@@ -392,7 +394,7 @@ export default function EarningsScreen() {
               <Text style={styles.bankCardHolder}>{bankAccount.account_holder_name}</Text>
             </View>
             <TouchableOpacity onPress={openEditBankAccount}>
-              <Text style={styles.editLink}>Edit</Text>
+              <Text style={styles.editLink}>{t('common.edit')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -407,24 +409,24 @@ export default function EarningsScreen() {
           onPress={openWithdrawModal}
         >
           <Text style={styles.payoutBtnText}>
-            {bankAccount ? 'Withdraw Funds' : 'Add Banking Details First'}
+            {bankAccount ? t('earnings.withdraw_funds') : t('earnings.add_bank_first')}
           </Text>
         </TouchableOpacity>
 
         {/* Ledger */}
-        <Text style={styles.sectionTitle}>Transaction History</Text>
+        <Text style={styles.sectionTitle}>{t('earnings.transaction_history')}</Text>
         {ledger.length === 0 ? (
           <View style={styles.emptyBox}>
             <Text style={{ fontSize: 32 }}>📭</Text>
-            <Text style={styles.emptyText}>No transactions yet.</Text>
-            <Text style={styles.emptySubText}>Revenue from donations and ticket sales will appear here.</Text>
+            <Text style={styles.emptyText}>{t('earnings.empty_transactions')}</Text>
+            <Text style={styles.emptySubText}>{t('earnings.empty_transactions_sub')}</Text>
           </View>
         ) : (
           <View style={styles.card}>
             {ledger.map((entry, i) => (
               <View key={entry.id} style={[styles.ledgerRow, i > 0 && styles.borderTop]}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.ledgerReason}>{REASON_LABELS[entry.reason] ?? entry.reason}</Text>
+                  <Text style={styles.ledgerReason}>{REASON_LABEL_KEYS[entry.reason] ? t(REASON_LABEL_KEYS[entry.reason]) : entry.reason}</Text>
                   {entry.note && <Text style={styles.ledgerNote}>{entry.note}</Text>}
                   <Text style={styles.ledgerDate}>{new Date(entry.created_at).toLocaleDateString()}</Text>
                 </View>
@@ -439,7 +441,7 @@ export default function EarningsScreen() {
         {/* Payout history */}
         {payouts.length > 0 && (
           <>
-            <Text style={styles.sectionTitle}>Payout History</Text>
+            <Text style={styles.sectionTitle}>{t('earnings.payout_history')}</Text>
             <View style={styles.card}>
               {payouts.map((p, i) => (
                 <View key={p.id} style={[styles.ledgerRow, i > 0 && styles.borderTop]}>
@@ -465,30 +467,30 @@ export default function EarningsScreen() {
 
             {modalMode === 'payout' ? (
               <>
-                <Text style={styles.modalTitle}>Withdraw Funds</Text>
-                <Text style={styles.modalSub}>Available: {fmt(availableToWithdraw)}</Text>
+                <Text style={styles.modalTitle}>{t('earnings.withdraw_funds')}</Text>
+                <Text style={styles.modalSub}>{t('earnings.available')}: {fmt(availableToWithdraw)}</Text>
 
                 {bankAccount && (
                   <View style={styles.modalBankSummary}>
-                    <Text style={styles.modalBankSummaryTitle}>To: {bankAccount.bank_name}</Text>
+                    <Text style={styles.modalBankSummaryTitle}>{t('earnings.to_bank').replace('{bank}', bankAccount.bank_name)}</Text>
                     <Text style={styles.modalBankSummaryIban}>
                       {bankAccount.iban.replace(/(.{4})/g, '$1 ').trim()}
                     </Text>
                   </View>
                 )}
 
-                <Text style={styles.inputLabel}>Amount ({wallet?.currency ?? 'SAR'}) *</Text>
+                <Text style={styles.inputLabel}>{t('earnings.amount_label').replace('{currency}', wallet?.currency ?? 'SAR')}</Text>
                 <TextInput
                   style={styles.input}
                   value={payoutAmt}
                   onChangeText={setPayoutAmt}
                   keyboardType="decimal-pad"
-                  placeholder={`Max ${availableToWithdraw}`}
+                  placeholder={t('earnings.max_amount').replace('{amount}', String(availableToWithdraw))}
                   placeholderTextColor={Colors.gray[400]}
                 />
 
                 <Text style={styles.payoutNote}>
-                  ℹ️ Payouts are processed within 1-3 business days.
+                  {t('earnings.payout_note')}
                 </Text>
 
                 <View style={styles.modalActions}>
@@ -499,24 +501,24 @@ export default function EarningsScreen() {
                   >
                     {submitting
                       ? <ActivityIndicator color={Colors.white} />
-                      : <Text style={styles.confirmBtnText}>Request Withdrawal</Text>
+                      : <Text style={styles.confirmBtnText}>{t('earnings.request_withdrawal')}</Text>
                     }
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowModal(false)}>
-                    <Text style={styles.cancelBtnText}>Cancel</Text>
+                    <Text style={styles.cancelBtnText}>{t('common.cancel')}</Text>
                   </TouchableOpacity>
                 </View>
               </>
             ) : (
               <>
                 <Text style={styles.modalTitle}>
-                  {bankAccount ? 'Edit Banking Details' : 'Add Banking Details'}
+                  {bankAccount ? t('earnings.edit_bank') : t('earnings.add_bank')}
                 </Text>
                 <Text style={styles.modalSub}>
-                  Saved securely and used for all your withdrawals.
+                  {t('earnings.bank_modal_sub')}
                 </Text>
 
-                <Text style={styles.inputLabel}>Bank Name (English) *</Text>
+                <Text style={styles.inputLabel}>{t('earnings.bank_name_en')}</Text>
                 <TextInput
                   style={styles.input}
                   value={bankForm.bank_name}
@@ -525,7 +527,7 @@ export default function EarningsScreen() {
                   placeholderTextColor={Colors.gray[400]}
                 />
 
-                <Text style={styles.inputLabel}>اسم البنك (Arabic)</Text>
+                <Text style={styles.inputLabel}>{t('earnings.bank_name_ar')}</Text>
                 <TextInput
                   style={[styles.input, { textAlign: 'right' }]}
                   value={bankForm.bank_name_ar}
@@ -534,7 +536,7 @@ export default function EarningsScreen() {
                   placeholderTextColor={Colors.gray[400]}
                 />
 
-                <Text style={styles.inputLabel}>Account Holder Name *</Text>
+                <Text style={styles.inputLabel}>{t('earnings.account_holder')}</Text>
                 <TextInput
                   style={styles.input}
                   value={bankForm.account_holder_name}
@@ -543,7 +545,7 @@ export default function EarningsScreen() {
                   placeholderTextColor={Colors.gray[400]}
                 />
 
-                <Text style={styles.inputLabel}>IBAN *</Text>
+                <Text style={styles.inputLabel}>{t('earnings.iban')}</Text>
                 <TextInput
                   style={styles.input}
                   value={bankForm.iban}
@@ -553,7 +555,7 @@ export default function EarningsScreen() {
                   autoCapitalize="characters"
                 />
 
-                <Text style={styles.inputLabel}>SWIFT / BIC Code</Text>
+                <Text style={styles.inputLabel}>{t('earnings.swift')}</Text>
                 <TextInput
                   style={styles.input}
                   value={bankForm.swift_code}
@@ -571,11 +573,11 @@ export default function EarningsScreen() {
                   >
                     {submitting
                       ? <ActivityIndicator color={Colors.white} />
-                      : <Text style={styles.confirmBtnText}>Save Details</Text>
+                      : <Text style={styles.confirmBtnText}>{t('earnings.save_details')}</Text>
                     }
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowModal(false)}>
-                    <Text style={styles.cancelBtnText}>Cancel</Text>
+                    <Text style={styles.cancelBtnText}>{t('common.cancel')}</Text>
                   </TouchableOpacity>
                 </View>
               </>

@@ -9,6 +9,7 @@ import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/auth-context'
+import { useLocale } from '@/contexts/locale-context'
 import { EventCard } from '@/components/events/EventCard'
 import { ScreenLoader } from '@/components/ui/ScreenLoader'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
@@ -39,27 +40,22 @@ interface FollowedOrganizer { id: string; name: string }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const WELCOME: Bubble = {
-  id: 'welcome',
-  role: 'bot',
-  text: "Hey! 👋 I'm your Smart Picks guide. I'll find events you'll genuinely love — including hot deals 🔥, featured picks ✨, and community events 🤝.\n\nLet's start — which city are you in? 🌍",
-}
-
-const QUICK_REPLIES = [
-  { label: '🔥 Hot deals', text: 'Show me events with hot offers or discounts' },
-  { label: '✨ Featured', text: 'Show me featured or trending events' },
-  { label: '🤝 Community events', text: 'Show me community events near me' },
-  { label: '🆓 Free events', text: "I'm only interested in free events" },
-]
-
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function DiscoverScreen() {
   const router  = useRouter()
   const insets  = useSafeAreaInsets()
   const { user } = useAuth()
+  const { t } = useLocale()
+  const welcome: Bubble = { id: 'welcome', role: 'bot', text: t('smart_picks.welcome') }
+  const quickReplies = [
+    { label: t('smart_picks.hot_deals'), text: t('smart_picks.hot_deals_text') },
+    { label: t('smart_picks.featured'), text: t('smart_picks.featured_text') },
+    { label: t('smart_picks.community_events'), text: t('smart_picks.community_events_text') },
+    { label: t('smart_picks.free_events'), text: t('smart_picks.free_events_text') },
+  ]
 
-  const [bubbles,   setBubbles]   = useState<Bubble[]>([WELCOME])
+  const [bubbles,   setBubbles]   = useState<Bubble[]>([welcome])
   const [history,   setHistory]   = useState<ChatMessage[]>([])
   const [input,     setInput]     = useState('')
   const [sending,   setSending]   = useState(false)
@@ -100,7 +96,7 @@ export default function DiscoverScreen() {
         name:
           row.organizer?.organizer_profile?.business_name ||
           row.organizer?.display_name ||
-          'Unknown',
+          t('smart_picks.unknown_organizer'),
       }))
       setOrganizers(mapped)
     }
@@ -148,7 +144,7 @@ export default function DiscoverScreen() {
       })
 
       const json = await res.json()
-      if (!res.ok) throw new Error(json.error ?? 'Request failed')
+      if (!res.ok) throw new Error(json.error ?? t('smart_picks.request_failed'))
 
       const { reply, events, done: isDone, isFallback } = json.data as {
         reply: string
@@ -181,12 +177,12 @@ export default function DiscoverScreen() {
     } catch {
       setBubbles((prev) => [
         ...prev,
-        { id: (Date.now() + 1).toString(), role: 'bot', text: "Sorry, something went wrong. Please try again. 😔" },
+        { id: (Date.now() + 1).toString(), role: 'bot', text: t('smart_picks.error_reply') },
       ])
     } finally {
       setSending(false)
     }
-  }, [input, sending, history, organizers])
+  }, [input, sending, history, organizers, t, user?.id])
 
   // ── Restart ──────────────────────────────────────────────────────────────
   async function restart() {
@@ -194,7 +190,7 @@ export default function DiscoverScreen() {
       AsyncStorage.removeItem(STORAGE_KEY_MESSAGES),
       AsyncStorage.removeItem(STORAGE_KEY_HISTORY),
     ])
-    setBubbles([WELCOME])
+    setBubbles([welcome])
     setHistory([])
     setDone(false)
     setInput('')
@@ -207,10 +203,10 @@ export default function DiscoverScreen() {
         <View style={styles.eventsBlock}>
           <View style={styles.eventsLabelRow}>
             <Text style={styles.eventsLabel}>
-              {item.isFallback ? '🔄 Closest matches for you' : '✨ Events picked for you'}
+              {item.isFallback ? t('smart_picks.closest_matches') : t('smart_picks.events_picked')}
             </Text>
             {item.isFallback && (
-              <Text style={styles.fallbackHint}>Not exact — you can keep chatting to refine</Text>
+              <Text style={styles.fallbackHint}>{t('smart_picks.fallback_hint')}</Text>
             )}
           </View>
           {(item.events ?? []).map((event) => (
@@ -250,11 +246,13 @@ export default function DiscoverScreen() {
           <Ionicons name="arrow-back" size={22} color={Colors.gray[900]} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>Smart Picks</Text>
+          <Text style={styles.headerTitle}>{t('smart_picks.title')}</Text>
           <Text style={styles.headerSub}>
             {organizers.length > 0
-              ? `Following ${organizers.length} organizer${organizers.length > 1 ? 's' : ''} · AI ✨`
-              : 'Powered by AI ✨'}
+              ? t('smart_picks.following')
+                .replace('{count}', String(organizers.length))
+                .replace('{plural}', organizers.length > 1 ? 's' : '')
+              : t('smart_picks.powered')}
           </Text>
         </View>
         <TouchableOpacity onPress={restart} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -264,7 +262,7 @@ export default function DiscoverScreen() {
 
       {/* Message list */}
       {!hydrated
-        ? <ScreenLoader fullScreen label="Loading Smart Picks" />
+        ? <ScreenLoader fullScreen label={t('smart_picks.loading')} />
         : (
           <FlatList
             ref={listRef}
@@ -280,7 +278,7 @@ export default function DiscoverScreen() {
       {/* Quick-reply chips — shown only at conversation start */}
       {bubbles.length === 1 && !sending && !done && (
         <View style={styles.quickReplies}>
-          {QUICK_REPLIES.map((qr) => (
+          {quickReplies.map((qr) => (
             <TouchableOpacity
               key={qr.label}
               style={styles.quickReplyChip}
@@ -297,7 +295,7 @@ export default function DiscoverScreen() {
       <View style={[styles.inputRow, { paddingBottom: insets.bottom + Spacing.sm }]}>
         <TextInput
           style={[styles.input, done && styles.inputDone]}
-          placeholder={done ? 'Tap ↺ to start over…' : 'Type your reply…'}
+          placeholder={done ? t('smart_picks.restart_placeholder') : t('smart_picks.reply_placeholder')}
           placeholderTextColor={Colors.gray[400]}
           value={input}
           onChangeText={setInput}

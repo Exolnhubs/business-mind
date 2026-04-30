@@ -136,10 +136,10 @@ export default function ProfileScreen() {
         .update({ avatar_url: publicUrl })
         .eq('id', user.id)
 
-      if (updateError) { Alert.alert('Save failed', updateError.message); return }
+      if (updateError) { Alert.alert(t('profile.save_failed'), updateError.message); return }
       await refreshProfile()
     } catch (e: unknown) {
-      Alert.alert('Upload failed', e instanceof Error ? e.message : 'Please try again.')
+      Alert.alert(t('profile.upload_failed'), e instanceof Error ? e.message : t('profile.try_again'))
     } finally {
       setAvatarUploading(false)
     }
@@ -184,7 +184,7 @@ export default function ProfileScreen() {
     if (error) {
       setEmailMsg({ ok: false, text: error.message })
     } else {
-      setEmailMsg({ ok: true, text: `Confirmation sent to ${trimmed}. Tap the link in that email to confirm.` })
+      setEmailMsg({ ok: true, text: t('profile.email_confirmation_sent').replace('{email}', trimmed) })
       setNewEmail('')
     }
     setEmailChanging(false)
@@ -197,18 +197,18 @@ export default function ProfileScreen() {
     if (enabled) {
       const notifications = Notifications
       if (IS_ANDROID_EXPO_GO) {
-        Alert.alert('Not supported', 'Push notifications on Android require a development build, not Expo Go.')
+        Alert.alert(t('profile.not_supported'), t('profile.android_push_requires_build'))
         setPushLoading(false)
         return
       }
       if (!notifications) {
-        Alert.alert('Push notifications unavailable', 'Notifications are not available in this environment.')
+        Alert.alert(t('profile.push_unavailable'), t('profile.notifications_unavailable_env'))
         setPushLoading(false)
         return
       }
 
       if (!Device.isDevice) {
-        Alert.alert('Push notifications require a real device')
+        Alert.alert(t('profile.push_requires_device'))
         setPushLoading(false)
         return
       }
@@ -220,7 +220,7 @@ export default function ProfileScreen() {
         finalStatus = status
       }
       if (finalStatus !== 'granted') {
-        Alert.alert('Notifications blocked', 'Enable notifications in your device settings.')
+        Alert.alert(t('profile.notifications_blocked'), t('profile.enable_notifications_settings'))
         setPushLoading(false)
         return
       }
@@ -233,7 +233,7 @@ export default function ProfileScreen() {
       try {
         token = await notifications.getExpoPushTokenAsync(projectId ? { projectId } : {})
       } catch {
-        Alert.alert('Push notifications unavailable', 'Could not register this device.')
+        Alert.alert(t('profile.push_unavailable'), t('profile.device_registration_failed'))
         setPushLoading(false)
         return
       }
@@ -281,7 +281,7 @@ export default function ProfileScreen() {
           ? Boolean(preferences.show_smart_picks_trigger)
           : true,
       )
-      Alert.alert('Could not update setting', error.message)
+      Alert.alert(t('profile.setting_update_failed'), error.message)
     } else {
       await refreshProfile()
     }
@@ -296,7 +296,7 @@ export default function ProfileScreen() {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync()
       if (status !== 'granted') {
-        setLocMsg({ ok: false, text: 'Location permission denied. Enable it in your device settings.' })
+        setLocMsg({ ok: false, text: t('profile.location_permission_denied') })
         return
       }
       const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
@@ -320,10 +320,10 @@ export default function ProfileScreen() {
         setLocMsg({ ok: false, text: error.message })
       } else {
         await refreshProfile()
-        setLocMsg({ ok: true, text: `Location set to ${city ?? 'your area'}.` })
+        setLocMsg({ ok: true, text: t('profile.location_set').replace('{city}', city ?? t('profile.your_area')) })
       }
     } catch (e: unknown) {
-      setLocMsg({ ok: false, text: e instanceof Error ? e.message : 'Could not detect location.' })
+      setLocMsg({ ok: false, text: e instanceof Error ? e.message : t('profile.location_detect_failed') })
     } finally {
       setLocating(false)
     }
@@ -342,7 +342,7 @@ export default function ProfileScreen() {
     } else {
       setOrgRequest(data)
       setShowOrgForm(false)
-      setOrgMsg({ ok: true, text: 'Request submitted! Our team will review it shortly.' })
+      setOrgMsg({ ok: true, text: t('profile.org_request_submitted') })
     }
     setOrgSubmitting(false)
   }
@@ -382,6 +382,13 @@ export default function ProfileScreen() {
     .toUpperCase()
 
   const genderLocked = !!profile?.gender
+  const planName = {
+    user_free: t('profile.plan_free'),
+    user_premium: t('profile.plan_premium'),
+    org_basic: t('profile.plan_basic'),
+    org_pro: t('profile.plan_pro'),
+    org_elite: t('profile.plan_elite'),
+  }[profile?.plan_id ?? ''] ?? t('profile.plan_free')
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -412,7 +419,7 @@ export default function ProfileScreen() {
               : <Text style={styles.cityPinText}>📍</Text>
             }
             <Text style={[styles.city, { marginTop: 0, marginLeft: 4 }]}>
-              {locating ? 'Detecting…' : (profile?.city ?? 'Tap to set location')}
+              {locating ? t('profile.detecting') : (profile?.city ?? t('profile.tap_to_set_location'))}
             </Text>
           </TouchableOpacity>
           {profile?.gender && (
@@ -447,7 +454,7 @@ export default function ProfileScreen() {
                 style={styles.input}
                 value={displayName}
                 onChangeText={setDisplayName}
-                placeholder="Your name"
+                placeholder={t('profile.your_name_placeholder')}
                 placeholderTextColor={Colors.gray[400]}
                 maxLength={80}
               />
@@ -458,12 +465,12 @@ export default function ProfileScreen() {
               {profile?.city ? (
                 <View style={styles.lockedRow}>
                   <Text style={styles.lockedText}>📍 {profile.city}</Text>
-                  <Text style={styles.lockedNote}>Detected from your location</Text>
+                  <Text style={styles.lockedNote}>{t('profile.detected_from_location')}</Text>
                 </View>
               ) : (
                 <View style={{ gap: Spacing.xs }}>
                   <Text style={[styles.lockedNote, { marginBottom: Spacing.xs }]}>
-                    City is detected from your live location and cannot be typed manually.
+                    {t('profile.city_location_note')}
                   </Text>
                   <TouchableOpacity
                     style={[styles.chip, { paddingHorizontal: Spacing.lg, alignSelf: 'flex-start' }]}
@@ -472,7 +479,7 @@ export default function ProfileScreen() {
                   >
                     {locating
                       ? <ActivityIndicator size="small" color={Colors.brand[600]} />
-                      : <Text style={styles.chipText}>📍 {locating ? 'Detecting…' : 'Detect my location'}</Text>
+                      : <Text style={styles.chipText}>📍 {locating ? t('profile.detecting') : t('profile.detect_my_location')}</Text>
                     }
                   </TouchableOpacity>
                   {locMsg && (
@@ -518,7 +525,7 @@ export default function ProfileScreen() {
                 style={[styles.input, styles.inputMulti]}
                 value={bio}
                 onChangeText={setBio}
-                placeholder="Tell others about yourself…"
+                placeholder={t('profile.bio_placeholder')}
                 placeholderTextColor={Colors.gray[400]}
                 multiline
                 numberOfLines={3}
@@ -528,7 +535,7 @@ export default function ProfileScreen() {
             </View>
 
             <View style={styles.fieldWrap}>
-              <Text style={styles.fieldLabel}>Phone Number</Text>
+              <Text style={styles.fieldLabel}>{t('profile.phone_number')}</Text>
               <TextInput
                 style={styles.input}
                 value={phone}
@@ -561,11 +568,11 @@ export default function ProfileScreen() {
 
         {/* Email Change */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Account Security</Text>
+          <Text style={styles.sectionTitle}>{t('profile.account_security')}</Text>
           <View style={styles.fieldWrap}>
-            <Text style={styles.fieldLabel}>Change Email</Text>
+            <Text style={styles.fieldLabel}>{t('profile.change_email')}</Text>
             <Text style={[styles.fieldLabel, { textTransform: 'none', letterSpacing: 0, color: Colors.gray[500], marginTop: 0 }]}>
-              Current: {user.email}
+              {t('profile.current_email').replace('{email}', user.email ?? '')}
             </Text>
             <TextInput
               style={[styles.input, { marginTop: Spacing.xs }]}
@@ -588,7 +595,7 @@ export default function ProfileScreen() {
             >
               {emailChanging
                 ? <ActivityIndicator color={Colors.white} />
-                : <Text style={styles.saveBtnText}>Send Confirmation</Text>
+                : <Text style={styles.saveBtnText}>{t('profile.send_confirmation')}</Text>
               }
             </TouchableOpacity>
           </View>
@@ -597,13 +604,13 @@ export default function ProfileScreen() {
         {/* My Plan */}
         {/* Refer & Earn */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Rewards</Text>
+          <Text style={styles.sectionTitle}>{t('profile.rewards')}</Text>
           <TouchableOpacity style={styles.row} onPress={() => router.push('/referral' as never)}>
             <View style={styles.rowLeft}>
               <Text style={styles.rowIcon}>🎁</Text>
               <View>
-                <Text style={styles.rowLabel}>Refer &amp; Earn</Text>
-                <Text style={[styles.rowValue, { fontSize: 11 }]}>Invite friends · earn discount coupons</Text>
+                <Text style={styles.rowLabel}>{t('profile.refer_earn')}</Text>
+                <Text style={[styles.rowValue, { fontSize: 11 }]}>{t('profile.refer_earn_sub')}</Text>
               </View>
             </View>
             <Ionicons name="chevron-forward" size={16} color={Colors.gray[400]} />
@@ -611,20 +618,14 @@ export default function ProfileScreen() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Subscription</Text>
+          <Text style={styles.sectionTitle}>{t('profile.subscription')}</Text>
           <TouchableOpacity style={styles.row} onPress={() => router.push('/plans')}>
             <View style={styles.rowLeft}>
               <Text style={styles.rowIcon}>💎</Text>
               <View>
-                <Text style={styles.rowLabel}>My Plan</Text>
+                <Text style={styles.rowLabel}>{t('profile.my_plan')}</Text>
                 <Text style={[styles.rowValue, { fontSize: 11 }]}>
-                  {{
-                    user_free: 'Free',
-                    user_premium: 'Premium',
-                    org_basic: 'Basic',
-                    org_pro: 'Pro',
-                    org_elite: 'Elite',
-                  }[profile?.plan_id ?? ''] ?? 'Free'}
+                  {planName}
                 </Text>
               </View>
             </View>
@@ -666,8 +667,8 @@ export default function ProfileScreen() {
             <View style={styles.rowLeft}>
               <Text style={styles.rowIcon}>✨</Text>
               <View style={styles.rowTextWrap}>
-                <Text style={styles.rowLabel}>Show Smart Picks button</Text>
-                <Text style={[styles.rowValue, { fontSize: 11 }]}>Display the AI recommendations shortcut on Home</Text>
+                <Text style={styles.rowLabel}>{t('profile.smart_picks_toggle')}</Text>
+                <Text style={[styles.rowValue, { fontSize: 11 , textAlign: 'left' }]}>{t('profile.smart_picks_toggle_sub')}</Text>
               </View>
             </View>
             {smartPicksLoading
@@ -686,8 +687,8 @@ export default function ProfileScreen() {
             <View style={styles.rowLeft}>
               <Text style={styles.rowIcon}>🎧</Text>
               <View>
-                <Text style={styles.rowLabel}>Contact Support</Text>
-                <Text style={[styles.rowValue, { fontSize: 11 }]}>AI-powered help & ticket escalation</Text>
+                <Text style={styles.rowLabel}>{t('profile.contact_support')}</Text>
+                <Text style={[styles.rowValue, { fontSize: 11 }]}>{t('profile.contact_support_sub')}</Text>
               </View>
             </View>
             <Text style={styles.rowArrow}>›</Text>
@@ -697,16 +698,16 @@ export default function ProfileScreen() {
         {/* Become an Organizer */}
         {profile?.role === 'user' && orgRequest !== undefined && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Organizer</Text>
+            <Text style={styles.sectionTitle}>{t('profile.organizer_section')}</Text>
 
             {orgRequest?.status === 'pending' ? (
               <View style={styles.row}>
                 <View style={styles.rowLeft}>
                   <Text style={styles.rowIcon}>⏳</Text>
                   <View>
-                    <Text style={styles.rowLabel}>Application Pending</Text>
+                    <Text style={styles.rowLabel}>{t('profile.application_pending')}</Text>
                     <Text style={[styles.rowValue, { fontSize: 11 }]}>
-                      Under review — we'll notify you when approved
+                      {t('profile.application_pending_sub')}
                     </Text>
                   </View>
                 </View>
@@ -720,9 +721,9 @@ export default function ProfileScreen() {
                   <View style={styles.rowLeft}>
                     <Text style={styles.rowIcon}>🏢</Text>
                     <View>
-                      <Text style={styles.rowLabel}>Become an Organizer</Text>
+                      <Text style={styles.rowLabel}>{t('profile.become_organizer')}</Text>
                       <Text style={[styles.rowValue, { fontSize: 11 }]}>
-                        {orgRequest?.status === 'rejected' ? 'Reapply for organizer access' : 'Host and manage events'}
+                        {orgRequest?.status === 'rejected' ? t('profile.reapply_organizer') : t('profile.host_manage_events')}
                       </Text>
                     </View>
                   </View>
@@ -732,23 +733,23 @@ export default function ProfileScreen() {
                 {showOrgForm && (
                   <View style={{ paddingHorizontal: Spacing.lg, paddingBottom: Spacing.md }}>
                     <View style={styles.fieldWrap}>
-                      <Text style={styles.fieldLabel}>Business / Organizer Name *</Text>
+                      <Text style={styles.fieldLabel}>{t('profile.business_name')}</Text>
                       <TextInput
                         style={styles.input}
                         value={businessName}
                         onChangeText={setBusinessName}
-                        placeholder="e.g. Riyadh Sports Club"
+                        placeholder={t('profile.business_name_placeholder')}
                         placeholderTextColor={Colors.gray[400]}
                         maxLength={120}
                       />
                     </View>
                     <View style={styles.fieldWrap}>
-                      <Text style={styles.fieldLabel}>About your organization (optional)</Text>
+                      <Text style={styles.fieldLabel}>{t('profile.org_about')}</Text>
                       <TextInput
                         style={[styles.input, styles.inputMulti]}
                         value={orgDesc}
                         onChangeText={setOrgDesc}
-                        placeholder="Describe what kind of events you organize…"
+                        placeholder={t('profile.org_about_placeholder')}
                         placeholderTextColor={Colors.gray[400]}
                         multiline
                         numberOfLines={3}
@@ -767,7 +768,7 @@ export default function ProfileScreen() {
                     >
                       {orgSubmitting
                         ? <ActivityIndicator color={Colors.white} />
-                        : <Text style={styles.saveBtnText}>Submit Request</Text>
+                        : <Text style={styles.saveBtnText}>{t('profile.submit_request')}</Text>
                       }
                     </TouchableOpacity>
                   </View>
@@ -797,7 +798,7 @@ export default function ProfileScreen() {
             <TouchableOpacity style={styles.row} onPress={() => router.push('/organizer/earnings')}>
               <View style={styles.rowLeft}>
                 <Text style={styles.rowIcon}>💰</Text>
-                <Text style={styles.rowLabel}>Earnings & Wallet</Text>
+                <Text style={styles.rowLabel}>{t('profile.earnings_wallet')}</Text>
               </View>
               <Text style={styles.rowArrow}>›</Text>
             </TouchableOpacity>
@@ -866,10 +867,10 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.gray[500], textTransform: 'uppercase', letterSpacing: 0.8, paddingHorizontal: Spacing.lg, paddingTop: Spacing.md, paddingBottom: Spacing.sm },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, borderTopWidth: 1, borderTopColor: Colors.gray[50] },
   rowLeft: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, flex: 1, minWidth: 0, paddingRight: Spacing.md },
-  rowTextWrap: { flex: 1, minWidth: 0 },
+  rowTextWrap: { flex: 1, minWidth: 0, gap: Spacing.xs, alignItems: 'flex-start' },
   rowIcon: { fontSize: 20 },
   rowLabel: { fontSize: FontSize.base, color: Colors.gray[800], flexShrink: 1 },
-  rowValue: { fontSize: FontSize.sm, color: Colors.gray[500], flexShrink: 1 },
+  rowValue: { fontSize: FontSize.sm, color: Colors.gray[500], flexShrink: 1,  },
   rowArrow: { fontSize: 22, color: Colors.gray[400] },
   signOutBtn: { margin: Spacing.lg, backgroundColor: Colors.white, borderRadius: Radius.lg, paddingVertical: Spacing.md, alignItems: 'center', ...Shadow.card },
   signOutText: { fontSize: FontSize.base, color: Colors.red.text, fontWeight: FontWeight.medium },

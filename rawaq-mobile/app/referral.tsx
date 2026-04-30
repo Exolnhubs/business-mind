@@ -7,6 +7,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { apiGet } from '@/lib/api'
+import { useLocale } from '@/contexts/locale-context'
 import { Colors, Spacing, Radius, FontSize, FontWeight } from '@/theme'
 import { TicketFlipLoader } from '@/components/ui/TicketFlipLoader'
 import type { UserCoupon } from '@/types/database'
@@ -23,6 +24,7 @@ interface ReferralData {
 export default function ReferralScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
+  const { t, locale } = useLocale()
   const [data, setData]     = useState<ReferralData | null>(null)
   const [loading, setLoading] = useState(true)
   const [copied, setCopied]   = useState(false)
@@ -38,7 +40,7 @@ export default function ReferralScreen() {
     if (!data) return
     try {
       await Share.share({
-        message: `Join me on Rawaq 🎟️ Discover and book amazing local events. Use my link:\n${data.referral_url}`,
+        message: t('referral.share_message').replace('{url}', data.referral_url),
         url:     data.referral_url,
       })
     } catch { /* user dismissed */ }
@@ -53,7 +55,7 @@ export default function ReferralScreen() {
 
   function copyCouponCode(code: string) {
     Clipboard.setString(code)
-    Alert.alert('Copied!', `Coupon code "${code}" copied to clipboard.`)
+    Alert.alert(t('referral.copied_title'), t('referral.copied_body').replace('{code}', code))
   }
 
   if (loading) {
@@ -70,7 +72,7 @@ export default function ReferralScreen() {
     return (
       <SafeAreaView edges={['top']} style={styles.safeArea}>
         <View style={styles.centered}>
-          <Text style={styles.errorText}>Could not load referral info.</Text>
+          <Text style={styles.errorText}>{t('referral.load_error')}</Text>
         </View>
       </SafeAreaView>
     )
@@ -88,31 +90,31 @@ export default function ReferralScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={20} color={Colors.gray[700]} />
         </TouchableOpacity>
-        <Text style={styles.title}>Refer &amp; Earn</Text>
+        <Text style={styles.title}>{t('referral.title')}</Text>
       </View>
 
       {/* Explainer */}
       <View style={styles.heroCard}>
-        <Text style={styles.heroTitle}>Invite friends, earn discounts 🎁</Text>
-        <Text style={styles.heroItem}>✅ Friend registers → <Text style={styles.bold}>15% off coupon</Text> for you</Text>
-        <Text style={styles.heroItem}>🎟️ First paid booking → <Text style={styles.bold}>25% off coupon</Text> for you</Text>
+        <Text style={styles.heroTitle}>{t('referral.hero_title')}</Text>
+        <Text style={styles.heroItem}>{t('referral.signup_reward')}</Text>
+        <Text style={styles.heroItem}>{t('referral.booking_reward')}</Text>
       </View>
 
       {/* Share link */}
       <View style={styles.card}>
-        <Text style={styles.label}>Your referral link</Text>
+        <Text style={styles.label}>{t('referral.link_label')}</Text>
         <View style={styles.linkRow}>
           <Text style={styles.linkText} numberOfLines={1}>{data.referral_url}</Text>
         </View>
-        <Text style={styles.codeHint}>Code: <Text style={styles.mono}>{data.code}</Text></Text>
+        <Text style={styles.codeHint}>{t('referral.code').replace('{code}', '')}<Text style={styles.mono}>{data.code}</Text></Text>
         <View style={styles.shareRow}>
           <TouchableOpacity style={styles.btnPrimary} onPress={handleShare}>
             <Ionicons name="share-outline" size={16} color={Colors.white} />
-            <Text style={styles.btnPrimaryText}>Share</Text>
+            <Text style={styles.btnPrimaryText}>{t('common.share')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.btnSecondary} onPress={handleCopy}>
             <Ionicons name={copied ? 'checkmark' : 'copy-outline'} size={16} color={Colors.brand[600]} />
-            <Text style={styles.btnSecondaryText}>{copied ? 'Copied!' : 'Copy link'}</Text>
+            <Text style={styles.btnSecondaryText}>{copied ? t('common.copied') : t('referral.copy_link')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -120,9 +122,9 @@ export default function ReferralScreen() {
       {/* Stats */}
       <View style={styles.statsRow}>
         {[
-          { label: 'Clicks',  value: data.clicks },
-          { label: 'Joined',  value: data.signups },
-          { label: 'Booked',  value: data.conversions },
+          { label: t('referral.clicks'),  value: data.clicks },
+          { label: t('referral.joined'),  value: data.signups },
+          { label: t('referral.booked'),  value: data.conversions },
         ].map(({ label, value }) => (
           <View key={label} style={styles.statCard}>
             <Text style={styles.statValue}>{value}</Text>
@@ -134,15 +136,15 @@ export default function ReferralScreen() {
       {/* Coupons */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Your Coupons</Text>
+          <Text style={styles.sectionTitle}>{t('referral.your_coupons')}</Text>
           {activeCoupons.length > 0 && (
             <View style={styles.activeBadge}>
-              <Text style={styles.activeBadgeText}>{activeCoupons.length} active</Text>
+              <Text style={styles.activeBadgeText}>{t('referral.active_count').replace('{count}', String(activeCoupons.length))}</Text>
             </View>
           )}
         </View>
         {data.coupons.length === 0 ? (
-          <Text style={styles.emptyText}>Share your link to start earning coupons.</Text>
+          <Text style={styles.emptyText}>{t('referral.empty')}</Text>
         ) : (
           data.coupons.map((coupon) => {
             const promo = coupon.promo
@@ -150,6 +152,16 @@ export default function ReferralScreen() {
             const isUsed    = promo.used_count >= 1
             const isExpired = new Date(coupon.expires_at) < new Date()
             const status    = isUsed ? 'used' : isExpired ? 'expired' : 'active'
+            const statusLabel = status === 'active'
+              ? t('referral.status_active')
+              : status === 'used'
+                ? t('referral.status_used')
+                : t('referral.status_expired')
+            const discountLabel = promo.discount_type === 'percent'
+              ? t('referral.discount_percent').replace('{value}', String(promo.discount_value))
+              : t('referral.discount_amount').replace('{value}', String(promo.discount_value))
+            const reasonLabel = coupon.reason === 'referral_signup' ? t('referral.signup_reason') : t('referral.booking_reason')
+            const expiryLabel = new Date(coupon.expires_at).toLocaleDateString(locale, { month: 'short', day: 'numeric', year: 'numeric' })
             return (
               <View key={coupon.id} style={[styles.couponCard, (isUsed || isExpired) && styles.couponFaded]}>
                 <View style={styles.couponLeft}>
@@ -164,21 +176,21 @@ export default function ReferralScreen() {
                         status === 'active' && { color: Colors.green.text },
                         status === 'used'   && { color: Colors.gray[400] },
                         status === 'expired'&& { color: Colors.red.text },
-                      ]}>{status}</Text>
+                      ]}>{statusLabel}</Text>
                     </View>
                   </View>
                   <Text style={styles.couponMeta}>
-                    {promo.discount_type === 'percent' ? `${promo.discount_value}% off` : `${promo.discount_value} off`}
+                    {discountLabel}
                     {' · '}
-                    {coupon.reason === 'referral_signup' ? 'Signup reward' : 'First booking reward'}
+                    {reasonLabel}
                   </Text>
                   <Text style={styles.couponExpiry}>
-                    Expires {new Date(coupon.expires_at).toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    {t('referral.expires').replace('{date}', expiryLabel)}
                   </Text>
                 </View>
                 {status === 'active' && (
                   <TouchableOpacity style={styles.copyBtn} onPress={() => copyCouponCode(promo.code)}>
-                    <Text style={styles.copyBtnText}>Copy</Text>
+                    <Text style={styles.copyBtnText}>{t('common.copy')}</Text>
                   </TouchableOpacity>
                 )}
               </View>
