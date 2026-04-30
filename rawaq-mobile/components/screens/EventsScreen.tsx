@@ -1493,7 +1493,7 @@ function FeaturedCarousel({
         scrollEventThrottle={16}
       >
         {events.map((ev) => (
-          <View key={ev.id} style={{ width: CARD_WIDTH }}>
+          <View key={ev.id} style={{ width: CARD_WIDTH  }}>
             <FeaturedCard event={ev} isSaved={savedIds.has(ev.id)} onSaveChange={onSaveChange} flat />
           </View>
         ))}
@@ -1584,7 +1584,7 @@ function FeaturedCard({
         )}
       </View>
       <View style={styles.featuredBody}>
-        <View style={styles.featuredTagsRow}>
+        <View style={styles.featuredTagsRow }>
           {event.is_free && <Badge label={t('events.free_badge')} variant="green" />}
           {hasHotOffer && <Badge label={t('events.hot_offer_badge')} variant="orange" />}
           {event.category && (
@@ -1594,11 +1594,11 @@ function FeaturedCard({
             />
           )}
         </View>
-        <Text style={[styles.featuredTitle, textDirStyle]} numberOfLines={2}>{title}</Text>
+        <Text style={[styles.featuredTitle, { textAlign: 'left' }]} numberOfLines={2}>{title}</Text>
         <View style={styles.featuredMeta}>
-          {dateLabel ? <Text style={[styles.featuredMetaText, textDirStyle]}>📅 {dateLabel}</Text> : null}
+          {dateLabel ? <Text style={[styles.featuredMetaText, { textAlign: 'left' }]}>📅 {dateLabel}</Text> : null}
           {(event.city || event.venue_name) ? (
-            <Text style={[styles.featuredMetaText, textDirStyle]} numberOfLines={1}>
+            <Text style={[styles.featuredMetaText, { textAlign: 'left' }]} numberOfLines={1}>
               📍 {event.city}{event.venue_name ? ` · ${event.venue_name}` : ''}
             </Text>
           ) : null}
@@ -1606,7 +1606,7 @@ function FeaturedCard({
         <View style={styles.featuredFooter}>
           <View style={{ flex: 1 }}>
             {spotsLeft !== null && spotsLeft >= 0 && (
-              <Text style={[styles.featuredSpotsText, textDirStyle]}>
+              <Text style={[styles.featuredSpotsText, { textAlign: 'left' }]}>
                 {event.bookings_count.toLocaleString()} {t('events.going')}{spotsLeft > 0 ? ` · ${spotsLeft} ${t('events.spots_left')}` : ` · ${t('events.full')}`}
               </Text>
             )}
@@ -1763,8 +1763,8 @@ function YourCommunitiesSection({ communities, onSeeAll }: { communities: Joined
   const textDirStyle = isRTL ? styles.rtlText : styles.ltrText
   return (
     <View style={styles.yourCommSection}>
-      <View style={styles.yourCommHeader}>
-        <Text style={[styles.yourCommTitle, textDirStyle]}>{t('events.your_communities')}</Text>
+      <View style={styles.yourCommHeader }>
+        <Text style={[styles.yourCommTitle, { textAlign: 'left' }]}>{t('events.your_communities')}</Text>
         <TouchableOpacity onPress={onSeeAll} hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}>
           <Text style={styles.yourCommSeeAll}>{t('events.see_all')}</Text>
         </TouchableOpacity>
@@ -1782,8 +1782,8 @@ function YourCommunitiesSection({ communities, onSeeAll }: { communities: Joined
               <View style={styles.yourCommAvatar}>
                 <Text style={styles.yourCommAvatarText}>{COMMUNITY_LEVEL_ICONS[c.level] ?? name.slice(0, 1).toUpperCase()}</Text>
               </View>
-              <Text style={[styles.yourCommName, textDirStyle]} numberOfLines={2}>{name}</Text>
-              <Text style={[styles.yourCommLevel, textDirStyle]}>{c.level}</Text>
+              <Text style={[styles.yourCommName, { textAlign: 'left' }]} numberOfLines={2}>{name}</Text>
+              <Text style={[styles.yourCommLevel, { textAlign: 'left' }]}>{c.level}</Text>
             </TouchableOpacity>
           )
         })}
@@ -1931,9 +1931,9 @@ function MixedDiscoveryRail({
   return (
     <View style={[styles.railSection, accent === 'weekend' && styles.railSectionWeekend, accent === 'community' && styles.railSectionCommunity, accent === 'active' && styles.railSectionActive]}>
       <View style={styles.railHeader}>
-        <Text style={[styles.railTitle, textDirStyle]}>{title}</Text>
+        <Text style={[styles.railTitle, { textAlign: 'left' }]}>{title}</Text>
         <View style={styles.railSubtitleRow}>
-          <Text style={[styles.railSubtitle, textDirStyle]}>{subtitle}</Text>
+          <Text style={[styles.railSubtitle, { textAlign: 'left' }]}>{subtitle}</Text>
           {radiusKm !== undefined && onRadiusChange && (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.radiusInlineScroll}>
               {WEEKEND_RADIUS_OPTIONS.map((km) => (
@@ -1979,8 +1979,8 @@ function MixedDiscoveryRail({
           ))
         ) : (
           <View style={styles.railEmptyCard}>
-            <Text style={[styles.railEmptyTitle, textDirStyle]}>{emptyTitle ?? 'Nothing here yet'}</Text>
-            {emptyDescription ? <Text style={[styles.railEmptyDescription, textDirStyle]}>{emptyDescription}</Text> : null}
+            <Text style={[styles.railEmptyTitle, { textAlign: 'left' }]}>{emptyTitle ?? 'Nothing here yet'}</Text>
+            {emptyDescription ? <Text style={[styles.railEmptyDescription, { textAlign: 'left' }]}>{emptyDescription}</Text> : null}
             {emptyActionLabel && onEmptyAction ? (
               <TouchableOpacity style={styles.railEmptyButton} onPress={onEmptyAction}>
                 <Text style={styles.railEmptyButtonText}>{emptyActionLabel}</Text>
