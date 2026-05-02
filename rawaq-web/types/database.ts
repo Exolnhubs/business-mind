@@ -278,6 +278,7 @@ export interface Booking {
   platform_fee_pct: number;
   platform_fee_amount: number;
   group_size: number;
+  payment_pending_until: string | null;
   created_at: string;
   updated_at: string;
 }
