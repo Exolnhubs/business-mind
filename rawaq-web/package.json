@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
+    "test": "echo 'No tests configured' && exit 0",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
@@ -39,6 +40,8 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "^15.2.9",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
     "typescript": "^5"
