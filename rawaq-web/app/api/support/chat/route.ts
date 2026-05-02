@@ -137,7 +137,7 @@ async function executeToolCall(
       .eq('reporter_id', userId)
       .order('created_at', { ascending: false })
 
-    return data ?? []
+    return { reports: data ?? [] }
   }
 
   return { error: 'Unknown tool' }
