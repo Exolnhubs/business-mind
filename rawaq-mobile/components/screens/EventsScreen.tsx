@@ -197,9 +197,8 @@ function resolveUpcomingEvents(rows: EventWithOrganizer[]) {
 }
 
 export default function EventsScreen() {
-  const { t, locale, isRTL } = useLocale()
-  const textDirStyle = isRTL ? styles.rtlText : styles.ltrText
-  const { user, profile } = useAuth()
+  const { t, locale } = useLocale()
+  const { user } = useAuth()
   const router = useRouter()
   const params = useLocalSearchParams<{ community?: string; reset?: string }>()
   const routeCommunitySlug = typeof params.community === 'string' ? params.community : null
@@ -1090,7 +1089,7 @@ export default function EventsScreen() {
             (debouncedSearch && (orgResults.length > 0 || comResults.length > 0))
               ? (
                 <View style={styles.searchResultsSection}>
-                  <Text style={[styles.searchResultsSectionLabel, textDirStyle]}>People &amp; Communities</Text>
+                  <Text style={[styles.searchResultsSectionLabel, {textAlign: 'left' }]}>People &amp; Communities</Text>
                   {orgResults.map((org) => {
                     const name = org.organizer_profile?.business_name || org.display_name
                     const initials = name.slice(0, 2).toUpperCase()
@@ -1107,8 +1106,8 @@ export default function EventsScreen() {
                             : <Text style={styles.searchResultAvatarInitial}>{initials}</Text>}
                         </View>
                         <View style={styles.searchResultBody}>
-                          <Text style={[styles.searchResultName, textDirStyle]} numberOfLines={1}>{name}</Text>
-                          {org.city ? <Text style={[styles.searchResultMeta, textDirStyle]} numberOfLines={1}>{org.city}</Text> : null}
+                          <Text style={[styles.searchResultName, {textAlign: 'left' }]} numberOfLines={1}>{name}</Text>
+                          {org.city ? <Text style={[styles.searchResultMeta, {textAlign: 'left' }]} numberOfLines={1}>{org.city}</Text> : null}
                         </View>
                         <View style={[styles.searchResultBadge, styles.searchResultBadgeOrganizer]}>
                           <Text style={styles.searchResultBadgeText}>Organizer</Text>
@@ -1130,8 +1129,8 @@ export default function EventsScreen() {
                           <Text style={styles.searchResultAvatarInitial}>{initials}</Text>
                         </View>
                         <View style={styles.searchResultBody}>
-                          <Text style={[styles.searchResultName, textDirStyle]} numberOfLines={1}>{name}</Text>
-                          <Text style={[styles.searchResultMeta, textDirStyle]}>{com.level} · {com.member_count.toLocaleString()} members</Text>
+                          <Text style={[styles.searchResultName, {textAlign: 'left' }]} numberOfLines={1}>{name}</Text>
+                          <Text style={[styles.searchResultMeta, {textAlign: 'left' }]}>{com.level} · {com.member_count.toLocaleString()} members</Text>
                         </View>
                         <View style={[styles.searchResultBadge, styles.searchResultBadgeCommunity]}>
                           <Text style={styles.searchResultBadgeText}>Community</Text>
@@ -1246,8 +1245,8 @@ export default function EventsScreen() {
                         <View style={styles.activeNowSection}>
                           <View style={styles.activeNowHeader}>
                             <View style={styles.activeNowDot} />
-                            <Text style={[styles.activeNowTitle, textDirStyle]}>{t('events.active_now')}</Text>
-                            <Text style={[styles.activeNowSub, textDirStyle]}>{t('events.active_now_sub')}</Text>
+                            <Text style={[styles.activeNowTitle, {textAlign: 'left' }]}>{t('events.active_now')}</Text>
+                            <Text style={[styles.activeNowSub, {textAlign: 'left' }]}>{t('events.active_now_sub')}</Text>
                           </View>
                           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: Spacing.lg, gap: Spacing.md }}>
                             {activeCommunities.map((c) => {
@@ -1264,8 +1263,8 @@ export default function EventsScreen() {
                                       <Text style={styles.activeNowAvatarText}>{COMMUNITY_LEVEL_ICONS[c.level] ?? name.slice(0, 1).toUpperCase()}</Text>
                                     </View>
                                   </View>
-                                  <Text style={[styles.activeNowName, textDirStyle]} numberOfLines={1}>{name}</Text>
-                                  <Text style={[styles.activeNowCount, textDirStyle]}>{c.happening_count} {c.happening_count !== 1 ? t('events.happenings') : t('events.happening')}</Text>
+                                  <Text style={[styles.activeNowName, {textAlign: 'left' }]} numberOfLines={1}>{name}</Text>
+                                  <Text style={[styles.activeNowCount, {textAlign: 'left' }]}>{c.happening_count} {c.happening_count !== 1 ? t('events.happenings') : t('events.happening')}</Text>
                                 </TouchableOpacity>
                               )
                             })}
@@ -1322,7 +1321,7 @@ export default function EventsScreen() {
                   {showRecommendationRails && (
                     <View>
                       <View style={styles.upcomingHeader}>
-                        <Text style={[styles.upcomingTitle, textDirStyle]}>{t('events.upcoming')}</Text>
+                        <Text style={[styles.upcomingTitle, {textAlign: 'left' }]}>{t('events.upcoming')}</Text>
                         <TouchableOpacity onPress={() => router.push('/events' as any)}>
                           <Text style={styles.upcomingSeeAll}>{t('events.see_all')}</Text>
                         </TouchableOpacity>
@@ -1528,7 +1527,6 @@ function FeaturedCard({
   const { locale, t, isRTL } = useLocale()
   const { user } = useAuth()
   const [saved, setSaved] = useState(isSaved)
-  const textDirStyle = isRTL ? styles.rtlText : styles.ltrText
   useEffect(() => { setSaved(isSaved) }, [isSaved])
 
   const title = locale === 'ar' && event.title_ar ? event.title_ar : event.title
@@ -1632,7 +1630,6 @@ function FeaturedCard({
 function HotOfferCard({ event }: { event: EventWithOrganizer }) {
   const router = useRouter()
   const { locale, isRTL } = useLocale()
-  const textDirStyle = isRTL ? styles.rtlText : styles.ltrText
   const title = locale === 'ar' && event.title_ar ? event.title_ar : event.title
   const now = new Date()
   const hotTicket = (event.ticket_types ?? []).find(
@@ -1661,7 +1658,7 @@ function HotOfferCard({ event }: { event: EventWithOrganizer }) {
         )}
       </View>
       <View style={styles.hotOfferBody}>
-        <Text style={[styles.hotOfferTitle, textDirStyle]} numberOfLines={2}>{title}</Text>
+        <Text style={[styles.hotOfferTitle, {textAlign: 'left' }]} numberOfLines={2}>{title}</Text>
         <View style={styles.hotOfferPriceRow}>
           {hotTicket?.hot_offer_price != null && (
             <Text style={styles.hotOfferPrice}>
@@ -1681,7 +1678,6 @@ function HotOfferCard({ event }: { event: EventWithOrganizer }) {
 
 function HotOffersRail({ events }: { events: EventWithOrganizer[] }) {
   const { t, isRTL } = useLocale()
-  const textDirStyle = isRTL ? styles.rtlText : styles.ltrText
   if (events.length === 0) return null
   return (
     <View style={styles.hotRailSection}>
@@ -1690,8 +1686,8 @@ function HotOffersRail({ events }: { events: EventWithOrganizer[] }) {
           <Text style={{ fontSize: 18 }}>🔥</Text>
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.hotRailEyebrow, textDirStyle]}>{t('events.limited_time')}</Text>
-          <Text style={[styles.hotRailTitle, textDirStyle]}>{t('events.hot_offers')}</Text>
+          <Text style={[styles.hotRailEyebrow, {textAlign: 'left' }]}>{t('events.limited_time')}</Text>
+          <Text style={[styles.hotRailTitle, {textAlign: 'left' }]}>{t('events.hot_offers')}</Text>
         </View>
         <View style={styles.hotRailBadge}>
           <Text style={styles.hotRailBadgeText}>{events.length} {events.length !== 1 ? t('events.deals') : t('events.deal')}</Text>
@@ -1709,13 +1705,12 @@ function HotOffersRail({ events }: { events: EventWithOrganizer[] }) {
 function SavedEventsRail({ events, onSeeAll }: { events: EventWithOrganizer[]; onSeeAll?: () => void }) {
   const router = useRouter()
   const { locale, t, isRTL } = useLocale()
-  const textDirStyle = isRTL ? styles.rtlText : styles.ltrText
   if (events.length === 0) return null
   return (
     <View style={styles.savedRailSection}>
       <View style={styles.savedRailHeader}>
         <View style={styles.savedRailTitleRow}>
-          <Text style={[styles.savedRailTitle, textDirStyle]}>{t('events.saved_rail')}</Text>
+          <Text style={[styles.savedRailTitle, {textAlign: 'left' }]}>{t('events.saved_rail')}</Text>
           <View style={styles.savedCountBadge}>
             <Text style={styles.savedCountText}>{events.length}</Text>
           </View>
@@ -1744,8 +1739,8 @@ function SavedEventsRail({ events, onSeeAll }: { events: EventWithOrganizer[]; o
                 }
               </View>
               <View style={styles.savedCardBody}>
-                <Text style={[styles.savedCardTitle, textDirStyle]} numberOfLines={2}>{title}</Text>
-                <Text style={[styles.savedCardMeta, textDirStyle]} numberOfLines={1}>📍 {ev.city}</Text>
+                <Text style={[styles.savedCardTitle, {textAlign: 'left' }]} numberOfLines={2}>{title}</Text>
+                <Text style={[styles.savedCardMeta, {textAlign: 'left' }]} numberOfLines={1}>📍 {ev.city}</Text>
               </View>
             </TouchableOpacity>
           )
@@ -1760,7 +1755,6 @@ function SavedEventsRail({ events, onSeeAll }: { events: EventWithOrganizer[]; o
 function YourCommunitiesSection({ communities, onSeeAll }: { communities: JoinedCommunity[]; onSeeAll: () => void }) {
   const router = useRouter()
   const { locale, t, isRTL } = useLocale()
-  const textDirStyle = isRTL ? styles.rtlText : styles.ltrText
   return (
     <View style={styles.yourCommSection}>
       <View style={styles.yourCommHeader }>
@@ -1791,7 +1785,7 @@ function YourCommunitiesSection({ communities, onSeeAll }: { communities: Joined
           <View style={styles.yourCommFindIcon}>
             <Ionicons name="add" size={20} color={Colors.brand[500]} />
           </View>
-          <Text style={[styles.yourCommFindText, textDirStyle]}>{t('events.find_communities')}</Text>
+          <Text style={[styles.yourCommFindText, {textAlign: 'left' }]}>{t('events.find_communities')}</Text>
         </TouchableOpacity>
       </ScrollView>
     </View>
@@ -1832,15 +1826,14 @@ function RecommendationRail({
   forceShow?: boolean
 }) {
   const { isRTL } = useLocale()
-  const textDirStyle = isRTL ? styles.rtlText : styles.ltrText
   if (!forceShow && events.length === 0) return null
 
   return (
     <View style={[styles.railSection, urgency && styles.railSectionUrgent, accent === 'weekend' && styles.railSectionWeekend, accent === 'community' && styles.railSectionCommunity]}>
       <View style={styles.railHeader}>
-        <Text style={[styles.railTitle, textDirStyle]}>{title}</Text>
+        <Text style={[styles.railTitle, {textAlign: 'left' }]}>{title}</Text>
         <View style={styles.railSubtitleRow}>
-          <Text style={[styles.railSubtitle, textDirStyle]}>{subtitle}</Text>
+          <Text style={[styles.railSubtitle, {textAlign: 'left' }]}>{subtitle}</Text>
           {radiusKm !== undefined && onRadiusChange && (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.radiusInlineScroll}>
               {WEEKEND_RADIUS_OPTIONS.map((km) => (
@@ -1875,8 +1868,8 @@ function RecommendationRail({
           ))
         ) : (
           <View style={styles.railEmptyCard}>
-            <Text style={[styles.railEmptyTitle, textDirStyle]}>{emptyTitle ?? 'Nothing here yet'}</Text>
-            {emptyDescription ? <Text style={[styles.railEmptyDescription, textDirStyle]}>{emptyDescription}</Text> : null}
+            <Text style={[styles.railEmptyTitle, {textAlign: 'left' }]}>{emptyTitle ?? 'Nothing here yet'}</Text>
+            {emptyDescription ? <Text style={[styles.railEmptyDescription, {textAlign: 'left' }]}>{emptyDescription}</Text> : null}
             {emptyActionLabel && onEmptyAction ? (
               <TouchableOpacity style={styles.railEmptyButton} onPress={onEmptyAction}>
                 <Text style={styles.railEmptyButtonText}>{emptyActionLabel}</Text>
@@ -1925,7 +1918,6 @@ function MixedDiscoveryRail({
   forceShow?: boolean
 }) {
   const { isRTL } = useLocale()
-  const textDirStyle = isRTL ? styles.rtlText : styles.ltrText
   if (!forceShow && items.length === 0) return null
 
   return (
