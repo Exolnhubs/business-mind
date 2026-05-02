@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { createClient } from "@supabase/supabase-js";
 import { handleApiError, ApiException } from "@/lib/errors";
+import { requireAuth } from "@/lib/auth";
+import { limiters, checkRateLimit } from "@/lib/rate-limit";
 import { isTransientGeminiError, runGeminiWithFallback } from "@/lib/gemini";
 import type { Database } from "@/types/database";
 
@@ -336,12 +338,15 @@ async function fetchUserContext(userId: string | null): Promise<UserContext> {
 
 export async function POST(req: NextRequest) {
   try {
+    const ctx = await requireAuth();
+    await checkRateLimit(limiters.recommendations, ctx.userId);
+
     const body = await req.json();
-    const { messages, followedOrganizers = [], userId = null } = body as {
+    const { messages, followedOrganizers = [] } = body as {
       messages: ChatMessage[];
       followedOrganizers?: { id: string; name: string }[];
-      userId?: string | null;
     };
+    const userId = ctx.userId;
 
     if (!Array.isArray(messages) || messages.length === 0) {
       return NextResponse.json(

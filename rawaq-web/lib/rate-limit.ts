@@ -24,6 +24,7 @@ export const limiters = {
   chat:                   sw(10,  '1 m',  'chat'),
   comments:               sw(15,  '1 m',  'comments'),
   supportChat:            sw(20,  '1 m',  'support:chat'),
+  recommendations:        sw(20,  '1 m',  'recommendations'),
   tips:                   sw(5,   '1 m',  'tips'),
   organizerReq:           sw(3,   '24 h', 'organizer:req'),
   reactions:              sw(30,  '1 m',  'reactions'),
