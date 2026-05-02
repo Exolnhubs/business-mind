@@ -16,7 +16,7 @@ const BodySchema = z.object({
 export async function POST(req: NextRequest) {
   try {
     const secret = process.env.INTERNAL_TRIGGER_SECRET
-    if (secret && req.headers.get('x-internal-trigger') !== secret) {
+    if (!secret || req.headers.get('x-internal-trigger') !== secret) {
       return new Response('Unauthorized', { status: 401 })
     }
 
