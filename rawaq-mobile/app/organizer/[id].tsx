@@ -4,9 +4,11 @@ import {
   Linking, ActivityIndicator, Alert,
 } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '@/lib/supabase'
 import { apiPost, apiDelete } from '@/lib/api'
 import { useAuth } from '@/contexts/auth-context'
+import { useLocale } from '@/contexts/locale-context'
 import { EventCard } from '@/components/events/EventCard'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Badge } from '@/components/ui/Badge'
@@ -28,6 +30,9 @@ export default function OrganizerProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const { user } = useAuth()
   const router = useRouter()
+  const insets = useSafeAreaInsets()
+  const { t, isRTL } = useLocale()
+  const textDirStyle = isRTL ? styles.rtlText : styles.ltrText
   const [data, setData] = useState<OrganizerData | null>(null)
   const [loading, setLoading] = useState(true)
   const [followLoading, setFollowLoading] = useState(false)
@@ -130,26 +135,27 @@ export default function OrganizerProfileScreen() {
   }
 
   if (loading) {
-    return <View style={styles.centered}><TicketFlipLoader size="md" /></View>
+    return <View style={[styles.centered, { paddingTop: insets.top }]}><TicketFlipLoader size="md" /></View>
   }
 
   if (!data) {
     return (
-      <View style={styles.centered}>
-        <Text style={{ color: Colors.gray[500] }}>Organizer not found</Text>
+      <View style={[styles.centered, { paddingTop: insets.top }]}>
+        <Text style={{ color: Colors.gray[500] }}>{t('organizer_profile.not_found')}</Text>
         <TouchableOpacity onPress={() => router.back()} style={{ marginTop: Spacing.md }}>
-          <Text style={{ color: Colors.brand[500] }}>← Go back</Text>
+          <Text style={{ color: Colors.brand[500] }}>{t('organizer_profile.go_back')}</Text>
         </TouchableOpacity>
       </View>
     )
   }
 
   const { profile, orgProfile, events, savedIds } = data
-  const displayName = orgProfile.business_name ?? profile.display_name
+  const displayName = (isRTL ? orgProfile.business_name_ar : null) ?? orgProfile.business_name ?? profile.display_name
+  const displayDescription = (isRTL && orgProfile.description_ar) ? orgProfile.description_ar : orgProfile.description
   const initials = displayName.split(' ').slice(0, 2).map((w: string) => w[0]).join('').toUpperCase()
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top }]} showsVerticalScrollIndicator={false}>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.avatar}>
@@ -157,14 +163,14 @@ export default function OrganizerProfileScreen() {
         </View>
         <View style={{ flex: 1 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: Spacing.xs }}>
-            <Text style={styles.name}>{displayName}</Text>
-            {orgProfile.verified && <Badge label="✅ Verified" variant="green" />}
+            <Text style={[styles.name, textDirStyle]}>{displayName}</Text>
+            {orgProfile.verified && <Badge label={t('organizer_profile.verified')} variant="green" />}
           </View>
-          {orgProfile.business_name_ar && (
-            <Text style={[styles.nameAr]} numberOfLines={1}>{orgProfile.business_name_ar}</Text>
+          {!isRTL && orgProfile.business_name_ar && (
+            <Text style={styles.nameAr} numberOfLines={1}>{orgProfile.business_name_ar}</Text>
           )}
-          {profile.city && <Text style={styles.meta}>📍 {profile.city}</Text>}
-          <Text style={styles.since}>Member since {formatDate(profile.created_at)}</Text>
+          {profile.city && <Text style={[styles.meta, textDirStyle]}>📍 {profile.city}</Text>}
+          <Text style={[styles.since, textDirStyle]}>{t('organizer_profile.member_since').replace('{date}', formatDate(profile.created_at))}</Text>
         </View>
       </View>
 
@@ -177,22 +183,22 @@ export default function OrganizerProfileScreen() {
             style={[styles.followBtn, data?.isFollowing && styles.followBtnActive]}
           >
             <Text style={[styles.followBtnText, data?.isFollowing && styles.followBtnTextActive]}>
-              {followLoading ? '…' : data?.isFollowing ? '✓ Following' : '+ Follow'}
+              {followLoading ? '…' : data?.isFollowing ? t('organizer_profile.following') : t('organizer_profile.follow')}
             </Text>
           </TouchableOpacity>
           {orgProfile.followers_count > 0 && (
             <Text style={styles.followCount}>
-              {orgProfile.followers_count.toLocaleString()} follower{orgProfile.followers_count !== 1 ? 's' : ''}
+              {orgProfile.followers_count.toLocaleString()} {orgProfile.followers_count !== 1 ? t('organizer_profile.followers') : t('organizer_profile.follower')}
             </Text>
           )}
           <TouchableOpacity
             onPress={() =>
               Alert.alert(
-                data?.isBlocking ? 'Unblock user?' : 'Block user?',
-                data?.isBlocking ? 'They will be able to interact with you again.' : 'They will not be able to interact with you.',
+                data?.isBlocking ? t('organizer_profile.unblock_title') : t('organizer_profile.block_title'),
+                data?.isBlocking ? t('organizer_profile.unblock_msg') : t('organizer_profile.block_msg'),
                 [
-                  { text: 'Cancel', style: 'cancel' },
-                  { text: data?.isBlocking ? 'Unblock' : 'Block', style: data?.isBlocking ? 'default' : 'destructive', onPress: toggleBlock },
+                  { text: t('common.cancel'), style: 'cancel' },
+                  { text: data?.isBlocking ? t('organizer_profile.unblock') : t('organizer_profile.block'), style: data?.isBlocking ? 'default' : 'destructive', onPress: toggleBlock },
                 ]
               )
             }
@@ -200,7 +206,7 @@ export default function OrganizerProfileScreen() {
             style={[styles.blockBtn, data?.isBlocking && styles.blockBtnActive]}
           >
             <Text style={[styles.blockBtnText, data?.isBlocking && styles.blockBtnTextActive]}>
-              {data?.isBlocking ? '🚫 Blocked' : '⋯'}
+              {data?.isBlocking ? t('organizer_profile.blocked') : '⋯'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -210,7 +216,7 @@ export default function OrganizerProfileScreen() {
       <View style={styles.links}>
         {orgProfile.website && (
           <TouchableOpacity onPress={() => Linking.openURL(orgProfile.website!)} style={styles.linkBtn}>
-            <Text style={styles.linkText}>🌐 Website</Text>
+            <Text style={styles.linkText}>{t('organizer_profile.website')}</Text>
           </TouchableOpacity>
         )}
         {orgProfile.phone && (
@@ -221,20 +227,22 @@ export default function OrganizerProfileScreen() {
       </View>
 
       {/* Description */}
-      {orgProfile.description && (
+      {displayDescription && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>About</Text>
-          <Text style={styles.description}>{orgProfile.description}</Text>
+          <Text style={[styles.sectionTitle, textDirStyle]}>{t('organizer_profile.about')}</Text>
+          <Text style={[styles.description, textDirStyle]}>{displayDescription}</Text>
         </View>
       )}
 
       {/* Events */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>
-          Upcoming Events {events.length ? `(${events.length})` : ''}
+        <Text style={[styles.sectionTitle, textDirStyle]}>
+          {events.length
+            ? t('organizer_profile.upcoming_events_count').replace('{count}', String(events.length))
+            : t('organizer_profile.upcoming_events')}
         </Text>
         {events.length === 0 ? (
-          <EmptyState icon="📭" title="No upcoming events" description="Check back soon" />
+          <EmptyState icon="📭" title={t('organizer_profile.no_events_title')} description={t('organizer_profile.no_events_desc')} />
         ) : (
           events.map((event) => (
             <EventCard key={event.id} event={event} isSaved={savedIds.has(event.id)} />
@@ -246,6 +254,8 @@ export default function OrganizerProfileScreen() {
 }
 
 const styles = StyleSheet.create({
+  rtlText: { textAlign: 'right', writingDirection: 'rtl' },
+  ltrText: { textAlign: 'left', writingDirection: 'ltr' },
   container: { flex: 1, backgroundColor: Colors.gray[50] },
   content: { paddingBottom: Spacing['4xl'] },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: Spacing['3xl'] },

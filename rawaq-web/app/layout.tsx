@@ -7,6 +7,7 @@ import { ErrorToastProvider } from '@/components/feedback/ErrorToast'
 import { CustomCursor } from '@/components/ui/CustomCursor'
 import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister'
 import { ChunkLoadRecovery } from '@/components/ChunkLoadRecovery'
+import { SupportChatWidget } from '@/components/support/SupportChatWidget'
 import { Analytics } from "@vercel/analytics/next"
 import { SpeedInsights } from "@vercel/speed-insights/next"
 
@@ -48,6 +49,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <ErrorToastProvider>
             <AuthProvider>
               {children}
+              <SupportChatWidget />
             </AuthProvider>
           </ErrorToastProvider>
         </LocaleProvider>

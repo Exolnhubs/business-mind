@@ -181,7 +181,6 @@ export default function FeedScreen({ onExplore }: Props = {}) {
   const { user } = useAuth()
   const { t, isRTL } = useLocale()
   const router = useRouter()
-  const textDirStyle = isRTL ? styles.rtlText : styles.ltrText
 
   const [events, setEvents] = useState<EventWithOrganizer[]>([])
   const [savedEvents, setSavedEvents] = useState<EventWithOrganizer[]>([])
@@ -541,8 +540,8 @@ export default function FeedScreen({ onExplore }: Props = {}) {
         <View style={styles.savedSection}>
           <View style={styles.savedHeader}>
             <View>
-              <Text style={[styles.savedEyebrow, textDirStyle]}>{t('feed.saved_eyebrow')}</Text>
-              <Text style={[styles.savedTitle, textDirStyle]}>{t('feed.saved_title')}</Text>
+              <Text style={[styles.savedEyebrow, {textAlign: 'left' }]}>{t('feed.saved_eyebrow')}</Text>
+              <Text style={[styles.savedTitle, {textAlign: 'left' }]}>{t('feed.saved_title')}</Text>
             </View>
           </View>
           <FlatList
@@ -567,8 +566,8 @@ export default function FeedScreen({ onExplore }: Props = {}) {
       <View style={styles.savedSection}>
         <View style={styles.savedHeader}>
           <View>
-            <Text style={[styles.savedEyebrow, textDirStyle]}>{t('feed.saved_eyebrow')}</Text>
-            <Text style={[styles.savedTitle, textDirStyle]}>{t('feed.saved_title')}</Text>
+            <Text style={[styles.savedEyebrow, {textAlign: 'left' }]}>{t('feed.saved_eyebrow')}</Text>
+            <Text style={[styles.savedTitle, {textAlign: 'left' }]}>{t('feed.saved_title')}</Text>
           </View>
           <TouchableOpacity
             style={styles.savedLink}
@@ -643,17 +642,25 @@ export default function FeedScreen({ onExplore }: Props = {}) {
     <View style={styles.container}>
       <View style={styles.header}>
         <View>
-          <Text style={[styles.headerTitle, textDirStyle]}>{t('feed.following')}</Text>
+          <Text style={[styles.headerTitle, {textAlign: 'left' }]}>{t('feed.following')}</Text>
           {following > 0 && (
-            <Text style={[styles.headerSub, textDirStyle]}>{following} {following !== 1 ? t('feed.organizers') : t('feed.organizer')}</Text>
+            <Text style={[styles.headerSub, {textAlign: 'left' }]}>{following} {following !== 1 ? t('feed.organizers') : t('feed.organizer')}</Text>
           )}
         </View>
       </View>
 
-      {events.length === 0 && !loading ? (
-        following === 0 ? (
-          <View style={styles.emptyWrap}>
-            {renderTopRails()}
+      <FlatList
+        data={events}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={[styles.list, styles.listGrow]}
+        ListHeaderComponent={renderTopRails()}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.brand[500]} />
+        }
+        onEndReached={onEndReached}
+        onEndReachedThreshold={0.4}
+        ListEmptyComponent={
+          following === 0 ? (
             <View style={styles.centered}>
               <EmptyState
                 icon="🔭"
@@ -667,38 +674,23 @@ export default function FeedScreen({ onExplore }: Props = {}) {
                 <Text style={styles.exploreBtnText}>{t('feed.explore_events')}</Text>
               </TouchableOpacity>
             </View>
-          </View>
-        ) : (
-          <View style={styles.emptyWrap}>
-            {renderTopRails()}
+          ) : (
             <EmptyState
               icon="📆"
               title={t('feed.nothing_upcoming')}
               description={t('feed.nothing_upcoming_desc')}
             />
-          </View>
-        )
-      ) : (
-        <FlatList
-          data={events}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.list}
-          ListHeaderComponent={renderTopRails()}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.brand[500]} />
-          }
-          onEndReached={onEndReached}
-          onEndReachedThreshold={0.4}
-          ListFooterComponent={
-            loadingMore
-              ? <ActivityIndicator color={Colors.brand[500]} style={{ paddingVertical: Spacing.lg }} />
-              : null
-          }
-          renderItem={({ item }) => (
-            <EventCard event={item} isSaved={savedIds.has(item.id)} onSaveChange={handleSaveChange} />
-          )}
-        />
-      )}
+          )
+        }
+        ListFooterComponent={
+          loadingMore
+            ? <ActivityIndicator color={Colors.brand[500]} style={{ paddingVertical: Spacing.lg }} />
+            : null
+        }
+        renderItem={({ item }) => (
+          <EventCard event={item} isSaved={savedIds.has(item.id)} onSaveChange={handleSaveChange} />
+        )}
+      />
 
       <HappeningCommentsSheet
         visible={!!selectedHappening}
@@ -724,14 +716,13 @@ function RecommendationRail({
   onSaveChange: (id: string, saved: boolean) => void
 }) {
   const { isRTL } = useLocale()
-  const textDirStyle = isRTL ? styles.rtlText : styles.ltrText
   if (events.length === 0) return null
 
   return (
     <View style={styles.railSection}>
       <View style={styles.railHeader}>
-        <Text style={[styles.railTitle, textDirStyle]}>{title}</Text>
-        <Text style={[styles.railSubtitle, textDirStyle]}>{subtitle}</Text>
+        <Text style={[styles.railTitle, {textAlign: 'left' }]}>{title}</Text>
+        <Text style={[styles.railSubtitle, {textAlign: 'left' }]}>{subtitle}</Text>
       </View>
       <ScrollView
         horizontal
@@ -772,14 +763,13 @@ function MixedDiscoveryRail({
   onOpenHappeningComments?: (happening: HappeningDiscoveryItem) => void
 }) {
   const { isRTL } = useLocale()
-  const textDirStyle = isRTL ? styles.rtlText : styles.ltrText
   if (items.length === 0) return null
 
   return (
     <View style={styles.railSection}>
       <View style={styles.railHeader}>
-        <Text style={[styles.railTitle, textDirStyle]}>{title}</Text>
-        <Text style={[styles.railSubtitle, textDirStyle]}>{subtitle}</Text>
+        <Text style={[styles.railTitle, {textAlign: 'left' }]}>{title}</Text>
+        <Text style={[styles.railSubtitle, {textAlign: 'left' }]}>{subtitle}</Text>
       </View>
       <ScrollView
         horizontal
@@ -815,7 +805,7 @@ const styles = StyleSheet.create({
   rtlText: { textAlign: 'right', writingDirection: 'rtl' },
   ltrText: { textAlign: 'left', writingDirection: 'ltr' },
   container: { flex: 1, backgroundColor: Colors.gray[50] },
-  emptyWrap: { flex: 1 },
+  listGrow: { flexGrow: 1 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: Spacing['2xl'] },
   header: {
     paddingHorizontal: Spacing.lg,
