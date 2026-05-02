@@ -5,4 +5,8 @@
 expo-env.d.ts
 # @end expo-cli
 
+# Firebase / Google credentials — provide via EAS file secret in CI
+# eas secret:create --scope project --name GOOGLE_SERVICES_JSON --type file --path google-services.json
+google-services.json
+
 
