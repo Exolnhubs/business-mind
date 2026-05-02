@@ -4,7 +4,6 @@ import {
   TouchableOpacity, ActivityIndicator, Alert, Switch,
   KeyboardAvoidingView, Platform, Image, Modal, FlatList,
 } from 'react-native'
-import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
 import AsyncStorage from '@react-native-async-storage/async-storage'
@@ -17,6 +16,7 @@ import { LocationPickerModal, type PickedLocation } from '@/components/communiti
 import { OccurrenceManager } from '@/components/organizer/OccurrenceManager'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
 import { TicketFlipLoader } from '@/components/ui/TicketFlipLoader'
+import { ConfirmDateTimePicker } from '@/components/ui/ConfirmDateTimePicker'
 import type { Community, EventFrequency, EventVisibility } from '@/types/database'
 const TEMPLATES_KEY = 'rawaq_ticket_templates'
 
@@ -125,7 +125,6 @@ export default function EventFormScreen() {
   const [recurrenceUntil,   setRecurrenceUntil]   = useState('')
   // Date picker state
   const [pickerTarget,  setPickerTarget]  = useState<'start' | 'end' | 'recurrence_until' | null>(null)
-  const [pickerMode,    setPickerMode]    = useState<'date' | 'time'>('date')
   const [pickerTempDate, setPickerTempDate] = useState<Date>(new Date())
   const [capacity,          setCapacity]          = useState('')
   const [isFree,            setIsFree]            = useState(true)
@@ -284,44 +283,35 @@ export default function EventFormScreen() {
     const current = target === 'start' ? startAt : target === 'end' ? endAt : recurrenceUntil
     const fallback = target !== 'start' && startAt ? parseDate(startAt) : new Date()
     setPickerTempDate(current ? parseDate(current) : fallback)
-    setPickerMode('date')
     setPickerTarget(target)
   }
 
-  function onPickerChange(event: DateTimePickerEvent, selected?: Date) {
-    if (!selected || event.type === 'dismissed') {
-      setPickerTarget(null)
-      return
-    }
-    if (pickerMode === 'date') {
-      const nextDate =
-        (pickerTarget === 'end' || pickerTarget === 'recurrence_until') && startAt && selected.getTime() < parseDate(startAt).getTime()
-          ? parseDate(startAt)
-          : selected
-      setPickerTempDate(nextDate)
-      setPickerMode('time')   // advance to time selection
-    } else {
-      // Both date and time chosen — commit
-      const nextDate =
-        (pickerTarget === 'end' || pickerTarget === 'recurrence_until') && startAt && selected.getTime() < parseDate(startAt).getTime()
-          ? parseDate(startAt)
-          : selected
-      const iso = nextDate.toISOString().slice(0, 16).replace('T', ' ')
-      if (pickerTarget === 'start') {
-        setStartAt(iso)
-        if (endAt && parseDate(endAt).getTime() < nextDate.getTime()) {
-          setEndAt(iso)
-        }
-        if (recurrenceUntil && parseDate(recurrenceUntil).getTime() < nextDate.getTime()) {
-          setRecurrenceUntil(iso)
-        }
-      } else if (pickerTarget === 'recurrence_until') {
-        setRecurrenceUntil(iso)
-      } else {
+  function getPickerMinimumDate() {
+    return (pickerTarget === 'end' || pickerTarget === 'recurrence_until') && startAt
+      ? parseDate(startAt)
+      : new Date()
+  }
+
+  function commitPickerValue(selected: Date) {
+    const nextDate =
+      (pickerTarget === 'end' || pickerTarget === 'recurrence_until') && startAt && selected.getTime() < parseDate(startAt).getTime()
+        ? parseDate(startAt)
+        : selected
+    const iso = nextDate.toISOString().slice(0, 16).replace('T', ' ')
+    if (pickerTarget === 'start') {
+      setStartAt(iso)
+      if (endAt && parseDate(endAt).getTime() < nextDate.getTime()) {
         setEndAt(iso)
       }
-      setPickerTarget(null)
+      if (recurrenceUntil && parseDate(recurrenceUntil).getTime() < nextDate.getTime()) {
+        setRecurrenceUntil(iso)
+      }
+    } else if (pickerTarget === 'recurrence_until') {
+      setRecurrenceUntil(iso)
+    } else if (pickerTarget === 'end') {
+      setEndAt(iso)
     }
+    setPickerTarget(null)
   }
 
   function applyPickedLocation(location: PickedLocation | null) {
@@ -774,17 +764,20 @@ export default function EventFormScreen() {
               </Field>
             )}
 
-              {pickerTarget !== null && (
-              <DateTimePicker
+            {pickerTarget !== null && (
+              <ConfirmDateTimePicker
+                visible={pickerTarget !== null}
                 value={pickerTempDate}
-                mode={pickerMode}
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                minimumDate={
-                  (pickerTarget === 'end' || pickerTarget === 'recurrence_until') && startAt
-                    ? parseDate(startAt)
-                    : new Date()
+                minimumDate={getPickerMinimumDate()}
+                title={
+                  pickerTarget === 'start'
+                    ? 'Select start date and time'
+                    : pickerTarget === 'recurrence_until'
+                      ? 'Select repeat-until date and time'
+                      : 'Select end date and time'
                 }
-                onChange={onPickerChange}
+                onCancel={() => setPickerTarget(null)}
+                onConfirm={commitPickerValue}
               />
             )}
 

@@ -6,11 +6,10 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   TextInput,
-  Platform,
 } from 'react-native'
-import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { apiGet, apiPatch } from '@/lib/api'
 import { Colors, FontSize, FontWeight, Radius, Spacing } from '@/theme'
+import { ConfirmDateTimePicker } from '@/components/ui/ConfirmDateTimePicker'
 import type { EventOccurrence } from '@/types/database'
 
 type OrganizerOccurrence = EventOccurrence
@@ -47,7 +46,6 @@ export function OccurrenceManager({ eventId, enabled }: OccurrenceManagerProps) 
   const [draftEndAt, setDraftEndAt] = useState('')
   const [draftCapacity, setDraftCapacity] = useState('')
   const [pickerTarget, setPickerTarget] = useState<PickerTarget>(null)
-  const [pickerMode, setPickerMode] = useState<'date' | 'time'>('date')
   const [pickerTempDate, setPickerTempDate] = useState(new Date())
 
   useEffect(() => {
@@ -93,22 +91,14 @@ export function OccurrenceManager({ eventId, enabled }: OccurrenceManagerProps) 
     const current = target === 'start' ? draftStartAt : draftEndAt
     const fallback = target === 'end' && draftStartAt ? parseDate(draftStartAt) : new Date()
     setPickerTempDate(current ? parseDate(current) : fallback)
-    setPickerMode('date')
     setPickerTarget(target)
   }
 
-  function onPickerChange(event: DateTimePickerEvent, selected?: Date) {
-    if (!selected || event.type === 'dismissed') {
-      setPickerTarget(null)
-      return
-    }
+  function getPickerMinimumDate() {
+    return pickerTarget === 'end' && draftStartAt ? parseDate(draftStartAt) : new Date()
+  }
 
-    if (pickerMode === 'date') {
-      setPickerTempDate(selected)
-      setPickerMode('time')
-      return
-    }
-
+  function commitPickerValue(selected: Date) {
     const iso = selected.toISOString().slice(0, 16).replace('T', ' ')
     if (pickerTarget === 'start') {
       setDraftStartAt(iso)
@@ -259,12 +249,13 @@ export function OccurrenceManager({ eventId, enabled }: OccurrenceManagerProps) 
       })}
 
       {pickerTarget !== null ? (
-        <DateTimePicker
+        <ConfirmDateTimePicker
+          visible={pickerTarget !== null}
           value={pickerTempDate}
-          mode={pickerMode}
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          minimumDate={pickerTarget === 'end' && draftStartAt ? parseDate(draftStartAt) : new Date()}
-          onChange={onPickerChange}
+          minimumDate={getPickerMinimumDate()}
+          title={pickerTarget === 'start' ? 'Select session start date and time' : 'Select session end date and time'}
+          onCancel={() => setPickerTarget(null)}
+          onConfirm={commitPickerValue}
         />
       ) : null}
     </View>

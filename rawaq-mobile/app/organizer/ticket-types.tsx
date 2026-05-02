@@ -4,12 +4,12 @@ import {
   TouchableOpacity, ActivityIndicator, Alert, Switch,
   KeyboardAvoidingView, Platform,
 } from 'react-native'
-import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/api'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
 import { TicketFlipLoader } from '@/components/ui/TicketFlipLoader'
+import { ConfirmDateTimePicker } from '@/components/ui/ConfirmDateTimePicker'
 import { formatCurrency } from '@/lib/utils'
 import type { TicketType } from '@/types/database'
 
@@ -56,7 +56,6 @@ export default function TicketTypesScreen() {
 
   // Date picker state
   const [pickerTarget,   setPickerTarget]   = useState<PickerTarget | null>(null)
-  const [pickerMode,     setPickerMode]     = useState<'date' | 'time'>('date')
   const [pickerTempDate, setPickerTempDate] = useState(new Date())
 
   async function load() {
@@ -103,24 +102,17 @@ export default function TicketTypesScreen() {
     const existing = form[target]
     const date = existing ? new Date(existing) : new Date()
     setPickerTempDate(isNaN(date.getTime()) ? new Date() : date)
-    setPickerMode('date')
     setPickerTarget(target)
   }
 
-  function onPickerChange(event: DateTimePickerEvent, selected?: Date) {
-    if (event.type === 'dismissed' || !selected || !pickerTarget) {
-      setPickerTarget(null)
-      return
-    }
-    if (pickerMode === 'date') {
-      setPickerTempDate(selected)
-      setPickerMode('time')
-    } else {
-      const combined = new Date(pickerTempDate)
-      combined.setHours(selected.getHours(), selected.getMinutes(), 0, 0)
-      setForm((f) => ({ ...f, [pickerTarget]: combined.toISOString() }))
-      setPickerTarget(null)
-    }
+  function getPickerMinimumDate() {
+    return pickerTarget === 'hot_offer_ends_at' ? new Date() : undefined
+  }
+
+  function commitPickerValue(selected: Date) {
+    if (!pickerTarget) return
+    setForm((f) => ({ ...f, [pickerTarget]: selected.toISOString() }))
+    setPickerTarget(null)
   }
 
   async function submit() {
@@ -455,12 +447,19 @@ export default function TicketTypesScreen() {
 
           {/* Date picker */}
           {pickerTarget !== null && (
-            <DateTimePicker
+            <ConfirmDateTimePicker
+              visible={pickerTarget !== null}
               value={pickerTempDate}
-              mode={pickerMode}
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              minimumDate={pickerTarget === 'hot_offer_ends_at' ? new Date() : undefined}
-              onChange={onPickerChange}
+              minimumDate={getPickerMinimumDate()}
+              title={
+                pickerTarget === 'sale_starts_at'
+                  ? 'Select sale start date and time'
+                  : pickerTarget === 'sale_ends_at'
+                    ? 'Select sale end date and time'
+                    : 'Select hot offer end date and time'
+              }
+              onCancel={() => setPickerTarget(null)}
+              onConfirm={commitPickerValue}
             />
           )}
         </ScrollView>
