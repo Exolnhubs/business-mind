@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Image from 'next/image'
+import { SafeImage } from '@/components/ui/SafeImage'
 import Link from 'next/link'
 import { Modal } from '@/components/ui/Modal'
 import { clientGetJson, isToastHandledError } from '@/lib/client-fetch'
@@ -84,7 +84,7 @@ export function HappeningParticipantsModal({ open, happeningId, onClose }: Props
               >
                 <span className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-brand-100 text-sm font-semibold text-brand-700">
                   {p.avatar_url
-                    ? <Image src={p.avatar_url} alt="" fill sizes="36px" className="object-cover" />
+                    ? <SafeImage src={p.avatar_url} alt="" fill sizes="36px" className="object-cover" />
                     : p.display_name.slice(0, 1).toUpperCase()}
                 </span>
                 <span className="min-w-0 flex-1">

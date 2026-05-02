@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import Image from 'next/image'
+import { SafeImage } from '@/components/ui/SafeImage'
 import { formatDate } from '@/lib/utils'
 import type { UserReviewWithReviewer } from '@/types/database'
 
@@ -60,7 +60,7 @@ function ReviewCard({
     <div className="flex gap-3">
       <div className="relative w-9 h-9 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center text-sm font-bold shrink-0 overflow-hidden">
         {review.reviewer.avatar_url
-          ? <Image src={review.reviewer.avatar_url} alt={review.reviewer.display_name} fill sizes="36px" className="object-cover" />
+          ? <SafeImage src={review.reviewer.avatar_url} alt={review.reviewer.display_name} fill sizes="36px" className="object-cover" />
           : initials}
       </div>
       <div className="flex-1 min-w-0">

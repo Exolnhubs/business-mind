@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import Image from 'next/image'
+import { SafeImage } from '@/components/ui/SafeImage'
 import Link from 'next/link'
 import { Badge } from '@/components/ui/Badge'
 import { SaveButton } from '@/components/events/SaveButton'
@@ -68,7 +68,7 @@ const EventCardBase = React.memo(function EventCard({ event, locale, isSaved = f
     >
       <div className="relative flex h-36 items-center justify-center bg-gradient-to-br from-brand-100 to-brand-200">
         {event.cover_image_url ? (
-          <Image
+          <SafeImage
             src={event.cover_image_url}
             alt={event.title}
             fill

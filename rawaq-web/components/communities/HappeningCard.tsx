@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import Image from 'next/image'
+import { SafeImage } from '@/components/ui/SafeImage'
 import type { HappeningWithAuthor, HappeningType } from '@/types/database'
 import { useAuth } from '@/contexts/auth-context'
 import { PlanBadge } from '@/components/ui/PlanBadge'
@@ -45,7 +45,7 @@ export function HappeningCard({ happening: h, onRsvp, onReact, onDelete, onRepor
         <div className="flex items-center gap-2.5">
           <div className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-brand-100 text-sm font-semibold text-brand-700">
             {h.author.avatar_url
-              ? <Image src={h.author.avatar_url} alt="" fill sizes="36px" className="object-cover" />
+              ? <SafeImage src={h.author.avatar_url} alt="" fill sizes="36px" className="object-cover" />
               : avatarChar}
           </div>
           <div>

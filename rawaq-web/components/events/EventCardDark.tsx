@@ -1,6 +1,6 @@
 'use client'
 
-import Image from 'next/image'
+import { SafeImage } from '@/components/ui/SafeImage'
 import Link from 'next/link'
 import { useLocale } from '@/contexts/locale-context'
 import { SaveButton } from '@/components/events/SaveButton'
@@ -125,7 +125,7 @@ export function EventCardDark({
         }}
       >
         {event.cover_image_url ? (
-          <Image
+          <SafeImage
             src={event.cover_image_url}
             alt={title}
             fill

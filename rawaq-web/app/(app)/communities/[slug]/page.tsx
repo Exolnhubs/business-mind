@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import Image from 'next/image'
+import { SafeImage } from '@/components/ui/SafeImage'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/auth-context'
 import { Spinner } from '@/components/ui/Spinner'
@@ -672,7 +672,7 @@ export default function CommunityDetailPage() {
         {/* Cover image */}
         <div className="relative h-52 sm:h-64 overflow-hidden rounded-t-2xl">
           {community.cover_url ? (
-            <Image src={community.cover_url} alt="" fill sizes="(max-width: 768px) 100vw, 1280px" className="object-cover" />
+            <SafeImage src={community.cover_url} alt="" fill sizes="(max-width: 768px) 100vw, 1280px" className="object-cover" />
           ) : (
             <div
               className="w-full h-full flex items-center justify-center text-7xl"
@@ -996,7 +996,7 @@ export default function CommunityDetailPage() {
                     className="flex gap-4 p-4 bg-white rounded-xl border border-gray-100 hover:border-brand-200 hover:shadow-sm transition-all">
                     {ev.cover_image_url ? (
                       <span className="relative w-20 h-16 rounded-lg overflow-hidden shrink-0">
-                        <Image src={ev.cover_image_url} alt="" fill sizes="80px" className="object-cover" />
+                        <SafeImage src={ev.cover_image_url} alt="" fill sizes="80px" className="object-cover" />
                       </span>
                     ) : (
                       <div className="w-20 h-16 rounded-lg bg-brand-50 flex items-center justify-center text-2xl shrink-0">📅</div>

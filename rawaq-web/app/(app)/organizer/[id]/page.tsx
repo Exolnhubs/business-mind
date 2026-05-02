@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
-import Image from 'next/image'
+import { SafeImage } from '@/components/ui/SafeImage'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { EventCard } from '@/components/events/EventCard'
 import { Badge } from '@/components/ui/Badge'
@@ -117,7 +117,7 @@ export default async function OrganizerProfilePage({ params }: { params: Promise
       <div className="card p-6 flex flex-col sm:flex-row items-start sm:items-center gap-5">
         <div className="relative w-20 h-20 rounded-2xl bg-brand-100 flex items-center justify-center text-2xl font-bold text-brand-700 shrink-0 overflow-hidden">
           {orgProfile.logo_url
-            ? <Image src={orgProfile.logo_url} alt={displayName} fill sizes="80px" className="object-cover" />
+            ? <SafeImage src={orgProfile.logo_url} alt={displayName} fill sizes="80px" className="object-cover" />
             : initials
           }
         </div>
