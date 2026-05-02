@@ -28,7 +28,7 @@ BEGIN
   IF (TG_OP = 'UPDATE' AND OLD.status <> 'cancelled' AND NEW.status = 'cancelled') THEN
     -- Fall back to hardcoded URL if setting not configured
     IF app_url IS NULL OR app_url = '' THEN
-      app_url := 'https://your-app.vercel.app';  -- ← UPDATE this
+      app_url := 'https://rawaq-meet.vercel.app';
     END IF;
 
     api_url := app_url || '/api/bookings/' || NEW.id;
@@ -50,4 +50,4 @@ CREATE OR REPLACE TRIGGER on_booking_cancelled
   EXECUTE FUNCTION notify_booking_cancelled();
 
 -- To configure the app URL without editing this file, run:
--- ALTER DATABASE postgres SET "app.settings.app_url" = 'https://your-app.vercel.app';
+-- ALTER DATABASE postgres SET "app.settings.app_url" = 'https://rawaq-meet.vercel.app';

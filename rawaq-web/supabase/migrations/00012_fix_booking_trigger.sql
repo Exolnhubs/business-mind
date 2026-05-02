@@ -25,7 +25,7 @@ BEGIN
     BEGIN
       app_url := coalesce(
         nullif(current_setting('app.settings.app_url', TRUE), ''),
-        'https://your-app.vercel.app'   -- ← update or run the ALTER DATABASE below
+        'https://rawaq-meet.vercel.app'
       );
 
       PERFORM net.http_post(
@@ -56,5 +56,5 @@ CREATE OR REPLACE TRIGGER on_booking_cancelled
   EXECUTE FUNCTION notify_booking_cancelled();
 
 -- Run these once in your Supabase SQL editor to configure without editing migrations:
--- ALTER DATABASE postgres SET "app.settings.app_url"        = 'https://your-app.vercel.app';
+-- ALTER DATABASE postgres SET "app.settings.app_url"        = 'https://rawaq-meet.vercel.app';
 -- ALTER DATABASE postgres SET "app.settings.trigger_secret" = 'your-trigger-secret-here';
