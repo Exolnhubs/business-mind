@@ -217,6 +217,7 @@ export default function CommunityDetailPage() {
 
   useEffect(() => {
     if (community) void loadEvents()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [community?.id, loadEvents])
 
   const loadChildren = useCallback(async (force = false) => {
@@ -236,6 +237,7 @@ export default function CommunityDetailPage() {
 
   useEffect(() => {
     if (community) void loadChildren()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [community?.id, loadChildren])
 
   useEffect(() => {

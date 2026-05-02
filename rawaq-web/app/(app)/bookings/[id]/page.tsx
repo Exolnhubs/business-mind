@@ -82,7 +82,8 @@ export default function BookingResultPage() {
     }
 
     return () => { if (pollRef.current) clearInterval(pollRef.current) }
-  }, [id])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, paymentHint])
 
   // ── Loading ────────────────────────────────────────────────────────────────
   if (loading) {

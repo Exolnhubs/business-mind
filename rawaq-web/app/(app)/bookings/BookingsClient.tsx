@@ -42,6 +42,7 @@ export default function BookingsClient({ initialBookings }: { initialBookings: B
     }
 
     router.replace('/bookings')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookings, router, searchParams])
 
   async function submitRefund() {
