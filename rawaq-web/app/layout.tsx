@@ -6,6 +6,7 @@ import { LocaleProvider } from '@/contexts/locale-context'
 import { ErrorToastProvider } from '@/components/feedback/ErrorToast'
 import { CustomCursor } from '@/components/ui/CustomCursor'
 import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister'
+import { ChunkLoadRecovery } from '@/components/ChunkLoadRecovery'
 import { Analytics } from "@vercel/analytics/next"
 import { SpeedInsights } from "@vercel/speed-insights/next"
 
@@ -40,6 +41,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: `(function(){var l=localStorage.getItem('rawaq_locale');document.documentElement.dir=l==='ar'?'rtl':'ltr';document.documentElement.lang=l==='ar'?'ar':'en';})()` }} />
       </head>
       <body>
+        <ChunkLoadRecovery />
         <ServiceWorkerRegister />
         <CustomCursor />
         <LocaleProvider>
