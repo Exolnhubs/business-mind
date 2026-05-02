@@ -27,3 +27,18 @@ dist-ssr
 rawaq-mobile/.expo/
 rawaq-web/.next/
 rawaq-web/.temp/
+
+.agents/
+.claude/
+.expo/
+RAWAQ MOBILE APP/
+rawaq-web/.expo/
+rawaq-web/.impeccable.md
+rawaq-web/docs/
+skills-lock.json
+tatus
+events-communities-handoff/
+nextjs-handoff/
+rawaq-mobile/app/organizer/attendees.codex.tsx
+rawaq-mobile/types/google-services.json
+*.tsbuildinfo
