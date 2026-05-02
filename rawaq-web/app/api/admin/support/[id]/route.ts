@@ -5,8 +5,9 @@ import { handleApiError, ok, NotFoundException } from '@/lib/errors'
 import { z } from 'zod'
 
 const UpdateSchema = z.object({
-  status:      z.enum(['open', 'in_progress', 'resolved', 'closed']).optional(),
-  admin_notes: z.string().max(2000).optional(),
+  status:          z.enum(['open', 'in_progress', 'resolved', 'closed']).optional(),
+  admin_notes:     z.string().max(2000).optional(),
+  public_response: z.string().max(2000).optional(),
 })
 
 // PATCH /api/admin/support/:id
