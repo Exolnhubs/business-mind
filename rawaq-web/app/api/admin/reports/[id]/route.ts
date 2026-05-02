@@ -7,6 +7,7 @@ import { handleApiError, ok, NotFoundException } from '@/lib/errors'
 const ResolveSchema = z.object({
   action:          z.enum(['resolve', 'dismiss']),
   resolution_note: z.string().max(500).optional(),
+  public_response: z.string().max(2000).optional(),
 })
 
 // PATCH /api/admin/reports/:id — resolve or dismiss an event report
@@ -35,6 +36,7 @@ export async function PATCH(
         resolved_by:     ctx.userId,
         resolved_at:     new Date().toISOString(),
         resolution_note: input.resolution_note ?? null,
+        public_response: input.public_response ?? null,
       })
       .eq('id', id)
       .select()
