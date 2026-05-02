@@ -2,6 +2,23 @@ import { withSentryConfig } from '@sentry/nextjs';
 import withSerwistInit from '@serwist/next'
 import type { NextConfig } from 'next'
 
+const csp = [
+  "default-src 'self'",
+  // Next.js requires unsafe-inline for hydration scripts and unsafe-eval for dynamic imports
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://va.vercel-scripts.com https://js.stripe.com",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' data: https://fonts.gstatic.com",
+  "img-src 'self' data: blob: https://*.supabase.co https://*.supabase.in https://lh3.googleusercontent.com https://avatars.githubusercontent.com https://nominatim.openstreetmap.org",
+  // wss for Supabase Realtime; Sentry is tunnelled through /monitoring (self)
+  "connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co https://nominatim.openstreetmap.org https://exp.host",
+  "frame-src 'self' https://js.stripe.com https://hooks.stripe.com",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+  "upgrade-insecure-requests",
+].join('; ')
+
 const nextConfig: NextConfig = {
   devIndicators: false,
   images: {
@@ -12,6 +29,20 @@ const nextConfig: NextConfig = {
   },
   experimental: {
     serverActions: { bodySizeLimit: '2mb' },
+  },
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          { key: 'Content-Security-Policy',   value: csp },
+          { key: 'X-Content-Type-Options',    value: 'nosniff' },
+          { key: 'X-Frame-Options',           value: 'DENY' },
+          { key: 'Referrer-Policy',           value: 'strict-origin-when-cross-origin' },
+          { key: 'Permissions-Policy',        value: 'camera=(), microphone=(), geolocation=(self)' },
+        ],
+      },
+    ]
   },
 }
 
