@@ -10,6 +10,7 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://rawaq.app'
 // ─── Base layout ────────────────────────────────────────────────────────────
 
 function layout(content: string): string {
+  const prefsUrl = `${APP_URL}/profile`
   return `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Rawaq</title></head>
@@ -27,7 +28,10 @@ function layout(content: string): string {
           <hr style="border:none;border-top:1px solid #f3f4f6;margin:28px 0">
           <p style="margin:0;font-size:12px;color:#9ca3af;line-height:1.6">
             You received this email because you have an account on <a href="${APP_URL}" style="color:#f59e0b;text-decoration:none">Rawaq</a>.
-            Manage your notification preferences in your profile settings.
+            <br>
+            <a href="${prefsUrl}" style="color:#9ca3af;text-decoration:underline">Manage notification preferences</a>
+            &nbsp;·&nbsp;
+            <a href="${prefsUrl}" style="color:#9ca3af;text-decoration:underline">Unsubscribe</a>
           </p>
         </td></tr>
       </table>
@@ -215,11 +219,16 @@ export async function sendNotificationEmail({ type, payload, toEmail }: EmailPar
   const email = await buildEmail(type, payload)
   if (!email) return
 
+  const unsubscribeUrl = `${APP_URL}/profile`
   await resend.emails.send({
     from: FROM,
     to: [toEmail],
     subject: email.subject,
     html: email.html,
+    headers: {
+      'List-Unsubscribe': `<${unsubscribeUrl}>, <mailto:support@rawaq.app?subject=Unsubscribe>`,
+      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+    },
   })
 }
 
