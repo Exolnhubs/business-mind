@@ -125,6 +125,7 @@ function RegisterForm() {
       email: form.email,
       password: form.password,
       options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
         data: {
           display_name: form.displayName,
           city: form.city,
