@@ -1,11 +1,12 @@
 'use client'
 
+import Link from 'next/link'
 import { useLocale } from '@/contexts/locale-context'
 
 export function TicketBackLink() {
   const { t } = useLocale()
   return (
-    <a href="/bookings" className="text-sm text-brand-600 hover:underline">{t('ticket.back')}</a>
+    <Link href="/bookings" className="text-sm text-brand-600 hover:underline">{t('ticket.back')}</Link>
   )
 }
 

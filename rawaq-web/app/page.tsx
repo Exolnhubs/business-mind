@@ -3,7 +3,6 @@
 import Link from 'next/link'
 import { Navbar } from '@/components/layout/Navbar'
 import { Footer } from '@/components/layout/Footer'
-import { ScrollReveal } from '@/components/ui/ScrollReveal'
 import { useLocale } from '@/contexts/locale-context'
 import { ActivityFeed } from '@/components/landing/ActivityFeed'
 import { CountriesTicker } from '@/components/landing/CountriesTicker'

@@ -43,7 +43,7 @@ export function FlaggedCommentList({ comments }: { comments: FlaggedComment[] })
     return (
       <div className="text-center py-12">
         <div className="text-4xl mb-2">✅</div>
-        <p className="text-gray-500 text-sm">No flagged comments — you're all clear!</p>
+        <p className="text-gray-500 text-sm">No flagged comments — you&apos;re all clear!</p>
       </div>
     )
   }

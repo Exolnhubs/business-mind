@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { EventOccurrence } from '@/types/database'
 
 type OrganizerOccurrence = EventOccurrence
@@ -32,7 +32,7 @@ export function EventOccurrencesManager({ eventId, enabled }: EventOccurrencesMa
   const [draftCapacity, setDraftCapacity] = useState('')
   const [savingOccurrenceId, setSavingOccurrenceId] = useState<string | null>(null)
 
-  async function loadOccurrences() {
+  const loadOccurrences = useCallback(async () => {
     if (!enabled) {
       setOccurrences([])
       return
@@ -50,11 +50,11 @@ export function EventOccurrencesManager({ eventId, enabled }: EventOccurrencesMa
     }
 
     setOccurrences((json?.data ?? []) as OrganizerOccurrence[])
-  }
+  }, [enabled, eventId])
 
   useEffect(() => {
     void loadOccurrences()
-  }, [enabled, eventId])
+  }, [loadOccurrences])
 
   const upcomingOccurrences = useMemo(
     () => occurrences.filter((occurrence) => new Date(occurrence.starts_at).getTime() > Date.now()),

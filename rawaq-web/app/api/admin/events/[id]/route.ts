@@ -1,5 +1,4 @@
 import { NextRequest } from 'next/server'
-import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { requireAdmin } from '@/lib/auth'
 import { handleApiError, ok, NotFoundException } from '@/lib/errors'
 import { sendNotifications } from '@/lib/notifications'

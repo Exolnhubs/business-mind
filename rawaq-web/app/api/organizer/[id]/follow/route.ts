@@ -1,5 +1,4 @@
 import { NextRequest } from 'next/server'
-import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireAuth } from '@/lib/auth'
 import { handleApiError, ok, ForbiddenException } from '@/lib/errors'

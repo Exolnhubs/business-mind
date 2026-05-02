@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Spinner } from '@/components/ui/Spinner'
 import { TicketFlipLoader } from '@/components/ui/TicketFlipLoader'
 import { clientPatchJson, isToastHandledError } from '@/lib/client-fetch'
 import type { Community, CommunityApprovalStatus } from '@/types/database'

@@ -1,5 +1,4 @@
 import { NextRequest } from 'next/server'
-import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireAuth } from '@/lib/auth'
 import { handleApiError, ok, NotFoundException, ForbiddenException, ApiException } from '@/lib/errors'
@@ -20,13 +19,11 @@ export async function PATCH(
     const isInternalTrigger = req.headers.get('x-supabase-trigger') === '1'
 
     let supabase: ReturnType<typeof createSupabaseAdminClient>
-    let actingUserId: string | null = null
 
     if (isInternalTrigger) {
       supabase = createSupabaseAdminClient()
     } else {
       const ctx = await requireAuth()
-      actingUserId = ctx.userId
       // requireAuth returns a server client via cookies; use admin for consistency
       supabase = createSupabaseAdminClient()
 

@@ -23,127 +23,155 @@
  *   PAYMOB_CARD_IFRAME_ID       — Card iframe ID from Paymob dashboard
  */
 
-import { createHmac, randomUUID } from 'crypto'
-import type { InitiatePaymentParams, InitiatePaymentResult, WebhookEvent, PaymentMethod } from './types'
+import { createHmac, randomUUID } from "crypto";
+import type {
+  InitiatePaymentParams,
+  InitiatePaymentResult,
+  WebhookEvent,
+  PaymentMethod,
+} from "./types";
 
-const BASE_URL = 'https://accept.paymob.com/api'
-const PAYMOB_TIMEOUT_MS = Number(process.env.PAYMOB_TIMEOUT_MS ?? '20000')
-const PAYMOB_MAX_RETRIES = Number(process.env.PAYMOB_MAX_RETRIES ?? '1')
+const BASE_URL = "https://accept.paymob.com/api";
+const PAYMOB_TIMEOUT_MS = Number(process.env.PAYMOB_TIMEOUT_MS ?? "20000");
+const PAYMOB_MAX_RETRIES = Number(process.env.PAYMOB_MAX_RETRIES ?? "1");
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function requireEnv(name: string): string {
-  const v = process.env[name]
-  if (!v) throw new Error(`Missing env var: ${name}`)
-  return v
+  const v = process.env[name];
+  if (!v) throw new Error(`Missing env var: ${name}`);
+  return v;
 }
 
 function amountInCents(amount: number): number {
   // Paymob expects amount in smallest currency unit (piastres for EGP)
-  return Math.round(amount * 100)
+  return Math.round(amount * 100);
 }
 
 function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function isRetriablePaymobError(error: unknown): boolean {
-  const cause = error instanceof Error ? (error as Error & { cause?: { code?: string } }).cause : undefined
-  const code = cause?.code
-  return code === 'UND_ERR_CONNECT_TIMEOUT'
-    || code === 'UND_ERR_HEADERS_TIMEOUT'
-    || code === 'UND_ERR_BODY_TIMEOUT'
-    || code === 'ETIMEDOUT'
-    || code === 'ECONNRESET'
-    || code === 'EAI_AGAIN'
-    || code === 'ENOTFOUND'
+  const cause =
+    error instanceof Error
+      ? (error as Error & { cause?: { code?: string } }).cause
+      : undefined;
+  const code = cause?.code;
+  return (
+    code === "UND_ERR_CONNECT_TIMEOUT" ||
+    code === "UND_ERR_HEADERS_TIMEOUT" ||
+    code === "UND_ERR_BODY_TIMEOUT" ||
+    code === "ETIMEDOUT" ||
+    code === "ECONNRESET" ||
+    code === "EAI_AGAIN" ||
+    code === "ENOTFOUND"
+  );
 }
 
 function createGatewayError(step: string, error: unknown): Error {
-  const cause = error instanceof Error ? (error as Error & { cause?: { code?: string } }).cause : undefined
-  const code = cause?.code
+  const cause =
+    error instanceof Error
+      ? (error as Error & { cause?: { code?: string } }).cause
+      : undefined;
+  const code = cause?.code;
 
-  if (code === 'UND_ERR_CONNECT_TIMEOUT' || code === 'ETIMEDOUT') {
-    return new Error(`Paymob ${step} timed out while connecting to the gateway. Please try again in a moment.`, { cause: error })
+  if (code === "UND_ERR_CONNECT_TIMEOUT" || code === "ETIMEDOUT") {
+    return new Error(
+      `Paymob ${step} timed out while connecting to the gateway. Please try again in a moment.`,
+      { cause: error },
+    );
   }
 
-  if (code === 'ENOTFOUND' || code === 'EAI_AGAIN') {
-    return new Error(`Paymob ${step} failed because the gateway host could not be reached from this server.`, { cause: error })
+  if (code === "ENOTFOUND" || code === "EAI_AGAIN") {
+    return new Error(
+      `Paymob ${step} failed because the gateway host could not be reached from this server.`,
+      { cause: error },
+    );
   }
 
-  return new Error(`Paymob ${step} failed: ${error instanceof Error ? error.message : 'Unknown gateway error'}`, { cause: error })
+  return new Error(
+    `Paymob ${step} failed: ${error instanceof Error ? error.message : "Unknown gateway error"}`,
+    { cause: error },
+  );
 }
 
-async function fetchPaymob(step: string, path: string, init: RequestInit): Promise<Response> {
-  const url = `${BASE_URL}${path}`
-  const maxAttempts = Math.max(1, PAYMOB_MAX_RETRIES + 1)
+async function fetchPaymob(
+  step: string,
+  path: string,
+  init: RequestInit,
+): Promise<Response> {
+  const url = `${BASE_URL}${path}`;
+  const maxAttempts = Math.max(1, PAYMOB_MAX_RETRIES + 1);
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), PAYMOB_TIMEOUT_MS)
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), PAYMOB_TIMEOUT_MS);
 
     try {
-      const res = await fetch(url, { ...init, signal: controller.signal })
+      const res = await fetch(url, { ...init, signal: controller.signal });
 
       if (res.status >= 500 && attempt < maxAttempts) {
-        await sleep(500 * attempt)
-        continue
+        await sleep(500 * attempt);
+        continue;
       }
 
-      return res
+      return res;
     } catch (error) {
       if (attempt < maxAttempts && isRetriablePaymobError(error)) {
-        await sleep(500 * attempt)
-        continue
+        await sleep(500 * attempt);
+        continue;
       }
 
-      throw createGatewayError(step, error)
+      throw createGatewayError(step, error);
     } finally {
-      clearTimeout(timeout)
+      clearTimeout(timeout);
     }
   }
 
-  throw new Error(`Paymob ${step} failed after multiple attempts.`)
+  throw new Error(`Paymob ${step} failed after multiple attempts.`);
 }
 
 async function readErrorBody(res: Response): Promise<string> {
   try {
-    const text = await res.text()
-    return text.trim().slice(0, 300)
+    const text = await res.text();
+    return text.trim().slice(0, 300);
   } catch {
-    return ''
+    return "";
   }
 }
 
 function getIntegrationId(method: PaymentMethod): string {
   switch (method) {
-    case 'fawry':
-      return requireEnv('PAYMOB_FAWRY_INTEGRATION_ID')
-    case 'apple_pay':
-      return requireEnv('PAYMOB_APPLE_PAY_INTEGRATION_ID')
-    case 'google_pay':
-      return requireEnv('PAYMOB_GOOGLE_PAY_INTEGRATION_ID')
-    case 'installment':
-      return requireEnv('PAYMOB_VALU_INTEGRATION_ID')
+    case "fawry":
+      return requireEnv("PAYMOB_FAWRY_INTEGRATION_ID");
+    case "apple_pay":
+      return requireEnv("PAYMOB_APPLE_PAY_INTEGRATION_ID");
+    case "google_pay":
+      return requireEnv("PAYMOB_GOOGLE_PAY_INTEGRATION_ID");
+    case "installment":
+      return requireEnv("PAYMOB_VALU_INTEGRATION_ID");
     default:
-      return requireEnv('PAYMOB_CARD_INTEGRATION_ID')
+      return requireEnv("PAYMOB_CARD_INTEGRATION_ID");
   }
 }
 
 // ── Step 1: Authenticate ─────────────────────────────────────────────────────
 
 async function authenticate(): Promise<string> {
-  const res = await fetchPaymob('authentication', '/auth/tokens', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ api_key: requireEnv('PAYMOB_API_KEY') }),
-  })
+  const res = await fetchPaymob("authentication", "/auth/tokens", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ api_key: requireEnv("PAYMOB_API_KEY") }),
+  });
   if (!res.ok) {
-    const details = await readErrorBody(res)
-    throw new Error(`Paymob auth failed: ${res.status}${details ? ` ${details}` : ''}`)
+    const details = await readErrorBody(res);
+    throw new Error(
+      `Paymob auth failed: ${res.status}${details ? ` ${details}` : ""}`,
+    );
   }
-  const data = await res.json()
-  return data.token as string
+  const data = await res.json();
+  return data.token as string;
 }
 
 // ── Step 2: Create Order ─────────────────────────────────────────────────────
@@ -154,38 +182,40 @@ async function createOrder(
   currency: string,
   merchantOrderId: string,
   eventTitle: string,
-  kind: 'ticket' | 'donation' | 'subscription',
+  kind: "ticket" | "donation" | "subscription",
 ): Promise<number> {
-  const res = await fetchPaymob('order creation', '/ecommerce/orders', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+  const res = await fetchPaymob("order creation", "/ecommerce/orders", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      auth_token:          token,
-      delivery_needed:     false,
-      amount_cents:        amountCents,
+      auth_token: token,
+      delivery_needed: false,
+      amount_cents: amountCents,
       currency,
-      merchant_order_id:   merchantOrderId,
+      merchant_order_id: merchantOrderId,
       items: [
         {
-          name:        eventTitle.slice(0, 100),
+          name: eventTitle.slice(0, 100),
           amount_cents: amountCents,
           description:
-            kind === 'donation'
-              ? 'Event donation via Rawaq'
-              : kind === 'subscription'
-                ? 'Membership subscription via Rawaq'
-                : 'Event ticket via Rawaq',
-          quantity:    1,
+            kind === "donation"
+              ? "Event donation via Rawaq"
+              : kind === "subscription"
+                ? "Membership subscription via Rawaq"
+                : "Event ticket via Rawaq",
+          quantity: 1,
         },
       ],
     }),
-  })
+  });
   if (!res.ok) {
-    const details = await readErrorBody(res)
-    throw new Error(`Paymob create order failed: ${res.status}${details ? ` ${details}` : ''}`)
+    const details = await readErrorBody(res);
+    throw new Error(
+      `Paymob create order failed: ${res.status}${details ? ` ${details}` : ""}`,
+    );
   }
-  const data = await res.json()
-  return data.id as number
+  const data = await res.json();
+  return data.id as number;
 }
 
 // ── Step 3: Get Payment Key ───────────────────────────────────────────────────
@@ -198,55 +228,61 @@ async function getPaymentKey(
   integrationId: string,
   billingData: PaymobBillingData,
 ): Promise<string> {
-  const res = await fetchPaymob('payment key creation', '/acceptance/payment_keys', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      auth_token:     token,
-      amount_cents:   amountCents,
-      expiration:     3600,   // 1 hour
-      order_id:       orderId,
-      billing_data:   billingData,
-      currency,
-      integration_id: Number(integrationId),
-      lock_order_when_paid: true,
-    }),
-  })
+  const res = await fetchPaymob(
+    "payment key creation",
+    "/acceptance/payment_keys",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        auth_token: token,
+        amount_cents: amountCents,
+        expiration: 3600, // 1 hour
+        order_id: orderId,
+        billing_data: billingData,
+        currency,
+        integration_id: Number(integrationId),
+        lock_order_when_paid: true,
+      }),
+    },
+  );
   if (!res.ok) {
-    const details = await readErrorBody(res)
-    throw new Error(`Paymob payment key failed: ${res.status}${details ? ` ${details}` : ''}`)
+    const details = await readErrorBody(res);
+    throw new Error(
+      `Paymob payment key failed: ${res.status}${details ? ` ${details}` : ""}`,
+    );
   }
-  const data = await res.json()
-  return data.token as string
+  const data = await res.json();
+  return data.token as string;
 }
 
 interface PaymobBillingData {
-  first_name:    string
-  last_name:     string
-  email:         string
-  phone_number:  string
-  apartment:     string
-  floor:         string
-  street:        string
-  building:      string
-  city:          string
-  country:       string
-  state:         string
-  postal_code:   string
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone_number: string;
+  apartment: string;
+  floor: string;
+  street: string;
+  building: string;
+  city: string;
+  country: string;
+  state: string;
+  postal_code: string;
 }
 
 // ── Transaction lookup ────────────────────────────────────────────────────────
 
 export interface PaymobTransactionStatus {
-  id: string
-  success: boolean
-  is_refunded: boolean
-  is_voided: boolean
-  pending: boolean
-  amount_cents: number
-  currency: string
-  created_at: string
-  error_message: string | null
+  id: string;
+  success: boolean;
+  is_refunded: boolean;
+  is_voided: boolean;
+  pending: boolean;
+  amount_cents: number;
+  currency: string;
+  created_at: string;
+  error_message: string | null;
 }
 
 /**
@@ -257,33 +293,43 @@ export async function getPaymobTransaction(
   transactionId: string,
 ): Promise<{ data: PaymobTransactionStatus | null; error?: string }> {
   try {
-    const authToken = await authenticate()
+    const authToken = await authenticate();
 
-    const res = await fetchPaymob('transaction lookup', `/acceptance/transactions/${transactionId}`, {
-      headers: { 'Authorization': `Bearer ${authToken}` },
-    })
+    const res = await fetchPaymob(
+      "transaction lookup",
+      `/acceptance/transactions/${transactionId}`,
+      {
+        headers: { Authorization: `Bearer ${authToken}` },
+      },
+    );
 
     if (!res.ok) {
-      const details = await readErrorBody(res)
-      return { data: null, error: `Paymob lookup failed: ${res.status}${details ? ` ${details}` : ''}` }
+      const details = await readErrorBody(res);
+      return {
+        data: null,
+        error: `Paymob lookup failed: ${res.status}${details ? ` ${details}` : ""}`,
+      };
     }
 
-    const obj = await res.json()
+    const obj = await res.json();
     return {
       data: {
-        id:            String(obj.id),
-        success:       Boolean(obj.success),
-        is_refunded:   Boolean(obj.is_refunded),
-        is_voided:     Boolean(obj.is_voided),
-        pending:       Boolean(obj.pending),
-        amount_cents:  Number(obj.amount_cents),
-        currency:      String(obj.currency ?? 'EGP'),
-        created_at:    String(obj.created_at ?? ''),
+        id: String(obj.id),
+        success: Boolean(obj.success),
+        is_refunded: Boolean(obj.is_refunded),
+        is_voided: Boolean(obj.is_voided),
+        pending: Boolean(obj.pending),
+        amount_cents: Number(obj.amount_cents),
+        currency: String(obj.currency ?? "EGP"),
+        created_at: String(obj.created_at ?? ""),
         error_message: obj.data?.message ?? null,
       },
-    }
+    };
   } catch (err) {
-    return { data: null, error: err instanceof Error ? err.message : 'Unknown error' }
+    return {
+      data: null,
+      error: err instanceof Error ? err.message : "Unknown error",
+    };
   }
 }
 
@@ -300,29 +346,35 @@ export async function refundPaymob(
   amount: number,
 ): Promise<{ success: boolean; gatewayRefundRef?: string; error?: string }> {
   try {
-    const authToken = await authenticate()
+    const authToken = await authenticate();
 
-    const res = await fetchPaymob('refund', '/acceptance/void_refund/refund', {
-      method:  'POST',
+    const res = await fetchPaymob("refund", "/acceptance/void_refund/refund", {
+      method: "POST",
       headers: {
-        'Content-Type':  'application/json',
-        'Authorization': `Bearer ${authToken}`,
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${authToken}`,
       },
       body: JSON.stringify({
         transaction_id: gatewayRef,
-        amount_cents:   amountInCents(amount),
+        amount_cents: amountInCents(amount),
       }),
-    })
+    });
 
-    const data = await res.json()
+    const data = await res.json();
 
     if (!res.ok || data.success === false) {
-      return { success: false, error: data.message ?? `Paymob refund failed: ${res.status}` }
+      return {
+        success: false,
+        error: data.message ?? `Paymob refund failed: ${res.status}`,
+      };
     }
 
-    return { success: true, gatewayRefundRef: String(data.id ?? gatewayRef) }
+    return { success: true, gatewayRefundRef: String(data.id ?? gatewayRef) };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Unknown error",
+    };
   }
 }
 
@@ -332,30 +384,36 @@ export async function initiatePaymob(
   params: InitiatePaymentParams,
 ): Promise<InitiatePaymentResult> {
   const {
-    bookingId, transactionId, amount, currency,
-    userEmail, userPhone, userFirstName, userLastName,
-    eventTitle, method, kind = 'ticket',
-  } = params
+    amount,
+    currency,
+    userEmail,
+    userPhone,
+    userFirstName,
+    userLastName,
+    eventTitle,
+    method,
+    kind = "ticket",
+  } = params;
 
-  const amountCents    = amountInCents(amount)
-  const integrationId  = getIntegrationId(method)
-  const iframeId       = requireEnv('PAYMOB_CARD_IFRAME_ID')
-  const expiresAt      = new Date(Date.now() + 60 * 60 * 1000).toISOString() // 1 hour
+  const amountCents = amountInCents(amount);
+  const integrationId = getIntegrationId(method);
+  const iframeId = requireEnv("PAYMOB_CARD_IFRAME_ID");
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 hour
 
   const billingData: PaymobBillingData = {
-    first_name:   userFirstName ?? 'Rawaq',
-    last_name:    userLastName  ?? 'User',
-    email:        userEmail     ?? 'customer@rawaq.app',
-    phone_number: userPhone     ?? '+20000000000',
-    apartment:    'N/A',
-    floor:        'N/A',
-    street:       'N/A',
-    building:     'N/A',
-    city:         'Cairo',
-    country:      'EG',
-    state:        'Cairo',
-    postal_code:  'N/A',
-  }
+    first_name: userFirstName ?? "Rawaq",
+    last_name: userLastName ?? "User",
+    email: userEmail ?? "customer@rawaq.app",
+    phone_number: userPhone ?? "+20000000000",
+    apartment: "N/A",
+    floor: "N/A",
+    street: "N/A",
+    building: "N/A",
+    city: "Cairo",
+    country: "EG",
+    state: "Cairo",
+    postal_code: "N/A",
+  };
 
   // 3-step Paymob flow
   // Generate a fresh UUID as merchant_order_id on every call. Paymob rejects
@@ -363,22 +421,37 @@ export async function initiatePaymob(
   // retrying after a failed payment). Webhook correlation uses Paymob's own
   // numeric order ID (stored in gateway_order_id), not merchant_order_id, so
   // this value is only a unique label for Paymob's records.
-  const token        = await authenticate()
-  const orderId      = await createOrder(token, amountCents, currency, randomUUID(), eventTitle, kind)
-  const paymentKey   = await getPaymentKey(token, amountCents, currency, orderId, integrationId, billingData)
+  const token = await authenticate();
+  const orderId = await createOrder(
+    token,
+    amountCents,
+    currency,
+    randomUUID(),
+    eventTitle,
+    kind,
+  );
+  const paymentKey = await getPaymentKey(
+    token,
+    amountCents,
+    currency,
+    orderId,
+    integrationId,
+    billingData,
+  );
 
-  const redirectUrl = method === 'fawry'
-    // Fawry: Paymob hosts the Fawry reference number display
-    ? `https://accept.paymob.com/api/acceptance/iframes/${iframeId}?payment_token=${paymentKey}`
-    // Card / Apple Pay / Google Pay: Paymob hosted checkout
-    : `https://accept.paymob.com/api/acceptance/iframes/${iframeId}?payment_token=${paymentKey}`
+  const redirectUrl =
+    method === "fawry"
+      ? // Fawry: Paymob hosts the Fawry reference number display
+        `https://accept.paymob.com/api/acceptance/iframes/${iframeId}?payment_token=${paymentKey}`
+      : // Card / Apple Pay / Google Pay: Paymob hosted checkout
+        `https://accept.paymob.com/api/acceptance/iframes/${iframeId}?payment_token=${paymentKey}`;
 
   return {
-    gateway:        'paymob',
+    gateway: "paymob",
     redirectUrl,
     gatewayOrderId: String(orderId),
     expiresAt,
-  }
+  };
 }
 
 // ── Webhook Verification & Parsing ───────────────────────────────────────────
@@ -393,15 +466,18 @@ export async function initiatePaymob(
  *   is_standalone_payment, is_voided, order.id, owner, pending,
  *   source_data.pan, source_data.sub_type, source_data.type, success
  */
-export function verifyPaymobHmac(obj: Record<string, unknown>, hmac: string): boolean {
-  const secret = process.env.PAYMOB_HMAC_SECRET
+export function verifyPaymobHmac(
+  obj: Record<string, unknown>,
+  hmac: string,
+): boolean {
+  const secret = process.env.PAYMOB_HMAC_SECRET;
   if (!secret) {
-    console.error('[paymob] PAYMOB_HMAC_SECRET not configured')
-    return false
+    console.error("[paymob] PAYMOB_HMAC_SECRET not configured");
+    return false;
   }
 
-  const order     = (obj.order as Record<string, unknown>) ?? {}
-  const sourceData = (obj.source_data as Record<string, unknown>) ?? {}
+  const order = (obj.order as Record<string, unknown>) ?? {};
+  const sourceData = (obj.source_data as Record<string, unknown>) ?? {};
 
   const concatenated = [
     obj.amount_cents,
@@ -420,72 +496,76 @@ export function verifyPaymobHmac(obj: Record<string, unknown>, hmac: string): bo
     order.id,
     obj.owner,
     obj.pending,
-    sourceData.pan       ?? '',
-    sourceData.sub_type  ?? '',
-    sourceData.type      ?? '',
+    sourceData.pan ?? "",
+    sourceData.sub_type ?? "",
+    sourceData.type ?? "",
     obj.success,
-  ].join('')
+  ].join("");
 
-  const expected = createHmac('sha512', secret)
+  const expected = createHmac("sha512", secret)
     .update(concatenated)
-    .digest('hex')
+    .digest("hex");
 
-  return expected === hmac
+  return expected === hmac;
 }
 
 /**
  * Parse a Paymob webhook payload into our normalized WebhookEvent.
  */
-export function parsePaymobWebhook(body: Record<string, unknown>): WebhookEvent | null {
-  const obj = body.obj as Record<string, unknown> | undefined
-  if (!obj) return null
+export function parsePaymobWebhook(
+  body: Record<string, unknown>,
+): WebhookEvent | null {
+  const obj = body.obj as Record<string, unknown> | undefined;
+  if (!obj) return null;
 
-  const order      = (obj.order as Record<string, unknown>) ?? {}
-  const sourceData = (obj.source_data as Record<string, unknown>) ?? {}
-  const success    = Boolean(obj.success)
-  const pending    = Boolean(obj.pending)
-  const isRefunded = Boolean(obj.is_refunded)
-  const is3ds      = Boolean(obj.is_3d_secure)
-  const errorOccured = Boolean(obj.error_occured)
+  const order = (obj.order as Record<string, unknown>) ?? {};
+  const sourceData = (obj.source_data as Record<string, unknown>) ?? {};
+  const success = Boolean(obj.success);
+  const pending = Boolean(obj.pending);
+  const isRefunded = Boolean(obj.is_refunded);
+  const is3ds = Boolean(obj.is_3d_secure);
+  const errorOccured = Boolean(obj.error_occured);
 
-  let status: WebhookEvent['status']
+  let status: WebhookEvent["status"];
   if (isRefunded) {
-    status = 'failed'
+    status = "failed";
   } else if (success) {
     // success=true always means the payment was authorized, regardless of the
     // pending flag. Paymob sends success=true + pending=true for mobile wallets
     // and some card types where settlement is deferred — the authorization itself
     // is complete and we should confirm the booking immediately.
-    status = 'succeeded'
+    status = "succeeded";
   } else if (is3ds && !errorOccured) {
     // 3DS intermediate: Paymob fires success=false, pending=false, is_3d_secure=true
     // when the cardholder is being redirected to their bank. A second callback
     // with the real result arrives after 3DS completes. Treat as pending so we
     // don't cancel the booking prematurely.
-    status = 'pending'
+    status = "pending";
   } else if (pending) {
     // Genuinely awaiting user action (async payment method not yet completed).
-    status = 'pending'
+    status = "pending";
   } else {
-    status = 'failed'
+    status = "failed";
   }
 
-  const rawMethod = String(sourceData.type ?? '').toLowerCase()
-  let paymentMethod: PaymentMethod = 'card'
-  if (rawMethod === 'wallet') paymentMethod = 'wallet'
-  if (rawMethod === 'fawry')  paymentMethod = 'fawry'
+  const rawMethod = String(sourceData.type ?? "").toLowerCase();
+  let paymentMethod: PaymentMethod = "card";
+  if (rawMethod === "wallet") paymentMethod = "wallet";
+  if (rawMethod === "fawry") paymentMethod = "fawry";
 
-  const amountCents = Number(obj.amount_cents ?? 0)
+  const amountCents = Number(obj.amount_cents ?? 0);
 
   return {
-    gateway:        'paymob',
-    gatewayOrderId: String(order.id ?? ''),
-    gatewayRef:     String(obj.id ?? ''),
+    gateway: "paymob",
+    gatewayOrderId: String(order.id ?? ""),
+    gatewayRef: String(obj.id ?? ""),
     gatewayPayload: body,
     status,
-    amount:         amountCents / 100,
-    currency:       String(obj.currency ?? 'EGP'),
+    amount: amountCents / 100,
+    currency: String(obj.currency ?? "EGP"),
     paymentMethod,
-    failureReason:  success ? undefined : String(obj.data_message ?? 'Payment failed'),
-  }
+    failureReason: success
+      ? undefined
+      : String(obj.data_message ?? "Payment failed"),
+  };
 }

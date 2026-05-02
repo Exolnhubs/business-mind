@@ -57,7 +57,7 @@ export default async function AttendeesPage({ params }: { params: Promise<{ id: 
 
   // Fetch holders separately — resilient if migration 00068 hasn't been applied yet
   type HolderRow = { id: string; booking_id: string; full_name: string; date_of_birth: string; relation: string; position: number }
-  let holdersByBookingId: Record<string, HolderRow[]> = {}
+  const holdersByBookingId: Record<string, HolderRow[]> = {}
   try {
     const bookingIds = baseBookings.map((b) => b.id)
     if (bookingIds.length > 0) {

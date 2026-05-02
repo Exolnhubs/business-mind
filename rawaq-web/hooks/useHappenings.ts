@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { createSupabaseBrowserClient } from '@/lib/supabase/client'
 import type { HappeningWithAuthor } from '@/types/database'
 
-export function useHappenings(slug: string, isMember: boolean) {
+export function useHappenings(slug: string) {
   const [happenings, setHappenings]   = useState<HappeningWithAuthor[]>([])
   const [loading, setLoading]         = useState(true)
   const [posting, setPosting]         = useState(false)

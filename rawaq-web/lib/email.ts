@@ -80,7 +80,7 @@ async function bookingConfirmed(
   `)
 }
 
-function bookingCancelled(eventTitle: string, eventId: string): string {
+function bookingCancelled(eventTitle: string): string {
   return layout(`
     ${h1('Booking Cancelled')}
     ${p(`Your booking for <strong>${eventTitle}</strong> has been cancelled.`)}
@@ -117,7 +117,7 @@ function organizerSuspended(note?: string): string {
   `)
 }
 
-function eventCancelled(eventTitle: string, eventId: string): string {
+function eventCancelled(eventTitle: string): string {
   return layout(`
     ${h1('Event Cancelled')}
     ${p(`We\'re sorry to let you know that <strong>${eventTitle}</strong> has been cancelled by the organizer.`)}
@@ -187,7 +187,7 @@ async function buildEmail(type: NotificationType, payload: Record<string, unknow
         ),
       }
     case 'booking_cancelled':
-      return { subject: `Booking cancelled: ${str('event_title')}`, html: bookingCancelled(str('event_title'), str('event_id')) }
+      return { subject: `Booking cancelled: ${str('event_title')}`, html: bookingCancelled(str('event_title')) }
     case 'organizer_approved':
       return { subject: 'Your organizer account has been approved 🎉', html: organizerApproved(str('note')) }
     case 'organizer_rejected':
@@ -195,7 +195,7 @@ async function buildEmail(type: NotificationType, payload: Record<string, unknow
     case 'organizer_suspended':
       return { subject: 'Your organizer account has been suspended', html: organizerSuspended(str('note')) }
     case 'event_cancelled':
-      return { subject: `Event cancelled: ${str('event_title')}`, html: eventCancelled(str('event_title'), str('event_id')) }
+      return { subject: `Event cancelled: ${str('event_title')}`, html: eventCancelled(str('event_title')) }
     case 'event_reminder':
       return { subject: `Reminder: ${str('event_title')} starts in 1 hour`, html: eventReminder(str('event_title'), str('event_id'), str('start_at')) }
     case 'tip_received':
@@ -209,7 +209,7 @@ async function buildEmail(type: NotificationType, payload: Record<string, unknow
   }
 }
 
-export async function sendNotificationEmail({ type, payload, toEmail, toName }: EmailParams) {
+export async function sendNotificationEmail({ type, payload, toEmail }: EmailParams) {
   if (!process.env.RESEND_API_KEY) return  // graceful no-op in dev without key
 
   const email = await buildEmail(type, payload)

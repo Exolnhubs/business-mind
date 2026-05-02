@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useOptimistic, useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { createSupabaseBrowserClient } from '@/lib/supabase/client'
 import { useAuth } from '@/contexts/auth-context'
 import { CommentItem } from './CommentItem'

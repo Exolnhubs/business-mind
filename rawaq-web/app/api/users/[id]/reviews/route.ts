@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireAuth } from '@/lib/auth'
-import { handleApiError, ok, created, ForbiddenException, BadRequestException } from '@/lib/errors'
+import { handleApiError, ok, created, ForbiddenException } from '@/lib/errors'
 import { sendNotification } from '@/lib/notifications'
 
 const ReviewSchema = z.object({

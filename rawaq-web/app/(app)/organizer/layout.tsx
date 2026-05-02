@@ -43,7 +43,7 @@ export default async function OrganizerLayout({ children }: { children: React.Re
         <div className="text-5xl mb-4">⏳</div>
         <h1 className="text-xl font-bold text-gray-900 mb-2">Pending Approval</h1>
         <p className="text-gray-500 text-sm">
-          Your organizer account is under review. You'll get access once an admin approves it.
+          Your organizer account is under review. You&apos;ll get access once an admin approves it.
         </p>
       </div>
     )

@@ -142,9 +142,7 @@ export function BookingFlow({
   const occurrenceIsFull = selectedOccurrence
     ? selectedOccurrence.capacity !== null && selectedOccurrence.bookings_count >= selectedOccurrence.capacity
     : isFull
-  const spotsLeft = selectedOccurrence && selectedOccurrence.capacity !== null
-    ? selectedOccurrence.capacity - selectedOccurrence.bookings_count
-    : null
+
 
   // Price preview for the CTA button label — use hot offer price if active
   const basePrice = selectedType ? getEffectivePrice(selectedType) : (eventPrice ?? 0)

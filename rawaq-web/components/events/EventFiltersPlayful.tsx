@@ -41,8 +41,8 @@ export function EventFiltersPlayful() {
   const [categories, setCategories] = useState<Category[]>([])
   const [searchValue, setSearchValue] = useState(query)
   const pendingSearchQueryRef = useRef<string | null>(null)
-  const [fadeLeft, setFadeLeft] = useState(false)
-  const [fadeRight, setFadeRight] = useState(false)
+  const [, setFadeLeft] = useState(false)
+  const [, setFadeRight] = useState(false)
   const catsRef = useRef<HTMLDivElement>(null)
   const { dir } = useLocale()
 

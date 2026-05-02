@@ -216,8 +216,6 @@ export function ReviewSection({
   const [page, setPage]                 = useState(1)
   const [loadingMore, startLoadMore]    = useTransition()
 
-  const perPage = 20
-
   function handleSaved(saved: { rating: number; content: string | null }) {
     setViewerReview(saved)
     setShowForm(false)

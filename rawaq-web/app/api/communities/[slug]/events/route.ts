@@ -40,7 +40,7 @@ export async function GET(
     }
 
     const eventIds = ecRows.map((r) => r.event_id)
-    let query = supabase
+    const query = supabase
       .from('events')
       .select(
         `id, title, title_ar, cover_image_url, start_at, end_at, event_frequency, recurrence_until, city,

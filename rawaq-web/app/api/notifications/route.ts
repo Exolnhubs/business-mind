@@ -5,7 +5,6 @@ import { requireAuth } from '@/lib/auth'
 import { handleApiError, ok } from '@/lib/errors'
 import { ListNotificationsSchema } from '@/lib/validations/notifications'
 
-const CACHE_TTL_MS = 30_000
 
 // GET /api/notifications
 export async function GET(req: NextRequest) {
@@ -40,7 +39,7 @@ export async function GET(req: NextRequest) {
 }
 
 // PATCH /api/notifications — mark all as read
-export async function PATCH(req: NextRequest) {
+export async function PATCH() {
   try {
     const ctx = await requireAuth()
     const admin = createSupabaseAdminClient()

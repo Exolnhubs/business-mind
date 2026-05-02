@@ -27,7 +27,7 @@ async function FeedGrid({ userId, page }: { userId: string; page: number }) {
     return <FeedEmptyNoFollows />
   }
 
-  const [{ data: events, count }, { data: saves }] = await Promise.all([
+  const [{ data: events }, { data: saves }] = await Promise.all([
     supabase
       .from('events')
       .select(`

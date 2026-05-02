@@ -46,7 +46,7 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
       throw new ForbiddenException('Past or ongoing occurrences can no longer be edited')
     }
 
-    let nextStartsAt = input.starts_at ?? occurrence.starts_at
+    const nextStartsAt = input.starts_at ?? occurrence.starts_at
     let nextEndsAt = input.ends_at !== undefined ? input.ends_at : occurrence.ends_at
 
     if (input.starts_at && input.ends_at === undefined && occurrence.ends_at) {

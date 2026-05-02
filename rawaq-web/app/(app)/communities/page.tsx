@@ -7,7 +7,7 @@ import { useLocale } from '@/contexts/locale-context'
 import { HorizontalDragScroll } from '@/components/ui/HorizontalDragScroll'
 import { Spinner } from '@/components/ui/Spinner'
 import { clientFetchInvalidate, clientGetJson, clientPostJson, clientDeleteJson } from '@/lib/client-fetch'
-import type { Community, CommunityLevel, CommunityRole, CommunityMembershipStatus } from '@/types/database'
+import type { Community, CommunityLevel } from '@/types/database'
 
 // ── Types ─────────────────────────────────────────────────────
 type CommunityWithMembership = Community & {
@@ -239,8 +239,6 @@ function DarkCommRail({
 // ── Trending pill ─────────────────────────────────────────────
 function TrendingPill({
   community,
-  onJoin,
-  joining,
   t,
   locale,
 }: {
@@ -374,6 +372,7 @@ export default function CommunitiesPage() {
         setHasMore(json.data.has_more)
         setPage(p)
       } catch (err) {
+        console.error(err)
         if (controller.signal.aborted) return
         if (p === 1) { setCommunities([]); setHasMore(false) }
       } finally {

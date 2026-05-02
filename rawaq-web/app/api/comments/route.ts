@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
-import { requireAuth, optionalAuth } from '@/lib/auth'
+import { requireAuth } from '@/lib/auth'
 import { handleApiError, ok, created, NotFoundException, ForbiddenException } from '@/lib/errors'
 import { CreateCommentSchema, ListCommentsSchema } from '@/lib/validations/comments'
 import { sendNotifications } from '@/lib/notifications'

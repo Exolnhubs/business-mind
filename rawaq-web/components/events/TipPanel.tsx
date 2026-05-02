@@ -22,7 +22,7 @@ interface TipPanelProps {
   currency?: string
 }
 
-export function TipPanel({ eventId, organizerId, currency = 'SAR' }: TipPanelProps) {
+export function TipPanel({ eventId, currency = 'SAR' }: TipPanelProps) {
   const { user } = useAuth()
   const router = useRouter()
 

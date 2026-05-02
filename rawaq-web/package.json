@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint .",
+    "lint": "eslint --ext .js,.jsx,.ts,.tsx app components hooks lib instrumentation.ts instrumentation-client.ts middleware.ts next.config.ts sentry.edge.config.ts sentry.server.config.ts",
+    "lint:fix": "npm run lint -- --fix",
     "test": "echo 'No tests configured' && exit 0",
     "type-check": "tsc --noEmit"
   },
