@@ -898,10 +898,15 @@ export default function EventDetailScreen() {
                   </View>
                 ) : effectiveBookingPending ? (
                   <View style={styles.waitlistBadge}>
-                    <Text style={styles.waitlistBadgeText}>⏳ Payment is being processed</Text>
+                    <Text style={styles.waitlistBadgeText}>⏳ Previous payment attempt pending</Text>
                     <Text style={[styles.waitlistBadgeText, { fontWeight: '400', marginTop: 2, opacity: 0.8 }]}>
-                      Your booking will be confirmed shortly. Check the Bookings tab.
+                      Didn't complete payment? You can retry now.
                     </Text>
+                    <TouchableOpacity onPress={handleBooking} disabled={bookingLoading} style={{ marginTop: 8 }}>
+                      <Text style={[styles.waitlistBadgeText, { fontWeight: '700', textDecorationLine: 'underline' }]}>
+                        {bookingLoading ? '…' : 'Retry payment →'}
+                      </Text>
+                    </TouchableOpacity>
                   </View>
                 ) : isFull ? (
                   effectiveOnWaitlist ? (

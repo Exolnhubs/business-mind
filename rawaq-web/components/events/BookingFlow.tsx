@@ -294,8 +294,16 @@ export function BookingFlow({
           </p>
         </div>
       ) : bookingPending ? (
-        <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-center text-sm font-medium text-blue-700">
-          Your payment is still processing for this session.
+        <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-center space-y-1.5">
+          <p className="text-sm font-medium text-blue-700">Your previous payment attempt is still pending.</p>
+          <button
+            type="button"
+            onClick={goToCheckout}
+            disabled={loading}
+            className="text-sm font-semibold text-brand-700 underline underline-offset-2 hover:text-brand-900 disabled:opacity-50"
+          >
+            Retry payment →
+          </button>
         </div>
       ) : occurrenceIsFull ? (
         onWaitlist ? (
