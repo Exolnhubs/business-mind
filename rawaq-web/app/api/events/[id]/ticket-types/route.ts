@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireAuth } from '@/lib/auth'
 import { handleApiError, ok, created, NotFoundException, ForbiddenException } from '@/lib/errors'
 
@@ -33,14 +34,15 @@ export async function GET(
 
     if (isOrganizerView) {
       const ctx = await requireAuth()
-      const { data: event } = await supabase
+      const admin = createSupabaseAdminClient()
+      const { data: event } = await admin
         .from('events').select('organizer_id').eq('id', eventId).single()
       if (!event) throw new NotFoundException('Event')
       if (event.organizer_id !== ctx.userId && ctx.role !== 'admin') {
         throw new ForbiddenException('Not your event')
       }
 
-      const { data, error } = await supabase
+      const { data, error } = await admin
         .from('ticket_types')
         .select('*')
         .eq('event_id', eventId)
@@ -70,7 +72,7 @@ export async function POST(
   try {
     const ctx = await requireAuth()
     const { id: eventId } = await params
-    const supabase = await createSupabaseServerClient()
+    const supabase = createSupabaseAdminClient()
 
     const { data: event } = await supabase
       .from('events').select('id, organizer_id').eq('id', eventId).single()

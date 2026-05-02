@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
-import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireAuth } from '@/lib/auth'
 import { handleApiError, ok, NotFoundException, ForbiddenException } from '@/lib/errors'
 
@@ -27,7 +27,7 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
   try {
     const { id: eventId, typeId } = await params
     const ctx = await requireAuth()
-    const supabase = await createSupabaseServerClient()
+    const supabase = createSupabaseAdminClient()
 
     const { data: event } = await supabase
       .from('events').select('organizer_id').eq('id', eventId).single()
@@ -62,7 +62,7 @@ export async function DELETE(_req: NextRequest, { params }: Ctx) {
   try {
     const { id: eventId, typeId } = await params
     const ctx = await requireAuth()
-    const supabase = await createSupabaseServerClient()
+    const supabase = createSupabaseAdminClient()
 
     const { data: event } = await supabase
       .from('events').select('organizer_id').eq('id', eventId).single()
