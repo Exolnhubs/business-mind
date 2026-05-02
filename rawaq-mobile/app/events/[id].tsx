@@ -121,7 +121,7 @@ export default function EventDetailScreen() {
         .order('created_at', { ascending: false })
         .limit(30),
       user
-        ? supabase.from('bookings').select('id, status, occurrence_id')
+        ? supabase.from('bookings').select('id, status, occurrence_id, payment_pending_until')
           .eq('event_id', id).eq('user_id', user.id)
           .in('status', ['confirmed', 'pending'])
           .order('created_at', { ascending: false })
@@ -141,8 +141,9 @@ export default function EventDetailScreen() {
     const isRecurring = resolvedEvent?.event_frequency !== 'one_time'
     setEvent(resolvedEvent)
     setComments((cmts ?? []) as unknown as CommentWithAuthor[])
-    const confirmedBookings = ((bookingRows ?? []) as Array<{ id: string; status: string; occurrence_id: string | null }>).filter((booking) => booking.status === 'confirmed')
-    const pendingBookings = ((bookingRows ?? []) as Array<{ id: string; status: string; occurrence_id: string | null }>).filter((booking) => booking.status === 'pending')
+    const now = new Date()
+    const confirmedBookings = ((bookingRows ?? []) as Array<{ id: string; status: string; occurrence_id: string | null; payment_pending_until: string | null }>).filter((booking) => booking.status === 'confirmed')
+    const pendingBookings = ((bookingRows ?? []) as Array<{ id: string; status: string; occurrence_id: string | null; payment_pending_until: string | null }>).filter((booking) => booking.status === 'pending' && (!booking.payment_pending_until || new Date(booking.payment_pending_until) > now))
     const confirmedIds = confirmedBookings.map((booking) => booking.occurrence_id).filter((value): value is string => Boolean(value))
     const pendingIds = pendingBookings.map((booking) => booking.occurrence_id).filter((value): value is string => Boolean(value))
     const waitlistedIds = ((waitlistRows ?? []) as Array<{ occurrence_id: string | null }>).map((row) => row.occurrence_id).filter((value): value is string => Boolean(value))

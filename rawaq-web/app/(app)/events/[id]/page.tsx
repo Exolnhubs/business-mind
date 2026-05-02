@@ -94,7 +94,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
     const [{ data: bookingRows }, { data: save }, { data: waitlistRows }] = await Promise.all([
       supabase
         .from('bookings')
-        .select('id, occurrence_id, status')
+        .select('id, occurrence_id, status, payment_pending_until')
         .eq('event_id', id)
         .eq('user_id', user.id)
         .in('status', ['confirmed', 'pending']),
@@ -114,8 +114,9 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
 
     const confirmedBookings = (bookingRows ?? []).filter((booking) => booking.status === 'confirmed')
     confirmedOccurrenceIds = confirmedBookings.map((booking) => booking.occurrence_id).filter(Boolean)
+    const now = new Date()
     pendingOccurrenceIds = (bookingRows ?? [])
-      .filter((booking) => booking.status === 'pending')
+      .filter((booking) => booking.status === 'pending' && (!booking.payment_pending_until || new Date(booking.payment_pending_until) > now))
       .map((booking) => booking.occurrence_id)
       .filter(Boolean)
     waitlistedOccurrenceIds = (waitlistRows ?? []).map((row) => row.occurrence_id).filter(Boolean)

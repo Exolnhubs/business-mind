@@ -68,7 +68,7 @@
     "crons": [
         {
             "path": "/api/cron/cancel-pending-bookings",
-            "schedule": "*/15 * * * *"
+            "schedule": "0 2 * * *"
         }
     ]
 }
