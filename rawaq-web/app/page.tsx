@@ -18,7 +18,7 @@ const STATS = [
   { value: '10K+', labelKey: 'landing.stat_attendees' },
 ] as const
 
-function HeroBadge({ text }: { text: string }) {
+function HeroBadge({ text, isArabic }: { text: string; isArabic: boolean }) {
   return (
     <div className="animate-badge-pop inline-flex items-center gap-2.5 mb-8">
       <div
@@ -45,10 +45,10 @@ function HeroBadge({ text }: { text: string }) {
           style={{
             fontSize: '0.6875rem',
             fontWeight: 700,
-            letterSpacing: '0.14em',
-            textTransform: 'uppercase',
+            letterSpacing: isArabic ? 0 : '0.14em',
+            textTransform: isArabic ? 'none' : 'uppercase',
             color: 'var(--c-gold)',
-            fontFamily: 'var(--font-display)',
+            fontFamily: isArabic ? 'var(--font-arabic)' : 'var(--font-display)',
           }}
         >
           {text}
@@ -74,7 +74,7 @@ export default function LandingPage() {
 
           <div className="relative w-full max-w-6xl mx-auto px-4 sm:px-6 pt-24 pb-20 sm:pt-32 sm:pb-28 flex flex-col lg:flex-row items-center gap-12 lg:gap-20 flex-1">
             <div className="flex-shrink-0 lg:w-[520px] z-10">
-              <HeroBadge text={t('landing.badge')} />
+              <HeroBadge text={t('landing.badge')} isArabic={isAr} />
 
               <div className="mb-7">
                 <ActivityFeed />

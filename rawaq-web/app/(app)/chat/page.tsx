@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useTransition, type FormEvent } from 'react'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { createSupabaseBrowserClient } from '@/lib/supabase/client'
 import { useAuth } from '@/contexts/auth-context'
@@ -245,7 +246,7 @@ export default function ChatPage() {
                     title={isOwn ? t('chat.you') : (msg.author?.display_name ?? t('chat.unknown'))}
                   >
                     {msg.author?.avatar_url ? (
-                      <img src={msg.author.avatar_url} alt="" loading="lazy" className="chat-avatar-img" />
+                      <Image src={msg.author.avatar_url} alt="" fill sizes="40px" className="chat-avatar-img" />
                     ) : (
                       (msg.author?.display_name?.[0] ?? '?').toUpperCase()
                     )}

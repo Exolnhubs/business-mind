@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useDeferredValue, useEffect, useRef, useState } from 'react'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/auth-context'
 import { useLocale } from '@/contexts/locale-context'
@@ -85,11 +86,9 @@ function CommunityCardDark({
     >
       {/* Cover image or gradient */}
       {community.cover_url ? (
-        <img
-          src={community.cover_url}
-          alt=""
-          style={{ width: '100%', height: 120, objectFit: 'cover' }}
-        />
+        <div className="relative h-[120px] w-full">
+          <Image src={community.cover_url} alt="" fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover" />
+        </div>
       ) : (
         <div style={{
           height: 120,

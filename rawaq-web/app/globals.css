@@ -56,6 +56,30 @@ body {
   font-family: var(--font-arabic);
 }
 
+[dir="rtl"] .font-display,
+[dir="rtl"] .hero-headline,
+[dir="rtl"] .hero-stat-value,
+[dir="rtl"] .section-heading,
+[dir="rtl"] .org-cta-title,
+[dir="rtl"] .final-heading,
+[dir="rtl"] .footer-brand-name,
+[dir="rtl"] .lp-float-card-title,
+[dir="rtl"] .lp-comm-card-icon,
+[dir="rtl"] .lp-comm-pill-name,
+[dir="rtl"] .lp-comm-card-name,
+[dir="rtl"] .lp-event-card-title,
+[dir="rtl"] .lp-host-feature-title,
+[dir="rtl"] .lp-section-label,
+[dir="rtl"] .lp-how-step-icon,
+[dir="rtl"] .lp-how-step-title {
+  font-family: var(--font-arabic);
+  letter-spacing: 0;
+}
+
+[dir="rtl"] .lp-section-label {
+  text-transform: none;
+}
+
 /* ── Utility classes ───────────────────────────────────── */
 
 .btn-primary {
@@ -1500,6 +1524,7 @@ body {
 
 /* ── Avatar ── */
 .chat-avatar {
+  position: relative;
   width: 2rem;
   height: 2rem;
   min-width: 2rem;

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
+import Image from 'next/image'
 import Link from 'next/link'
 import { clientGetJson, isToastHandledError } from '@/lib/client-fetch'
 import { formatDate } from '@/lib/utils'
@@ -74,9 +75,9 @@ export default function HappeningParticipantsPage() {
                   href={`/user/${p.id}`}
                   className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-gray-50"
                 >
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-brand-100 text-sm font-semibold text-brand-700">
+                  <span className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-brand-100 text-sm font-semibold text-brand-700">
                     {p.avatar_url
-                      ? <img src={p.avatar_url} alt="" loading="lazy" className="h-full w-full object-cover" />
+                      ? <Image src={p.avatar_url} alt="" fill sizes="40px" className="object-cover" />
                       : p.display_name.slice(0, 1).toUpperCase()}
                   </span>
                   <span className="min-w-0 flex-1">

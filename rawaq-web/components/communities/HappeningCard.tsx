@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Image from 'next/image'
 import type { HappeningWithAuthor, HappeningType } from '@/types/database'
 import { useAuth } from '@/contexts/auth-context'
 import { PlanBadge } from '@/components/ui/PlanBadge'
@@ -42,9 +43,9 @@ export function HappeningCard({ happening: h, onRsvp, onReact, onDelete, onRepor
     <div className={`rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition-opacity ${isExpired ? 'opacity-50' : ''}`}>
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-brand-100 text-sm font-semibold text-brand-700">
+          <div className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-brand-100 text-sm font-semibold text-brand-700">
             {h.author.avatar_url
-              ? <img src={h.author.avatar_url} alt="" loading="lazy" className="h-full w-full object-cover" />
+              ? <Image src={h.author.avatar_url} alt="" fill sizes="36px" className="object-cover" />
               : avatarChar}
           </div>
           <div>

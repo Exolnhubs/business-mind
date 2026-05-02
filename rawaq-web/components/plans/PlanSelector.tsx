@@ -217,7 +217,7 @@ export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrga
     return () => {
       cancelled = true
     }
-  }, [searchParams])
+  }, [searchParams, t])
 
   return (
     <div className="space-y-8">

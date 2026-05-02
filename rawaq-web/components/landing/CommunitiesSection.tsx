@@ -34,12 +34,14 @@ function CommunityCard({
   members,
   posts,
   color,
+  isArabic,
 }: {
   name: string
   cat: string
   members: string
   posts: string
   color: string
+  isArabic: boolean
 }) {
   return (
     <Link
@@ -62,8 +64,9 @@ function CommunityCard({
             fontWeight: 700,
             padding: '0.2rem 0.625rem',
             borderRadius: '2rem',
-            letterSpacing: '0.04em',
-            textTransform: 'uppercase',
+            letterSpacing: isArabic ? 0 : '0.04em',
+            textTransform: isArabic ? 'none' : 'uppercase',
+            fontFamily: isArabic ? 'var(--font-arabic)' : undefined,
           }}
         >
           {cat}
@@ -134,7 +137,8 @@ export function CommunitiesSection() {
                   borderColor: activeIdx === i ? 'var(--c-gold)' : 'oklch(1 0 0 / 0.12)',
                   background: activeIdx === i ? 'oklch(0.78 0.18 72 / 0.14)' : 'transparent',
                   color: activeIdx === i ? 'var(--c-gold)' : 'oklch(0.52 0.015 72)',
-                  fontFamily: 'var(--font-display)',
+                  fontFamily: isAr ? 'var(--font-arabic)' : 'var(--font-display)',
+                  letterSpacing: isAr ? 0 : undefined,
                 }}
               >
                 {cat}
@@ -146,7 +150,7 @@ export function CommunitiesSection() {
         <ScrollReveal delay={2}>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {filtered.map((community, i) => (
-              <CommunityCard key={i} {...community} />
+              <CommunityCard key={i} {...community} isArabic={isAr} />
             ))}
           </div>
         </ScrollReveal>
@@ -156,7 +160,8 @@ export function CommunitiesSection() {
             <Link
               href="/communities"
               style={{
-                fontFamily: 'var(--font-display)',
+                fontFamily: isAr ? 'var(--font-arabic)' : 'var(--font-display)',
+                letterSpacing: isAr ? 0 : undefined,
                 fontWeight: 600,
                 fontSize: '0.875rem',
                 color: 'var(--c-gold)',

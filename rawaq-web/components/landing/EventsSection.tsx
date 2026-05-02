@@ -61,6 +61,7 @@ function EventCard({
   featured,
   featuredLabel,
   goingLabel,
+  isArabic,
 }: {
   title: string
   cat: string
@@ -72,6 +73,7 @@ function EventCard({
   featured: boolean
   featuredLabel: string
   goingLabel: string
+  isArabic: boolean
 }) {
   const isFree = price === 'Free' || price === 'مجاني'
 
@@ -101,8 +103,8 @@ function EventCard({
               fontWeight: 700,
               padding: '0.2rem 0.625rem',
               borderRadius: '2rem',
-              fontFamily: 'var(--font-display)',
-              letterSpacing: '0.04em',
+              fontFamily: isArabic ? 'var(--font-arabic)' : 'var(--font-display)',
+              letterSpacing: isArabic ? 0 : '0.04em',
             }}
           >
             {featuredLabel}
@@ -120,7 +122,7 @@ function EventCard({
             fontWeight: 700,
             padding: '0.25rem 0.75rem',
             borderRadius: '2rem',
-            fontFamily: 'var(--font-display)',
+            fontFamily: isArabic ? 'var(--font-arabic)' : 'var(--font-display)',
           }}
         >
           {price}
@@ -181,7 +183,8 @@ export function EventsSection() {
             <Link
               href="/events"
               style={{
-                fontFamily: 'var(--font-display)',
+                fontFamily: isAr ? 'var(--font-arabic)' : 'var(--font-display)',
+                letterSpacing: isAr ? 0 : undefined,
                 fontWeight: 600,
                 fontSize: '0.875rem',
                 color: 'var(--c-gold)',
@@ -204,6 +207,7 @@ export function EventsSection() {
                 {...event}
                 featuredLabel={t('landing.ev_featured')}
                 goingLabel={t('landing.ev_going')}
+                isArabic={isAr}
               />
             ))}
           </div>

@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
+import Image from 'next/image'
 import Link from 'next/link'
 import { Redis } from '@upstash/redis'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
@@ -166,9 +167,9 @@ export default async function PublicUserProfilePage({ params }: { params: Promis
 
       {/* Profile card */}
       <div className="card p-6 flex items-start gap-5">
-        <div className="w-20 h-20 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center text-2xl font-bold shrink-0 overflow-hidden">
+        <div className="relative w-20 h-20 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center text-2xl font-bold shrink-0 overflow-hidden">
           {profile.avatar_url
-            ? <img src={profile.avatar_url} alt={profile.display_name} className="w-full h-full object-cover" />
+            ? <Image src={profile.avatar_url} alt={profile.display_name} fill sizes="80px" className="object-cover" />
             : initials}
         </div>
 

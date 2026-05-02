@@ -13,7 +13,7 @@ export type {
   OrganizerMonthlyUsage,
 } from "./plans";
 
-export type UserRole = "user" | "organizer" | "admin";
+export type UserRole = "user" | "organizer" | "admin" | "owner";
 export type GenderType = "male" | "female" | "mixed";
 export type BookingStatus =
   | "pending"
@@ -39,7 +39,13 @@ export type NotificationType =
   | "event_updated"
   | "new_event_published"
   | "event_sold_out"
-  | "community_new_event";
+  | "referral_signup_reward"
+  | "referral_conversion_reward"
+  | "community_new_event"
+  | "community_happening"
+  | "follow_request"
+  | "follow_accepted"
+  | "say_hi";
 export type ReactionType = "like" | "interested";
 export type ReportReason =
   | "spam"
@@ -104,36 +110,6 @@ export type PayoutStatus = "pending" | "processing" | "completed" | "failed";
 export type RefundStatus = "pending" | "approved" | "rejected" | "completed";
 export type EventFrequency = "one_time" | "weekly" | "monthly";
 export type EventOccurrenceStatus = "scheduled" | "cancelled" | "completed";
-export type CommunityLevel =
-  | "micro"
-  | "interest"
-  | "district"
-  | "city"
-  | "country";
-export type CommunityType =
-  | "compound"
-  | "neighborhood"
-  | "university"
-  | "company"
-  | "coworking"
-  | "tech"
-  | "sports"
-  | "gaming"
-  | "book_club"
-  | "entrepreneur"
-  | "arts"
-  | "other"
-  | "district"
-  | "city"
-  | "country";
-export type CommunityRole = "member" | "community_admin" | "owner";
-export type CommunityMembershipStatus =
-  | "active"
-  | "timed_out"
-  | "removed"
-  | "banned";
-export type CommunityApprovalStatus = "approved" | "pending" | "dismissed";
-export type EventVisibility = "micro" | "interest" | "city" | "national";
 
 export interface Profile {
   id: string;
@@ -153,6 +129,43 @@ export interface Profile {
   lng: number | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface ReferralCode {
+  id: string;
+  user_id: string;
+  code: string;
+  clicks: number;
+  created_at: string;
+}
+
+export interface Referral {
+  id: string;
+  referrer_id: string;
+  referred_id: string;
+  code_id: string;
+  signup_coupon_awarded: boolean;
+  conversion_coupon_awarded: boolean;
+  created_at: string;
+}
+
+export interface UserCoupon {
+  id: string;
+  user_id: string;
+  promo_code_id: string;
+  referral_id: string | null;
+  reason: "referral_signup" | "referral_conversion";
+  expires_at: string;
+  created_at: string;
+  // joined from promo_codes:
+  promo?: {
+    code: string;
+    discount_type: "percent" | "fixed";
+    discount_value: number;
+    used_count: number;
+    is_active: boolean;
+    expires_at: string;
+  };
 }
 
 export interface OrganizerProfile {
@@ -221,6 +234,8 @@ export interface Event {
   bookings_count: number;
   views_count: number;
   tips_total: number;
+  featured_at: string | null;
+  featured_until: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -272,7 +287,7 @@ export interface BookingHolder {
   id: string;
   booking_id: string;
   full_name: string;
-  date_of_birth: string;  // ISO date string YYYY-MM-DD
+  date_of_birth: string; // ISO date string YYYY-MM-DD
   relation: string;
   position: number;
   created_at: string;
@@ -396,6 +411,8 @@ export interface Refund {
   requested_by: string;
   amount: number;
   reason: string | null;
+  user_note: string | null;
+  refund_method: "original_payment" | "manual";
   status: RefundStatus;
   processed_by: string | null;
   processed_at: string | null;
@@ -413,6 +430,7 @@ export interface Payout {
   status: PayoutStatus;
   bank_name: string | null;
   iban: string | null;
+  bank_account_id: string | null;
   requested_at: string;
   processed_by: string | null;
   processed_at: string | null;
@@ -476,6 +494,14 @@ export interface EventReport {
   resolved_at: string | null;
   resolution_note: string | null;
   created_at: string;
+}
+
+export interface FeaturedEventLog {
+  id: string;
+  event_id: string;
+  organizer_id: string;
+  featured_at: string;
+  featured_until: string;
 }
 
 export interface AuditLog {
@@ -604,6 +630,16 @@ export interface OrganizerFollow {
   created_at: string;
 }
 
+export type UserFollowStatus = "pending" | "accepted";
+
+export interface UserFollow {
+  id: string;
+  follower_id: string;
+  following_id: string;
+  status: UserFollowStatus;
+  created_at: string;
+}
+
 export interface EventReaction {
   id: string;
   user_id: string;
@@ -633,6 +669,38 @@ export interface UserReviewWithReviewer extends UserReview {
   reviewer: Pick<Profile, "id" | "display_name" | "avatar_url">;
 }
 
+// ── Community types ────────────────────────────────────────
+export type CommunityLevel =
+  | "micro"
+  | "interest"
+  | "district"
+  | "city"
+  | "country";
+export type CommunityType =
+  | "compound"
+  | "neighborhood"
+  | "university"
+  | "company"
+  | "coworking"
+  | "tech"
+  | "sports"
+  | "gaming"
+  | "book_club"
+  | "entrepreneur"
+  | "arts"
+  | "other"
+  | "district"
+  | "city"
+  | "country";
+export type CommunityRole = "member" | "community_admin" | "owner";
+export type CommunityMembershipStatus =
+  | "active"
+  | "timed_out"
+  | "removed"
+  | "banned";
+export type CommunityApprovalStatus = "approved" | "pending" | "dismissed";
+export type EventVisibility = "micro" | "interest" | "city" | "national";
+
 export interface Community {
   id: string;
   name: string;
@@ -654,42 +722,6 @@ export interface Community {
   parent_community_id: string | null;
   created_at: string;
   updated_at: string;
-}
-
-export interface ReferralCode {
-  id: string;
-  user_id: string;
-  code: string;
-  clicks: number;
-  created_at: string;
-}
-
-export interface Referral {
-  id: string;
-  referrer_id: string;
-  referred_id: string;
-  code_id: string;
-  signup_coupon_awarded: boolean;
-  conversion_coupon_awarded: boolean;
-  created_at: string;
-}
-
-export interface UserCoupon {
-  id: string;
-  user_id: string;
-  promo_code_id: string;
-  referral_id: string | null;
-  reason: "referral_signup" | "referral_conversion";
-  expires_at: string;
-  created_at: string;
-  promo?: {
-    code: string;
-    discount_type: "percent" | "fixed";
-    discount_value: number;
-    used_count: number;
-    is_active: boolean;
-    expires_at: string;
-  };
 }
 
 export interface CommunityMembership {
@@ -720,12 +752,17 @@ export interface CommunityFollow {
   created_at: string;
 }
 
-export interface CommunityWithMembership extends Community {
-  is_member?: boolean;
-  is_following?: boolean;
-  member_role?: CommunityRole | null;
-  member_status?: CommunityMembershipStatus | null;
-  ancestors?: Pick<Community, "id" | "name" | "name_ar" | "slug" | "level">[];
+export interface HappeningRsvp {
+  happening_id: string;
+  user_id: string;
+  created_at: string;
+}
+
+export interface HappeningReaction {
+  happening_id: string;
+  user_id: string;
+  emoji: string;
+  created_at: string;
 }
 
 export type HappeningType = "open_invite" | "info" | "question" | "alert";
@@ -750,6 +787,14 @@ export interface HappeningWithAuthor extends Happening {
   author: Pick<Profile, "id" | "display_name" | "avatar_url" | "plan_id">;
   user_has_rsvp?: boolean;
   user_has_reacted?: boolean;
+}
+
+export interface CommunityWithMembership extends Community {
+  is_member?: boolean;
+  is_following?: boolean;
+  member_role?: CommunityRole | null;
+  member_status?: CommunityMembershipStatus | null;
+  ancestors?: Pick<Community, "id" | "name" | "name_ar" | "slug" | "level">[];
 }
 
 // ── Join shapes used in API responses ──────────────────────
@@ -785,7 +830,43 @@ export interface OrganizerWalletRow {
   total_earned: number;
   total_withdrawn: number;
   currency: string;
-  is_simulated: boolean;
+  updated_at: string;
+}
+
+export interface OrganizerBankAccount {
+  id: string;
+  organizer_id: string;
+  bank_name: string;
+  bank_name_ar: string | null;
+  account_holder_name: string;
+  iban: string;
+  swift_code: string | null;
+  country: string;
+  is_verified: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export type SupportTicketCategory =
+  | "general"
+  | "refund"
+  | "harassment"
+  | "legal"
+  | "technical";
+export type SupportTicketStatus = "open" | "in_progress" | "resolved" | "closed";
+
+export interface SupportTicket {
+  id: string;
+  ticket_number: string;
+  user_id: string;
+  category: SupportTicketCategory;
+  subject: string;
+  description: string;
+  status: SupportTicketStatus;
+  admin_notes: string | null;
+  resolved_by: string | null;
+  resolved_at: string | null;
+  created_at: string;
   updated_at: string;
 }
 
@@ -832,6 +913,12 @@ export type Database = {
         Update: R<Partial<Event>>;
         Relationships: [];
       };
+      featured_events_log: {
+        Row: R<FeaturedEventLog>;
+        Insert: R<Omit<FeaturedEventLog, "id">>;
+        Update: R<Partial<FeaturedEventLog>>;
+        Relationships: [];
+      };
       event_occurrences: {
         Row: R<EventOccurrence>;
         Insert: R<
@@ -853,6 +940,36 @@ export type Database = {
         Row: R<Booking>;
         Insert: R<Omit<Booking, "id" | "created_at" | "updated_at">>;
         Update: R<Partial<Booking>>;
+        Relationships: [];
+      };
+      booking_holders: {
+        Row: R<BookingHolder>;
+        Insert: R<Omit<BookingHolder, "id" | "created_at">>;
+        Update: R<Partial<BookingHolder>>;
+        Relationships: [];
+      };
+      payment_transactions: {
+        Row: R<PaymentTransaction>;
+        Insert: R<Partial<PaymentTransaction>>;
+        Update: R<Partial<PaymentTransaction>>;
+        Relationships: [];
+      };
+      wallet_ledger: {
+        Row: R<WalletLedgerEntry>;
+        Insert: R<Omit<WalletLedgerEntry, "id" | "created_at">>;
+        Update: R<Partial<WalletLedgerEntry>>;
+        Relationships: [];
+      };
+      refunds: {
+        Row: R<Refund>;
+        Insert: R<Partial<Refund>>;
+        Update: R<Partial<Refund>>;
+        Relationships: [];
+      };
+      payouts: {
+        Row: R<Payout>;
+        Insert: R<Partial<Payout>>;
+        Update: R<Partial<Payout>>;
         Relationships: [];
       };
       tips: {
@@ -909,6 +1026,12 @@ export type Database = {
         Update: R<Partial<OrganizerFollow>>;
         Relationships: [];
       };
+      user_follows: {
+        Row: R<UserFollow>;
+        Insert: R<Omit<UserFollow, "id" | "created_at">>;
+        Update: R<Partial<UserFollow>>;
+        Relationships: [];
+      };
       user_blocks: {
         Row: R<UserBlock>;
         Insert: R<UserBlock>;
@@ -933,6 +1056,37 @@ export type Database = {
         Row: R<Waitlist>;
         Insert: R<Omit<Waitlist, "id" | "created_at">>;
         Update: R<Partial<Waitlist>>;
+        Relationships: [];
+      };
+      support_tickets: {
+        Row: R<SupportTicket>;
+        Insert: R<Partial<SupportTicket>>;
+        Update: R<Partial<SupportTicket>>;
+        Relationships: [];
+      };
+      happenings: {
+        Row: R<Happening>;
+        Insert: R<
+          Omit<
+            Happening,
+            "id" | "rsvp_count" | "reaction_count" | "is_pinned" | "created_at"
+          >
+        > &
+          Partial<Pick<R<Happening>, "is_pinned">>;
+        Update: R<Partial<Happening>>;
+        Relationships: [];
+      };
+      happening_rsvps: {
+        Row: R<HappeningRsvp>;
+        Insert: R<Omit<HappeningRsvp, "created_at">>;
+        Update: R<Partial<HappeningRsvp>>;
+        Relationships: [];
+      };
+      happening_reactions: {
+        Row: R<HappeningReaction>;
+        Insert: R<Omit<HappeningReaction, "created_at">> &
+          Partial<Pick<R<HappeningReaction>, "emoji">>;
+        Update: R<Partial<HappeningReaction>>;
         Relationships: [];
       };
       happening_reports: {
@@ -1043,6 +1197,12 @@ export type Database = {
         Update: R<Partial<OrganizerWalletRow>>;
         Relationships: [];
       };
+      organizer_bank_accounts: {
+        Row: R<OrganizerBankAccount>;
+        Insert: R<Omit<OrganizerBankAccount, "id" | "created_at" | "updated_at">>;
+        Update: R<Partial<OrganizerBankAccount>>;
+        Relationships: [];
+      };
       subscriptions: {
         Row: R<Subscription>;
         Insert: R<Omit<Subscription, "id" | "created_at" | "updated_at">>;
@@ -1059,8 +1219,26 @@ export type Database = {
       };
       community_memberships: {
         Row: R<CommunityMembership>;
-        Insert: R<Omit<CommunityMembership, "id" | "joined_at">>;
+        Insert: R<Partial<CommunityMembership>>;
         Update: R<Partial<CommunityMembership>>;
+        Relationships: [];
+      };
+      referral_codes: {
+        Row: R<ReferralCode>;
+        Insert: R<Partial<ReferralCode>>;
+        Update: R<Partial<ReferralCode>>;
+        Relationships: [];
+      };
+      referrals: {
+        Row: R<Referral>;
+        Insert: R<Partial<Referral>>;
+        Update: R<Partial<Referral>>;
+        Relationships: [];
+      };
+      user_coupons: {
+        Row: R<UserCoupon>;
+        Insert: R<Partial<UserCoupon>>;
+        Update: R<Partial<UserCoupon>>;
         Relationships: [];
       };
       community_follows: {
@@ -1081,6 +1259,12 @@ export type Database = {
         Update: R<Partial<EventCommunity>>;
         Relationships: [];
       };
+      platform_settings: {
+        Row: R<{ key: string; value: unknown; updated_at: string; updated_by: string | null }>;
+        Insert: R<{ key: string; value: unknown; updated_at?: string; updated_by: string | null }>;
+        Update: R<Partial<{ key: string; value: unknown; updated_at: string; updated_by: string | null }>>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -1089,6 +1273,20 @@ export type Database = {
       events_within_radius: {
         Args: { user_lat: number; user_lng: number; radius_meters: number };
         Returns: Array<{ id: string }>;
+      };
+      get_user_communities: {
+        Args: { p_user_id: string };
+        Returns: Array<{
+          community_id: string;
+          community_name: string;
+          community_slug: string;
+          community_level: CommunityLevel;
+          community_type: CommunityType;
+        }>;
+      };
+      increment_referral_clicks: {
+        Args: { p_code: string };
+        Returns: void;
       };
     };
     Enums: {

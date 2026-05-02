@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
+import Image from 'next/image'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { EventCard } from '@/components/events/EventCard'
 import { Badge } from '@/components/ui/Badge'
@@ -114,9 +115,9 @@ export default async function OrganizerProfilePage({ params }: { params: Promise
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-8">
       {/* Header card */}
       <div className="card p-6 flex flex-col sm:flex-row items-start sm:items-center gap-5">
-        <div className="w-20 h-20 rounded-2xl bg-brand-100 flex items-center justify-center text-2xl font-bold text-brand-700 shrink-0 overflow-hidden">
+        <div className="relative w-20 h-20 rounded-2xl bg-brand-100 flex items-center justify-center text-2xl font-bold text-brand-700 shrink-0 overflow-hidden">
           {orgProfile.logo_url
-            ? <img src={orgProfile.logo_url} alt={displayName} loading="lazy" className="w-full h-full object-cover" />
+            ? <Image src={orgProfile.logo_url} alt={displayName} fill sizes="80px" className="object-cover" />
             : initials
           }
         </div>
