@@ -24,16 +24,17 @@ A pure classifier maps any `Response` or thrown `Error` into a discriminated uni
 
 ```ts
 export type ClassifiedError =
-  | { kind: 'rate_limited'; retryAfterSec: number | null }
-  | { kind: 'transient' }   // 500, 502, 503, 504, fetch threw, online
-  | { kind: 'offline' }     // navigator.onLine === false (web); NetInfo offline (mobile)
-  | { kind: 'timeout' }     // our AbortController fired
-  | { kind: 'auth' }        // 401, 403 — labelled but NOT toasted
-  | { kind: 'client' }      // other 4xx — server message passes through
-  | { kind: 'unknown' }     // safety net
+  | { kind: "rate_limited"; retryAfterSec: number | null }
+  | { kind: "transient" } // 500, 502, 503, 504, fetch threw, online
+  | { kind: "offline" } // navigator.onLine === false (web); NetInfo offline (mobile)
+  | { kind: "timeout" } // our AbortController fired
+  | { kind: "auth" } // 401, 403 — labelled but NOT toasted
+  | { kind: "client" } // other 4xx — server message passes through
+  | { kind: "unknown" }; // safety net
 ```
 
 **Rules:**
+
 - 429 retains a distinct kind because it carries `retryAfterSec` and gets distinct copy.
 - All other transient server failures (500/502/503/504) and bare network throws collapse to `transient`.
 - `offline` is detected via `navigator.onLine === false` on web before fetch when possible; otherwise via `TypeError: Failed to fetch` + `!navigator.onLine` post-fetch. Mobile uses `@react-native-community/netinfo` (already a likely dep — verify in implementation; if not present, falls back to thrown-error heuristics).
@@ -73,30 +74,30 @@ The classifier returns a structured object; UI code translates it via the existi
 
 ```ts
 // English
-'errors.transient.title':              'Something went wrong',
-'errors.transient.body':               "We couldn't reach the server. Please try again in a moment.",
-'errors.timeout.title':                'Taking longer than usual',
-'errors.timeout.body':                 "Your connection seems slow. We'll wait — you can retry when ready.",
-'errors.offline.title':                "You're offline",
-'errors.offline.body':                 'Check your connection and try again.',
-'errors.rate_limited.title':           'Slow down a moment',
-'errors.rate_limited.body':            "You've done that a lot in a short time. Try again in {seconds}s.",
+'errors.transient.title':    'Something went wrong',
+'errors.transient.body':     "We couldn't reach the server. Please try again in a moment.",
+'errors.timeout.title':      'Taking longer than usual',
+'errors.timeout.body':       "Your connection seems slow. We'll wait - you can retry when ready.",
+'errors.offline.title':      "You're offline",
+'errors.offline.body':       'Check your connection and try again.',
+'errors.rate_limited.title': 'Slow down a moment',
+'errors.rate_limited.body':  "You've done that a lot in a short time. Try again in {seconds}s.",
 'errors.rate_limited.body_no_seconds': "You've done that a lot in a short time. Please wait a moment.",
-'errors.action.retry':                 'Try again',
-'errors.action.dismiss':               'Dismiss',
+'errors.action.retry':       'Try again',
+'errors.action.dismiss':     'Dismiss',
 
 // Arabic
-'errors.transient.title':              'حدث خطأ ما',
-'errors.transient.body':               'تعذّر الوصول إلى الخادم. حاول مرة أخرى بعد لحظات.',
-'errors.timeout.title':                'يستغرق وقتًا أطول من المعتاد',
-'errors.timeout.body':                 'يبدو اتصالك بطيئًا. خذ وقتك وأعد المحاولة عندما تكون مستعدًا.',
-'errors.offline.title':                'أنت غير متصل بالإنترنت',
-'errors.offline.body':                 'تحقق من اتصالك ثم حاول مرة أخرى.',
-'errors.rate_limited.title':           'تمهّل قليلاً',
-'errors.rate_limited.body':            'لقد قمت بهذا كثيرًا خلال وقت قصير. حاول بعد {seconds} ثانية.',
+'errors.transient.title':    'حدث خطأ ما',
+'errors.transient.body':     'تعذّر الوصول إلى الخادم. حاول مرة أخرى بعد لحظات.',
+'errors.timeout.title':      'يستغرق وقتًا أطول من المعتاد',
+'errors.timeout.body':       'يبدو اتصالك بطيئًا. خذ وقتك وأعد المحاولة عندما تكون مستعدًا.',
+'errors.offline.title':      'أنت غير متصل بالإنترنت',
+'errors.offline.body':       'تحقق من اتصالك ثم حاول مرة أخرى.',
+'errors.rate_limited.title': 'تمهّل قليلاً',
+'errors.rate_limited.body':  'لقد قمت بهذا كثيرًا خلال وقت قصير. حاول بعد {seconds} ثانية.',
 'errors.rate_limited.body_no_seconds': 'لقد قمت بهذا كثيرًا خلال وقت قصير. يُرجى الانتظار لحظة.',
-'errors.action.retry':                 'حاول مرة أخرى',
-'errors.action.dismiss':               'إخفاء',
+'errors.action.retry':       'حاول مرة أخرى',
+'errors.action.dismiss':     'إخفاء',
 ```
 
 - The `{seconds}` placeholder uses the project's existing `{var}` interpolation pattern. The toast component performs the substitution; `t()` itself stays a flat lookup, matching current practice.
@@ -108,10 +109,12 @@ The classifier returns a structured object; UI code translates it via the existi
 ### Web
 
 **New files:**
+
 - `rawaq-web/components/feedback/ErrorToast.tsx` — visual component + `<ErrorToastProvider>` context, mounted once at the root layout.
 - `rawaq-web/lib/error-emitter.ts` — tiny event emitter (`emit(payload)`, `subscribe(listener)`) with no React dependency, importable by the fetcher.
 
 **Behavior:**
+
 - Bottom-center on mobile viewports, bottom-right on desktop.
 - Stacks if multiple fire (max 3 visible, FIFO; new arrivals beyond 3 replace the oldest).
 - Auto-dismiss: 6s for `transient`/`timeout`/`offline`. For `rate_limited`, dismiss after `clamp(retryAfterSec ?? 6, 6, 10)` seconds — never shorter than 6s (so the user can read it) and never longer than 10s.
@@ -124,17 +127,19 @@ The classifier returns a structured object; UI code translates it via the existi
 ### Mobile (React Native)
 
 **New files:**
+
 - `rawaq-mobile/components/feedback/ErrorToast.tsx` — animated `View` with absolute positioning, mounted once at the root layout.
 - `rawaq-mobile/lib/error-emitter.ts` — same emitter pattern.
 
 **Behavior:**
+
 - Anchored above the bottom tab bar; uses `Animated` for slide-in/out (300ms).
 - Same auto-dismiss timing as web.
 - Tap-to-dismiss + explicit `×`.
 - Same retry-button rule.
 - `Alert.alert` is **not** used — modal/blocking is wrong for transient errors.
 
-### What's *not* a toast
+### What's _not_ a toast
 
 - `auth` errors → emitter receives nothing; existing redirect/sign-out flow runs.
 - `client` errors → emitter receives nothing; caller surfaces server message inline as today.
@@ -148,18 +153,19 @@ Extend `ClientGetOptions`:
 
 ```ts
 type ClientGetOptions = {
-  ttlMs?: number
-  force?: boolean
-  skipCache?: boolean
-  scopeKey?: string | null
-  signal?: AbortSignal
-  retry?: boolean      // default true for GET
-  silent?: boolean     // default false; true skips toast emission
-  timeoutMs?: number   // default 15_000
-}
+  ttlMs?: number;
+  force?: boolean;
+  skipCache?: boolean;
+  scopeKey?: string | null;
+  signal?: AbortSignal;
+  retry?: boolean; // default true for GET
+  silent?: boolean; // default false; true skips toast emission
+  timeoutMs?: number; // default 15_000
+};
 ```
 
 The inner `request` IIFE is restructured to:
+
 1. Wrap `fetch` with an internal `AbortController` tied to `timeoutMs`. If the user passed `signal`, link them — caller-aborts beat timeout-aborts.
 2. After `fetch`, call `classifyResponse(res)`.
 3. If `transient` and `retry !== false` and method is GET → `sleep(1500)`, fetch again, re-classify.
@@ -178,6 +184,7 @@ Extend `ApiGetOptions` and add the same fields to `apiPost / apiPatch / apiDelet
 ```
 
 Same flow as web:
+
 1. `AbortController` wraps every fetch with default 15s deadline.
 2. After `fetch` → `classifyResponse(res)`.
 3. GET-only single retry on `transient`.
@@ -195,21 +202,21 @@ Same flow as web:
 ## Architecture Diagram
 
 ```
-                 ┌───────────────────────────────────────────┐
-                 │  classifyResponse(res) / classifyThrown   │
-                 │  pure, no React, no i18n                  │
-                 └───────────────────────────────────────────┘
-                                    │
+       ┌───────────────────────────────────────────┐
+       │  classifyResponse(res) / classifyThrown   │
+       │  pure, no React, no i18n│
+       └───────────────────────────────────────────┘
+      │
        ┌────────────────────────────┼────────────────────────────┐
-       ▼                            ▼                            ▼
-┌─────────────┐           ┌──────────────────┐         ┌───────────────────┐
-│ retry       │           │ errorEmitter     │         │ ErrorToastProvider│
-│ helper      │           │ (no React)       │ ──────▶ │ subscribe()       │
-│ (GET only,  │           │ emit(payload)    │         │ renders toast UI  │
-│  1× @1.5s)  │           │ subscribe(fn)    │         │ via t(key)        │
-└─────────────┘           └──────────────────┘         └───────────────────┘
-       ▲                            ▲                            ▲
-       │                            │                            │
+       ▼▼▼
+┌─────────────┐ ┌──────────────────┐ ┌───────────────────┐
+│ retry       │ │ errorEmitter     │ │ ErrorToastProvider│
+│ helper      │ │ (no React)       │ ──────▶ │ subscribe()       │
+│ (GET only,  │ │ emit(payload)    │ │ renders toast UI  │
+│  1× @1.5s)  │ │ subscribe(fn)    │ │ via t(key)│
+└─────────────┘ └──────────────────┘ └───────────────────┘
+       ▲▲▲
+       │││
        └─── inside client-fetch.ts (web) and lib/api.ts (mobile) ┘
 ```
 
@@ -222,6 +229,7 @@ The codebase has no Jest/Vitest config wired up. Testing scope:
 `rawaq-web/lib/error-classifier.test.ts` (and mirrored mobile copy). Use Node's built-in `node:test` runner — no new test framework introduced.
 
 Cases:
+
 - `Response` 429 with `Retry-After: 12` → `{ kind: 'rate_limited', retryAfterSec: 12 }`
 - `Response` 429 without header → `{ kind: 'rate_limited', retryAfterSec: null }`
 - `Response` 500 / 502 / 503 / 504 → `{ kind: 'transient' }`
@@ -245,23 +253,23 @@ Cases:
 
 ## File Map (rough — final list lives in implementation plan)
 
-| Action | File | Purpose |
-|---|---|---|
-| Create | `rawaq-web/lib/error-classifier.ts` | Pure classifier |
-| Create | `rawaq-web/lib/error-classifier.test.ts` | `node:test` unit tests |
-| Create | `rawaq-web/lib/error-emitter.ts` | Toast event emitter |
-| Create | `rawaq-web/components/feedback/ErrorToast.tsx` | Toast component + provider |
-| Modify | `rawaq-web/app/layout.tsx` | Mount `<ErrorToastProvider>` |
-| Modify | `rawaq-web/lib/client-fetch.ts` | Integrate classifier, retry, timeout, emitter; add mutation helpers |
-| Modify | `rawaq-web/contexts/locale-context.tsx` | Add 11 EN + 11 AR keys |
-| Modify (~10–20 files) | mutation call-sites | Migrate raw `fetch` mutations to new helpers, prioritized by risk |
-| Create | `rawaq-mobile/lib/error-classifier.ts` | Mirror of web |
-| Create | `rawaq-mobile/lib/error-classifier.test.ts` | Mirror unit tests |
-| Create | `rawaq-mobile/lib/error-emitter.ts` | Mirror emitter |
-| Create | `rawaq-mobile/components/feedback/ErrorToast.tsx` | RN toast |
-| Modify | `rawaq-mobile/app/_layout.tsx` (or root) | Mount toast provider |
-| Modify | `rawaq-mobile/lib/api.ts` | Integrate classifier, retry, timeout, emitter on all helpers |
-| Modify | `rawaq-mobile/contexts/locale-context.tsx` | Add 11 EN + 11 AR keys |
+| Action      | File      | Purpose |
+| --------------------- | ------------------------------------------------- | ------------------------------------------------------------------- |
+| Create      | `rawaq-web/lib/error-classifier.ts`     | Pure classifier   |
+| Create      | `rawaq-web/lib/error-classifier.test.ts`| `node:test` unit tests      |
+| Create      | `rawaq-web/lib/error-emitter.ts`| Toast event emitter |
+| Create      | `rawaq-web/components/feedback/ErrorToast.tsx`    | Toast component + provider  |
+| Modify      | `rawaq-web/app/layout.tsx`    | Mount `<ErrorToastProvider>`|
+| Modify      | `rawaq-web/lib/client-fetch.ts` | Integrate classifier, retry, timeout, emitter; add mutation helpers |
+| Modify      | `rawaq-web/contexts/locale-context.tsx` | Add 11 EN + 11 AR keys      |
+| Modify (~10–20 files) | mutation call-sites | Migrate raw `fetch` mutations to new helpers, prioritized by risk   |
+| Create      | `rawaq-mobile/lib/error-classifier.ts`  | Mirror of web     |
+| Create      | `rawaq-mobile/lib/error-classifier.test.ts`       | Mirror unit tests |
+| Create      | `rawaq-mobile/lib/error-emitter.ts`     | Mirror emitter    |
+| Create      | `rawaq-mobile/components/feedback/ErrorToast.tsx` | RN toast|
+| Modify      | `rawaq-mobile/app/_layout.tsx` (or root)| Mount toast provider|
+| Modify      | `rawaq-mobile/lib/api.ts`     | Integrate classifier, retry, timeout, emitter on all helpers|
+| Modify      | `rawaq-mobile/contexts/locale-context.tsx`| Add 11 EN + 11 AR keys      |
 
 ## Open Questions / Risks
 

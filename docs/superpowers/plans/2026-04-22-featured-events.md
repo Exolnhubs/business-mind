@@ -6,13 +6,14 @@
 
 **Architecture:** Migration adds `featured_at` / `featured_until` columns to `events`. A `POST /api/events/[id]/feature` toggle enforces plan quota by counting `featured_at >= month_start`. The organizer dashboard shows an inline star button per event with optimistic UI. The public events page shows a featured rail above the main grid, excluding those IDs from the grid.
 
-**Tech Stack:** Next.js 14 App Router (server + client components), Supabase (postgres), TypeScript, Tailwind CSS.
+**Tech Stack:** Next.js 15App Router (server + client components), Supabase (postgres), TypeScript, Tailwind CSS.
 
 ---
 
 ### Task 1: DB Migration + Event Type
 
 **Files:**
+
 - Create: `rawaq-web/supabase/migrations/00074_featured_events.sql`
 - Modify: `rawaq-web/types/database.ts` — `Event` interface (lines ~201-240)
 
@@ -106,6 +107,7 @@ git commit -m "feat: add featured_at and featured_until columns to events"
 ### Task 2: Plan Helper + Badge `amber` Variant
 
 **Files:**
+
 - Modify: `rawaq-web/lib/plans.ts` — add `getFeaturedPerMonth`
 - Modify: `rawaq-web/components/ui/Badge.tsx` — add `amber` variant
 
@@ -115,7 +117,7 @@ At the end of `rawaq-web/lib/plans.ts`, append:
 
 ```typescript
 export function getFeaturedPerMonth(plan: OrganizerPlanAccess | null): number {
-  return getNumericPlanFeature(plan?.features, 'featured_per_month') ?? 0
+  return getNumericPlanFeature(plan?.features, "featured_per_month") ?? 0;
 }
 ```
 
@@ -124,18 +126,26 @@ export function getFeaturedPerMonth(plan: OrganizerPlanAccess | null): number {
 In `rawaq-web/components/ui/Badge.tsx`, update the `Variant` type and `styles` object:
 
 ```typescript
-type Variant = 'brand' | 'green' | 'red' | 'yellow' | 'gray' | 'blue' | 'orange' | 'amber'
+type Variant =
+  | "brand"
+  | "green"
+  | "red"
+  | "yellow"
+  | "gray"
+  | "blue"
+  | "orange"
+  | "amber";
 
 const styles: Record<Variant, string> = {
-  brand:  'bg-brand-100 text-brand-700',
-  green:  'bg-green-100 text-green-700',
-  red:    'bg-red-100 text-red-700',
-  yellow: 'bg-yellow-100 text-yellow-700',
-  gray:   'bg-gray-100 text-gray-600',
-  blue:   'bg-blue-100 text-blue-700',
-  orange: 'bg-orange-100 text-orange-700',
-  amber:  'bg-amber-100 text-amber-700',
-}
+  brand: "bg-brand-100 text-brand-700",
+  green: "bg-green-100 text-green-700",
+  red: "bg-red-100 text-red-700",
+  yellow: "bg-yellow-100 text-yellow-700",
+  gray: "bg-gray-100 text-gray-600",
+  blue: "bg-blue-100 text-blue-700",
+  orange: "bg-orange-100 text-orange-700",
+  amber: "bg-amber-100 text-amber-700",
+};
 ```
 
 - [ ] **Step 3: Commit**
@@ -150,6 +160,7 @@ git commit -m "feat: add getFeaturedPerMonth helper and amber Badge variant"
 ### Task 3: Feature Toggle API Route
 
 **Files:**
+
 - Create: `rawaq-web/app/api/events/[id]/feature/route.ts`
 
 - [ ] **Step 1: Create the route file**
@@ -157,108 +168,135 @@ git commit -m "feat: add getFeaturedPerMonth helper and amber Badge variant"
 Create `rawaq-web/app/api/events/[id]/feature/route.ts`:
 
 ```typescript
-import { NextRequest } from 'next/server'
-import { createSupabaseServerClient } from '@/lib/supabase/server'
-import { requireOrganizer, requireEventOwnership } from '@/lib/auth'
-import { handleApiError, ok, ForbiddenException, NotFoundException } from '@/lib/errors'
-import { getOrganizerPlanAccess, getFeaturedPerMonth } from '@/lib/plans'
+import { NextRequest } from "next/server";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { requireOrganizer, requireEventOwnership } from "@/lib/auth";
+import {
+  handleApiError,
+  ok,
+  ForbiddenException,
+  NotFoundException,
+} from "@/lib/errors";
+import { getOrganizerPlanAccess, getFeaturedPerMonth } from "@/lib/plans";
 
 export async function POST(
   _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { id } = await params
-    const ctx = await requireOrganizer()
-    await requireEventOwnership(id, ctx)
+    const { id } = await params;
+    const ctx = await requireOrganizer();
+    await requireEventOwnership(id, ctx);
 
-    const supabase = await createSupabaseServerClient()
+    const supabase = await createSupabaseServerClient();
 
     // Load event to verify it's publishable
     const { data: event, error: fetchErr } = await supabase
-      .from('events')
-      .select('id, is_published, is_cancelled, featured_until, organizer_id')
-      .eq('id', id)
-      .single()
+      .from("events")
+      .select("id, is_published, is_cancelled, featured_until, organizer_id")
+      .eq("id", id)
+      .single();
 
-    if (fetchErr || !event) throw new NotFoundException('Event')
-    if (!event.is_published) throw new ForbiddenException('Only published events can be featured')
-    if (event.is_cancelled) throw new ForbiddenException('Cancelled events cannot be featured')
+    if (fetchErr || !event) throw new NotFoundException("Event");
+    if (!event.is_published)
+      throw new ForbiddenException("Only published events can be featured");
+    if (event.is_cancelled)
+      throw new ForbiddenException("Cancelled events cannot be featured");
 
-    const now = new Date()
-    const isCurrentlyFeatured = event.featured_until && new Date(event.featured_until) > now
+    const now = new Date();
+    const isCurrentlyFeatured =
+      event.featured_until && new Date(event.featured_until) > now;
 
     if (isCurrentlyFeatured) {
       // Unfeature: expire immediately
       const { error } = await supabase
-        .from('events')
+        .from("events")
         .update({ featured_until: now.toISOString() })
-        .eq('id', id)
+        .eq("id", id);
 
-      if (error) throw error
+      if (error) throw error;
 
-      return ok({ featured_until: null, quota: await getQuota(supabase, ctx.userId) })
+      return ok({
+        featured_until: null,
+        quota: await getQuota(supabase, ctx.userId),
+      });
     }
 
     // Feature: check plan quota first
-    const plan = await getOrganizerPlanAccess(ctx.userId)
-    const limit = getFeaturedPerMonth(plan)
+    const plan = await getOrganizerPlanAccess(ctx.userId);
+    const limit = getFeaturedPerMonth(plan);
 
     if (limit === 0) {
-      throw new ForbiddenException('Your plan does not include featured events. Upgrade to feature events.')
+      throw new ForbiddenException(
+        "Your plan does not include featured events. Upgrade to feature events.",
+      );
     }
 
-    const quota = await getQuota(supabase, ctx.userId)
+    const quota = await getQuota(supabase, ctx.userId);
 
     // Only block if this event hasn't already used a slot this month
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+    const monthStart = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      1,
+    ).toISOString();
     const { data: alreadyFeaturedThisMonth } = await supabase
-      .from('events')
-      .select('id')
-      .eq('id', id)
-      .gte('featured_at', monthStart)
-      .maybeSingle()
+      .from("events")
+      .select("id")
+      .eq("id", id)
+      .gte("featured_at", monthStart)
+      .maybeSingle();
 
     if (!alreadyFeaturedThisMonth && quota.used >= limit) {
       throw new ForbiddenException(
-        `Monthly featuring limit reached (${limit} events/month on your current plan). Unfeature another event or upgrade.`
-      )
+        `Monthly featuring limit reached (${limit} events/month on your current plan). Unfeature another event or upgrade.`,
+      );
     }
 
-    const featuredUntil = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
+    const featuredUntil = new Date(
+      now.getTime() + 7 * 24 * 60 * 60 * 1000,
+    ).toISOString();
 
     const { error } = await supabase
-      .from('events')
+      .from("events")
       .update({ featured_at: now.toISOString(), featured_until: featuredUntil })
-      .eq('id', id)
+      .eq("id", id);
 
-    if (error) throw error
+    if (error) throw error;
 
     // Re-fetch quota after update
-    const updatedQuota = await getQuota(supabase, ctx.userId)
+    const updatedQuota = await getQuota(supabase, ctx.userId);
 
-    return ok({ featured_until: featuredUntil, quota: updatedQuota })
+    return ok({ featured_until: featuredUntil, quota: updatedQuota });
   } catch (err) {
-    return handleApiError(err)
+    return handleApiError(err);
   }
 }
 
 async function getQuota(
-  supabase: Awaited<ReturnType<typeof import('@/lib/supabase/server').createSupabaseServerClient>>,
-  organizerId: string
+  supabase: Awaited<
+    ReturnType<
+      typeof import("@/lib/supabase/server").createSupabaseServerClient
+    >
+  >,
+  organizerId: string,
 ): Promise<{ used: number; limit: number }> {
-  const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
+  const monthStart = new Date(
+    new Date().getFullYear(),
+    new Date().getMonth(),
+    1,
+  ).toISOString();
 
   const { count } = await supabase
-    .from('events')
-    .select('id', { count: 'exact', head: true })
-    .eq('organizer_id', organizerId)
-    .gte('featured_at', monthStart)
+    .from("events")
+    .select("id", { count: "exact", head: true })
+    .eq("organizer_id", organizerId)
+    .gte("featured_at", monthStart);
 
-  const plan = await getOrganizerPlanAccess(organizerId)
-  const limit = getFeaturedPerMonth(plan)
+  const plan = await getOrganizerPlanAccess(organizerId);
+  const limit = getFeaturedPerMonth(plan);
 
-  return { used: count ?? 0, limit }
+  return { used: count ?? 0, limit };
 }
 ```
 
@@ -282,6 +320,7 @@ git commit -m "feat: POST /api/events/[id]/feature toggle with plan quota enforc
 ### Task 4: Organizer Dashboard UI
 
 **Files:**
+
 - Modify: `rawaq-web/components/organizer/OrganizerStrings.tsx` — extend `OrgEvent`, add quota pill + feature button
 - Modify: `rawaq-web/app/(app)/organizer/page.tsx` — fetch `featured_until`, quota, pass to component
 
@@ -639,6 +678,7 @@ git commit -m "feat: add featured event toggle button with quota indicator to or
 ### Task 5: Featured Rail on Public Events Page
 
 **Files:**
+
 - Create: `rawaq-web/components/events/FeaturedEventsRail.tsx`
 - Modify: `rawaq-web/app/(app)/events/page.tsx` — add `FeaturedSection` component, pass `excludeIds` to `EventsGrid`
 
@@ -683,8 +723,8 @@ In `rawaq-web/app/(app)/events/page.tsx`:
 **2a.** Add import at top of file (after existing imports):
 
 ```typescript
-import { FeaturedEventsRail } from '@/components/events/FeaturedEventsRail'
-import { applyResolvedEventWindow } from '@/lib/events/recurrence'
+import { FeaturedEventsRail } from "@/components/events/FeaturedEventsRail";
+import { applyResolvedEventWindow } from "@/lib/events/recurrence";
 ```
 
 (Note: `applyResolvedEventWindow` is already imported — skip adding it if already present.)
@@ -734,9 +774,9 @@ async function EventsGrid({ searchParams, excludeIds = [] }: { searchParams: Sea
 **2d.** Inside `EventsGrid`, after the `.eq('is_cancelled', false)` line, add exclusion filter:
 
 ```typescript
-  if (excludeIds.length > 0) {
-    query = query.not('id', 'in', `(${excludeIds.join(',')})`)
-  }
+if (excludeIds.length > 0) {
+  query = query.not("id", "in", `(${excludeIds.join(",")})`);
+}
 ```
 
 **2e.** Replace the `EventsPage` return JSX to add the featured section and pass `excludeIds`:
@@ -813,6 +853,7 @@ git commit -m "feat: pin featured events above public events listing"
 ### Task 6: Seed Plan Feature Flag
 
 **Files:**
+
 - Modify: `rawaq-web/supabase/migrations/00074_featured_events.sql` — OR a new migration if 00074 is already applied
 
 > **Note:** If 00074 was already pushed, create `00075_featured_events_plan_seed.sql` instead.
@@ -867,6 +908,7 @@ git commit -m "feat: seed featured_per_month quota into organizer plan definitio
 ## Self-Review
 
 **Spec coverage check:**
+
 - ✅ `featured_at` + `featured_until` columns — Task 1
 - ✅ `featured_per_month` in plan features JSON — Task 2 (helper) + Task 6 (seed)
 - ✅ `getFeaturedPerMonth` helper — Task 2
@@ -886,6 +928,7 @@ git commit -m "feat: seed featured_per_month quota into organizer plan definitio
 **Placeholder scan:** No TBDs. Task 6 has a note to verify plan names — this is intentional (plan names are data-dependent) and marked clearly.
 
 **Type consistency:**
+
 - `OrgEvent.featured_until: string | null` — defined in Task 4 Step 1, matches `Event.featured_until` from Task 1
 - `FeaturedQuota { used: number; limit: number }` — defined and used consistently in Tasks 3 and 4
 - `getFeaturedPerMonth` — defined in Task 2, used in Tasks 3 and 4
