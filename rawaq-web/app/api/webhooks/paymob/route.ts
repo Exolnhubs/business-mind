@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
     const admin = createSupabaseAdminClient()
 
     // ── Find matching transaction by gateway order ID ─────────────────────────
-    const { data: tx, error: txErr } = await (admin as any)
+    const { data: tx, error: txErr } = await admin
       .from('payment_transactions')
       .select('id, type, booking_id, tip_id, user_id, event_id, organizer_id, status, amount, currency, platform_fee, gateway_payload, subscription_plan_id')
       .eq('gateway_order_id', event.gatewayOrderId)
@@ -93,12 +93,12 @@ export async function POST(req: NextRequest) {
     const donationMessage = getDonationMessage(tx.gateway_payload)
 
     // ── Update payment transaction ────────────────────────────────────────────
-    const { error: txUpdateErr } = await (admin as any)
+    const { error: txUpdateErr } = await admin
       .from('payment_transactions')
       .update({
         status:          event.status,
         gateway_ref:     event.gatewayRef,
-        gateway_payload: event.gatewayPayload,
+        gateway_payload: event.gatewayPayload as Record<string, unknown> | null,
         payment_method:  event.paymentMethod,
         is_simulated:    false,
         failure_reason:  event.failureReason ?? null,
@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
         return new Response('donation finalize failed', { status: 500 })
       }
 
-      const { error: tipLinkErr } = await (admin as any)
+      const { error: tipLinkErr } = await admin
         .from('payment_transactions')
         .update({ tip_id: tipId, updated_at: new Date().toISOString() })
         .eq('id', tx.id)
@@ -157,10 +157,10 @@ export async function POST(req: NextRequest) {
       console.log('[webhooks/paymob] updating booking', tx.booking_id, '→', newBookingStatus)
       const { error: bookingUpdateErr } = await admin
         .from('bookings')
-        .update({ status: newBookingStatus as any, payment_pending_until: null } as any)
+        .update({ status: newBookingStatus as never, payment_pending_until: null } as never)
         .eq('id', tx.booking_id)
       if (bookingUpdateErr) {
-        console.error('[webhooks/paymob] FAILED to update booking', tx.booking_id, 'err:', (bookingUpdateErr as any).message)
+        console.error('[webhooks/paymob] FAILED to update booking', tx.booking_id, 'err:', (bookingUpdateErr as { message?: string }).message)
         // Return 500 so Paymob retries — the transaction is already updated but
         // the booking didn't flip. Without this, Paymob marks the webhook as
         // delivered and never retries, leaving the booking stuck in pending.
@@ -169,7 +169,7 @@ export async function POST(req: NextRequest) {
 
       // Notify attendee and organizer on success
       if (event.status === 'succeeded') {
-        const { data: ev } = await admin.from('events').select('title, organizer_id').eq('id', tx.event_id).single()
+        const { data: ev } = await admin.from('events').select('title, organizer_id').eq('id', tx.event_id as string).single()
 
         sendNotification({
           userId: tx.user_id,

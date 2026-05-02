@@ -675,7 +675,7 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
 
     const { data: newEvent, error: dbError } = await supabase
       .from('events')
-      .insert(payload as any)
+      .insert(payload as never)
       .select('id')
       .single()
 
@@ -716,7 +716,7 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
           capacity:   t.capacity ? Number(t.capacity) : null,
           is_free:    t.is_free,
           sort_order: i,
-        } as any)
+        } as never)
       if (dbErr) {
         setError(dbErr.message)
         setLoading(false)

@@ -53,7 +53,7 @@ export async function GET(
     const limit   = Math.min(Number(req.nextUrl.searchParams.get('per_page') ?? '20'), 50)
     const cursor  = req.nextUrl.searchParams.get('cursor') // ISO timestamp
 
-    let query = (admin as any)
+    let query = admin
       .from('happenings')
       .select(`
         id, type, body, lat, lng, location_label, expires_at, rsvp_count, reaction_count, is_pinned, created_at,
@@ -77,8 +77,8 @@ export async function GET(
     if (ctx?.userId && happenings?.length) {
       const ids = happenings.map((h: { id: string }) => h.id)
       const [{ data: rsvps }, { data: reactions }] = await Promise.all([
-        admin.from('happening_rsvps').select('happening_id').eq('user_id', ctx.userId).in('happening_id', ids) as any,
-        admin.from('happening_reactions').select('happening_id').eq('user_id', ctx.userId).in('happening_id', ids) as any,
+        admin.from('happening_rsvps').select('happening_id').eq('user_id', ctx.userId).in('happening_id', ids),
+        admin.from('happening_reactions').select('happening_id').eq('user_id', ctx.userId).in('happening_id', ids),
       ])
       rsvpSet     = new Set((rsvps ?? []).map((r: { happening_id: string }) => r.happening_id))
       reactionSet = new Set((reactions ?? []).map((r: { happening_id: string }) => r.happening_id))
@@ -139,7 +139,7 @@ export async function POST(
 
     const expiresAt = new Date(Date.now() + parsed.expires_in_hours * 60 * 60 * 1000).toISOString()
 
-    const { data: happening, error: insertErr } = await (admin as any)
+    const { data: happening, error: insertErr } = await admin
       .from('happenings')
       .insert({
         community_id: community.id,
@@ -193,7 +193,7 @@ async function notifyCommunityMembers({
   authorId:      string
 }) {
   const admin = createSupabaseAdminClient()
-  const { data: memberships } = await (admin as any)
+  const { data: memberships } = await admin
     .from('community_memberships')
     .select('user_id')
     .eq('community_id', communityId)

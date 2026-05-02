@@ -23,7 +23,7 @@ export async function GET() {
     const ctx   = await requireOrganizer()
     const admin = createSupabaseAdminClient()
 
-    const { data, error } = await (admin as any)
+    const { data, error } = await admin
       .from('organizer_bank_accounts')
       .select('*')
       .eq('organizer_id', ctx.userId)
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
 
     const admin = createSupabaseAdminClient()
 
-    const { data, error } = await (admin as any)
+    const { data, error } = await admin
       .from('organizer_bank_accounts')
       .upsert(
         {

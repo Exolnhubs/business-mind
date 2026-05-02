@@ -11,7 +11,7 @@ export async function GET(_: Request, { params }: Params) {
     const admin = createSupabaseAdminClient()
 
     const [{ data: tx, error: txErr }, { data: activeSubscription }] = await Promise.all([
-      (admin as any)
+      admin
         .from('payment_transactions')
         .select('id, status, subscription_plan_id, failure_reason')
         .eq('id', transactionId)

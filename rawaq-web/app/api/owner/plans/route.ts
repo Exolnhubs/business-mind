@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
     const admin = createSupabaseAdminClient()
     const { data, error } = await admin
       .from('plan_definitions')
-      .insert(input as any)
+      .insert(input as never)
       .select()
       .single()
 

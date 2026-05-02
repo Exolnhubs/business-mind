@@ -86,7 +86,7 @@ export async function POST(
 
     const { data, error } = await supabase
       .from('ticket_types')
-      .insert({ ...input, event_id: eventId } as any)
+      .insert({ ...input, event_id: eventId } as never)
       .select()
       .single()
     if (error) throw error

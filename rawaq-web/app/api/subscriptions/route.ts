@@ -143,7 +143,7 @@ export async function POST(req: Request) {
     const { gateway, method } = resolveGateway(plan.price_currency, selectedPaymentOptionId)
     const organizerId = ctx.userId
 
-    const { data: existingPendingTx } = await (admin as any)
+    const { data: existingPendingTx } = await admin
       .from('payment_transactions')
       .select('id')
       .eq('user_id', ctx.userId)
@@ -152,7 +152,7 @@ export async function POST(req: Request) {
       .eq('status', 'pending')
       .maybeSingle()
 
-    const { data: txRow, error: txErr } = await (admin as any)
+    const { data: txRow, error: txErr } = await admin
       .from('payment_transactions')
       .upsert({
         id: existingPendingTx?.id,
@@ -184,7 +184,7 @@ export async function POST(req: Request) {
     if (txErr) throw txErr
 
     if (gateway === 'simulated') {
-      await (admin as any)
+      await admin
         .from('payment_transactions')
         .update({
           status: 'succeeded',
@@ -236,7 +236,7 @@ export async function POST(req: Request) {
       ? await initiatePaymob(initParams)
       : await initiateStripe(initParams)
 
-    const { error: gwUpdateErr } = await (admin as any)
+    const { error: gwUpdateErr } = await admin
       .from('payment_transactions')
       .update({
         gateway_order_id: gatewayResult.gatewayOrderId ?? null,

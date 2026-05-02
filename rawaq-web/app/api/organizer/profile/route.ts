@@ -27,7 +27,7 @@ export async function PATCH(req: NextRequest) {
     const { data, error } = await supabase
       .from('organizer_profiles')
       .upsert(
-        { user_id: ctx.userId, ...input } as any,
+        { user_id: ctx.userId, ...input } as never,
         { onConflict: 'user_id', ignoreDuplicates: false },
       )
       .select()

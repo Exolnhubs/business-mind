@@ -55,7 +55,7 @@ export async function PATCH(
     const admin = createSupabaseAdminClient()
     const { data, error } = await admin
       .from('plan_definitions')
-      .update({ ...updates, updated_at: new Date().toISOString() } as any)
+      .update({ ...updates, updated_at: new Date().toISOString() } as never)
       .eq('id', id)
       .select()
       .single()
@@ -80,7 +80,7 @@ export async function DELETE(
 
     const { error } = await admin
       .from('plan_definitions')
-      .update({ is_active: false, updated_at: new Date().toISOString() } as any)
+      .update({ is_active: false, updated_at: new Date().toISOString() } as never)
       .eq('id', id)
 
     if (error) throw error

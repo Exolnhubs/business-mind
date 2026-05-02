@@ -22,8 +22,8 @@ export async function GET(
       const admin = createSupabaseAdminClient()
       // Check both directions are accepted
       const [{ data: viewerRow }, { data: targetRow }] = await Promise.all([
-        (admin as any).from('user_follows').select('id').eq('follower_id', ctx.userId).eq('following_id', targetId).eq('status', 'accepted').maybeSingle(),
-        (admin as any).from('user_follows').select('id').eq('follower_id', targetId).eq('following_id', ctx.userId).eq('status', 'accepted').maybeSingle(),
+        admin.from('user_follows').select('id').eq('follower_id', ctx.userId).eq('following_id', targetId).eq('status', 'accepted').maybeSingle(),
+        admin.from('user_follows').select('id').eq('follower_id', targetId).eq('following_id', ctx.userId).eq('status', 'accepted').maybeSingle(),
       ])
       if (!viewerRow || !targetRow) {
         return NextResponse.json({ error: 'mutual_follow_required' }, { status: 403 })
@@ -45,7 +45,7 @@ export async function GET(
 
     if (error) throw error
 
-    const events = (data ?? []).map((b) => (b as any).events).filter(Boolean)
+    const events = (data ?? []).map((b) => (b as { events?: unknown }).events).filter(Boolean)
     return NextResponse.json({ data: events })
   } catch (err) {
     return handleApiError(err)

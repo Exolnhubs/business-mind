@@ -20,7 +20,7 @@ export async function PATCH(
     const gov = await requireCommunityManager(slug, ctx.userId, ctx.role)
     const admin = createSupabaseAdminClient()
 
-    const { data: sanction, error } = await (admin as any)
+    const { data: sanction, error } = await admin
       .from('community_member_sanctions')
       .select('*')
       .eq('id', sanctionId)
@@ -31,7 +31,7 @@ export async function PATCH(
     if (error) throw error
     if (!sanction) throw new NotFoundException('Community sanction')
 
-    const { error: updateErr } = await (admin as any)
+    const { error: updateErr } = await admin
       .from('community_member_sanctions')
       .update({
         revoked_by: ctx.userId,
@@ -42,7 +42,7 @@ export async function PATCH(
 
     if (updateErr) throw updateErr
 
-    const { data: activeSanctions, error: sanctionsErr } = await (admin as any)
+    const { data: activeSanctions, error: sanctionsErr } = await admin
       .from('community_member_sanctions')
       .select('sanction_type, ends_at, revoked_at')
       .eq('community_id', gov.community.id)
@@ -52,7 +52,7 @@ export async function PATCH(
     if (sanctionsErr) throw sanctionsErr
 
     const nextMembershipState = deriveCommunityMembershipState(activeSanctions ?? [])
-    const { data: existingMembership, error: membershipLookupErr } = await (admin as any)
+    const { data: existingMembership, error: membershipLookupErr } = await admin
       .from('community_memberships')
       .select('id, role')
       .eq('community_id', gov.community.id)
@@ -62,7 +62,7 @@ export async function PATCH(
     if (membershipLookupErr) throw membershipLookupErr
 
     if (existingMembership) {
-      const { error: membershipUpdateErr } = await (admin as any)
+      const { error: membershipUpdateErr } = await admin
         .from('community_memberships')
         .update({
           status: nextMembershipState.status,
@@ -74,7 +74,7 @@ export async function PATCH(
 
       if (membershipUpdateErr) throw membershipUpdateErr
     } else {
-      const { error: membershipInsertErr } = await (admin as any)
+      const { error: membershipInsertErr } = await admin
         .from('community_memberships')
         .insert({
           community_id: gov.community.id,

@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
 
     const admin = createSupabaseAdminClient()
 
-    const { data, count, error } = await (admin as any)
+    const { data, count, error } = await admin
       .from('payouts')
       .select('*', { count: 'exact' })
       .eq('organizer_id', ctx.userId)
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     const admin = createSupabaseAdminClient()
 
     // ── Require saved bank account ────────────────────────────────────────────
-    const { data: bankAccount } = await (admin as any)
+    const { data: bankAccount } = await admin
       .from('organizer_bank_accounts')
       .select('id, bank_name, account_holder_name, iban, country')
       .eq('organizer_id', ctx.userId)
@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Check wallet balance ──────────────────────────────────────────────────
-    const { data: wallet } = await (admin as any)
+    const { data: wallet } = await admin
       .from('organizer_wallet')
       .select('balance, currency')
       .eq('organizer_id', ctx.userId)
@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Block duplicate in-flight payout ─────────────────────────────────────
-    const { data: existing } = await (admin as any)
+    const { data: existing } = await admin
       .from('payouts')
       .select('id')
       .eq('organizer_id', ctx.userId)
@@ -100,7 +100,7 @@ export async function POST(req: NextRequest) {
     // ── Insert payout (pending — admin processes and marks completed) ─────────
     // Snapshot bank details at request time so payout history is auditable
     // even if the organizer later changes their bank account.
-    const { data: payout, error } = await (admin as any)
+    const { data: payout, error } = await admin
       .from('payouts')
       .insert({
         organizer_id:    ctx.userId,
@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
         bank_name:       bankAccount.bank_name,
         iban:            bankAccount.iban,
         is_simulated:    false,
-      } as any)
+      } as never)
       .select()
       .single()
 

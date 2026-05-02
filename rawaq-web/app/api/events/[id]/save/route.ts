@@ -41,7 +41,7 @@ export async function POST(
 
     const { error } = await admin
       .from('saved_events')
-      .upsert({ user_id: ctx.userId, event_id: id } as any, { onConflict: 'user_id,event_id' })
+      .upsert({ user_id: ctx.userId, event_id: id } as never, { onConflict: 'user_id,event_id' })
 
     if (error) throw error
     return ok({ saved: true })

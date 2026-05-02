@@ -58,7 +58,7 @@ export default async function OrganizerProfilePage({ params }: { params: Promise
       .order('start_at', { ascending: true })
       .limit(12),
     supabase.auth.getUser(),
-    (supabase as any)
+    supabase
       .from('community_memberships')
       .select('community:communities(id, name, slug, level, member_count)')
       .eq('user_id', id)
@@ -184,7 +184,7 @@ export default async function OrganizerProfilePage({ params }: { params: Promise
         <div>
           <h2 className="font-semibold text-gray-900 mb-3">Communities</h2>
           <div className="flex flex-wrap gap-2">
-            {(communityMemberships as { community: { id: string; name: string; slug: string; level: string; member_count: number } | null }[])
+            {(communityMemberships as unknown as { community: { id: string; name: string; slug: string; level: string; member_count: number } | null }[])
               .filter((m) => m.community)
               .map(({ community: c }) => (
                 <a

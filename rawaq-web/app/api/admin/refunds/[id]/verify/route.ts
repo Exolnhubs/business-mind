@@ -27,7 +27,7 @@ export async function GET(
     const admin = createSupabaseAdminClient()
 
     // Load refund + linked transaction for gateway info
-    const { data: refund, error: fetchErr } = await (admin as any)
+    const { data: refund, error: fetchErr } = await admin
       .from('refunds')
       .select(`
         id, status, gateway_ref, refund_method, amount, is_simulated,
@@ -40,8 +40,13 @@ export async function GET(
 
     if (fetchErr) throw fetchErr
     if (!refund)  throw new NotFoundException('Refund')
+    const refundRow = refund as unknown as {
+      is_simulated: boolean
+      gateway_ref: string | null
+      transaction: { gateway: string; gateway_ref: string } | null
+    }
 
-    if (refund.is_simulated) {
+    if (refundRow.is_simulated) {
       return ok({
         verified: true,
         status:   'refunded',
@@ -50,18 +55,18 @@ export async function GET(
       })
     }
 
-    if (!refund.gateway_ref) {
+    if (!refundRow.gateway_ref) {
       throw new BadRequestException(
         'No gateway reference stored for this refund. It may have been processed manually.',
       )
     }
 
-    const tx = refund.transaction as { gateway: string; gateway_ref: string } | null
+    const tx = refundRow.transaction
     const gateway = tx?.gateway ?? 'unknown'
 
     // ── Paymob / Fawry ───────────────────────────────────────────────────────
     if (gateway === 'paymob' || gateway === 'fawry') {
-      const { data, error } = await getPaymobTransaction(refund.gateway_ref)
+      const { data, error } = await getPaymobTransaction(refundRow.gateway_ref)
 
       if (error || !data) {
         return ok({ verified: false, error: error ?? 'Gateway lookup failed', raw: null })
@@ -92,7 +97,7 @@ export async function GET(
 
     // ── Stripe ────────────────────────────────────────────────────────────────
     if (gateway === 'stripe') {
-      const { data, error } = await getStripeRefund(refund.gateway_ref)
+      const { data, error } = await getStripeRefund(refundRow.gateway_ref)
 
       if (error || !data) {
         return ok({ verified: false, error: error ?? 'Gateway lookup failed', raw: null })

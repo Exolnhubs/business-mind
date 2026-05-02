@@ -91,7 +91,7 @@ export async function PATCH(
           current_period_end: periodEnd.toISOString(),
           is_simulated: true,
           payment_ref: `admin_assigned_${Date.now()}`,
-        } as any)
+        } as never)
       if (subErr) throw subErr
     }
 

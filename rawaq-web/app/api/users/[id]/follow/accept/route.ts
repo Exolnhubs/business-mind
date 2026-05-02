@@ -17,7 +17,7 @@ export async function POST(
     if (ctx.userId === followerId) throw new BadRequestException('Cannot follow yourself')
 
     const admin = createSupabaseAdminClient()
-    const db = admin as any
+    const db = admin
 
     const { data: row, error: fetchErr } = await db
       .from('user_follows')

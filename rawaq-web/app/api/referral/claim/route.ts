@@ -17,8 +17,7 @@ export async function POST(req: NextRequest) {
   try {
     const ctx    = await requireAuth()
     const input  = Schema.parse(await req.json())
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const admin  = createSupabaseAdminClient() as any
+        const admin  = createSupabaseAdminClient()
     const supabase = await createSupabaseServerClient()
 
     // Guard: only credit referrals for accounts created in the last 10 minutes.

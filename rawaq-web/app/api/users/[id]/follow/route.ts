@@ -18,7 +18,7 @@ export async function POST(
 
     const admin = createSupabaseAdminClient()
 
-    const db = admin as any
+    const db = admin
 
     // Check if target has already sent viewer a pending request
     const { data: theirRow } = await db
@@ -86,7 +86,7 @@ export async function DELETE(
     const ctx = await requireAuth()
     const admin = createSupabaseAdminClient()
 
-    const { error } = await (admin as any)
+    const { error } = await admin
       .from('user_follows')
       .delete()
       .eq('follower_id', ctx.userId)

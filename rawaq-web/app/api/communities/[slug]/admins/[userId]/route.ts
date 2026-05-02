@@ -18,7 +18,7 @@ export async function DELETE(
       throw new BadRequestException('Ownership must be transferred before removing owner privileges')
     }
 
-    const { data: membership, error } = await (admin as any)
+    const { data: membership, error } = await admin
       .from('community_memberships')
       .select('community_id, user_id, role, status')
       .eq('community_id', gov.community.id)
@@ -35,7 +35,7 @@ export async function DELETE(
       return ok({ user_id: userId, role: membership.role, member_status: membership.status })
     }
 
-    const { error: updateErr } = await (admin as any)
+    const { error: updateErr } = await admin
       .from('community_memberships')
       .update({ role: 'member' })
       .eq('community_id', gov.community.id)

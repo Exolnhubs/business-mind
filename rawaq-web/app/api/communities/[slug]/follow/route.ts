@@ -35,7 +35,7 @@ export async function POST(
 
     const { error } = await admin
       .from('community_follows')
-      .upsert({ community_id: community.id, user_id: ctx.userId } as any, { onConflict: 'community_id,user_id' })
+      .upsert({ community_id: community.id, user_id: ctx.userId } as never, { onConflict: 'community_id,user_id' })
 
     if (error) throw error
 

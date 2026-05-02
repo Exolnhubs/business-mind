@@ -68,7 +68,7 @@ export default async function OrganizerDashboard() {
 
       <div>
         <OrganizerEventsSection
-          events={(events ?? []) as any}
+          events={(events ?? []) as never}
           featuredQuota={featuredQuota}
         />
       </div>

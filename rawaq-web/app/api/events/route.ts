@@ -142,8 +142,8 @@ const cached = await redis.get(cacheKey)
     const dateFromMs = params.date_from ? new Date(params.date_from).getTime() : null
     const dateToMs = params.date_to ? new Date(params.date_to).getTime() : null
 
-    const filtered = (data ?? [])
-      .map((event: any) => ({
+    const filtered = ((data ?? []) as unknown as Array<{ start_at: string; end_at: string | null; ticket_types?: Array<{ is_active: boolean }> }>)
+      .map((event) => ({
         ...event,
         ticket_types: ((event.ticket_types ?? []) as Array<{ is_active: boolean }>).filter((tt) => tt.is_active),
       }))
@@ -226,7 +226,7 @@ export async function POST(req: NextRequest) {
 
     const { data, error } = await supabase
       .from('events')
-      .insert({ ...eventInput, organizer_id: ctx.userId } as any)
+      .insert({ ...eventInput, organizer_id: ctx.userId } as never)
       .select()
       .single()
 
@@ -241,7 +241,7 @@ export async function POST(req: NextRequest) {
       const admin = createSupabaseAdminClient()
       await admin
         .from('event_communities')
-        .insert(community_ids.map((cid) => ({ event_id: data.id, community_id: cid })) as any)
+        .insert(community_ids.map((cid) => ({ event_id: data.id, community_id: cid })) as never)
 
       // Notify community members if event is published
       if (input.is_published) {
@@ -278,9 +278,9 @@ async function notifyCommunityMembers({
 
   // Fetch community names + members for all tagged communities
   const [{ data: communities }, { data: memberships }, { data: follows }] = await Promise.all([
-    admin.from('communities').select('id, name').in('id', communityIds) as any,
-    admin.from('community_memberships').select('user_id, community_id, status').in('community_id', communityIds) as any,
-    admin.from('community_follows').select('user_id, community_id').in('community_id', communityIds) as any,
+    admin.from('communities').select('id, name').in('id', communityIds),
+    admin.from('community_memberships').select('user_id, community_id, status').in('community_id', communityIds),
+    admin.from('community_follows').select('user_id, community_id').in('community_id', communityIds),
   ])
 
   const communityNameById = new Map<string, string>(

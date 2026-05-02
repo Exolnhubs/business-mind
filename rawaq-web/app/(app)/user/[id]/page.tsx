@@ -59,17 +59,17 @@ export default async function PublicUserProfilePage({ params }: { params: Promis
 
     // 2a. Viewer → target follow row
     viewerId
-      ? (admin as any).from('user_follows').select('status').eq('follower_id', viewerId).eq('following_id', id).maybeSingle()
+      ? admin.from('user_follows').select('status').eq('follower_id', viewerId).eq('following_id', id).maybeSingle()
       : Promise.resolve({ data: null }),
 
     // 2b. Target → viewer follow row
     viewerId
-      ? (admin as any).from('user_follows').select('status').eq('follower_id', id).eq('following_id', viewerId).maybeSingle()
+      ? admin.from('user_follows').select('status').eq('follower_id', id).eq('following_id', viewerId).maybeSingle()
       : Promise.resolve({ data: null }),
 
     // 3. Stats
     Promise.all([
-      (admin as any).from('happenings').select('id', { count: 'exact', head: true })
+      admin.from('happenings').select('id', { count: 'exact', head: true })
         .eq('author_id', id),
       admin.from('bookings').select('id', { count: 'exact', head: true }).eq('user_id', id).eq('status', 'confirmed'),
       admin.from('community_memberships').select('id', { count: 'exact', head: true }).eq('user_id', id).eq('status', 'active'),
@@ -105,8 +105,8 @@ export default async function PublicUserProfilePage({ params }: { params: Promis
   if (!profile || profile.role === 'admin') notFound()
 
   // Compute FollowState
-  const viewerRow = (viewerRowRes as any).data as { status: string } | null
-  const targetRow = (targetRowRes as any).data as { status: string } | null
+  const viewerRow = viewerRowRes.data as { status: string } | null
+  const targetRow = targetRowRes.data as { status: string } | null
 
   let followState: FollowState = 'none'
   if (viewerId === id) {
@@ -128,28 +128,31 @@ export default async function PublicUserProfilePage({ params }: { params: Promis
   const communitiesCount = membershipsCountRes.count ?? 0
 
   // Shared communities
-  const viewerCommunityIds = new Set(
-    ((viewerMembershipsRes as any).data ?? []).map((m: any) => m.community_id)
-  )
-  const targetMemberships = (targetMembershipsRes as any).data ?? []
+  type CommunityMembershipWithCommunity = {
+    community_id: string
+    communities?: { id: string; name: string; slug: string; member_count?: number | null } | null
+  }
+  const viewerMemberships = (viewerMembershipsRes.data ?? []) as unknown as CommunityMembershipWithCommunity[]
+  const viewerCommunityIds = new Set(viewerMemberships.map((m) => m.community_id))
+  const targetMemberships = (targetMembershipsRes.data ?? []) as unknown as CommunityMembershipWithCommunity[]
   const sharedCommunities = targetMemberships
-    .filter((m: any) => viewerCommunityIds.has(m.community_id) && m.communities)
-    .map((m: any) => ({
+    .filter((m) => viewerCommunityIds.has(m.community_id) && m.communities)
+    .map((m) => ({
       id: m.community_id,
-      name: m.communities.name,
-      slug: m.communities.slug,
-      member_count: m.communities.member_count ?? 0,
+      name: m.communities!.name,
+      slug: m.communities!.slug,
+      member_count: m.communities!.member_count ?? 0,
       viewer_is_member: true,
     }))
 
   // Ratings
   const allRatings = allRatingsRes.data ?? []
   const avgRating  = allRatings.length > 0
-    ? allRatings.reduce((s: number, r: any) => s + r.rating, 0) / allRatings.length
+    ? allRatings.reduce((s: number, r: { rating: number }) => s + r.rating, 0) / allRatings.length
     : null
   const totalReviews   = reviewsRes.count ?? 0
   const reviews        = (reviewsRes.data ?? []) as unknown as UserReviewWithReviewer[]
-  const viewerReview   = (viewerReviewRes as any).data as { rating: number; content: string | null } | null
+  const viewerReview   = viewerReviewRes.data as { rating: number; content: string | null } | null
 
   const sayHiAvailable = !sayHiAlready
   const isLoggedIn     = !!viewerId

@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
     // position is assigned by DB trigger fn_assign_waitlist_position
     const { data, error } = await supabase
       .from('waitlist')
-      .insert({ event_id: input.event_id, occurrence_id: occurrence.id, user_id: ctx.userId, position: 0 } as any)
+      .insert({ event_id: input.event_id, occurrence_id: occurrence.id, user_id: ctx.userId, position: 0 } as never)
       .select()
       .single()
 

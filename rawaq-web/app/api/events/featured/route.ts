@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
       .order('featured_until', { ascending: false })
       .limit(6)
 
-    const events = ((data ?? []) as any[])
+    const events = ((data ?? []) as Array<{ start_at: string; end_at?: string | null }>)
       .map((row) => applyResolvedEventWindow(row))
       .filter((event) => new Date(event.start_at).getTime() >= Date.now())
 

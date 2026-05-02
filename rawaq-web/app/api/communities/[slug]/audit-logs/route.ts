@@ -15,7 +15,7 @@ export async function GET(
     const admin = createSupabaseAdminClient()
     const limit = Math.min(Number(req.nextUrl.searchParams.get('limit') ?? '20'), 50)
 
-    const { data: logs, error } = await (admin as any)
+    const { data: logs, error } = await admin
       .from('community_audit_logs')
       .select('*')
       .eq('community_id', gov.community.id)

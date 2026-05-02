@@ -91,7 +91,7 @@ export async function GET(req: NextRequest) {
       communityIdFilter = community.id
     }
 
-    let query = (admin as any)
+    let query = admin
       .from('happenings')
       .select(`
         id, community_id, author_id, type, body, lat, lng, location_label, expires_at, rsvp_count, reaction_count, is_pinned, created_at,
@@ -116,7 +116,7 @@ export async function GET(req: NextRequest) {
     const { data: rawHappenings, error } = await query
     if (error) throw error
 
-    const visibleHappenings: DiscoverHappening[] = ((rawHappenings ?? []) as Array<Record<string, any>>)
+    const visibleHappenings: DiscoverHappening[] = ((rawHappenings ?? []) as Array<Record<string, unknown>>)
       .filter((happening) => {
         const community = happening.community as { id: string; type: string } | null
         if (!community) return false
@@ -133,7 +133,7 @@ export async function GET(req: NextRequest) {
             : null
 
         return {
-          ...(happening as HappeningWithAuthor),
+          ...(happening as unknown as HappeningWithAuthor),
           author: happening.author as Pick<Profile, 'id' | 'display_name' | 'avatar_url' | 'plan_id'>,
           community: {
             ...(happening.community as Pick<Community, 'id' | 'name' | 'name_ar' | 'slug' | 'level' | 'type' | 'cover_url' | 'is_private'>),
@@ -162,8 +162,8 @@ export async function GET(req: NextRequest) {
     if (ctx?.userId && sorted.length > 0) {
       const ids = sorted.slice(0, params.limit).map((h) => h.id as string)
       const [{ data: rsvps }, { data: reactions }] = await Promise.all([
-        admin.from('happening_rsvps').select('happening_id').eq('user_id', ctx.userId).in('happening_id', ids) as any,
-        admin.from('happening_reactions').select('happening_id').eq('user_id', ctx.userId).in('happening_id', ids) as any,
+        admin.from('happening_rsvps').select('happening_id').eq('user_id', ctx.userId).in('happening_id', ids),
+        admin.from('happening_reactions').select('happening_id').eq('user_id', ctx.userId).in('happening_id', ids),
       ])
       rsvpSet = new Set((rsvps ?? []).map((row: { happening_id: string }) => row.happening_id))
       reactionSet = new Set((reactions ?? []).map((row: { happening_id: string }) => row.happening_id))

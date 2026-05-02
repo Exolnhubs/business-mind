@@ -47,7 +47,7 @@ export async function POST(
     const admin = createSupabaseAdminClient();
 
     // ── 1. Load booking ───────────────────────────────────────────────────────
-    const { data: booking, error: bookingErr } = await (admin as any)
+    const { data: booking, error: bookingErr } = await admin
       .from("bookings")
       .select(
         "id, user_id, event_id, status, ticket_type_id, created_at, event:events(id, title, title_ar, is_free)",
@@ -70,7 +70,7 @@ export async function POST(
       )
     }
 
-    const event = booking.event as {
+    const event = booking.event as unknown as {
       id: string;
       title: string;
       title_ar: string | null;
@@ -83,7 +83,7 @@ export async function POST(
     }
 
     // ── 2. Find succeeded payment transaction ─────────────────────────────────
-    const { data: tx } = await (admin as any)
+    const { data: tx } = await admin
       .from("payment_transactions")
       .select(
         "id, amount, organizer_net, currency, status, gateway, gateway_ref, is_simulated, organizer_id",
@@ -101,7 +101,7 @@ export async function POST(
     }
 
     // ── 3. Guard duplicate ────────────────────────────────────────────────────
-    const { data: existing } = await (admin as any)
+    const { data: existing } = await admin
       .from("refunds")
       .select("id, status")
       .eq("booking_id", id)
@@ -117,7 +117,7 @@ export async function POST(
     }
 
     // ── 4. Cancel booking (triggers capacity decrement) ───────────────────────
-    const { error: cancelErr } = await (admin as any)
+    const { error: cancelErr } = await admin
       .from("bookings")
       .update({ status: "cancelled" })
       .eq("id", id);
@@ -170,7 +170,7 @@ export async function POST(
     // else: no gateway_ref — goes to manual queue
 
     // ── 6. Insert refund row ──────────────────────────────────────────────────
-    const { data: refund, error: refundErr } = await (admin as any)
+    const { data: refund, error: refundErr } = await admin
       .from("refunds")
       .insert({
         payment_transaction_id: tx.id,
@@ -193,7 +193,7 @@ export async function POST(
 
     if (refundErr) {
       // If refund insert fails, re-confirm the booking to avoid capacity leak
-      await (admin as any)
+      await admin
         .from("bookings")
         .update({ status: "confirmed" })
         .eq("id", id);
@@ -203,7 +203,7 @@ export async function POST(
     // ── 7. On auto-completed refund: mark transaction as refunded ─────────────
     // This triggers fn_sync_wallet_on_payment → debits organizer wallet.
     if (refundStatus === "completed") {
-      const { error: txErr } = await (admin as any)
+      const { error: txErr } = await admin
         .from("payment_transactions")
         .update({ status: "refunded", updated_at: new Date().toISOString() })
         .eq("id", tx.id);

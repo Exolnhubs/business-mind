@@ -20,7 +20,7 @@ export async function GET(
     const ctx            = await requireAuth()
     const admin          = createSupabaseAdminClient()
 
-    const { data: booking, error } = await (admin as any)
+    const { data: booking, error } = await admin
       .from('bookings')
       .select('id, user_id, status, payment_pending_until, event_id, ticket_type_id, created_at')
       .eq('id', bookingId)
@@ -30,7 +30,7 @@ export async function GET(
     if (booking.user_id !== ctx.userId) throw new ForbiddenException('Not your booking')
 
     // Fetch latest payment transaction for this booking
-    const { data: tx } = await (admin as any)
+    const { data: tx } = await admin
       .from('payment_transactions')
       .select('id, status, gateway, gateway_ref, gateway_order_id, payment_method, amount, currency, failure_reason, created_at')
       .eq('booking_id', bookingId)

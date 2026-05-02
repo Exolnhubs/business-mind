@@ -62,7 +62,7 @@ export default async function AttendeesPage({ params }: { params: Promise<{ id: 
     const bookingIds = baseBookings.map((b) => b.id)
     if (bookingIds.length > 0) {
       const { data: holderRows } = await admin
-        .from('booking_holders' as any)
+        .from('booking_holders')
         .select('id, booking_id, full_name, date_of_birth, relation, position')
         .in('booking_id', bookingIds)
       ;((holderRows ?? []) as unknown as HolderRow[]).forEach((h: HolderRow) => {
@@ -76,7 +76,7 @@ export default async function AttendeesPage({ params }: { params: Promise<{ id: 
 
   const bookings: AttendeeRow[] = baseBookings.map((b) => ({
     ...b,
-    group_size: (b as any).group_size ?? 1,
+    group_size: b.group_size ?? 1,
     holders: holdersByBookingId[b.id] ?? [],
   }))
   const confirmed = bookings.filter((b) => b.status === 'confirmed')

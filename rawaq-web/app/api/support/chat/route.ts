@@ -119,7 +119,7 @@ async function executeToolCall(
 
   if (name === 'get_ticket_status') {
     const ticketNumber = args.ticket_number as string
-    const { data } = await (admin as any)
+    const { data } = await admin
       .from('support_tickets')
       .select('ticket_number, category, subject, status, public_response, updated_at')
       .eq('ticket_number', ticketNumber)
@@ -127,11 +127,11 @@ async function executeToolCall(
       .single()
 
     if (!data) return { found: false }
-    return { found: true, ...data }
+    return { found: true, ...(data as unknown as Record<string, unknown>) }
   }
 
   if (name === 'get_my_event_reports') {
-    const { data } = await (admin as any)
+    const { data } = await admin
       .from('event_reports')
       .select('id, reason, status, public_response, created_at, events ( id, title )')
       .eq('reporter_id', userId)
@@ -224,7 +224,7 @@ export async function POST(req: NextRequest) {
           console.warn('[support/chat] ticket category fallback:', err)
         }
 
-        const { data: row, error: dbErr } = await (admin as any)
+        const { data: row, error: dbErr } = await admin
           .from('support_tickets')
           .insert({
             user_id:     ctx.userId,

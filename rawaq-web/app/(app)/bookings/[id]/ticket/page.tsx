@@ -83,11 +83,11 @@ export default async function TicketPage({ params }: Props) {
       .select('group_size')
       .eq('id', id)
       .single()
-    groupSize = (bookingMeta as any)?.group_size ?? 1
+    groupSize = bookingMeta?.group_size ?? 1
 
     if (groupSize > 1) {
       const { data: holderRows } = await admin
-        .from('booking_holders' as any)
+        .from('booking_holders')
         .select('id, full_name, date_of_birth, relation, position')
         .eq('booking_id', id)
         .order('position')

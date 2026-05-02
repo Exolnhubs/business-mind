@@ -17,7 +17,7 @@ export async function POST(
 
     const admin = createSupabaseAdminClient()
 
-    const { error: deleteErr } = await (admin as any)
+    const { error: deleteErr } = await admin
       .from('user_follows')
       .delete()
       .eq('follower_id', followerId)

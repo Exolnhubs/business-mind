@@ -10,7 +10,7 @@ export async function GET() {
     const ctx   = await requireAuth()
     const admin = createSupabaseAdminClient()
 
-    const { data } = await (admin as any)
+    const { data } = await admin
       .from('event_reports')
       .select(`
         id,

@@ -21,7 +21,7 @@ export async function GET(
     const gov = await requireCommunityManager(slug, ctx.userId, ctx.role)
     const admin = createSupabaseAdminClient()
 
-    const { data, error } = await (admin as any)
+    const { data, error } = await admin
       .from('community_member_warnings')
       .select('*')
       .eq('community_id', gov.community.id)
@@ -50,7 +50,7 @@ export async function POST(
       throw new BadRequestException('Community owners cannot be warned through community moderation')
     }
 
-    const { data: membership, error: membershipErr } = await (admin as any)
+    const { data: membership, error: membershipErr } = await admin
       .from('community_memberships')
       .select('user_id, role')
       .eq('community_id', gov.community.id)
@@ -75,7 +75,7 @@ export async function POST(
       internal_note: input.internal_note ?? null,
     }
 
-    const { data, error } = await (admin as any)
+    const { data, error } = await admin
       .from('community_member_warnings')
       .insert(insertPayload)
       .select('*')

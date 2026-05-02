@@ -47,7 +47,7 @@ export async function GET(
       event_id: id,
       user_id: ctx?.userId ?? null,
       ip_hash: ipHash ? btoa(ipHash).slice(0, 32) : null,
-    } as any).then(() => {}, () => {})
+    } as never).then(() => {}, () => {})
 
     return ok(applyResolvedEventWindow(data))
   } catch (err) {
@@ -134,11 +134,11 @@ export async function PATCH(
 
     // Sync community tags if provided
     if (community_ids !== undefined) {
-      await adminClient.from('event_communities').delete().eq('event_id', id) as any
+      await adminClient.from('event_communities').delete().eq('event_id', id)
       if (community_ids.length > 0) {
         await adminClient
           .from('event_communities')
-          .insert(community_ids.map((cid) => ({ event_id: id, community_id: cid })) as any)
+          .insert(community_ids.map((cid) => ({ event_id: id, community_id: cid })) as never)
       }
     }
 
@@ -191,7 +191,7 @@ export async function PATCH(
       const taggedIds = community_ids ?? []
       if (taggedIds.length === 0) {
         // Fetch existing community tags in case we're publishing a previously drafted event
-        const { data: ecRows } = await adminClient.from('event_communities').select('community_id').eq('event_id', id) as any
+        const { data: ecRows } = await adminClient.from('event_communities').select('community_id').eq('event_id', id)
         if (ecRows?.length) taggedIds.push(...(ecRows as { community_id: string }[]).map((r) => r.community_id))
       }
       if (taggedIds.length > 0) {
@@ -282,9 +282,9 @@ async function notifyCommunityMembersOnPublish({
   eventTitle: string
 }) {
   const [{ data: communities }, { data: memberships }, { data: follows }] = await Promise.all([
-    adminClient.from('communities').select('id, name').in('id', communityIds) as any,
-    adminClient.from('community_memberships').select('user_id, community_id, status').in('community_id', communityIds) as any,
-    adminClient.from('community_follows').select('user_id, community_id').in('community_id', communityIds) as any,
+    adminClient.from('communities').select('id, name').in('id', communityIds),
+    adminClient.from('community_memberships').select('user_id, community_id, status').in('community_id', communityIds),
+    adminClient.from('community_follows').select('user_id, community_id').in('community_id', communityIds),
   ])
 
   const communityNameById = new Map<string, string>(

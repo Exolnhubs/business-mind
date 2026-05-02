@@ -22,7 +22,7 @@ export async function GET(
     const gov = await requireCommunityManager(slug, ctx.userId, ctx.role)
     const admin = createSupabaseAdminClient()
 
-    const { data, error } = await (admin as any)
+    const { data, error } = await admin
       .from('community_member_sanctions')
       .select('*')
       .eq('community_id', gov.community.id)
@@ -55,7 +55,7 @@ export async function POST(
       throw new BadRequestException('Timeout sanctions require an end time')
     }
 
-    const { data: membership, error: membershipErr } = await (admin as any)
+    const { data: membership, error: membershipErr } = await admin
       .from('community_memberships')
       .select('user_id, role, status')
       .eq('community_id', gov.community.id)
@@ -81,7 +81,7 @@ export async function POST(
       ends_at: input.ends_at ?? null,
     }
 
-    const { data, error } = await (admin as any)
+    const { data, error } = await admin
       .from('community_member_sanctions')
       .insert(insertPayload)
       .select('*')
@@ -89,7 +89,7 @@ export async function POST(
 
     if (error) throw error
 
-    const { data: activeSanctions, error: sanctionsErr } = await (admin as any)
+    const { data: activeSanctions, error: sanctionsErr } = await admin
       .from('community_member_sanctions')
       .select('sanction_type, ends_at, revoked_at')
       .eq('community_id', gov.community.id)
@@ -99,7 +99,7 @@ export async function POST(
     if (sanctionsErr) throw sanctionsErr
 
     const nextMembershipState = deriveCommunityMembershipState(activeSanctions ?? [])
-    const { error: membershipUpdateErr } = await (admin as any)
+    const { error: membershipUpdateErr } = await admin
       .from('community_memberships')
       .update({
         status: nextMembershipState.status,

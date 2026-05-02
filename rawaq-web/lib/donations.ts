@@ -1,4 +1,5 @@
 import { sendNotification } from './notifications'
+import { createSupabaseAdminClient } from './supabase/admin'
 
 interface DonationTx {
   id: string
@@ -24,7 +25,7 @@ function feePct(amount: number, platformFee: number): number {
 }
 
 export async function finalizeDonationPayment(
-  admin: any,
+  admin: ReturnType<typeof createSupabaseAdminClient>,
   tx: DonationTx,
   gatewayRef: string,
   message?: string | null,

@@ -21,7 +21,7 @@ export async function POST(
     const body     = await req.json()
     const { reason, details } = ReportSchema.parse(body)
 
-    const { data: happening } = await (admin as any)
+    const { data: happening } = await admin
       .from('happenings')
       .select('id, community_id')
       .eq('id', id)
@@ -30,7 +30,7 @@ export async function POST(
     if (!happening) throw new NotFoundException('Happening not found')
 
     // Upsert — one report per user per happening
-    await (admin as any)
+    await admin
       .from('happening_reports')
       .upsert(
         { happening_id: id, reporter_id: ctx.userId, reason, details: details ?? null },

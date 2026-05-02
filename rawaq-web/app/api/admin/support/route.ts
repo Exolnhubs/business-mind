@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
     const limit  = 25
     const from   = (page - 1) * limit
 
-    const { data, count } = await (admin as any)
+    const { data, count } = await admin
       .from('support_tickets')
       .select(
         `id, ticket_number, category, subject, description, status,
@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
          user:profiles!user_id(id, display_name, email:id)`,
         { count: 'exact' }
       )
-      .eq('status', status)
+      .eq('status', status as never)
       .order('created_at', { ascending: false })
       .range(from, from + limit - 1)
 

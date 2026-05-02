@@ -6,6 +6,7 @@ import { UserHappeningCard, UserHappeningCardSkeleton } from './UserHappeningCar
 import { UserFollowButton } from './UserFollowButton'
 import type { FollowState } from './UserFollowButton'
 import { EventCard, EventCardSkeleton } from '@/components/events/EventCard'
+import type { EventWithOrganizer } from '@/types/database'
 
 interface SharedCommunity {
   id: string
@@ -34,6 +35,12 @@ interface Happening {
   rsvp_count: number
 }
 
+type UserCommunity = {
+  id: string
+  name: string
+  slug: string
+}
+
 export function UserProfileTabs({ targetId, followState, isMutual, sharedCommunities }: Props) {
   const [tab, setTab]                     = useState<Tab>('activity')
   const [happenings, setHappenings]       = useState<Happening[]>([])
@@ -43,13 +50,13 @@ export function UserProfileTabs({ targetId, followState, isMutual, sharedCommuni
   const [happeningsHasMore, setHappeningsHasMore] = useState(true)
   const happeningsLoadingRef = useRef(false)
 
-  const [events, setEvents]               = useState<any[]>([])
+  const [events, setEvents]               = useState<EventWithOrganizer[]>([])
   const [eventsLoaded, setEventsLoaded]   = useState(false)
   const [eventsLoading, setEventsLoading] = useState(false)
   const [eventsOffset, setEventsOffset]   = useState(0)
   const [eventsHasMore, setEventsHasMore] = useState(true)
 
-  const [allCommunities, setAllCommunities]         = useState<any[]>([])
+  const [allCommunities, setAllCommunities]         = useState<UserCommunity[]>([])
   const [communitiesLoaded, setCommunitiesLoaded]   = useState(false)
   const [communitiesExpanded, setCommunitiesExpanded] = useState(false)
 
@@ -75,7 +82,7 @@ export function UserProfileTabs({ targetId, followState, isMutual, sharedCommuni
     setEventsLoading(true)
     const res = await fetch(`/api/users/${targetId}/events?limit=8&offset=${eventsOffset}`)
     if (res.ok) {
-      const { data } = await res.json() as { data: any[] }
+      const { data } = await res.json() as { data: EventWithOrganizer[] }
       setEvents((prev) => [...prev, ...data])
       setEventsHasMore(data.length === 8)
       setEventsOffset((o) => o + data.length)
@@ -87,7 +94,7 @@ export function UserProfileTabs({ targetId, followState, isMutual, sharedCommuni
   async function loadCommunities() {
     const res = await fetch(`/api/communities?user_id=${targetId}&per_page=50`)
     if (res.ok) {
-      const { data: payload } = await res.json() as { data: { data: any[]; total: number } }
+      const { data: payload } = await res.json() as { data: { data: UserCommunity[]; total: number } }
       setAllCommunities(payload?.data ?? [])
     }
     setCommunitiesLoaded(true)
@@ -217,7 +224,7 @@ export function UserProfileTabs({ targetId, followState, isMutual, sharedCommuni
             ) : (
               <>
                 <div className="space-y-2">
-                  {(communitiesExpanded ? allCommunities : allCommunities.slice(0, 6)).map((c: any) => (
+                  {(communitiesExpanded ? allCommunities : allCommunities.slice(0, 6)).map((c: UserCommunity) => (
                     <div key={c.id} className="flex items-center p-3 rounded-xl border border-gray-100">
                       <Link href={`/communities/${c.slug}`} className="text-sm font-medium text-gray-800 hover:text-brand-600">{c.name}</Link>
                     </div>

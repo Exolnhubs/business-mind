@@ -42,7 +42,7 @@ export async function PATCH(
     const admin = createSupabaseAdminClient()
 
     // Load existing payout
-    const { data: payout, error: fetchErr } = await (admin as any)
+    const { data: payout, error: fetchErr } = await admin
       .from('payouts')
       .select('id, status, organizer_id, amount')
       .eq('id', id)
@@ -71,7 +71,7 @@ export async function PATCH(
     if (input.gateway_ref)    update.gateway_ref    = input.gateway_ref
     if (input.failure_reason) update.failure_reason = input.failure_reason
 
-    const { data: updated, error: updateErr } = await (admin as any)
+    const { data: updated, error: updateErr } = await admin
       .from('payouts')
       .update(update)
       .eq('id', id)

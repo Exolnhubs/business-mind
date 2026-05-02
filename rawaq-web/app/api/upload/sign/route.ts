@@ -124,7 +124,7 @@ export async function POST(req: NextRequest) {
       path,
       size_bytes: fileSize ?? 0,
       mime_type:  mimeType,
-    } as any)
+    } as never)
 
     return ok({ signedUrl: signData.signedUrl, publicUrl, path, bucket: cfg.bucket })
   } catch (err) {

@@ -15,7 +15,7 @@ export async function GET(
     const ctx   = await requireAuth()
     const admin = createSupabaseAdminClient()
 
-    const { data } = await (admin as any)
+    const { data } = await admin
       .from('support_tickets')
       .select('ticket_number, category, subject, status, public_response, created_at, updated_at')
       .eq('ticket_number', ticketNumber)

@@ -85,7 +85,7 @@ export function SettingsEditor({ initialSettings }: Props) {
         })
         if (!res.ok) {
           const j = await res.json().catch(() => ({}))
-          setError((j as any).error ?? 'Save failed')
+          setError((j as { error?: string }).error ?? 'Save failed')
           return
         }
         const j = await res.json()

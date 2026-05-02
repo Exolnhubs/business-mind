@@ -52,8 +52,10 @@ export async function POST(req: NextRequest) {
     if (error || !booking) throw new NotFoundException('Ticket')
 
     // Verify organizer owns the event (admins bypass)
-    const event = (booking as any).events
-    const occurrence = (booking as any).occurrence
+    const event = (booking as unknown as { events: { id: string; organizer_id: string; title: string } }).events
+    const occurrence = (booking as unknown as {
+      occurrence: { id: string; starts_at: string; ends_at: string | null; status: string | null } | null
+    }).occurrence
     if (ctx.role !== 'admin' && event.organizer_id !== ctx.userId) {
       throw new ForbiddenException('You do not own this event')
     }
@@ -101,7 +103,7 @@ export async function POST(req: NextRequest) {
     // Mark as scanned
     await admin
       .from('bookings')
-      .update({ scanned_at: new Date().toISOString() } as any)
+      .update({ scanned_at: new Date().toISOString() } as never)
       .eq('id', booking.id)
 
     return ok({

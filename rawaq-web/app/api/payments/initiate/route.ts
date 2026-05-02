@@ -65,24 +65,24 @@ export async function POST(req: NextRequest) {
       ? round2(effectivePrice * platformFeePct)
       : 0
 
-    const { data: anyExisting } = await (admin as any)
+    const { data: anyExisting } = await admin
       .from('bookings')
       .select('id, status')
       .eq('user_id', ctx.userId)
       .eq('occurrence_id', occurrence.id)
       .maybeSingle()
 
-    const existingStatus: string | null = anyExisting ? (anyExisting as any).status : null
+    const existingStatus: string | null = anyExisting ? anyExisting.status : null
 
     if (existingStatus === 'confirmed') {
       throw new ConflictException('You already have an active booking for this session')
     }
 
     if (anyExisting && existingStatus === 'pending') {
-      await (admin as any)
+      await admin
         .from('payment_transactions')
         .update({ status: 'failed', failure_reason: 'superseded_by_new_attempt' })
-        .eq('booking_id', (anyExisting as any).id)
+        .eq('booking_id', anyExisting.id)
         .eq('status', 'pending')
     }
 
@@ -105,8 +105,8 @@ export async function POST(req: NextRequest) {
     if (anyExisting) {
       const { data, error } = await admin
         .from('bookings')
-        .update(bookingFields as any)
-        .eq('id', (anyExisting as any).id)
+        .update(bookingFields as never)
+        .eq('id', anyExisting.id)
         .select()
         .single()
       if (error) throw error
@@ -119,7 +119,7 @@ export async function POST(req: NextRequest) {
           event_id: input.event_id,
           occurrence_id: occurrence.id,
           ...bookingFields,
-        } as any)
+        } as never)
         .select()
         .single()
       if (error) throw error
@@ -128,7 +128,7 @@ export async function POST(req: NextRequest) {
 
     if (input.holders.length > 0) {
       const holderRows = input.holders.map((holder) => ({
-        booking_id: booking.id,
+        booking_id: booking.id as string,
         full_name: holder.full_name,
         date_of_birth: holder.date_of_birth,
         relation: holder.relation,
@@ -153,14 +153,14 @@ export async function POST(req: NextRequest) {
     const organizerNet = round2(effectivePrice - platformFeeAmount)
     const { gateway, method } = resolveGateway(event.currency ?? 'SAR', input.payment_option_id)
 
-    const { data: txRow, error: txErr } = await (admin as any)
+    const { data: txRow, error: txErr } = await admin
       .from('payment_transactions')
       .upsert({
         user_id: ctx.userId,
         organizer_id: event.organizer_id,
         event_id: event.id,
         occurrence_id: occurrence.id,
-        booking_id: booking.id,
+        booking_id: booking.id as string,
         type: 'ticket',
         status: 'pending',
         amount: effectivePrice,
@@ -182,13 +182,13 @@ export async function POST(req: NextRequest) {
     if (txErr) throw txErr
 
     if (gateway === 'simulated') {
-      await (admin as any)
+      await admin
         .from('payment_transactions')
         .update({ status: 'succeeded', gateway_ref: `sim_${Date.now()}` })
         .eq('id', txRow.id)
       await admin
         .from('bookings')
-        .update({ status: 'confirmed', payment_pending_until: null } as any)
+        .update({ status: 'confirmed', payment_pending_until: null } as never)
         .eq('id', booking.id as string)
 
       queueBookingNotifications({
@@ -251,7 +251,7 @@ export async function POST(req: NextRequest) {
       throw gatewayError
     }
 
-    const { error: gwUpdateErr } = await (admin as any)
+    const { error: gwUpdateErr } = await admin
       .from('payment_transactions')
       .update({ gateway_order_id: gatewayResult.gatewayOrderId })
       .eq('id', txRow.id)
@@ -267,7 +267,7 @@ export async function POST(req: NextRequest) {
     }
 
     return ok({
-      booking_id: booking.id,
+      booking_id: booking.id as string,
       transaction_id: txRow.id,
       gateway: gatewayResult.gateway,
       redirect_url: gatewayResult.redirectUrl,

@@ -19,7 +19,7 @@ export async function GET(
     const gov = await requireCommunityManager(slug, ctx.userId, ctx.role)
     const admin = createSupabaseAdminClient()
 
-    const { data: memberships, error } = await (admin as any)
+    const { data: memberships, error } = await admin
       .from('community_memberships')
       .select('user_id, role, joined_at')
       .eq('community_id', gov.community.id)
@@ -66,7 +66,7 @@ export async function POST(
       throw new BadRequestException('The community owner already has full community access')
     }
 
-    const { data: membership, error } = await (admin as any)
+    const { data: membership, error } = await admin
       .from('community_memberships')
       .select('community_id, user_id, role, status')
       .eq('community_id', gov.community.id)
@@ -83,7 +83,7 @@ export async function POST(
       return ok({ user_id: input.user_id, role: 'community_admin' })
     }
 
-    const { error: updateErr } = await (admin as any)
+    const { error: updateErr } = await admin
       .from('community_memberships')
       .update({ role: 'community_admin' })
       .eq('community_id', gov.community.id)

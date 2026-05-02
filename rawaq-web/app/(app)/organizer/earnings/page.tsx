@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/auth-context'
 import { Spinner } from '@/components/ui/Spinner'
@@ -193,7 +194,7 @@ export default function EarningsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Earnings</h1>
           <p className="text-sm text-gray-500 mt-0.5">Your wallet, ledger, and payout history</p>
         </div>
-        <a href="/organizer" className="text-sm text-brand-600 hover:underline font-medium">← Dashboard</a>
+        <Link href="/organizer" className="text-sm text-brand-600 hover:underline font-medium">← Dashboard</Link>
       </div>
 
       {/* Wallet summary */}

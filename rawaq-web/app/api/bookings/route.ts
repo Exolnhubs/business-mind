@@ -108,14 +108,14 @@ export async function POST(req: NextRequest) {
       ? Math.round(primaryPrice * platformFeePct * 100) / 100
       : 0
 
-    const { data: anyExisting } = await (admin as any)
+    const { data: anyExisting } = await admin
       .from('bookings')
       .select('id, status')
       .eq('user_id', ctx.userId)
       .eq('occurrence_id', occurrence.id)
       .maybeSingle()
 
-    if ((anyExisting as any)?.status === 'confirmed') {
+    if (anyExisting?.status === 'confirmed') {
       throw new ForbiddenException('You already have an active booking for this session')
     }
 
@@ -134,8 +134,8 @@ export async function POST(req: NextRequest) {
     if (anyExisting) {
       const { data, error } = await admin
         .from('bookings')
-        .update(bookingFields as any)
-        .eq('id', (anyExisting as any).id)
+        .update(bookingFields as never)
+        .eq('id', anyExisting.id)
         .select()
         .single()
       if (error) throw error
@@ -148,7 +148,7 @@ export async function POST(req: NextRequest) {
           event_id: input.event_id,
           occurrence_id: occurrence.id,
           ...bookingFields,
-        } as any)
+        } as never)
         .select()
         .single()
       if (error) throw error
@@ -176,7 +176,7 @@ export async function POST(req: NextRequest) {
           occurrence_id: occurrence.id,
           event_title: event.title,
           booking_id: booking.id as string,
-          ticket_id: (booking as any).ticket_id ?? undefined,
+          ticket_id: (booking as { ticket_id?: string | null }).ticket_id ?? undefined,
         },
       }).catch((error) => console.error('[bookings] booking_confirmed notification failed:', error))
     )

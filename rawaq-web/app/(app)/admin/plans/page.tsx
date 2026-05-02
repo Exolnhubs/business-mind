@@ -48,9 +48,9 @@ export default async function AdminPlansPage() {
       </div>
 
       <PlanManagement
-        plans={(plans ?? []) as any}
-        organizers={(organizers ?? []) as any}
-        users={(users ?? []) as any}
+        plans={(plans ?? []) as never}
+        organizers={(organizers ?? []) as never}
+        users={(users ?? []) as never}
       />
     </div>
   )

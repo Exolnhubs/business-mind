@@ -18,7 +18,7 @@ export async function GET(
 
     // happenings are ephemeral — cleanup cron deletes them 1h after expiry.
     // Show whatever is still in the DB (active + recently expired), newest first.
-    let query = (admin as any)
+    let query = admin
       .from('happenings')
       .select('id, body, created_at, expires_at, community_id, communities(name, slug), reaction_count, rsvp_count')
       .eq('author_id', id)

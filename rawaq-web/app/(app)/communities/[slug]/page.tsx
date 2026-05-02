@@ -173,7 +173,7 @@ export default function CommunityDetailPage() {
   const canCreateSibling = Boolean(directParent) && (isPlatformAdmin || communityLevel !== 'city')
   const canCreateChildHere = communityLevel !== null && (isPlatformAdmin || communityLevel !== 'country')
   const { happenings, loading: happeningsLoading, posting, post, toggleRsvp, toggleReact, remove, report } =
-    useHappenings(slug, isMember)
+    useHappenings(slug)
 
   const loadCommunity = useCallback(async (force = false) => {
     setLoading(true)

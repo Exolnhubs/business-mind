@@ -67,7 +67,7 @@ export async function GET(req: NextRequest) {
   // ── Look up booking + source via Paymob's order ID ───────────────────────
   try {
     const admin = createSupabaseAdminClient()
-    const { data: tx } = await (admin as any)
+    const { data: tx } = await admin
       .from('payment_transactions')
       .select('id, type, booking_id, event_id, source')
       .eq('gateway_order_id', paymobOrderId)

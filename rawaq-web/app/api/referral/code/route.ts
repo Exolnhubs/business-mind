@@ -19,8 +19,7 @@ export async function GET() {
   try {
     const ctx = await requireAuth()
     const supabase = await createSupabaseServerClient()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const admin = createSupabaseAdminClient() as any
+        const admin = createSupabaseAdminClient()
 
     // Try to read existing code first
     const { data: existingRaw } = await supabase
@@ -58,8 +57,7 @@ export async function GET() {
 }
 
 async function buildResponse(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: any,
+    supabase: ReturnType<typeof createSupabaseAdminClient>,
   referralCode: { id: string; code: string; clicks: number },
   userId: string,
 ) {

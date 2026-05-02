@@ -116,7 +116,7 @@ export async function writeCommunityAuditLog(input: {
   meta?: Record<string, unknown>
 }) {
   const admin = createSupabaseAdminClient()
-  const { error } = await (admin as any)
+  const { error } = await admin
     .from('community_audit_logs')
     .insert({
       community_id: input.community_id,

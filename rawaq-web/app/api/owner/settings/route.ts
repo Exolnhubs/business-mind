@@ -44,7 +44,7 @@ export async function PATCH(req: NextRequest) {
 
     const { data, error } = await admin
       .from('platform_settings')
-      .upsert(rows as any, { onConflict: 'key' })
+      .upsert(rows as never, { onConflict: 'key' })
       .select()
 
     if (error) throw error

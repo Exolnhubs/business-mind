@@ -51,7 +51,7 @@ export function useHappenings(slug: string) {
       )
       .subscribe()
 
-    channelRef.current = channel as any
+    channelRef.current = channel as never
     return () => { supabase.removeChannel(channel) }
   }, [slug, load])
 

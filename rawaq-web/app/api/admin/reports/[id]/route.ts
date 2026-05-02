@@ -51,7 +51,7 @@ export async function PATCH(
       target_type: 'report',
       target_id:   id,
       meta:        { event_id: report.event_id, reason: report.reason, resolution_note: input.resolution_note },
-    } as any)
+    } as never)
 
     return ok(data)
   } catch (err) {

@@ -93,7 +93,7 @@ function useSavePlan(onDone: (plan: PlanDefinition) => void) {
 
         if (!res.ok) {
           const j = await res.json().catch(() => ({}))
-          setError((j as any).error ?? 'Failed to save plan')
+          setError((j as { error?: string }).error ?? 'Failed to save plan')
           return
         }
         const j = await res.json()
@@ -126,7 +126,7 @@ function useUpsertCountryPrice(onDone: (price: PlanCountryPrice) => void) {
         })
         if (!res.ok) {
           const j = await res.json().catch(() => ({}))
-          setError((j as any).error ?? 'Failed to save price')
+          setError((j as { error?: string }).error ?? 'Failed to save price')
           return
         }
         const j = await res.json()

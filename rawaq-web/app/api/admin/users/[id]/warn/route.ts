@@ -35,7 +35,7 @@ export async function POST(
         severity:      input.severity,
         reason:        input.reason,
         internal_note: input.internal_note ?? null,
-      } as any)
+      } as never)
       .select()
       .single()
 
@@ -48,7 +48,7 @@ export async function POST(
       target_type: 'user',
       target_id:   userId,
       meta:        { severity: input.severity, reason: input.reason, display_name: target.display_name },
-    } as any)
+    } as never)
 
     return created(data)
   } catch (err) {

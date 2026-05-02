@@ -144,7 +144,7 @@ export default async function CheckoutPage({ params, searchParams }: Props) {
           isFree={event.is_free}
           eventPrice={event.price}
           isLoggedIn={!!user}
-          maxGroupSize={(event as any).max_group_size ?? 5}
+          maxGroupSize={event.max_group_size ?? 5}
           spotsLeft={spotsLeft}
         />
       </div>

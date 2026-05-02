@@ -28,7 +28,7 @@ export async function PATCH(
       updates.resolved_at = new Date().toISOString()
     }
 
-    const { data, error } = await (admin as any)
+    const { data, error } = await admin
       .from('support_tickets')
       .update(updates)
       .eq('id', id)

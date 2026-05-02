@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
 
     const admin = createSupabaseAdminClient()
 
-    let query = (admin as any)
+    let query = admin
       .from('payouts')
       .select(`
         id, amount, currency, status, bank_name, iban,
@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
       .range(from, from + perPage - 1)
 
     if (status !== 'all') {
-      query = query.eq('status', status)
+      query = query.eq('status', status as never)
     }
 
     const { data, count, error } = await query

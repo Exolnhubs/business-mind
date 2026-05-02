@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
     const now = new Date().toISOString()
 
     // Get community_ids with active happenings (deduplicated)
-    const { data: activeRows, error } = await (admin as any)
+    const { data: activeRows, error } = await admin
       .from('happenings')
       .select('community_id')
       .gt('expires_at', now)
@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
     const activeCommunityIds = [...new Set((activeRows as { community_id: string }[]).map((r) => r.community_id))]
 
     // Fetch community details
-    const { data: communities, error: cErr } = await (admin as any)
+    const { data: communities, error: cErr } = await admin
       .from('communities')
       .select('id, name, name_ar, slug, level, type, city, cover_url, member_count, is_verified')
       .in('id', activeCommunityIds)
@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
     // Annotate is_member if authenticated
     let memberSet = new Set<string>()
     if (ctx?.userId) {
-      const { data: memberships } = await (admin as any)
+      const { data: memberships } = await admin
         .from('community_memberships')
         .select('community_id')
         .eq('user_id', ctx.userId)

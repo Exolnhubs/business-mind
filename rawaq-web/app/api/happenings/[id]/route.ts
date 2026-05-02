@@ -13,7 +13,7 @@ export async function DELETE(
     const ctx     = await requireAuth()
     const admin   = createSupabaseAdminClient()
 
-    const { data: happening, error } = await (admin as any)
+    const { data: happening, error } = await admin
       .from('happenings')
       .select('id, author_id')
       .eq('id', id)
@@ -33,7 +33,7 @@ export async function DELETE(
       throw new ForbiddenException('Not allowed')
     }
 
-    await (admin as any).from('happenings').delete().eq('id', id)
+    await admin.from('happenings').delete().eq('id', id)
 
     return ok({ deleted: true })
   } catch (err) {

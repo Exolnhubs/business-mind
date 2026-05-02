@@ -32,7 +32,7 @@ export async function GET(
     const limit  = Math.min(MAX_LIMIT, Math.max(1, Number.isFinite(rawLimit) ? rawLimit : DEFAULT_LIMIT))
     const offset = Math.max(0, Number.isFinite(rawOffset) ? rawOffset : 0)
 
-    const { data: happening } = await (admin as any)
+    const { data: happening } = await admin
       .from('happenings')
       .select('id, rsvp_count')
       .eq('id', id)
@@ -40,7 +40,7 @@ export async function GET(
 
     if (!happening) throw new NotFoundException('Happening not found')
 
-    const { data: rows, error: rowsError } = await (admin as any)
+    const { data: rows, error: rowsError } = await admin
       .from('happening_rsvps')
       .select('created_at, profile:profiles!user_id(id, display_name, avatar_url, created_at)')
       .eq('happening_id', id)
@@ -49,7 +49,7 @@ export async function GET(
 
     if (rowsError) throw rowsError
 
-    const participants: Participant[] = ((rows ?? []) as Array<{
+    const participants: Participant[] = ((rows ?? []) as unknown as Array<{
       created_at: string
       profile: { id: string; display_name: string; avatar_url: string | null; created_at: string } | null
     }>)

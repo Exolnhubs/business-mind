@@ -310,7 +310,7 @@ export async function GET(req: NextRequest) {
 
       if (params.level) query = query.eq('level', params.level)
       if (params.city) query = query.ilike('city', `%${params.city}%`)
-      if (params.type) query = query.eq('type', params.type as any)
+      if (params.type) query = query.eq('type', params.type as never)
       if (params.q) query = query.or(`name.ilike.%${params.q.trim()}%,name_ar.ilike.%${params.q.trim()}%`)
       if (params.member_only) query = query.in('id', memberIds)
       if (userFilterIds) {

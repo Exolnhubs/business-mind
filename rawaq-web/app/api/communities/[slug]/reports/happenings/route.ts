@@ -24,14 +24,14 @@ export async function GET(
     const admin = createSupabaseAdminClient()
     const status = req.nextUrl.searchParams.get('status')
 
-    let query = (admin as any)
+    let query = admin
       .from('happening_reports')
       .select('happening_id, reporter_id, community_id, reason, details, status, assigned_to, resolved_by, resolved_at, resolution_note, created_at')
       .eq('community_id', gov.community.id)
       .order('created_at', { ascending: false })
 
     if (status && ['pending', 'resolved', 'dismissed'].includes(status)) {
-      query = query.eq('status', status)
+      query = query.eq('status', status as never)
     }
 
     const { data: reports, error } = await query
@@ -42,7 +42,7 @@ export async function GET(
 
     const { data: happenings } = happeningIds.length === 0
       ? { data: [] as Array<{ id: string; body: string; author_id: string; created_at: string }> }
-      : await (admin as any)
+      : await admin
           .from('happenings')
           .select('id, body, author_id, created_at')
           .in('id', happeningIds)
@@ -108,7 +108,7 @@ export async function PATCH(
     const gov = await requireCommunityManager(slug, ctx.userId, ctx.role)
     const admin = createSupabaseAdminClient()
 
-    const { data: report, error } = await (admin as any)
+    const { data: report, error } = await admin
       .from('happening_reports')
       .select('happening_id, reporter_id, community_id, status')
       .eq('community_id', gov.community.id)
@@ -138,7 +138,7 @@ export async function PATCH(
       updatePayload.resolved_at = null
     }
 
-    const { error: updateErr } = await (admin as any)
+    const { error: updateErr } = await admin
       .from('happening_reports')
       .update(updatePayload)
       .eq('community_id', gov.community.id)

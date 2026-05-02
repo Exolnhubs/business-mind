@@ -17,7 +17,7 @@ export async function POST(
     const body   = await req.json().catch(() => ({}))
     const emoji  = typeof body.emoji === 'string' && body.emoji.length <= 8 ? body.emoji : '👍'
 
-    const { data: happening } = await (admin as any)
+    const { data: happening } = await admin
       .from('happenings')
       .select('id, community_id, expires_at')
       .eq('id', id)
@@ -26,7 +26,7 @@ export async function POST(
     if (!happening) throw new NotFoundException('Happening not found')
 
     if (ctx.role !== 'admin') {
-      const { data: membership } = await (admin as any)
+      const { data: membership } = await admin
         .from('community_memberships')
         .select('status')
         .eq('community_id', (happening as { community_id: string }).community_id)
@@ -38,11 +38,11 @@ export async function POST(
       }
     }
 
-    await (admin as any)
+    await admin
       .from('happening_reactions')
       .upsert({ happening_id: id, user_id: ctx.userId, emoji }, { onConflict: 'happening_id,user_id' })
 
-    const { data: updated } = await (admin as any)
+    const { data: updated } = await admin
       .from('happenings')
       .select('reaction_count')
       .eq('id', id)
@@ -64,13 +64,13 @@ export async function DELETE(
     const ctx    = await requireAuth()
     const admin  = createSupabaseAdminClient()
 
-    await (admin as any)
+    await admin
       .from('happening_reactions')
       .delete()
       .eq('happening_id', id)
       .eq('user_id', ctx.userId)
 
-    const { data: updated } = await (admin as any)
+    const { data: updated } = await admin
       .from('happenings')
       .select('reaction_count')
       .eq('id', id)

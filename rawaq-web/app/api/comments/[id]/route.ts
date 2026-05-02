@@ -36,7 +36,7 @@ export async function DELETE(
         }
       } else if (comment.happening_id) {
         const { data: happening } = await supabase
-          .from('happenings' as any)
+          .from('happenings')
           .select('author_id')
           .eq('id', comment.happening_id)
           .single()
@@ -95,7 +95,7 @@ export async function POST(
         reporter_id: ctx.userId,
         reason: input.reason,
         details: input.details,
-      } as any)
+      } as never)
       .select()
       .single()
 

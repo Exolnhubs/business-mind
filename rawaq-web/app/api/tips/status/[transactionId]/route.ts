@@ -12,7 +12,7 @@ export async function GET(
     const ctx = await requireAuth()
     const admin = createSupabaseAdminClient()
 
-    const { data: tx, error } = await (admin as any)
+    const { data: tx, error } = await admin
       .from('payment_transactions')
       .select('id, user_id, tip_id, type, status, gateway, gateway_ref, gateway_order_id, payment_method, amount, currency, failure_reason, created_at')
       .eq('id', transactionId)

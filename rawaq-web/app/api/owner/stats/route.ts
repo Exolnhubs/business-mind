@@ -24,7 +24,7 @@ export async function GET() {
     ])
 
     const mrr = (activeSubs ?? []).reduce((sum, row) => {
-      const price = (row as any).plan?.price_sar ?? 0
+      const price = (row as { plan?: { price_sar?: number | null } | null }).plan?.price_sar ?? 0
       return sum + Number(price)
     }, 0)
 

@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
       event = eventRow
     } else {
       const { data: rawHappeningRow, error: happeningErr } = await supabase
-        .from('happenings' as any)
+        .from('happenings')
         .select('id, body, author_id, community_id, expires_at')
         .eq('id', input.happening_id!)
         .single()
@@ -165,7 +165,7 @@ export async function POST(req: NextRequest) {
         parent_id: input.parent_id ?? null,
         mentions:  input.mentions,
         media_url: input.media_url ?? null,
-      } as any)
+      } as never)
       .select(`id, content, media_url, created_at, updated_at, parent_id, mentions, event_id, happening_id,
                author:profiles!user_id(id, display_name, avatar_url, plan_id)`)
       .single()

@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
     const admin = createSupabaseAdminClient()
 
     // ── Find matching transaction by Stripe session ID ────────────────────────
-    const { data: tx, error: txErr } = await (admin as any)
+    const { data: tx, error: txErr } = await admin
       .from('payment_transactions')
       .select('id, type, booking_id, tip_id, user_id, event_id, organizer_id, status, amount, currency, platform_fee, gateway_payload')
       .eq('gateway_order_id', event.gatewayOrderId)
@@ -78,12 +78,12 @@ export async function POST(req: NextRequest) {
     // ── Update transaction ────────────────────────────────────────────────────
     const donationMessage = getDonationMessage(tx.gateway_payload)
 
-    const { error: txUpdateErr } = await (admin as any)
+    const { error: txUpdateErr } = await admin
       .from('payment_transactions')
       .update({
         status:          event.status,
         gateway_ref:     event.gatewayRef,
-        gateway_payload: event.gatewayPayload,
+        gateway_payload: event.gatewayPayload as Record<string, unknown> | null,
         payment_method:  event.paymentMethod,
         is_simulated:    false,
         failure_reason:  event.failureReason ?? null,
@@ -105,7 +105,7 @@ export async function POST(req: NextRequest) {
         return new Response('donation finalize failed', { status: 500 })
       }
 
-      const { error: tipLinkErr } = await (admin as any)
+      const { error: tipLinkErr } = await admin
         .from('payment_transactions')
         .update({ tip_id: tipId, updated_at: new Date().toISOString() })
         .eq('id', tx.id)
@@ -121,11 +121,11 @@ export async function POST(req: NextRequest) {
       const newBookingStatus = event.status === 'succeeded' ? 'confirmed' : 'cancelled'
       await admin
         .from('bookings')
-        .update({ status: newBookingStatus as any, payment_pending_until: null } as any)
+        .update({ status: newBookingStatus as never, payment_pending_until: null } as never)
         .eq('id', tx.booking_id)
 
       if (event.status === 'succeeded') {
-        const { data: ev } = await admin.from('events').select('title, organizer_id').eq('id', tx.event_id).single()
+        const { data: ev } = await admin.from('events').select('title, organizer_id').eq('id', tx.event_id as string).single()
 
         sendNotification({
           userId:  tx.user_id,

@@ -24,7 +24,7 @@ export async function PUT(
     const admin = createSupabaseAdminClient()
     const { data, error } = await admin
       .from('plan_country_prices')
-      .upsert({ plan_id, ...input, updated_at: new Date().toISOString() } as any, {
+      .upsert({ plan_id, ...input, updated_at: new Date().toISOString() } as never, {
         onConflict: 'plan_id,country_code',
       })
       .select()

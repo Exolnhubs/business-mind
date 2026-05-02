@@ -45,7 +45,7 @@ export async function POST(
             status: 'active',
             timeout_until: null,
             status_updated_at: new Date().toISOString(),
-          } as any)
+          } as never)
           .eq('community_id', community.id)
           .eq('user_id', ctx.userId)
 
@@ -72,7 +72,7 @@ export async function POST(
     const memberRole = community.owner_user_id === ctx.userId ? 'owner' : 'member'
     const { error: insertErr } = await admin
       .from('community_memberships')
-      .insert({ community_id: community.id, user_id: ctx.userId, role: memberRole, status: 'active', timeout_until: null } as any)
+      .insert({ community_id: community.id, user_id: ctx.userId, role: memberRole, status: 'active', timeout_until: null } as never)
 
     if (insertErr) {
       throw insertErr

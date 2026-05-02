@@ -53,7 +53,7 @@ export async function PATCH(
       target_type: 'user',
       target_id:   id,
       meta:        { display_name: data.display_name, role: data.role },
-    } as any)
+    } as never)
 
     return ok(data)
   } catch (err) {

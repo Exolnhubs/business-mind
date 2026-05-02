@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
           is_simulated:        true,
           platform_fee_pct:    feePct,
           platform_fee_amount: feeAmount,
-        } as any)
+        } as never)
         .select()
         .single()
 
@@ -123,7 +123,7 @@ export async function POST(req: NextRequest) {
     }
 
     const { gateway, method } = resolveGateway(input.currency, input.payment_option_id)
-    const { data: txRow, error: txErr } = await (supabase as any)
+    const { data: txRow, error: txErr } = await supabase
       .from('payment_transactions')
       .insert({
         user_id:             ctx.userId,
@@ -146,7 +146,7 @@ export async function POST(req: NextRequest) {
           message: input.message?.trim() || null,
           source: input.source,
         },
-      } as any)
+      } as never)
       .select('id')
       .single()
 
@@ -180,7 +180,7 @@ export async function POST(req: NextRequest) {
       ? await initiatePaymob(initParams)
       : await initiateStripe(initParams)
 
-    const { error: gwUpdateErr } = await (supabase as any)
+    const { error: gwUpdateErr } = await supabase
       .from('payment_transactions')
       .update({ gateway_order_id: gatewayResult.gatewayOrderId })
       .eq('id', txRow.id)

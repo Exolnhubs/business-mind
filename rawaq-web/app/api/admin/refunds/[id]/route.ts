@@ -42,7 +42,7 @@ export async function PATCH(
     const admin = createSupabaseAdminClient()
 
     // Load refund + transaction
-    const { data: refund, error: fetchErr } = await (admin as any)
+    const { data: refund, error: fetchErr } = await admin
       .from('refunds')
       .select('id, status, payment_transaction_id, amount, booking_id')
       .eq('id', id)
@@ -70,7 +70,7 @@ export async function PATCH(
     if (input.gateway_ref)   update.gateway_ref   = input.gateway_ref
     if (input.refund_method) update.refund_method = input.refund_method
 
-    const { data: updatedRefund, error: refundUpdateErr } = await (admin as any)
+    const { data: updatedRefund, error: refundUpdateErr } = await admin
       .from('refunds')
       .update(update)
       .eq('id', id)
@@ -83,7 +83,7 @@ export async function PATCH(
     // This fires the existing trg_payment_wallet_sync trigger which debits
     // the organizer wallet and writes a wallet_ledger 'refund_deducted' entry.
     if (input.status === 'completed') {
-      const { error: txErr } = await (admin as any)
+      const { error: txErr } = await admin
         .from('payment_transactions')
         .update({
           status:     'refunded',
@@ -93,7 +93,7 @@ export async function PATCH(
 
       if (txErr) {
         // Roll back the refund status update to keep state consistent
-        await (admin as any)
+        await admin
           .from('refunds')
           .update({ status: refund.status, updated_at: new Date().toISOString() })
           .eq('id', id)

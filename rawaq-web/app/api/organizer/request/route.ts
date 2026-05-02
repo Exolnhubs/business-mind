@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
           verified:      false,
           reviewed_by:   null,
           reviewed_at:   null,
-        } as any,
+        } as never,
         { onConflict: 'user_id', ignoreDuplicates: false },
       )
       .select()

@@ -287,7 +287,7 @@ export interface BookingHolder {
   id: string;
   booking_id: string;
   full_name: string;
-  date_of_birth: string;  // ISO date string YYYY-MM-DD
+  date_of_birth: string; // ISO date string YYYY-MM-DD
   relation: string;
   position: number;
   created_at: string;
@@ -411,6 +411,8 @@ export interface Refund {
   requested_by: string;
   amount: number;
   reason: string | null;
+  user_note: string | null;
+  refund_method: "original_payment" | "manual";
   status: RefundStatus;
   processed_by: string | null;
   processed_at: string | null;
@@ -428,6 +430,7 @@ export interface Payout {
   status: PayoutStatus;
   bank_name: string | null;
   iban: string | null;
+  bank_account_id: string | null;
   requested_at: string;
   processed_by: string | null;
   processed_at: string | null;
@@ -627,6 +630,16 @@ export interface OrganizerFollow {
   created_at: string;
 }
 
+export type UserFollowStatus = "pending" | "accepted";
+
+export interface UserFollow {
+  id: string;
+  follower_id: string;
+  following_id: string;
+  status: UserFollowStatus;
+  created_at: string;
+}
+
 export interface EventReaction {
   id: string;
   user_id: string;
@@ -739,6 +752,19 @@ export interface CommunityFollow {
   created_at: string;
 }
 
+export interface HappeningRsvp {
+  happening_id: string;
+  user_id: string;
+  created_at: string;
+}
+
+export interface HappeningReaction {
+  happening_id: string;
+  user_id: string;
+  emoji: string;
+  created_at: string;
+}
+
 export type HappeningType = "open_invite" | "info" | "question" | "alert";
 
 export interface Happening {
@@ -804,7 +830,43 @@ export interface OrganizerWalletRow {
   total_earned: number;
   total_withdrawn: number;
   currency: string;
-  is_simulated: boolean;
+  updated_at: string;
+}
+
+export interface OrganizerBankAccount {
+  id: string;
+  organizer_id: string;
+  bank_name: string;
+  bank_name_ar: string | null;
+  account_holder_name: string;
+  iban: string;
+  swift_code: string | null;
+  country: string;
+  is_verified: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export type SupportTicketCategory =
+  | "general"
+  | "refund"
+  | "harassment"
+  | "legal"
+  | "technical";
+export type SupportTicketStatus = "open" | "in_progress" | "resolved" | "closed";
+
+export interface SupportTicket {
+  id: string;
+  ticket_number: string;
+  user_id: string;
+  category: SupportTicketCategory;
+  subject: string;
+  description: string;
+  status: SupportTicketStatus;
+  admin_notes: string | null;
+  resolved_by: string | null;
+  resolved_at: string | null;
+  created_at: string;
   updated_at: string;
 }
 
@@ -880,6 +942,36 @@ export type Database = {
         Update: R<Partial<Booking>>;
         Relationships: [];
       };
+      booking_holders: {
+        Row: R<BookingHolder>;
+        Insert: R<Omit<BookingHolder, "id" | "created_at">>;
+        Update: R<Partial<BookingHolder>>;
+        Relationships: [];
+      };
+      payment_transactions: {
+        Row: R<PaymentTransaction>;
+        Insert: R<Partial<PaymentTransaction>>;
+        Update: R<Partial<PaymentTransaction>>;
+        Relationships: [];
+      };
+      wallet_ledger: {
+        Row: R<WalletLedgerEntry>;
+        Insert: R<Omit<WalletLedgerEntry, "id" | "created_at">>;
+        Update: R<Partial<WalletLedgerEntry>>;
+        Relationships: [];
+      };
+      refunds: {
+        Row: R<Refund>;
+        Insert: R<Partial<Refund>>;
+        Update: R<Partial<Refund>>;
+        Relationships: [];
+      };
+      payouts: {
+        Row: R<Payout>;
+        Insert: R<Partial<Payout>>;
+        Update: R<Partial<Payout>>;
+        Relationships: [];
+      };
       tips: {
         Row: R<Tip>;
         Insert: R<Omit<Tip, "id" | "created_at">>;
@@ -934,6 +1026,12 @@ export type Database = {
         Update: R<Partial<OrganizerFollow>>;
         Relationships: [];
       };
+      user_follows: {
+        Row: R<UserFollow>;
+        Insert: R<Omit<UserFollow, "id" | "created_at">>;
+        Update: R<Partial<UserFollow>>;
+        Relationships: [];
+      };
       user_blocks: {
         Row: R<UserBlock>;
         Insert: R<UserBlock>;
@@ -958,6 +1056,37 @@ export type Database = {
         Row: R<Waitlist>;
         Insert: R<Omit<Waitlist, "id" | "created_at">>;
         Update: R<Partial<Waitlist>>;
+        Relationships: [];
+      };
+      support_tickets: {
+        Row: R<SupportTicket>;
+        Insert: R<Partial<SupportTicket>>;
+        Update: R<Partial<SupportTicket>>;
+        Relationships: [];
+      };
+      happenings: {
+        Row: R<Happening>;
+        Insert: R<
+          Omit<
+            Happening,
+            "id" | "rsvp_count" | "reaction_count" | "is_pinned" | "created_at"
+          >
+        > &
+          Partial<Pick<R<Happening>, "is_pinned">>;
+        Update: R<Partial<Happening>>;
+        Relationships: [];
+      };
+      happening_rsvps: {
+        Row: R<HappeningRsvp>;
+        Insert: R<Omit<HappeningRsvp, "created_at">>;
+        Update: R<Partial<HappeningRsvp>>;
+        Relationships: [];
+      };
+      happening_reactions: {
+        Row: R<HappeningReaction>;
+        Insert: R<Omit<HappeningReaction, "created_at">> &
+          Partial<Pick<R<HappeningReaction>, "emoji">>;
+        Update: R<Partial<HappeningReaction>>;
         Relationships: [];
       };
       happening_reports: {
@@ -1068,6 +1197,12 @@ export type Database = {
         Update: R<Partial<OrganizerWalletRow>>;
         Relationships: [];
       };
+      organizer_bank_accounts: {
+        Row: R<OrganizerBankAccount>;
+        Insert: R<Omit<OrganizerBankAccount, "id" | "created_at" | "updated_at">>;
+        Update: R<Partial<OrganizerBankAccount>>;
+        Relationships: [];
+      };
       subscriptions: {
         Row: R<Subscription>;
         Insert: R<Omit<Subscription, "id" | "created_at" | "updated_at">>;
@@ -1084,8 +1219,26 @@ export type Database = {
       };
       community_memberships: {
         Row: R<CommunityMembership>;
-        Insert: R<Omit<CommunityMembership, "id" | "joined_at">>;
+        Insert: R<Partial<CommunityMembership>>;
         Update: R<Partial<CommunityMembership>>;
+        Relationships: [];
+      };
+      referral_codes: {
+        Row: R<ReferralCode>;
+        Insert: R<Partial<ReferralCode>>;
+        Update: R<Partial<ReferralCode>>;
+        Relationships: [];
+      };
+      referrals: {
+        Row: R<Referral>;
+        Insert: R<Partial<Referral>>;
+        Update: R<Partial<Referral>>;
+        Relationships: [];
+      };
+      user_coupons: {
+        Row: R<UserCoupon>;
+        Insert: R<Partial<UserCoupon>>;
+        Update: R<Partial<UserCoupon>>;
         Relationships: [];
       };
       community_follows: {
@@ -1130,6 +1283,10 @@ export type Database = {
           community_level: CommunityLevel;
           community_type: CommunityType;
         }>;
+      };
+      increment_referral_clicks: {
+        Args: { p_code: string };
+        Returns: void;
       };
     };
     Enums: {
