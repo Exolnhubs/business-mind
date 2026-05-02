@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { GoogleGenerativeAI } from '@google/generative-ai'
+import { GoogleGenerativeAI, Tool, FunctionDeclaration, SchemaType } from '@google/generative-ai'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireAuth } from '@/lib/auth'
 import { handleApiError, ok, ApiException } from '@/lib/errors'
@@ -9,7 +9,7 @@ import { isTransientGeminiError, runGeminiWithFallback } from '@/lib/gemini'
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY ?? '')
 
-// ── System prompt ──────────────────────────────────────────────────────────────
+// ── System prompt ─────────────────────────────────────────────────────────────
 
 const SYSTEM_PROMPT = `You are Rawaq Support, the friendly AI assistant for the Rawaq event discovery platform.
 
@@ -30,6 +30,17 @@ ABOUT RAWAQ:
 
 PERSONALITY: Warm, concise, helpful. 2-3 sentences per reply max. Use 1 emoji per message.
 
+TOOLS YOU CAN CALL:
+- get_ticket_status: call this when the user mentions a support ticket number (format TKT-XXXXXX). Extract the ticket number from their message and pass it as ticket_number.
+- get_my_event_reports: call this when the user asks about an event report or incident they filed (e.g. "what happened to my report on Event X", "status of my complaint about that event"). After receiving the list, match the event name contextually. If the name is ambiguous, ask the user to confirm (e.g. "Did you mean 'Jeddah Music Festival 2025'?").
+
+TOOL RESPONSE HANDLING:
+- Ticket found, public_response present: summarise the status and warmly share the response from the team.
+- Ticket found, public_response null: acknowledge the status and reassure ("still being reviewed, no update from the team yet").
+- Ticket not found (found: false): tell the user that ticket number doesn't appear to be on their account and ask them to double-check it.
+- Reports list non-empty: find the event the user is asking about and share its status + public_response if available, otherwise reassure it's under review.
+- Reports list empty: tell the user they haven't filed any event reports yet.
+
 ESCALATION RULES — for these issues you MUST create a support ticket:
 1. Sexual harassment, inappropriate behaviour, or threats from another user
 2. Refund requests for paid bookings
@@ -43,6 +54,37 @@ Then tell the user: "I've escalated your case to our admin team — they will re
 
 For general questions: answer directly. Do NOT create a ticket unless truly necessary.
 Do NOT ask for personal details like passwords or payment info.`
+
+// ── Gemini function declarations ──────────────────────────────────────────────
+
+const SUPPORT_TOOLS: Tool[] = [
+  {
+    functionDeclarations: [
+      {
+        name: 'get_ticket_status',
+        description: 'Fetches the status and public response for a support ticket belonging to the authenticated user.',
+        parameters: {
+          type: SchemaType.OBJECT,
+          properties: {
+            ticket_number: {
+              type: SchemaType.STRING,
+              description: 'The ticket number, e.g. TKT-A10783',
+            },
+          },
+          required: ['ticket_number'],
+        },
+      } as FunctionDeclaration,
+      {
+        name: 'get_my_event_reports',
+        description: 'Returns all event reports filed by the authenticated user, including event title and resolution status.',
+        parameters: {
+          type: SchemaType.OBJECT,
+          properties: {},
+        },
+      } as FunctionDeclaration,
+    ],
+  },
+]
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -66,6 +108,41 @@ const BodySchema = z.object({
   ).min(1).max(80),
 })
 
+// ── Tool execution ─────────────────────────────────────────────────────────────
+
+async function executeToolCall(
+  name: string,
+  args: Record<string, unknown>,
+  userId: string
+): Promise<unknown> {
+  const admin = createSupabaseAdminClient()
+
+  if (name === 'get_ticket_status') {
+    const ticketNumber = args.ticket_number as string
+    const { data } = await (admin as any)
+      .from('support_tickets')
+      .select('ticket_number, category, subject, status, public_response, updated_at')
+      .eq('ticket_number', ticketNumber)
+      .eq('user_id', userId)
+      .single()
+
+    if (!data) return { found: false }
+    return { found: true, ...data }
+  }
+
+  if (name === 'get_my_event_reports') {
+    const { data } = await (admin as any)
+      .from('event_reports')
+      .select('id, reason, status, public_response, created_at, events ( id, title )')
+      .eq('reporter_id', userId)
+      .order('created_at', { ascending: false })
+
+    return data ?? []
+  }
+
+  return { error: 'Unknown tool' }
+}
+
 // ── POST /api/support/chat ─────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
@@ -85,9 +162,27 @@ export async function POST(req: NextRequest) {
       const model = genAI.getGenerativeModel({
         model: modelName,
         systemInstruction: SYSTEM_PROMPT,
+        tools: SUPPORT_TOOLS,
       })
       const chat = model.startChat({ history })
-      const result = await chat.sendMessage(lastMsg.parts[0].text)
+      let result = await chat.sendMessage(lastMsg.parts[0].text)
+
+      // Handle function call loop — Gemini may request one tool call per turn
+      const candidate = result.response.candidates?.[0]
+      const fnCall = candidate?.content?.parts?.find(p => p.functionCall)?.functionCall
+
+      if (fnCall) {
+        const toolResult = await executeToolCall(fnCall.name, fnCall.args as Record<string, unknown>, ctx.userId)
+        result = await chat.sendMessage([
+          {
+            functionResponse: {
+              name: fnCall.name,
+              response: toolResult as object,
+            },
+          },
+        ])
+      }
+
       return result.response.text().trim()
     }, { route: 'support/chat', operation: 'reply' })
 
@@ -103,9 +198,6 @@ export async function POST(req: NextRequest) {
         const payload = JSON.parse(ticketMatch[1]) as TicketPayload
         const admin   = createSupabaseAdminClient()
 
-        // Ask the AI to classify the category semantically from a fixed list.
-        // This handles any phrasing ("sexual assault", "refund_request", etc.)
-        // without brittle keyword matching.
         const VALID_CATEGORIES = ['general', 'refund', 'harassment', 'legal', 'technical'] as const
         type ValidCategory = typeof VALID_CATEGORIES[number]
 
@@ -145,21 +237,18 @@ export async function POST(req: NextRequest) {
           .single()
 
         if (dbErr) {
-          // Log so Vercel function logs surface the real error
           console.error('[support/chat] ticket insert error:', dbErr)
         }
 
         if (row) {
           ticket        = { ticket_number: row.ticket_number, category: row.category }
           ticketCreated = true
-          // Append ticket number to reply
           reply += `\n\nYour ticket number is **${row.ticket_number}**. Keep this for reference.`
         }
       } catch (err) {
         console.error('[support/chat] ticket creation exception:', err)
       }
 
-      // If creation failed, be honest — don't leave the user expecting a ticket number
       if (!ticketCreated) {
         reply += '\n\n(I wasn\'t able to open a ticket right now — please try again in a moment or contact us directly.)'
       }
@@ -167,8 +256,6 @@ export async function POST(req: NextRequest) {
 
     return ok({ reply, ticket })
   } catch (err) {
-    // ApiException (including RateLimitException with statusCode 429) must go
-    // through handleApiError — not the Gemini busy path, which checks status 429.
     if (!(err instanceof ApiException) && isTransientGeminiError(err)) {
       return ok({
         reply: 'The support assistant is busy right now. Please try again in a moment.',
