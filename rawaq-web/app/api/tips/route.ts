@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireAuth } from '@/lib/auth'
 import { handleApiError, ok, created, NotFoundException, ForbiddenException } from '@/lib/errors'
+import { paginationRange, paginatedResponse } from '@/lib/pagination'
 import { CreateTipSchema } from '@/lib/validations/tips'
 import { sendNotification } from '@/lib/notifications'
 import { resolveGateway } from '@/lib/gateways/selector'
@@ -20,7 +21,7 @@ export async function GET(req: NextRequest) {
     const direction = req.nextUrl.searchParams.get('direction') ?? 'sent'
     const page = Number(req.nextUrl.searchParams.get('page') ?? 1)
     const perPage = Number(req.nextUrl.searchParams.get('per_page') ?? 20)
-    const from = (page - 1) * perPage
+    const { from, to } = paginationRange(page, perPage)
 
     let query = supabase
       .from('tips')
@@ -31,7 +32,7 @@ export async function GET(req: NextRequest) {
         { count: 'exact' }
       )
       .order('created_at', { ascending: false })
-      .range(from, from + perPage - 1)
+      .range(from, to)
 
     if (direction === 'received' && ctx.role === 'organizer') {
       query = query.eq('organizer_id', ctx.userId)
@@ -42,7 +43,7 @@ export async function GET(req: NextRequest) {
     const { data, count, error } = await query
     if (error) throw error
 
-    return ok({ data, total: count ?? 0, page, per_page: perPage })
+    return ok(paginatedResponse(data ?? [], count ?? 0, page, perPage))
   } catch (err) {
     return handleApiError(err)
   }

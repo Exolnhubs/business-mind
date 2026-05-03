@@ -4,6 +4,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireAuth } from '@/lib/auth'
 import { handleApiError, ok, created, ForbiddenException } from '@/lib/errors'
+import { paginationRange, paginatedResponse } from '@/lib/pagination'
 import { CreateBookingSchema } from '@/lib/validations/bookings'
 import { sendNotification } from '@/lib/notifications'
 import { applyResolvedEventWindow } from '@/lib/events/recurrence'
@@ -38,7 +39,7 @@ export async function GET(req: NextRequest) {
     const page = Number(req.nextUrl.searchParams.get('page') ?? 1)
     const perPage = Number(req.nextUrl.searchParams.get('per_page') ?? 20)
     const status = req.nextUrl.searchParams.get('status')
-    const from = (page - 1) * perPage
+    const { from, to } = paginationRange(page, perPage)
 
     let query = supabase
       .from('bookings')
@@ -50,7 +51,7 @@ export async function GET(req: NextRequest) {
       )
       .eq('user_id', ctx.userId)
       .order('created_at', { ascending: false })
-      .range(from, from + perPage - 1)
+      .range(from, to)
 
     if (status) query = query.eq('status', status as import('@/types/database').BookingStatus)
 
@@ -75,7 +76,7 @@ export async function GET(req: NextRequest) {
       }
     })
 
-    return ok({ data: resolvedData, total: count ?? 0, page, per_page: perPage })
+    return ok(paginatedResponse(resolvedData, count ?? 0, page, perPage))
   } catch (err) {
     return handleApiError(err)
   }

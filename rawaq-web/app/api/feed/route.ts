@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { requireAuth } from '@/lib/auth'
 import { handleApiError, ok } from '@/lib/errors'
+import { paginationRange, paginatedResponse } from '@/lib/pagination'
 
 const PAGE_SIZE = 12
 
@@ -19,8 +20,7 @@ export async function GET(req: NextRequest) {
     const { page } = FeedQuerySchema.parse(
       Object.fromEntries(req.nextUrl.searchParams)
     )
-    const from = (page - 1) * PAGE_SIZE
-    const to   = from + PAGE_SIZE - 1
+    const { from, to } = paginationRange(page, PAGE_SIZE)
 
     // Get organizer IDs the user follows
     const { data: follows } = await supabase
@@ -54,11 +54,8 @@ export async function GET(req: NextRequest) {
     if (error) throw error
 
     return ok({
-      data:             data ?? [],
-      total:            count ?? 0,
-      page,
-      per_page:         PAGE_SIZE,
-      following_count:  orgIds.length,
+      ...paginatedResponse(data ?? [], count ?? 0, page, PAGE_SIZE),
+      following_count: orgIds.length,
     })
   } catch (err) {
     return handleApiError(err)
