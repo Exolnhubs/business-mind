@@ -2,7 +2,8 @@ import { NextRequest } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { optionalAuth, requireAuth } from '@/lib/auth'
-import { ForbiddenException, handleApiError, ok, created } from '@/lib/errors'
+import { ForbiddenException, handleApiError, ok, created, NotFoundException, BadRequestException } from '@/lib/errors'
+import { checkRateLimit, limiters } from '@/lib/rate-limit'
 import { writeCommunityAuditLog } from '@/lib/community-governance'
 import { generateCommunitySlug } from '@/lib/community-slug'
 import type { CommunityApprovalStatus } from '@/types/database'
@@ -424,20 +425,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (ctx.role !== 'admin') {
-      const windowStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
-      const { count, error: rateLimitError } = await admin
-        .from('communities')
-        .select('id', { count: 'exact', head: true })
-        .eq('created_by', ctx.userId)
-        .gte('created_at', windowStart)
-
-      if (rateLimitError) throw rateLimitError
-      if ((count ?? 0) >= 3) {
-        return Response.json(
-          { error: 'You have reached the community creation limit for the last 30 days' },
-          { status: 429 },
-        )
-      }
+      await checkRateLimit(limiters.communityCreate, ctx.userId)
     }
 
     const communityId = crypto.randomUUID()
@@ -454,14 +442,11 @@ export async function POST(req: NextRequest) {
 
       if (parentCommunityError) throw parentCommunityError
       if (!parentCommunity) {
-        return Response.json({ error: 'Selected parent community was not found' }, { status: 404 })
+        throw new NotFoundException('Parent community')
       }
 
       if (COMMUNITY_LEVEL_RANK[input.level] > COMMUNITY_LEVEL_RANK[parentCommunity.level]) {
-        return Response.json(
-          { error: 'Child community level cannot be broader than its parent community' },
-          { status: 422 },
-        )
+        throw new BadRequestException('Child community level cannot be broader than its parent community')
       }
 
       parentCommunityId = parentCommunity.id
@@ -469,22 +454,13 @@ export async function POST(req: NextRequest) {
     }
 
     if (parentCommunityLevel === 'country' && input.level !== 'city') {
-      return Response.json(
-        { error: 'Choose a city or local parent inside this country instead of attaching this community directly to the country root' },
-        { status: 422 },
-      )
+      throw new BadRequestException('Choose a city or local parent inside this country instead of attaching this community directly to the country root')
     }
     if (input.level === 'district' && parentCommunityLevel !== 'city') {
-      return Response.json(
-        { error: 'District communities must live under a city community' },
-        { status: 422 },
-      )
+      throw new BadRequestException('District communities must live under a city community')
     }
     if (input.level === 'city' && parentCommunityLevel !== 'country') {
-      return Response.json(
-        { error: 'City communities must live under a country community' },
-        { status: 422 },
-      )
+      throw new BadRequestException('City communities must live under a country community')
     }
 
     const approvalStatus: CommunityApprovalStatus = input.level === 'district' && ctx.role !== 'admin'
