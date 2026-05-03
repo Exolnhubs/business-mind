@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { Redis } from '@upstash/redis'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { handleApiError, ok } from '@/lib/errors'
-import { applyResolvedEventWindow } from '@/lib/events/recurrence'
+import { applyResolvedEventWindow, hasResolvedEventEnded } from '@/lib/events/recurrence'
 
 const redis = Redis.fromEnv()
 const CACHE_TTL_SECONDS = 300 // 5 minutes
@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
 
     const events = ((data ?? []) as Array<{ start_at: string; end_at?: string | null }>)
       .map((row) => applyResolvedEventWindow(row))
-      .filter((event) => new Date(event.start_at).getTime() >= Date.now())
+      .filter((event) => !hasResolvedEventEnded(event))
 
     const payload = { featured: events, total: events.length }
 

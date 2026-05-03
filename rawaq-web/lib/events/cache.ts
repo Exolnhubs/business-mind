@@ -35,7 +35,7 @@ export const getCachedFeaturedEvents = unstable_cache(
     )
   },
   ['events-featured'],
-  { tags: ['events', 'events-featured'], revalidate: false }
+  { tags: ['events', 'events-featured'], revalidate: 300 }
 )
 
 // ── Weekend rail ──────────────────────────────────────────────────────────────

@@ -50,6 +50,20 @@ export async function POST(
       return ok({ featured_until: null, quota: await getQuota(supabase, ctx.userId) })
     }
 
+    // Feature: block if organizer already has 2 concurrently active featured events
+    const { count: activeFeatured } = await supabase
+      .from('events')
+      .select('id', { count: 'exact', head: true })
+      .eq('organizer_id', ctx.userId)
+      .gt('featured_until', now.toISOString())
+      .neq('id', id)
+
+    if ((activeFeatured ?? 0) >= 2) {
+      throw new ForbiddenException(
+        'You already have 2 active featured events. Unfeature one before featuring another.'
+      )
+    }
+
     // Feature: check plan quota first
     const plan = await getOrganizerPlanAccess(ctx.userId)
     const limit = getFeaturedPerMonth(plan)
