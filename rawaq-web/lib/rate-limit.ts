@@ -32,6 +32,8 @@ export const limiters = {
   communityJoin:          sw(10,  '1 m',  'community:join'),
   happenings:             sw(5,   '1 m',  'happenings'),
   happeningParticipants:  sw(60,  '1 m',  'happening:participants'),
+  eventCreate:            sw(20,  '1 h',  'events:create'),
+  referralClaim:          sw(5,   '1 h',  'referral:claim'),
 }
 
 export async function checkRateLimit(
