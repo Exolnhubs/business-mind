@@ -15,18 +15,23 @@ const displayFont = Barlow_Semi_Condensed({
   subsets: ['latin'],
   weight: ['600', '700', '800', '900'],
   variable: '--font-display',
+  display: 'swap',
 })
 
 const sansFont = Mulish({
   subsets: ['latin'],
   weight: ['400', '500', '600', '700'],
   variable: '--font-sans',
+  display: 'swap',
 })
 
+// 'fallback' = 100 ms block window then 3 s swap window.
+// Prevents FOUT on the Arabic hero headline without permanently abandoning the font.
 const arabicFont = Noto_Sans_Arabic({
   subsets: ['arabic'],
   weight: ['400', '500', '600', '700'],
   variable: '--font-arabic',
+  display: 'fallback',
 })
 
 export const metadata: Metadata = {

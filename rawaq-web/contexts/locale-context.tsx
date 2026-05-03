@@ -1,7 +1,11 @@
 'use client'
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useLayoutEffect, ReactNode } from 'react'
 import { landingTranslationsAr, landingTranslationsEn } from '@/lib/landing-translations'
+
+// useLayoutEffect fires synchronously before browser paint; prevents locale CLS.
+// Falls back to useEffect on the server where window doesn't exist.
+const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect
 
 type Locale = 'en' | 'ar'
 
@@ -1084,7 +1088,9 @@ const LocaleContext = createContext<LocaleContextValue | null>(null)
 export function LocaleProvider({ children }: { children: ReactNode }) {
   const [locale, setLocale] = useState<Locale>('en')
 
-  useEffect(() => {
+  // Runs synchronously before first paint — locale update completes before the
+  // browser measures layout, so Arabic users never see an English flash.
+  useIsomorphicLayoutEffect(() => {
     const stored = localStorage.getItem('rawaq_locale') as Locale | null
     if (stored === 'ar' || stored === 'en') setLocale(stored)
   }, [])
