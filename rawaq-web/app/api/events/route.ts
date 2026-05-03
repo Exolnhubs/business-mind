@@ -4,6 +4,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireOrganizer, optionalAuth } from '@/lib/auth'
 import { handleApiError, ok, created, ForbiddenException } from '@/lib/errors'
+import { checkRateLimit, limiters } from '@/lib/rate-limit'
 import { getOrganizerPlanAccess } from '@/lib/plans'
 import { CreateEventSchema, ListEventsSchema } from '@/lib/validations/events'
 import { sendNotifications } from '@/lib/notifications'
@@ -182,6 +183,7 @@ const cached = await redis.get(cacheKey)
 export async function POST(req: NextRequest) {
   try {
     const ctx = await requireOrganizer()
+    await checkRateLimit(limiters.eventCreate, ctx.userId)
     const body = await req.json()
     const input = CreateEventSchema.parse(body)
 
