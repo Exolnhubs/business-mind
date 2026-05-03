@@ -1,5 +1,6 @@
 import { Tabs } from 'expo-router'
 import { Platform } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useLocale } from '@/contexts/locale-context'
 import { useNavigationLoader } from '@/contexts/navigation-loader-context'
@@ -8,6 +9,13 @@ import { Colors } from '@/theme'
 export default function TabsLayout() {
   const { t } = useLocale()
   const { beginNavigation, endNavigation } = useNavigationLoader()
+  const insets = useSafeAreaInsets()
+
+  // On Android the OS draws the navigation bar inside the app window (edge-to-edge,
+  // mandatory on Android 15 / Galaxy S-series).  We must add insets.bottom to the
+  // tab bar height so the bar renders above the system nav buttons, not behind them.
+  const tabBarHeight      = Platform.OS === 'ios' ? 84  : 62 + insets.bottom
+  const tabBarPaddingBottom = Platform.OS === 'ios' ? 26 : 8  + insets.bottom
 
   return (
     <Tabs
@@ -23,8 +31,8 @@ export default function TabsLayout() {
           backgroundColor: Colors.white,
           borderTopColor: Colors.gray[100],
           borderTopWidth: 1,
-          height: Platform.OS === 'ios' ? 84 : 62,
-          paddingBottom: Platform.OS === 'ios' ? 26 : 8,
+          height: tabBarHeight,
+          paddingBottom: tabBarPaddingBottom,
           paddingTop: 6,
         },
         tabBarLabelStyle: { fontSize: 11, fontWeight: '500' },
