@@ -29,6 +29,12 @@ function isNextImageAllowed(src: string) {
   }
 }
 
+function resolvedSrc(src: string) {
+  if (isNextImageAllowed(src)) return src
+  if (src.startsWith('/')) return src
+  return `/api/image-proxy?url=${encodeURIComponent(src)}`
+}
+
 function nativeClassName(className: string | undefined, fill: boolean | undefined) {
   return fill
     ? ['absolute inset-0 h-full w-full', className].filter(Boolean).join(' ')
@@ -48,10 +54,12 @@ export function SafeImage({
   unoptimized,
   style,
 }: SafeImageProps) {
-  if (isNextImageAllowed(src)) {
+  const proxied = resolvedSrc(src)
+
+  if (isNextImageAllowed(proxied)) {
     return (
       <Image
-        src={src}
+        src={proxied}
         alt={alt}
         className={className}
         sizes={sizes}
@@ -66,15 +74,15 @@ export function SafeImage({
     )
   }
 
+  // proxied is always /api/image-proxy?... at this point — safe to use with <img>
   return (
     <img
-      src={src}
+      src={proxied}
       alt={alt}
       className={nativeClassName(className, fill)}
       width={fill ? undefined : width}
       height={fill ? undefined : height}
       loading={priority ? 'eager' : loading ?? 'lazy'}
-      referrerPolicy="no-referrer"
       style={style}
     />
   )

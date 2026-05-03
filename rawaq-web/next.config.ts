@@ -9,6 +9,8 @@ const csp = [
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' data: https://fonts.gstatic.com",
   "img-src 'self' data: blob: https://*.supabase.co https://*.supabase.in https://lh3.googleusercontent.com https://avatars.githubusercontent.com https://nominatim.openstreetmap.org",
+  // Allow service worker (Serwist) to create blob workers; without this it falls back to script-src which blocks blob:
+  "worker-src 'self' blob:",
   // wss for Supabase Realtime; Sentry is tunnelled through /monitoring (self)
   "connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co https://nominatim.openstreetmap.org https://exp.host",
   "frame-src 'self' https://js.stripe.com https://hooks.stripe.com",
