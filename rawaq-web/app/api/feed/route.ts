@@ -1,9 +1,14 @@
 import { NextRequest } from 'next/server'
+import { z } from 'zod'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { requireAuth } from '@/lib/auth'
 import { handleApiError, ok } from '@/lib/errors'
 
 const PAGE_SIZE = 12
+
+const FeedQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+})
 
 // GET /api/feed — upcoming events from organizers the user follows
 export async function GET(req: NextRequest) {
@@ -11,7 +16,9 @@ export async function GET(req: NextRequest) {
     const ctx = await requireAuth()
     const supabase = await createSupabaseServerClient()
 
-    const page = Math.max(1, Number(req.nextUrl.searchParams.get('page') ?? 1))
+    const { page } = FeedQuerySchema.parse(
+      Object.fromEntries(req.nextUrl.searchParams)
+    )
     const from = (page - 1) * PAGE_SIZE
     const to   = from + PAGE_SIZE - 1
 
