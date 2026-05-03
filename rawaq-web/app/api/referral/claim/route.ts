@@ -3,7 +3,8 @@ import { z } from 'zod'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireAuth } from '@/lib/auth'
-import { handleApiError, ok } from '@/lib/errors'
+import { handleApiError, ok, NotFoundException, BadRequestException, UnauthorizedException } from '@/lib/errors'
+import { checkRateLimit, limiters } from '@/lib/rate-limit'
 import { sendNotification } from '@/lib/notifications'
 
 const Schema = z.object({
@@ -16,6 +17,7 @@ const Schema = z.object({
 export async function POST(req: NextRequest) {
   try {
     const ctx    = await requireAuth()
+    await checkRateLimit(limiters.referralClaim, ctx.userId)
     const input  = Schema.parse(await req.json())
         const admin  = createSupabaseAdminClient()
     const supabase = await createSupabaseServerClient()
@@ -23,7 +25,7 @@ export async function POST(req: NextRequest) {
     // Guard: only credit referrals for accounts created in the last 10 minutes.
     // Prevents existing users from gaming the system by re-visiting a referral link.
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!user) throw new UnauthorizedException()
     const accountAgeMs = Date.now() - new Date(user.created_at).getTime()
     if (accountAgeMs > 10 * 60 * 1000) {
       return ok({ skipped: true, reason: 'existing_account' })
@@ -38,12 +40,12 @@ export async function POST(req: NextRequest) {
     const refCode = refCodeRaw as { id: string; user_id: string } | null
 
     if (codeErr || !refCode) {
-      return Response.json({ error: 'Invalid referral code.' }, { status: 404 })
+      throw new NotFoundException('Referral code')
     }
 
     // Self-referral guard
     if (refCode.user_id === ctx.userId) {
-      return Response.json({ error: 'You cannot use your own referral code.' }, { status: 400 })
+      throw new BadRequestException('You cannot use your own referral code.')
     }
 
     // Insert — UNIQUE(referred_id) makes this idempotent
