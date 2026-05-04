@@ -37,6 +37,9 @@ const arabicFont = Noto_Sans_Arabic({
 export const metadata: Metadata = {
   title: { default: 'Rawaq — Discover Local Events', template: '%s | Rawaq' },
   description: 'Find and join local events in your local area. Explore a wide range of activities and connect with your community.',
+  icons: {
+    icon: '/website-icon.png',
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
