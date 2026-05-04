@@ -45,7 +45,8 @@ export type NotificationType =
   | "community_happening"
   | "follow_request"
   | "follow_accepted"
-  | "say_hi";
+  | "say_hi"
+  | "happening_rsvp_approved";
 export type ReactionType = "like" | "interested";
 export type ReportReason =
   | "spam"
@@ -171,10 +172,18 @@ export interface UserCoupon {
 export interface OrganizerProfile {
   id: string;
   user_id: string;
+  organizer_type: "company" | "individual";
   business_name: string;
   business_name_ar: string | null;
   description: string | null;
   description_ar: string | null;
+  bio: string | null;
+  skills_tags: string[];
+  sessions_hosted_count: number;
+  cancellation_count: number;
+  avg_rating: number | null;
+  paid_sessions_enabled: boolean;
+  payout_hold_days: number;
   logo_url: string | null;
   website: string | null;
   phone: string | null;
@@ -692,7 +701,7 @@ export type CommunityType =
   | "district"
   | "city"
   | "country";
-export type CommunityRole = "member" | "community_admin" | "owner";
+export type CommunityRole = "member" | "host" | "community_admin" | "owner";
 export type CommunityMembershipStatus =
   | "active"
   | "timed_out"
@@ -755,6 +764,7 @@ export interface CommunityFollow {
 export interface HappeningRsvp {
   happening_id: string;
   user_id: string;
+  status: 'pending' | 'approved' | 'rejected';
   created_at: string;
 }
 
@@ -778,6 +788,8 @@ export interface Happening {
   location_label: string | null;
   expires_at: string;
   rsvp_count: number;
+  capacity: number;
+  requires_approval: boolean;
   reaction_count: number;
   is_pinned: boolean;
   created_at: string;
@@ -787,6 +799,8 @@ export interface HappeningWithAuthor extends Happening {
   author: Pick<Profile, "id" | "display_name" | "avatar_url" | "plan_id">;
   user_has_rsvp?: boolean;
   user_has_reacted?: boolean;
+  user_rsvp_status?: 'pending' | 'approved' | null;
+  pending_count?: number;
 }
 
 export interface CommunityWithMembership extends Community {
@@ -1069,16 +1083,16 @@ export type Database = {
         Insert: R<
           Omit<
             Happening,
-            "id" | "rsvp_count" | "reaction_count" | "is_pinned" | "created_at"
+            "id" | "rsvp_count" | "reaction_count" | "is_pinned" | "created_at" | "capacity" | "requires_approval"
           >
         > &
-          Partial<Pick<R<Happening>, "is_pinned">>;
+          Partial<Pick<R<Happening>, "is_pinned" | "capacity" | "requires_approval">>;
         Update: R<Partial<Happening>>;
         Relationships: [];
       };
       happening_rsvps: {
         Row: R<HappeningRsvp>;
-        Insert: R<Omit<HappeningRsvp, "created_at">>;
+        Insert: R<Omit<HappeningRsvp, "created_at" | "status">> & Partial<Pick<R<HappeningRsvp>, "status">>;
         Update: R<Partial<HappeningRsvp>>;
         Relationships: [];
       };

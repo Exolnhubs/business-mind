@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireAuth } from '@/lib/auth'
-import { ForbiddenException, handleApiError, ok, NotFoundException } from '@/lib/errors'
+import { BadRequestException, ForbiddenException, handleApiError, ok, NotFoundException } from '@/lib/errors'
 import { limiters, checkRateLimit } from '@/lib/rate-limit'
 
 // POST /api/happenings/:id/rsvp — join a happening
@@ -17,12 +17,18 @@ export async function POST(
 
     const { data: happening } = await admin
       .from('happenings')
-      .select('id, community_id, expires_at, rsvp_count')
+      .select('id, community_id, expires_at, rsvp_count, capacity, requires_approval')
       .eq('id', id)
       .maybeSingle()
 
     if (!happening) throw new NotFoundException('Happening not found')
-    if (new Date((happening as { expires_at: string }).expires_at) < new Date()) {
+
+    const h = happening as {
+      community_id: string; expires_at: string
+      rsvp_count: number; capacity: number; requires_approval: boolean
+    }
+
+    if (new Date(h.expires_at) < new Date()) {
       throw new NotFoundException('Happening has expired')
     }
 
@@ -30,7 +36,7 @@ export async function POST(
       const { data: membership } = await admin
         .from('community_memberships')
         .select('status')
-        .eq('community_id', (happening as { community_id: string }).community_id)
+        .eq('community_id', h.community_id)
         .eq('user_id', ctx.userId)
         .maybeSingle()
 
@@ -39,10 +45,36 @@ export async function POST(
       }
     }
 
-    // Idempotent — ignore conflict
+    // Check existing RSVP — handle idempotently without changing existing approved/pending status
+    const { data: existing } = await admin
+      .from('happening_rsvps')
+      .select('status')
+      .eq('happening_id', id)
+      .eq('user_id', ctx.userId)
+      .maybeSingle()
+
+    const existingStatus = (existing as { status: string } | null)?.status as 'pending' | 'approved' | 'rejected' | undefined
+
+    if (existingStatus === 'approved') {
+      return ok({ rsvp: true, status: 'approved', rsvp_count: h.rsvp_count })
+    }
+    if (existingStatus === 'pending') {
+      return ok({ rsvp: false, status: 'pending', rsvp_count: h.rsvp_count })
+    }
+
+    // Capacity check applies only for auto-approve happenings
+    if (!h.requires_approval && h.rsvp_count >= h.capacity) {
+      throw new BadRequestException('This happening is full')
+    }
+
+    const newStatus: 'pending' | 'approved' = h.requires_approval ? 'pending' : 'approved'
+
     await admin
       .from('happening_rsvps')
-      .upsert({ happening_id: id, user_id: ctx.userId }, { onConflict: 'happening_id,user_id' })
+      .upsert(
+        { happening_id: id, user_id: ctx.userId, status: newStatus },
+        { onConflict: 'happening_id,user_id' }
+      )
 
     const { data: updated } = await admin
       .from('happenings')
@@ -50,13 +82,17 @@ export async function POST(
       .eq('id', id)
       .single()
 
-    return ok({ rsvp: true, rsvp_count: (updated as { rsvp_count: number })?.rsvp_count ?? 0 })
+    return ok({
+      rsvp:      newStatus === 'approved',
+      status:    newStatus,
+      rsvp_count: (updated as { rsvp_count: number })?.rsvp_count ?? 0,
+    })
   } catch (err) {
     return handleApiError(err)
   }
 }
 
-// DELETE /api/happenings/:id/rsvp — leave a happening
+// DELETE /api/happenings/:id/rsvp — leave / cancel pending request
 export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }

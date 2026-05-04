@@ -9,6 +9,7 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -60,6 +61,8 @@ export function HappeningComposerSheet({ visible, onClose, onPosted }: Happening
   const [postType, setPostType] = useState<HappeningType>('open_invite')
   const [postBody, setPostBody] = useState('')
   const [postExpiry, setPostExpiry] = useState(6)
+  const [postCapacity, setPostCapacity] = useState(10)
+  const [requiresApproval, setRequiresApproval] = useState(false)
   const [postLocation, setPostLocation] = useState<PickedLocation | null>(null)
   const [posting, setPosting] = useState(false)
   const [showLocationPicker, setShowLocationPicker] = useState(false)
@@ -92,6 +95,8 @@ export function HappeningComposerSheet({ visible, onClose, onPosted }: Happening
     setPostType('open_invite')
     setPostBody('')
     setPostExpiry(6)
+    setPostCapacity(10)
+    setRequiresApproval(false)
     setPostLocation(null)
     setPosting(false)
   }
@@ -113,6 +118,7 @@ export function HappeningComposerSheet({ visible, onClose, onPosted }: Happening
       type: postType,
       body: postBody.trim(),
       expires_in_hours: postExpiry,
+      ...(postType === 'open_invite' ? { capacity: postCapacity, requires_approval: requiresApproval } : {}),
       ...(postLocation
         ? {
             lat: postLocation.lat,
@@ -162,7 +168,7 @@ export function HappeningComposerSheet({ visible, onClose, onPosted }: Happening
                     <Ionicons name="people-outline" size={26} color={Colors.gray[500]} />
                     <Text style={styles.emptyTitle}>Join a community first</Text>
                     <Text style={styles.emptyHint}>
-                      Happenings are community-first, so you’ll need at least one joined community before posting.
+                      Happenings are community-first, so you'll need at least one joined community before posting.
                     </Text>
                     <TouchableOpacity
                       style={styles.primaryButton}
@@ -319,6 +325,36 @@ export function HappeningComposerSheet({ visible, onClose, onPosted }: Happening
                     </TouchableOpacity>
                   ))}
                 </View>
+
+                {postType === 'open_invite' && (
+                  <View style={styles.openInviteOptions}>
+                    <View style={styles.capacityRow}>
+                      <Text style={styles.optionLabel}>Max spots:</Text>
+                      <TouchableOpacity
+                        onPress={() => setPostCapacity((c) => Math.max(1, c - 1))}
+                        style={styles.stepperBtn}
+                      >
+                        <Text style={styles.stepperBtnText}>−</Text>
+                      </TouchableOpacity>
+                      <Text style={styles.capacityValue}>{postCapacity}</Text>
+                      <TouchableOpacity
+                        onPress={() => setPostCapacity((c) => Math.min(50, c + 1))}
+                        style={styles.stepperBtn}
+                      >
+                        <Text style={styles.stepperBtnText}>+</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <View style={styles.approvalRow}>
+                      <Text style={styles.optionLabel}>Approve joiners</Text>
+                      <Switch
+                        value={requiresApproval}
+                        onValueChange={setRequiresApproval}
+                        trackColor={{ false: Colors.gray[200], true: Colors.brand[400] }}
+                        thumbColor={requiresApproval ? Colors.brand[600] : Colors.white}
+                      />
+                    </View>
+                  </View>
+                )}
 
                 <View style={styles.actionsRow}>
                   <TouchableOpacity
@@ -607,7 +643,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
-    marginBottom: Spacing.xl,
+    marginBottom: Spacing.md,
     flexWrap: 'wrap',
   },
   expiryLabel: {
@@ -633,6 +669,54 @@ const styles = StyleSheet.create({
   },
   expiryChipTextActive: {
     color: Colors.brand[700],
+  },
+  openInviteOptions: {
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: Colors.gray[200],
+    backgroundColor: Colors.gray[50],
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+    gap: Spacing.sm,
+  },
+  capacityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  approvalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  optionLabel: {
+    flex: 1,
+    fontSize: FontSize.xs,
+    color: Colors.gray[600],
+    fontWeight: FontWeight.medium,
+  },
+  stepperBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.gray[200],
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepperBtnText: {
+    fontSize: FontSize.base,
+    fontWeight: FontWeight.bold,
+    color: Colors.gray[700],
+    lineHeight: 20,
+  },
+  capacityValue: {
+    width: 32,
+    textAlign: 'center',
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.bold,
+    color: Colors.gray[900],
   },
   actionsRow: {
     flexDirection: 'row',

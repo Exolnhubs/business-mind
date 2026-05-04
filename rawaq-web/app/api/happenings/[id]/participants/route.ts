@@ -15,7 +15,7 @@ type Participant = {
   platform_joined_at: string
 }
 
-// GET /api/happenings/:id/participants — list users who RSVP'd a happening
+// GET /api/happenings/:id/participants — list users who RSVP'd a happening (approved only by default)
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -26,11 +26,11 @@ export async function GET(
     await checkRateLimit(limiters.happeningParticipants, ctx.userId)
     const admin = createSupabaseAdminClient()
 
-    const url      = new URL(req.url)
-    const rawLimit = Number(url.searchParams.get('limit') ?? DEFAULT_LIMIT)
+    const url       = new URL(req.url)
+    const rawLimit  = Number(url.searchParams.get('limit') ?? DEFAULT_LIMIT)
     const rawOffset = Number(url.searchParams.get('offset') ?? 0)
-    const limit  = Math.min(MAX_LIMIT, Math.max(1, Number.isFinite(rawLimit) ? rawLimit : DEFAULT_LIMIT))
-    const offset = Math.max(0, Number.isFinite(rawOffset) ? rawOffset : 0)
+    const limit     = Math.min(MAX_LIMIT, Math.max(1, Number.isFinite(rawLimit) ? rawLimit : DEFAULT_LIMIT))
+    const offset    = Math.max(0, Number.isFinite(rawOffset) ? rawOffset : 0)
 
     const { data: happening } = await admin
       .from('happenings')
@@ -44,6 +44,7 @@ export async function GET(
       .from('happening_rsvps')
       .select('created_at, profile:profiles!user_id(id, display_name, avatar_url, created_at)')
       .eq('happening_id', id)
+      .eq('status', 'approved')
       .order('created_at', { ascending: true })
       .range(offset, offset + limit - 1)
 
@@ -55,10 +56,10 @@ export async function GET(
     }>)
       .filter((r) => r.profile !== null)
       .map((r) => ({
-        id: r.profile!.id,
-        display_name: r.profile!.display_name,
-        avatar_url: r.profile!.avatar_url,
-        joined_at: r.created_at,
+        id:                 r.profile!.id,
+        display_name:       r.profile!.display_name,
+        avatar_url:         r.profile!.avatar_url,
+        joined_at:          r.created_at,
         platform_joined_at: r.profile!.created_at,
       }))
 

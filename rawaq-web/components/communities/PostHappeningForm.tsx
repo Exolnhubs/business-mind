@@ -21,14 +21,25 @@ const EXPIRY_OPTIONS = [
 
 interface Props {
   posting: boolean
-  onPost: (data: { type: HappeningType; body: string; expires_in_hours: number; lat?: number; lng?: number; location_label?: string }) => Promise<boolean>
+  onPost: (data: {
+    type: HappeningType
+    body: string
+    expires_in_hours: number
+    lat?: number
+    lng?: number
+    location_label?: string
+    capacity?: number
+    requires_approval?: boolean
+  }) => Promise<boolean>
   onCancel: () => void
 }
 
 export function PostHappeningForm({ posting, onPost, onCancel }: Props) {
-  const [type, setType] = useState<HappeningType>('open_invite')
-  const [body, setBody] = useState('')
-  const [expiry, setExpiry] = useState(6)
+  const [type, setType]                     = useState<HappeningType>('open_invite')
+  const [body, setBody]                     = useState('')
+  const [expiry, setExpiry]                 = useState(6)
+  const [capacity, setCapacity]             = useState(10)
+  const [requiresApproval, setRequiresApproval] = useState(false)
   const [selectedLocation, setSelectedLocation] = useState<PickedLocation | null>(null)
   const [showLocationPicker, setShowLocationPicker] = useState(false)
   const activeType = TYPES.find((item) => item.key === type) ?? TYPES[0]
@@ -41,6 +52,7 @@ export function PostHappeningForm({ posting, onPost, onCancel }: Props) {
       type,
       body: body.trim(),
       expires_in_hours: expiry,
+      ...(type === 'open_invite' ? { capacity, requires_approval: requiresApproval } : {}),
       ...(selectedLocation
         ? {
             lat: selectedLocation.lat,
@@ -54,6 +66,8 @@ export function PostHappeningForm({ posting, onPost, onCancel }: Props) {
       setBody('')
       setType('open_invite')
       setExpiry(6)
+      setCapacity(10)
+      setRequiresApproval(false)
       setSelectedLocation(null)
     }
   }
@@ -130,6 +144,31 @@ export function PostHappeningForm({ posting, onPost, onCancel }: Props) {
             </button>
           </div>
         </div>
+
+        {type === 'open_invite' && (
+          <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-brand-100 pt-3">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-gray-500">Max spots:</span>
+              <input
+                type="number"
+                min={1}
+                max={50}
+                value={capacity}
+                onChange={(e) => setCapacity(Math.min(50, Math.max(1, Number(e.target.value) || 1)))}
+                className="w-14 rounded-lg border border-gray-200 bg-white px-2 py-1 text-center text-xs"
+              />
+            </div>
+            <label className="flex cursor-pointer items-center gap-1.5 text-xs text-gray-500">
+              <input
+                type="checkbox"
+                checked={requiresApproval}
+                onChange={(e) => setRequiresApproval(e.target.checked)}
+                className="rounded"
+              />
+              Approve joiners manually
+            </label>
+          </div>
+        )}
       </form>
 
       <LocationPickerModal

@@ -62,6 +62,8 @@ export function useHappenings(slug: string) {
     lat?: number
     lng?: number
     location_label?: string
+    capacity?: number
+    requires_approval?: boolean
   }) {
     setPosting(true)
     try {
@@ -81,13 +83,19 @@ export function useHappenings(slug: string) {
   }
 
   async function toggleRsvp(happening: HappeningWithAuthor) {
-    const method = happening.user_has_rsvp ? 'DELETE' : 'POST'
-    const res    = await fetch(`/api/happenings/${happening.id}/rsvp`, { method })
+    const hasAnyRsvp = happening.user_has_rsvp || happening.user_rsvp_status === 'pending'
+    const method     = hasAnyRsvp ? 'DELETE' : 'POST'
+    const res        = await fetch(`/api/happenings/${happening.id}/rsvp`, { method })
     if (res.ok) {
-      const json = await res.json() as { data: { rsvp: boolean; rsvp_count: number } }
+      const json = await res.json() as { data: { rsvp: boolean; status?: 'pending' | 'approved'; rsvp_count: number } }
       setHappenings((prev) =>
         prev.map((h) => h.id === happening.id
-          ? { ...h, user_has_rsvp: json.data.rsvp, rsvp_count: json.data.rsvp_count }
+          ? {
+              ...h,
+              user_has_rsvp:    json.data.status === 'approved',
+              user_rsvp_status: json.data.status ?? null,
+              rsvp_count:       json.data.rsvp_count,
+            }
           : h
         )
       )

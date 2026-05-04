@@ -107,7 +107,11 @@ export function HappeningDiscoveryCard({
         >
           <Ionicons name="people-outline" size={13} color={Colors.gray[600]} />
           <Text style={[styles.participantsText, textDirStyle]}>
-            {happening.rsvp_count > 0 ? `${happening.rsvp_count} joined` : 'No one joined yet'}
+            {happening.type === 'open_invite'
+              ? `${happening.rsvp_count}/${happening.capacity ?? 10} joined`
+              : happening.rsvp_count > 0
+              ? `${happening.rsvp_count} joined`
+              : 'No one joined yet'}
           </Text>
           {happening.rsvp_count > 0 && (
             <Ionicons name="chevron-forward" size={12} color={Colors.gray[500]} />
@@ -120,14 +124,32 @@ export function HappeningDiscoveryCard({
           >
             <Text style={styles.actionText}>Chat</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => onToggleRsvp?.(happening)}
-            style={[styles.actionBtn, happening.user_has_rsvp && styles.actionBtnActive]}
-          >
-            <Text style={[styles.actionText, happening.user_has_rsvp && styles.actionTextActive]}>
-              Join · {happening.rsvp_count}
-            </Text>
-          </TouchableOpacity>
+          {(() => {
+            const isPending = happening.user_rsvp_status === 'pending'
+            const isJoined  = happening.user_has_rsvp || happening.user_rsvp_status === 'approved'
+            const capacity  = happening.capacity ?? 10
+            const isFull    = happening.type === 'open_invite' && !happening.requires_approval && happening.rsvp_count >= capacity && !isJoined && !isPending
+            return (
+              <TouchableOpacity
+                onPress={() => !isFull && onToggleRsvp?.(happening)}
+                disabled={isFull}
+                style={[
+                  styles.actionBtn,
+                  isJoined && styles.actionBtnActive,
+                  isPending && styles.actionBtnPending,
+                  isFull && styles.actionBtnDisabled,
+                ]}
+              >
+                <Text style={[
+                  styles.actionText,
+                  isJoined && styles.actionTextActive,
+                  isPending && styles.actionTextPending,
+                ]}>
+                  {isJoined ? `In · ${happening.rsvp_count}` : isPending ? '⏳ Pending' : isFull ? 'Full' : `Join · ${happening.rsvp_count}`}
+                </Text>
+              </TouchableOpacity>
+            )
+          })()}
           <TouchableOpacity
             onPress={() => onToggleReact?.(happening)}
             style={[styles.actionBtn, happening.user_has_reacted && styles.reactBtnActive]}
@@ -226,6 +248,16 @@ const styles = StyleSheet.create({
   actionBtnActive: {
     borderColor: Colors.brand[500],
     backgroundColor: Colors.brand[50],
+  },
+  actionBtnPending: {
+    borderColor: '#f59e0b',
+    backgroundColor: '#fffbeb',
+  },
+  actionBtnDisabled: {
+    opacity: 0.5,
+  },
+  actionTextPending: {
+    color: '#b45309',
   },
   reactBtnActive: {
     borderColor: '#0f766e',

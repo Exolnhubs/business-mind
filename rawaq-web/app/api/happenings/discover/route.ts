@@ -94,7 +94,7 @@ export async function GET(req: NextRequest) {
     let query = admin
       .from('happenings')
       .select(`
-        id, community_id, author_id, type, body, lat, lng, location_label, expires_at, rsvp_count, reaction_count, is_pinned, created_at,
+        id, community_id, author_id, type, body, lat, lng, location_label, expires_at, rsvp_count, capacity, requires_approval, reaction_count, is_pinned, created_at,
         author:profiles!author_id(id, display_name, avatar_url, plan_id),
         community:communities!community_id(id, name, name_ar, slug, level, type, cover_url, is_private)
       `)
@@ -157,22 +157,25 @@ export async function GET(req: NextRequest) {
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     })
 
-    let rsvpSet = new Set<string>()
-    let reactionSet = new Set<string>()
+    let rsvpStatusMap = new Map<string, 'pending' | 'approved' | 'rejected'>()
+    let reactionSet   = new Set<string>()
     if (ctx?.userId && sorted.length > 0) {
       const ids = sorted.slice(0, params.limit).map((h) => h.id as string)
       const [{ data: rsvps }, { data: reactions }] = await Promise.all([
-        admin.from('happening_rsvps').select('happening_id').eq('user_id', ctx.userId).in('happening_id', ids),
+        admin.from('happening_rsvps').select('happening_id, status').eq('user_id', ctx.userId).in('happening_id', ids),
         admin.from('happening_reactions').select('happening_id').eq('user_id', ctx.userId).in('happening_id', ids),
       ])
-      rsvpSet = new Set((rsvps ?? []).map((row: { happening_id: string }) => row.happening_id))
+      for (const r of (rsvps ?? []) as Array<{ happening_id: string; status: string }>) {
+        rsvpStatusMap.set(r.happening_id, r.status as 'pending' | 'approved' | 'rejected')
+      }
       reactionSet = new Set((reactions ?? []).map((row: { happening_id: string }) => row.happening_id))
     }
 
     return ok({
       happenings: sorted.slice(0, params.limit).map((happening) => ({
         ...happening,
-        user_has_rsvp: rsvpSet.has(happening.id as string),
+        user_has_rsvp:    rsvpStatusMap.get(happening.id as string) === 'approved',
+        user_rsvp_status: rsvpStatusMap.get(happening.id as string) ?? null,
         user_has_reacted: reactionSet.has(happening.id as string),
       })),
     })
