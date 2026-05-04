@@ -14,8 +14,26 @@ import { ensureEventOccurrences } from '@/lib/events/occurrences'
 const redis = Redis.fromEnv()
 const EVENT_CACHE_TTL = 60 // 60 seconds
 
+type OrganizerType = 'company' | 'individual'
+
+type EventListRow = {
+  start_at: string
+  end_at: string | null
+  ticket_types?: Array<{ is_active: boolean }>
+  organizer?: {
+    organizer_profile?: { organizer_type?: OrganizerType | null } | Array<{ organizer_type?: OrganizerType | null }> | null
+  } | null
+}
+
 function buildEventCacheKey(params: Record<string, unknown>): string {
   return `events:list:${JSON.stringify(params)}`
+}
+
+function getOrganizerType(event: EventListRow): OrganizerType | null {
+  const organizerProfile = Array.isArray(event.organizer?.organizer_profile)
+    ? event.organizer?.organizer_profile[0]
+    : event.organizer?.organizer_profile
+  return organizerProfile?.organizer_type ?? null
 }
 
 function buildEventKeywordSearch(search: string) {
@@ -69,7 +87,7 @@ const cached = await redis.get(cacheKey)
          organizer_id, category_id, is_published, is_cancelled, visibility_type,
          organizer:profiles!organizer_id(
            id, display_name, avatar_url,
-           organizer_profile:organizer_profiles!user_id(business_name, business_name_ar, logo_url, verified)
+           organizer_profile:organizer_profiles!user_id(business_name, business_name_ar, logo_url, verified, organizer_type)
          ),
          category:event_categories(id, name_en, name_ar, icon),
          ticket_types(id, price, is_free, is_active, is_hot_offer, hot_offer_price, hot_offer_ends_at)`,
@@ -143,12 +161,13 @@ const cached = await redis.get(cacheKey)
     const dateFromMs = params.date_from ? new Date(params.date_from).getTime() : null
     const dateToMs = params.date_to ? new Date(params.date_to).getTime() : null
 
-    const filtered = ((data ?? []) as unknown as Array<{ start_at: string; end_at: string | null; ticket_types?: Array<{ is_active: boolean }> }>)
+    const filtered = ((data ?? []) as unknown as EventListRow[])
       .map((event) => ({
         ...event,
         ticket_types: ((event.ticket_types ?? []) as Array<{ is_active: boolean }>).filter((tt) => tt.is_active),
       }))
       .map((event) => applyResolvedEventWindow(event, now))
+      .filter((event) => params.hosted_by === 'all' || getOrganizerType(event) === params.hosted_by)
       .filter((event) => {
         const startMs = new Date(event.start_at).getTime()
         if (dateFromMs !== null && startMs < dateFromMs) return false

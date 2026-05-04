@@ -89,6 +89,7 @@ export const ListEventsSchema = z.object({
   organizer_own: z.coerce.boolean().optional(),
   community: z.string().optional(),            // community slug filter
   visibility: z.enum(['micro', 'interest', 'city', 'national']).optional(),
+  hosted_by: z.enum(['company', 'individual', 'all']).default('all'),
 })
 
 export type CreateEventInput = z.infer<typeof CreateEventSchema>

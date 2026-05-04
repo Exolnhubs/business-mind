@@ -46,6 +46,7 @@ export type NotificationType =
   | "follow_request"
   | "follow_accepted"
   | "say_hi"
+  | "happening_rsvp_request"
   | "happening_rsvp_approved";
 export type ReactionType = "like" | "interested";
 export type ReportReason =
@@ -825,7 +826,7 @@ export interface EventWithOrganizer extends Event {
   organizer: Pick<Profile, "id" | "display_name" | "avatar_url"> & {
     organizer_profile: Pick<
       OrganizerProfile,
-      "business_name" | "business_name_ar" | "logo_url" | "verified"
+      "business_name" | "business_name_ar" | "logo_url" | "verified" | "organizer_type"
     > | null;
   };
   category: Pick<EventCategory, "id" | "name_en" | "name_ar" | "icon"> | null;

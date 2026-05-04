@@ -8,7 +8,22 @@ const Schema = z.object({
   cursor:   z.string().datetime().optional(),
   per_page: z.coerce.number().int().min(1).max(50).default(20),
   status:   z.enum(['upcoming', 'past']).default('upcoming'),
+  type:     z.enum(['sessions', 'all']).default('all'),
 })
+
+type CommunityEventRow = {
+  start_at: string
+  organizer?: {
+    organizer_profile?: { organizer_type?: 'company' | 'individual' | null } | Array<{ organizer_type?: 'company' | 'individual' | null }> | null
+  } | null
+}
+
+function getCommunityEventOrganizerType(event: CommunityEventRow): 'company' | 'individual' | null {
+  const organizerProfile = Array.isArray(event.organizer?.organizer_profile)
+    ? event.organizer?.organizer_profile[0]
+    : event.organizer?.organizer_profile
+  return organizerProfile?.organizer_type ?? null
+}
 
 // GET /api/communities/:slug/events — paginated events in a community
 export async function GET(
@@ -46,7 +61,7 @@ export async function GET(
         `id, title, title_ar, cover_image_url, start_at, end_at, event_frequency, recurrence_until, city,
          is_free, price, currency, bookings_count, capacity, visibility_type,
          organizer:profiles!organizer_id(id, display_name, avatar_url,
-           organizer_profile:organizer_profiles!user_id(business_name, logo_url, verified)),
+           organizer_profile:organizer_profiles!user_id(business_name, logo_url, verified, organizer_type)),
          category:event_categories(id, name_en, name_ar, icon),
          ticket_types(id, price, is_free, is_active, is_hot_offer, hot_offer_price, hot_offer_ends_at)`,
         { count: 'exact' }
@@ -60,8 +75,9 @@ export async function GET(
     if (error) throw error
 
     const cursorMs = new Date(p.cursor ?? new Date().toISOString()).getTime()
-    const resolved = (events ?? [])
+    const resolved = ((events ?? []) as unknown as CommunityEventRow[])
       .map((event) => applyResolvedEventWindow(event))
+      .filter((event) => p.type === 'all' || getCommunityEventOrganizerType(event) === 'individual')
       .filter((event) => {
         const startMs = new Date(event.start_at).getTime()
         return p.status === 'upcoming' ? startMs >= cursorMs : startMs < cursorMs
