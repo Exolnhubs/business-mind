@@ -102,6 +102,8 @@ export async function writeCommunityAuditLog(input: {
     | 'community_created'
     | 'assign_community_admin'
     | 'revoke_community_admin'
+    | 'assign_host_role'
+    | 'revoke_host_role'
     | 'resolve_happening_report'
     | 'dismiss_happening_report'
     | 'delete_happening'

@@ -75,6 +75,8 @@ export type CommunityAuditAction =
   | "community_created"
   | "assign_community_admin"
   | "revoke_community_admin"
+  | "assign_host_role"
+  | "revoke_host_role"
   | "resolve_happening_report"
   | "dismiss_happening_report"
   | "delete_happening"
@@ -761,6 +763,13 @@ export interface CommunityFollow {
   created_at: string;
 }
 
+export interface CommunityHost {
+  community_id: string;
+  user_id: string;
+  granted_by: string | null;
+  granted_at: string;
+}
+
 export interface HappeningRsvp {
   happening_id: string;
   user_id: string;
@@ -1259,6 +1268,12 @@ export type Database = {
         Row: R<CommunityFollow>;
         Insert: R<CommunityFollow>;
         Update: R<Partial<CommunityFollow>>;
+        Relationships: [];
+      };
+      community_hosts: {
+        Row: R<CommunityHost>;
+        Insert: R<Omit<CommunityHost, "granted_at">> & Partial<Pick<R<CommunityHost>, "granted_at">>;
+        Update: R<Partial<CommunityHost>>;
         Relationships: [];
       };
       community_hierarchy: {
