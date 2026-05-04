@@ -91,9 +91,48 @@ const LEVEL_META: Record<CommunityLevel, { label: string; icon: keyof typeof Ion
 export default function CommunityDetailScreen() {
   const { slug } = useLocalSearchParams<{ slug: string }>()
   const { user, profile } = useAuth()
-  const { locale } = useLocale()
+  const { locale, t } = useLocale()
   const router = useRouter()
   const isRTL = locale === 'ar'
+
+  function tx(key: string, vars?: Record<string, string | number>) {
+    let text = t(key)
+    if (!vars) return text
+    for (const [name, value] of Object.entries(vars)) {
+      text = text.replace(`{${name}}`, String(value))
+    }
+    return text
+  }
+
+  function communityLevelLabel(level: CommunityLevel) {
+    return t(`community.level.${level}`)
+  }
+
+  function communityRoleLabel(role: CommunityRole) {
+    return t(`community_detail.role.${role}`)
+  }
+
+  function memberStatusLabel(status: NonNullable<CommunityDetail['member_status']>) {
+    return t(`community_detail.member_status.${status}`)
+  }
+
+  function approvalStatusLabel(status: CommunityDetail['approval_status']) {
+    return status === 'pending'
+      ? t('community_detail.pending_admin_approval')
+      : t('community_detail.dismissed_by_admin')
+  }
+
+  function happeningTypeLabel(type: HappeningType) {
+    return t(`community_detail.happening_type.${type}`)
+  }
+
+  function moderationModeLabel(mode: 'warning' | 'timeout' | 'removed' | 'banned') {
+    return t(`community_detail.moderation_mode.${mode}`)
+  }
+
+  function moderationSeverityLabel(severity: 'low' | 'medium' | 'high') {
+    return t(`community_detail.severity.${severity}`)
+  }
 
   const [community, setCommunity] = useState<CommunityDetail | null>(null)
   const [loading, setLoading] = useState(true)
@@ -254,7 +293,7 @@ export default function CommunityDetailScreen() {
   async function submitHappening() {
     if (!postBody.trim()) return
     if (!canParticipateInHappenings) {
-      Alert.alert('Restricted', 'Your membership is temporarily restricted from posting happenings.')
+      Alert.alert(t('community_detail.restricted_title'), t('community_detail.restricted_post_happening'))
       return
     }
     setPosting(true)
@@ -269,7 +308,7 @@ export default function CommunityDetailScreen() {
         : {}),
     })
     if (error) {
-      Alert.alert('Error', error)
+      Alert.alert(t('common.error'), error)
     } else if (data) {
       setHappenings((prev) => [data, ...prev])
       setShowPostModal(false)
@@ -284,7 +323,7 @@ export default function CommunityDetailScreen() {
   async function toggleHappeningRsvp(h: HappeningWithAuthor) {
     if (!user) { router.push('/auth/login' as any); return }
     if (!canParticipateInHappenings) {
-      Alert.alert('Restricted', 'Your membership is temporarily restricted from interacting with happenings.')
+      Alert.alert(t('community_detail.restricted_title'), t('community_detail.restricted_interact_happening'))
       return
     }
     const { data } = h.user_has_rsvp
@@ -299,27 +338,27 @@ export default function CommunityDetailScreen() {
 
   function reportHappening(id: string) {
     Alert.alert(
-      'Report Happening',
-      'Why are you reporting this?',
+      t('community_detail.report_happening_title'),
+      t('community_detail.report_happening_body'),
       [
-        { text: 'Spam', onPress: () => submitReport(id, 'spam') },
-        { text: 'Inappropriate', onPress: () => submitReport(id, 'inappropriate') },
-        { text: 'Harassment', onPress: () => submitReport(id, 'harassment') },
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('community_detail.report_reason_spam'), onPress: () => submitReport(id, 'spam') },
+        { text: t('community_detail.report_reason_inappropriate'), onPress: () => submitReport(id, 'inappropriate') },
+        { text: t('community_detail.report_reason_harassment'), onPress: () => submitReport(id, 'harassment') },
+        { text: t('common.cancel'), style: 'cancel' },
       ]
     )
   }
 
   async function submitReport(id: string, reason: string) {
     const { error } = await apiPost(`/api/happenings/${id}/report`, { reason })
-    if (error) Alert.alert('Error', 'Could not submit report')
-    else Alert.alert('Reported', 'Thanks — our team will review this.')
+    if (error) Alert.alert(t('common.error'), t('community_detail.report_submit_failed'))
+    else Alert.alert(t('community_detail.reported_title'), t('community_detail.reported_body'))
   }
 
   async function toggleHappeningReact(h: HappeningWithAuthor) {
     if (!user) { router.push('/auth/login' as any); return }
     if (!canParticipateInHappenings) {
-      Alert.alert('Restricted', 'Your membership is temporarily restricted from interacting with happenings.')
+      Alert.alert(t('community_detail.restricted_title'), t('community_detail.restricted_interact_happening'))
       return
     }
     const { data } = h.user_has_reacted
@@ -340,7 +379,7 @@ export default function CommunityDetailScreen() {
       ? await apiDelete<MembershipMutationResponse>(`/api/communities/${slug}/leave`)
       : await apiPost<MembershipMutationResponse>(`/api/communities/${slug}/join`, {})
     if (error) {
-      Alert.alert('Error', error)
+      Alert.alert(t('common.error'), error)
     } else {
       setCommunity((prev) => prev
           ? {
@@ -352,7 +391,7 @@ export default function CommunityDetailScreen() {
             }
         : prev
       )
-      if (data?.message) Alert.alert('Notice', data.message)
+      if (data?.message) Alert.alert(t('community_detail.notice_title'), data.message)
     }
     setJoining(false)
   }
@@ -365,7 +404,7 @@ export default function CommunityDetailScreen() {
       ? await apiDelete<FollowMutationResponse>(`/api/communities/${slug}/unfollow`)
       : await apiPost<FollowMutationResponse>(`/api/communities/${slug}/follow`, {})
     if (error) {
-      Alert.alert('Error', error)
+      Alert.alert(t('common.error'), error)
     } else {
       setCommunity((prev) =>
         prev
@@ -384,7 +423,7 @@ export default function CommunityDetailScreen() {
       : await apiPost<MembershipMutationResponse>(`/api/communities/${child.slug}/join`, {})
 
     if (error) {
-      Alert.alert('Error', error)
+      Alert.alert(t('common.error'), error)
     } else {
       setChildren((prev) => prev.map((entry) =>
         entry.id === child.id
@@ -404,7 +443,7 @@ export default function CommunityDetailScreen() {
   async function assignCommunityAdmin(userId: string) {
     setMemberActionLoading(`assign-${userId}`)
     const { error } = await apiPost(`/api/communities/${slug}/admins`, { user_id: userId })
-    if (error) Alert.alert('Error', error)
+    if (error) Alert.alert(t('common.error'), error)
     else await loadAdmins()
     setMemberActionLoading(null)
   }
@@ -412,7 +451,7 @@ export default function CommunityDetailScreen() {
   async function revokeCommunityAdmin(userId: string) {
     setMemberActionLoading(`revoke-${userId}`)
     const { error } = await apiDelete(`/api/communities/${slug}/admins/${userId}`)
-    if (error) Alert.alert('Error', error)
+    if (error) Alert.alert(t('common.error'), error)
     else await loadAdmins()
     setMemberActionLoading(null)
   }
@@ -432,7 +471,7 @@ export default function CommunityDetailScreen() {
   async function submitModerationAction() {
     if (!moderationTarget) return
     if (!moderationReason.trim()) {
-      Alert.alert('Reason required', 'Please enter a reason for this moderation action.')
+      Alert.alert(t('community_detail.reason_required_title'), t('community_detail.reason_required_body'))
       return
     }
 
@@ -448,10 +487,10 @@ export default function CommunityDetailScreen() {
           reason: moderationReason.trim(),
         })
         if (error) {
-          Alert.alert('Error', error)
+          Alert.alert(t('common.error'), error)
           return
         }
-        Alert.alert('Warning issued', 'The member has been warned.')
+        Alert.alert(t('community_detail.warning_issued_title'), t('community_detail.warning_issued_body'))
       } else {
         const endsAt = moderationMode === 'timeout'
           ? new Date(Date.now() + moderationDurationHours * 60 * 60 * 1000).toISOString()
@@ -463,10 +502,10 @@ export default function CommunityDetailScreen() {
           ends_at: endsAt,
         })
         if (error) {
-          Alert.alert('Error', error)
+          Alert.alert(t('common.error'), error)
           return
         }
-        Alert.alert('Action completed', `${moderationMode} applied successfully.`)
+        Alert.alert(t('community_detail.action_completed_title'), tx('community_detail.action_completed_body', { action: moderationModeLabel(moderationMode) }))
       }
 
       setShowModerationModal(false)
@@ -497,10 +536,10 @@ export default function CommunityDetailScreen() {
   async function revokeSanction(memberId: string, sanctionId: string) {
     setMemberActionLoading(`revoke-sanction-${sanctionId}`)
     const { error } = await apiPatch(`/api/communities/${slug}/members/${memberId}/sanctions/${sanctionId}`, {
-      revoke_note: 'Revoked by community moderation',
+      revoke_note: t('community_detail.revoked_by_moderation'),
     })
     if (error) {
-      Alert.alert('Error', error)
+      Alert.alert(t('common.error'), error)
     } else if (selectedMemberHistory) {
       await loadMemberHistory(selectedMemberHistory.member, true)
     }
@@ -511,23 +550,23 @@ export default function CommunityDetailScreen() {
     const targetIsCommunityAdmin = admins.some((entry) => entry.user_id === member.id && entry.role === 'community_admin')
     const targetIsOwner = community?.owner_user_id === member.id || admins.some((entry) => entry.user_id === member.id && entry.role === 'owner')
     if (targetIsOwner) {
-      Alert.alert('Not allowed', 'Community owners cannot be moderated by community admins.')
+      Alert.alert(t('community_detail.not_allowed_title'), t('community_detail.owner_moderation_blocked'))
       return
     }
     if (!isCommunityOwner && targetIsCommunityAdmin) {
-      Alert.alert('Not allowed', 'Community admins cannot moderate other community admins.')
+      Alert.alert(t('community_detail.not_allowed_title'), t('community_detail.admin_moderation_blocked'))
       return
     }
     Alert.alert(
       member.display_name,
-      'Choose a moderation action',
+      t('community_detail.choose_moderation_action'),
       [
-        { text: 'History', onPress: () => loadMemberHistory(member) },
-        { text: 'Warn', onPress: () => openModerationComposer(member, 'warning') },
-        { text: 'Timeout', onPress: () => openModerationComposer(member, 'timeout') },
-        { text: 'Remove', onPress: () => openModerationComposer(member, 'removed') },
-        { text: 'Ban', style: 'destructive', onPress: () => openModerationComposer(member, 'banned') },
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('community_detail.history'), onPress: () => loadMemberHistory(member) },
+        { text: t('community_detail.warn'), onPress: () => openModerationComposer(member, 'warning') },
+        { text: t('community_detail.timeout'), onPress: () => openModerationComposer(member, 'timeout') },
+        { text: t('community_detail.remove'), onPress: () => openModerationComposer(member, 'removed') },
+        { text: t('community_detail.ban'), style: 'destructive', onPress: () => openModerationComposer(member, 'banned') },
+        { text: t('common.cancel'), style: 'cancel' },
       ]
     )
   }
@@ -536,13 +575,13 @@ export default function CommunityDetailScreen() {
     const isAdminMember = admins.some((entry) => entry.user_id === member.id && entry.role === 'community_admin')
     Alert.alert(
       member.display_name,
-      isAdminMember ? 'Remove community admin access?' : 'Grant community admin access?',
+      isAdminMember ? t('community_detail.remove_admin_access') : t('community_detail.grant_admin_access'),
       [
         {
-          text: isAdminMember ? 'Revoke admin' : 'Make admin',
+          text: isAdminMember ? t('community_detail.revoke_admin') : t('community_detail.make_admin'),
           onPress: () => isAdminMember ? revokeCommunityAdmin(member.id) : assignCommunityAdmin(member.id),
         },
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
       ]
     )
   }
@@ -555,7 +594,7 @@ export default function CommunityDetailScreen() {
       status,
     })
     if (error) {
-      Alert.alert('Error', error)
+      Alert.alert(t('common.error'), error)
     } else {
       setReports((prev) => prev.filter((entry) => !(entry.happening_id === reportItem.happening_id && entry.reporter_id === reportItem.reporter_id)))
     }
@@ -582,7 +621,7 @@ export default function CommunityDetailScreen() {
             : (
               <View style={[styles.heroPlaceholder, { backgroundColor: meta.bg }]}>
                 <Ionicons name={meta.icon} size={44} color={meta.tint} />
-                <Text style={[styles.heroPlaceholderLabel, { color: meta.tint }]}>{meta.label} community</Text>
+                <Text style={[styles.heroPlaceholderLabel, { color: meta.tint }]}>{tx('community_detail.level_community', { level: communityLevelLabel(community.level) })}</Text>
               </View>
             )
           }
@@ -594,7 +633,7 @@ export default function CommunityDetailScreen() {
                   <View key={a.id} style={styles.bcItem}>
                     {i > 0 && <Text style={styles.bcSep}>›</Text>}
                     <TouchableOpacity onPress={() => router.push(`/communities/${a.slug}` as any)}>
-                      <Text style={styles.bcText}>{LEVEL_META[a.level].label} · {a.name}</Text>
+                      <Text style={styles.bcText}>{communityLevelLabel(a.level)} · {a.name}</Text>
                     </TouchableOpacity>
                   </View>
                 ))}
@@ -617,19 +656,19 @@ export default function CommunityDetailScreen() {
               </View>
               <View style={styles.tagRow}>
                 <View style={[styles.levelTag, { backgroundColor: meta.bg }]}>
-                  <Text style={[styles.levelTagText, { color: meta.tint }]}>{meta.label}</Text>
+                  <Text style={[styles.levelTagText, { color: meta.tint }]}>{communityLevelLabel(community.level)}</Text>
                 </View>
                 {community.approval_status !== 'approved' && (
                   <View style={styles.pendingApprovalTag}>
                     <Text style={styles.pendingApprovalTagText}>
-                      {community.approval_status === 'pending' ? 'Pending admin approval' : 'Dismissed by admin'}
+                      {approvalStatusLabel(community.approval_status)}
                     </Text>
                   </View>
                 )}
                 {community.city && <Text style={styles.cityText}>📍 {community.city}</Text>}
-                {community.member_role && <Text style={styles.cityText}>Role: {community.member_role}</Text>}
+                {community.member_role && <Text style={styles.cityText}>{tx('community_detail.role_label', { role: communityRoleLabel(community.member_role) })}</Text>}
                 {community.member_status && community.member_status !== 'active' && (
-                  <Text style={styles.cityText}>Status: {community.member_status}</Text>
+                  <Text style={styles.cityText}>{tx('community_detail.status_label', { status: memberStatusLabel(community.member_status) })}</Text>
                 )}
               </View>
             </View>
@@ -638,14 +677,14 @@ export default function CommunityDetailScreen() {
           {/* Stats line */}
           <View style={styles.statLine}>
             <Ionicons name="people-outline" size={13} color={Colors.gray[400]} />
-            <Text style={styles.statLineText}><Text style={styles.statLineValue}>{community.member_count.toLocaleString()}</Text> members</Text>
+            <Text style={styles.statLineText}><Text style={styles.statLineValue}>{community.member_count.toLocaleString()}</Text> {t('community_detail.members')}</Text>
             <Text style={styles.statLineSep}>·</Text>
             <Ionicons name="calendar-outline" size={13} color={Colors.gray[400]} />
-            <Text style={styles.statLineText}><Text style={styles.statLineValue}>{community.event_count}</Text> events</Text>
+            <Text style={styles.statLineText}><Text style={styles.statLineValue}>{community.event_count}</Text> {t('community_detail.events')}</Text>
             {community.recent_members.length > 0 && (
               <>
                 <Text style={styles.statLineSep}>·</Text>
-                <Text style={styles.statLineText}><Text style={styles.statLineValue}>{community.recent_members.length}</Text> recent joins</Text>
+                <Text style={styles.statLineText}><Text style={styles.statLineValue}>{community.recent_members.length}</Text> {t('community_detail.recent_joins')}</Text>
               </>
             )}
           </View>
@@ -655,7 +694,7 @@ export default function CommunityDetailScreen() {
 
           {!community.is_member && community.viewer_city && community.city_members_preview.length > 0 && (
             <View style={styles.socialProofCard}>
-              <Text style={styles.socialProofTitle}>People from {community.viewer_city} are already here</Text>
+              <Text style={styles.socialProofTitle}>{tx('community_detail.people_from_here', { city: community.viewer_city })}</Text>
               <View style={styles.socialProofChips}>
                 {community.city_members_preview.map((member) => (
                   <View key={member.id} style={styles.socialProofChip}>
@@ -667,28 +706,28 @@ export default function CommunityDetailScreen() {
           )}
           {directParent && (
             <View style={styles.parentContextCard}>
-              <Text style={styles.parentContextLabel}>Nested under</Text>
+              <Text style={styles.parentContextLabel}>{t('community_detail.nested_under')}</Text>
               <View style={styles.parentContextRow}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.parentContextName}>
                     {LEVEL_META[directParent.level].label} · {directParent.name}
                   </Text>
                   <Text style={styles.parentContextHint}>
-                    This community branches off a larger circle for a more focused experience.
+                    {t('community_detail.parent_context_hint')}
                   </Text>
                 </View>
                 <TouchableOpacity
                   onPress={() => router.push(`/communities/${directParent.slug}` as any)}
                   style={styles.parentContextBtn}
                 >
-                  <Text style={styles.parentContextBtnText}>View parent</Text>
+                  <Text style={styles.parentContextBtnText}>{t('community_detail.view_parent')}</Text>
                 </TouchableOpacity>
                 {canCreateSibling && (
                   <TouchableOpacity
                     onPress={() => router.push(`/communities/create?parent=${directParent.slug}` as any)}
                     style={styles.parentContextBtn}
                   >
-                    <Text style={styles.parentContextBtnText}>Create sibling</Text>
+                    <Text style={styles.parentContextBtnText}>{t('community_detail.create_sibling')}</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -712,7 +751,7 @@ export default function CommunityDetailScreen() {
                     color={community.is_member ? '#15803d' : '#fff'}
                   />
                   <Text style={[styles.joinBtnText, community.is_member && styles.joinBtnTextJoined]}>
-                    {community.is_member ? 'Joined · Tap to leave' : 'Join community'}
+                    {community.is_member ? t('community_detail.joined_tap_leave') : t('community_detail.join_community')}
                   </Text>
                 </View>
               )
@@ -734,7 +773,7 @@ export default function CommunityDetailScreen() {
                     color={community.is_following ? '#0369a1' : Colors.gray[700]}
                   />
                   <Text style={[styles.followBtnText, community.is_following && styles.followBtnTextActive]}>
-                    {community.is_following ? 'Following updates' : 'Follow updates'}
+                    {community.is_following ? t('community_detail.following_updates') : t('community_detail.follow_updates')}
                   </Text>
                 </View>
               )
@@ -744,26 +783,26 @@ export default function CommunityDetailScreen() {
 
         <View style={styles.section}>
           <View style={styles.summaryCard}>
-            <Text style={styles.sectionEyebrow}>Discover the community</Text>
+            <Text style={styles.sectionEyebrow}>{t('community_detail.discover_eyebrow')}</Text>
             <Text style={styles.summaryHeadline}>
-              Start with the live pulse, then decide if this feels like your people.
+              {t('community_detail.summary_headline')}
             </Text>
             <Text style={styles.summaryBody}>
               {locationLabel ? `Centered around ${locationLabel}. ` : ''}
-              Happenings and events are the clearest signal of what this community actually feels like.
+              {t('community_detail.summary_body')}
             </Text>
             <View style={styles.summaryMetricsRow}>
               <View style={styles.summaryMetricCard}>
                 <Text style={styles.summaryMetricValue}>{community.member_count.toLocaleString()}</Text>
-                <Text style={styles.summaryMetricLabel}>members</Text>
+                <Text style={styles.summaryMetricLabel}>{t('community_detail.members')}</Text>
               </View>
               <View style={styles.summaryMetricCard}>
                 <Text style={styles.summaryMetricValue}>{community.event_count.toLocaleString()}</Text>
-                <Text style={styles.summaryMetricLabel}>events</Text>
+                <Text style={styles.summaryMetricLabel}>{t('community_detail.events')}</Text>
               </View>
               <View style={styles.summaryMetricCard}>
                 <Text style={styles.summaryMetricValue}>{children.length}</Text>
-                <Text style={styles.summaryMetricLabel}>sub-groups</Text>
+                <Text style={styles.summaryMetricLabel}>{t('community_detail.sub_groups')}</Text>
               </View>
             </View>
           </View>
@@ -773,14 +812,14 @@ export default function CommunityDetailScreen() {
           <View style={[styles.sectionCard, styles.happeningsSectionCard]}>
             <View style={styles.sectionHeader}>
               <View>
-                <Text style={styles.sectionEyebrow}>Live inside the community</Text>
-                <Text style={[styles.sectionTitle, { marginBottom: 2 }]}>What&apos;s Happening Now</Text>
-                <Text style={styles.sectionSub}>Spontaneous, time-limited posts</Text>
+                <Text style={styles.sectionEyebrow}>{t('community_detail.live_inside_eyebrow')}</Text>
+                <Text style={[styles.sectionTitle, { marginBottom: 2 }]}>{t('community_detail.happening_now_title')}</Text>
+                <Text style={styles.sectionSub}>{t('community_detail.happening_now_sub')}</Text>
               </View>
               {canParticipateInHappenings && (
                 <TouchableOpacity onPress={() => setShowPostModal(true)} style={styles.postHappeningBtn}>
                   <Ionicons name="add" size={14} color="#fff" />
-                  <Text style={styles.postHappeningBtnText}>Post</Text>
+                  <Text style={styles.postHappeningBtnText}>{t('community_detail.post')}</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -790,11 +829,11 @@ export default function CommunityDetailScreen() {
             ) : happenings.length === 0 ? (
               <View style={styles.happeningsEmpty}>
                 <Ionicons name="radio-outline" size={28} color={Colors.brand[300]} />
-                <Text style={styles.happeningsEmptyText}>Nothing happening right now</Text>
+                <Text style={styles.happeningsEmptyText}>{t('community_detail.no_happenings_title')}</Text>
                 <Text style={styles.happeningsEmptyHint}>
                   {canParticipateInHappenings
-                    ? 'Open invites, questions, alerts - post something.'
-                    : 'Join to post open invites, questions, and alerts.'}
+                    ? t('community_detail.no_happenings_can_post')
+                    : t('community_detail.no_happenings_join')}
                 </Text>
               </View>
             ) : (
@@ -803,8 +842,8 @@ export default function CommunityDetailScreen() {
                   const ttlMs = new Date(h.expires_at).getTime() - Date.now()
                   const ttlH = Math.floor(ttlMs / 3_600_000)
                   const ttlM = Math.floor((ttlMs % 3_600_000) / 60_000)
-                  const ttl = ttlMs <= 0 ? 'Expired' : ttlH > 0 ? `${ttlH}h ${ttlM}m left` : `${ttlM}m left`
-                  const typeLabel: Record<HappeningType, string> = { open_invite: 'Invite', info: 'Info', question: 'Q', alert: 'Alert' }
+                  const ttl = ttlMs <= 0 ? t('community_detail.expired') : ttlH > 0 ? tx('community_detail.hours_minutes_left', { hours: ttlH, minutes: ttlM }) : tx('community_detail.minutes_left', { minutes: ttlM })
+                  const typeLabel: Record<HappeningType, string> = { open_invite: happeningTypeLabel('open_invite'), info: happeningTypeLabel('info'), question: happeningTypeLabel('question'), alert: happeningTypeLabel('alert') }
                   const typeBg: Record<HappeningType, string> = { open_invite: Colors.brand[50], info: '#f0f9ff', question: '#f5f3ff', alert: '#fff1f2' }
                   const isLast = i === happenings.length - 1
 
@@ -834,7 +873,7 @@ export default function CommunityDetailScreen() {
                           style={styles.happeningLocBtn}
                         >
                           <Ionicons name="location-outline" size={12} color={Colors.brand[600]} />
-                          <Text style={styles.happeningLocText}>{h.location_label?.trim() || 'View on map'}</Text>
+                          <Text style={styles.happeningLocText}>{h.location_label?.trim() || t('community_detail.view_on_map')}</Text>
                         </TouchableOpacity>
                       )}
                       <View style={styles.happeningActions}>
@@ -851,19 +890,19 @@ export default function CommunityDetailScreen() {
                           })}
                           style={styles.happeningActionBtn}
                         >
-                          <Text style={styles.happeningActionText}>Chat</Text>
+                          <Text style={styles.happeningActionText}>{t('community_detail.chat')}</Text>
                         </TouchableOpacity>
                         {user && ttlMs > 0 && (
                           <TouchableOpacity onPress={() => toggleHappeningRsvp(h)} style={[styles.happeningActionBtn, h.user_has_rsvp && styles.happeningActionBtnActive]}>
                             <Text style={[styles.happeningActionText, h.user_has_rsvp && styles.happeningActionTextActive]}>
-                              {h.user_has_rsvp ? "I'm in" : 'Join'} • {h.rsvp_count}
+                              {h.user_has_rsvp ? t('community_detail.im_in') : t('community.join')} • {h.rsvp_count}
                             </Text>
                           </TouchableOpacity>
                         )}
                         {user && ttlMs > 0 && (
                           <TouchableOpacity onPress={() => toggleHappeningReact(h)} style={[styles.happeningActionBtn, h.user_has_reacted && styles.happeningReactActive]}>
                             <Text style={[styles.happeningActionText, h.user_has_reacted && styles.happeningReactTextActive]}>
-                              Like • {h.reaction_count}
+                              {t('community_detail.like')} - {h.reaction_count}
                             </Text>
                           </TouchableOpacity>
                         )}
@@ -885,22 +924,22 @@ export default function CommunityDetailScreen() {
           <View style={styles.sectionCard}>
             <View style={[styles.sectionHeader, styles.sectionHeaderWrap]}>
               <View style={styles.sectionHeaderContent}>
-                <Text style={styles.sectionEyebrow}>Main highlight</Text>
-                <Text style={styles.sectionTitle}>Upcoming Events</Text>
-                <Text style={styles.sectionSub}>The clearest way to understand what this community actually does.</Text>
+                <Text style={styles.sectionEyebrow}>{t('community_detail.main_highlight')}</Text>
+                <Text style={styles.sectionTitle}>{t('community_detail.upcoming_events')}</Text>
+                <Text style={styles.sectionSub}>{t('community_detail.upcoming_events_sub')}</Text>
               </View>
               <TouchableOpacity
                 onPress={() => router.push({ pathname: '/(tabs)/home', params: { community: slug, reset: String(Date.now()) } } as any)}
                 style={styles.sectionLinkButton}
               >
-                <Text style={styles.sectionLink}>View all</Text>
+                <Text style={styles.sectionLink}>{t('community_detail.view_all')}</Text>
               </TouchableOpacity>
             </View>
 
             {eventsLoading && events.length === 0
               ? <View style={styles.centerSmall}><Spinner /></View>
               : events.length === 0
-                ? <EmptyState icon="📅" title="No upcoming events" description="Check back soon" />
+                ? <EmptyState icon="📅" title={t('community_detail.no_upcoming_events')} description={t('community_detail.check_back_soon')} />
                 : (
                   <>
                     {events.map((ev) => {
@@ -925,11 +964,11 @@ export default function CommunityDetailScreen() {
                             <Text style={styles.eventMeta}>
                               <Ionicons name="time-outline" size={11} color={Colors.gray[400]} /> {formatDate(ev.start_at)}
                             </Text>
-                            <Text style={styles.eventMeta}>{ev.city || 'Location announced soon'}</Text>
+                            <Text style={styles.eventMeta}>{ev.city || t('community_detail.location_announced_soon')}</Text>
                           </View>
                           <View style={[styles.priceBadge, ev.is_free && styles.priceBadgeFree]}>
                             <Text style={[styles.priceText, ev.is_free && styles.priceTextFree]}>
-                              {ev.is_free ? 'Free' : `${ev.price} ${ev.currency}`}
+                              {ev.is_free ? t('events.free') : `${ev.price} ${ev.currency}`}
                             </Text>
                           </View>
                         </TouchableOpacity>
@@ -939,7 +978,7 @@ export default function CommunityDetailScreen() {
                       <TouchableOpacity style={styles.loadMoreBtn} onPress={() => loadEvents(nextCursor)} disabled={eventsLoading}>
                         {eventsLoading
                           ? <ActivityIndicator size="small" color={Colors.brand[500]} />
-                          : <Text style={styles.loadMoreText}>Load more events</Text>
+                          : <Text style={styles.loadMoreText}>{t('community_detail.load_more_events')}</Text>
                         }
                       </TouchableOpacity>
                     )}
@@ -953,20 +992,20 @@ export default function CommunityDetailScreen() {
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
               <View>
-                <Text style={styles.sectionEyebrow}>Explore deeper</Text>
-                <Text style={styles.sectionTitle}>Sub-communities</Text>
+                <Text style={styles.sectionEyebrow}>{t('community_detail.explore_deeper')}</Text>
+                <Text style={styles.sectionTitle}>{t('community_detail.sub_communities')}</Text>
               </View>
               {canCreateChildHere && (
                 <TouchableOpacity onPress={() => router.push((community.level === 'country' ? `/communities/create?root=${slug}` : `/communities/create?parent=${slug}`) as any)}>
-                  <Text style={styles.sectionLink}>Create here</Text>
+                  <Text style={styles.sectionLink}>{t('community_detail.create_here')}</Text>
                 </TouchableOpacity>
               )}
             </View>
-            <Text style={styles.sectionSubInline}>Joined and verified circles appear first.</Text>
+            <Text style={styles.sectionSubInline}>{t('community_detail.sub_communities_hint')}</Text>
             {childrenLoading ? (
               <View style={styles.centerSmall}><Spinner /></View>
             ) : children.length === 0 ? (
-              <EmptyState icon="🪴" title="No sub-communities yet" description="Create the first nested circle here." />
+              <EmptyState icon="🪴" title={t('community_detail.no_sub_communities')} description={t('community_detail.create_first_nested')} />
             ) : (
               <View style={styles.childrenList}>
                 {children.map((child, index) => (
@@ -976,20 +1015,20 @@ export default function CommunityDetailScreen() {
                       <View style={styles.childBadgeRow}>
                         {child.is_member && (
                           <View style={[styles.childBadge, styles.childBadgeJoined]}>
-                            <Text style={[styles.childBadgeText, styles.childBadgeTextJoined]}>Joined</Text>
+                            <Text style={[styles.childBadgeText, styles.childBadgeTextJoined]}>{t('community.joined')}</Text>
                           </View>
                         )}
                         {child.is_verified && (
                           <View style={[styles.childBadge, styles.childBadgeVerified]}>
-                            <Text style={[styles.childBadgeText, styles.childBadgeTextVerified]}>Verified</Text>
+                            <Text style={[styles.childBadgeText, styles.childBadgeTextVerified]}>{t('community_detail.verified')}</Text>
                           </View>
                         )}
                         <View style={[styles.childBadge, styles.childBadgeLevel]}>
-                          <Text style={[styles.childBadgeText, styles.childBadgeTextLevel]}>{child.level}</Text>
+                          <Text style={[styles.childBadgeText, styles.childBadgeTextLevel]}>{communityLevelLabel(child.level)}</Text>
                         </View>
                       </View>
                       <Text style={styles.childMeta}>
-                        {child.level} • {child.member_count.toLocaleString()} members{child.city ? ` • ${child.city}` : ''}
+                        {tx('community_detail.child_meta', { level: communityLevelLabel(child.level), count: child.member_count.toLocaleString(), city: child.city ? ` - ${child.city}` : '' })}
                       </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
@@ -998,7 +1037,7 @@ export default function CommunityDetailScreen() {
                       style={[styles.childJoinBtn, child.is_member && styles.childJoinBtnActive]}
                     >
                       <Text style={[styles.childJoinText, child.is_member && styles.childJoinTextActive]}>
-                        {childJoiningSlug === child.slug ? '...' : child.is_member ? 'Joined' : 'Join'}
+                        {childJoiningSlug === child.slug ? '...' : child.is_member ? t('community.joined') : t('community.join')}
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -1013,9 +1052,9 @@ export default function CommunityDetailScreen() {
             <View style={styles.accordionCard}>
               <TouchableOpacity style={styles.accordionHeader} activeOpacity={0.86} onPress={() => setShowActivityAccordion((prev) => !prev)}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.sectionEyebrow}>Secondary context</Text>
-                  <Text style={styles.accordionTitle}>Recent activity</Text>
-                  <Text style={styles.accordionHint}>Useful context, but not the main thing a new visitor needs first.</Text>
+                  <Text style={styles.sectionEyebrow}>{t('community_detail.secondary_context')}</Text>
+                  <Text style={styles.accordionTitle}>{t('community_detail.recent_activity')}</Text>
+                  <Text style={styles.accordionHint}>{t('community_detail.recent_activity_hint')}</Text>
                 </View>
                 <View style={styles.accordionMeta}>
                   <Text style={styles.accordionBadge}>{community.activity.length}</Text>
@@ -1057,9 +1096,9 @@ export default function CommunityDetailScreen() {
             <View style={[styles.accordionCard, styles.moderatorAccordionCard]}>
               <TouchableOpacity style={styles.accordionHeader} activeOpacity={0.86} onPress={() => setShowModeratorAccordion((prev) => !prev)}>
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.sectionEyebrow, { color: '#b45309' }]}>Moderator only</Text>
-                  <Text style={styles.accordionTitle}>Moderator center</Text>
-                  <Text style={styles.accordionHint}>Member management, admin roles, and reports stay here instead of crowding the public view.</Text>
+                  <Text style={[styles.sectionEyebrow, { color: '#b45309' }]}>{t('community_detail.moderator_only')}</Text>
+                  <Text style={styles.accordionTitle}>{t('community_detail.moderator_center')}</Text>
+                  <Text style={styles.accordionHint}>{t('community_detail.moderator_center_hint')}</Text>
                 </View>
                 <View style={styles.accordionMeta}>
                   <Text style={styles.accordionBadge}>{reports.length}</Text>
@@ -1072,12 +1111,12 @@ export default function CommunityDetailScreen() {
                   <View style={styles.sectionCard}>
                     <View style={styles.sectionHeader}>
                       <View>
-                        <Text style={styles.sectionTitle}>Member management</Text>
-                        <Text style={styles.sectionSubInline}>{community.member_count.toLocaleString()} members</Text>
+                        <Text style={styles.sectionTitle}>{t('community_detail.member_management')}</Text>
+                        <Text style={styles.sectionSubInline}>{community.member_count.toLocaleString()} {t('community_detail.members')}</Text>
                       </View>
                     </View>
                     {community.recent_members.length === 0
-                      ? <EmptyState icon="👥" title="No members yet" description="Be the first to join" />
+                      ? <EmptyState icon="👥" title={t('community_detail.no_members_yet')} description={t('community_detail.be_first_to_join')} />
                       : (
                         <View style={styles.membersList}>
                           {community.recent_members.map((m, i) => (
@@ -1090,12 +1129,12 @@ export default function CommunityDetailScreen() {
                               </View>
                               <View style={styles.memberInfo}>
                                 <Text style={styles.memberName}>{m.display_name}</Text>
-                                <Text style={styles.memberMeta}>Joined {formatDate(m.joined_at)}</Text>
+                                <Text style={styles.memberMeta}>{tx('community_detail.joined_date', { date: formatDate(m.joined_at) })}</Text>
                                 {admins.some((entry) => entry.user_id === m.id && entry.role === 'community_admin') && (
-                                  <Text style={styles.memberAdminMeta}>Community admin</Text>
+                                  <Text style={styles.memberAdminMeta}>{t('community_detail.community_admin')}</Text>
                                 )}
                                 {community.owner_user_id === m.id && (
-                                  <Text style={styles.memberOwnerMeta}>Owner</Text>
+                                  <Text style={styles.memberOwnerMeta}>{t('community_detail.owner')}</Text>
                                 )}
                               </View>
                               <View style={styles.memberActions}>
@@ -1108,7 +1147,7 @@ export default function CommunityDetailScreen() {
                                       style={styles.memberActionChip}
                                     >
                                       <Text style={styles.memberActionText}>
-                                        {admins.some((entry) => entry.user_id === m.id && entry.role === 'community_admin') ? 'Admin role' : 'Make admin'}
+                                        {admins.some((entry) => entry.user_id === m.id && entry.role === 'community_admin') ? t('community_detail.admin_role') : t('community_detail.make_admin')}
                                       </Text>
                                     </TouchableOpacity>
                                   )}
@@ -1126,7 +1165,7 @@ export default function CommunityDetailScreen() {
                                       }
                                       style={[styles.memberActionChip, styles.memberActionChipDanger]}
                                     >
-                                      <Text style={[styles.memberActionText, styles.memberActionTextDanger]}>Moderate</Text>
+                                      <Text style={[styles.memberActionText, styles.memberActionTextDanger]}>{t('community_detail.moderate')}</Text>
                                     </TouchableOpacity>
                                   )}
                               </View>
@@ -1140,19 +1179,19 @@ export default function CommunityDetailScreen() {
                   {isCommunityOwner && (
                     <View style={[styles.sectionCard, styles.adminPanel]}>
                       <View style={styles.sectionHeader}>
-                        <Text style={styles.sectionTitle}>Community Admins</Text>
-                        <Text style={styles.sectionSubInline}>{admins.length} roles</Text>
+                        <Text style={styles.sectionTitle}>{t('community_detail.community_admins')}</Text>
+                        <Text style={styles.sectionSubInline}>{tx('community_detail.roles_count', { count: admins.length })}</Text>
                       </View>
                       {adminsLoading ? (
                         <View style={styles.centerSmall}><Spinner /></View>
                       ) : admins.length === 0 ? (
-                        <Text style={styles.emptyPanelText}>No community admins assigned yet.</Text>
+                        <Text style={styles.emptyPanelText}>{t('community_detail.no_admins')}</Text>
                       ) : (
                         admins.map((entry, index) => (
                           <View key={entry.user_id} style={[styles.simplePanelRow, index < admins.length - 1 && styles.simplePanelRowBorder]}>
                             <View style={{ flex: 1 }}>
                               <Text style={styles.simplePanelTitle}>{entry.profile?.display_name ?? entry.user_id}</Text>
-                              <Text style={styles.simplePanelMeta}>{entry.role} - joined {formatDate(entry.joined_at)}</Text>
+                              <Text style={styles.simplePanelMeta}>{tx('community_detail.admin_entry_meta', { role: communityRoleLabel(entry.role), date: formatDate(entry.joined_at) })}</Text>
                             </View>
                             {entry.role === 'community_admin' && (
                               <TouchableOpacity
@@ -1160,7 +1199,7 @@ export default function CommunityDetailScreen() {
                                 disabled={memberActionLoading === `revoke-${entry.user_id}`}
                                 style={styles.memberActionChip}
                               >
-                                <Text style={styles.memberActionText}>Revoke</Text>
+                                <Text style={styles.memberActionText}>{t('community_detail.revoke')}</Text>
                               </TouchableOpacity>
                             )}
                           </View>
@@ -1172,21 +1211,21 @@ export default function CommunityDetailScreen() {
                   {canModerate && (
                     <View style={[styles.sectionCard, styles.reportsPanel]}>
                       <View style={styles.sectionHeader}>
-                        <Text style={styles.sectionTitle}>Happening Reports</Text>
+                        <Text style={styles.sectionTitle}>{t('community_detail.happening_reports')}</Text>
                         <TouchableOpacity onPress={() => { void loadReports() }} disabled={reportsLoading}>
-                          <Text style={styles.sectionLink}>Refresh</Text>
+                          <Text style={styles.sectionLink}>{t('community_detail.refresh')}</Text>
                         </TouchableOpacity>
                       </View>
                       {reportsLoading ? (
                         <View style={styles.centerSmall}><Spinner /></View>
                       ) : reports.length === 0 ? (
-                        <Text style={styles.emptyPanelText}>No pending happening reports.</Text>
+                        <Text style={styles.emptyPanelText}>{t('community_detail.no_pending_reports')}</Text>
                       ) : (
                         reports.map((reportItem, index) => (
                           <View key={`${reportItem.happening_id}:${reportItem.reporter_id}`} style={[styles.simplePanelRow, index < reports.length - 1 && styles.simplePanelRowBorder]}>
                             <View style={{ flex: 1 }}>
                               <Text style={styles.simplePanelTitle}>{reportItem.reason}</Text>
-                              <Text style={styles.simplePanelMeta}>Reporter: {reportItem.reporter?.display_name ?? reportItem.reporter_id}</Text>
+                              <Text style={styles.simplePanelMeta}>{tx('community_detail.reporter_label', { reporter: reportItem.reporter?.display_name ?? reportItem.reporter_id })}</Text>
                               {reportItem.happening && (
                                 <Text style={styles.simplePanelMeta} numberOfLines={2}>{reportItem.happening.body}</Text>
                               )}
@@ -1197,14 +1236,14 @@ export default function CommunityDetailScreen() {
                                 disabled={reportActionLoading === `${reportItem.happening_id}:${reportItem.reporter_id}:resolved`}
                                 style={styles.memberActionChip}
                               >
-                                <Text style={styles.memberActionText}>Resolve</Text>
+                                <Text style={styles.memberActionText}>{t('community_detail.resolve')}</Text>
                               </TouchableOpacity>
                               <TouchableOpacity
                                 onPress={() => updateReport(reportItem, 'dismissed')}
                                 disabled={reportActionLoading === `${reportItem.happening_id}:${reportItem.reporter_id}:dismissed`}
                                 style={[styles.memberActionChip, styles.memberActionChipDanger]}
                               >
-                                <Text style={[styles.memberActionText, styles.memberActionTextDanger]}>Dismiss</Text>
+                                <Text style={[styles.memberActionText, styles.memberActionTextDanger]}>{t('community_detail.dismiss')}</Text>
                               </TouchableOpacity>
                             </View>
                           </View>
@@ -1225,20 +1264,25 @@ export default function CommunityDetailScreen() {
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
             <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>Post a Happening</Text>
+            <Text style={styles.modalTitle}>{t('community_detail.post_happening_title')}</Text>
 
             {/* Type chips */}
             <View style={styles.typeChips}>
-              {(['open_invite', 'info', 'question', 'alert'] as HappeningType[]).map((t) => {
-                const labels: Record<HappeningType, string> = { open_invite: '🙋 Invite', info: 'ℹ️ Info', question: '❓ Question', alert: '🚨 Alert' }
+              {(['open_invite', 'info', 'question', 'alert'] as HappeningType[]).map((type) => {
+                const labels: Record<HappeningType, string> = {
+                  open_invite: t('community_detail.post_type.open_invite'),
+                  info: t('community_detail.post_type.info'),
+                  question: t('community_detail.post_type.question'),
+                  alert: t('community_detail.post_type.alert'),
+                }
                 return (
                   <TouchableOpacity
-                    key={t}
-                    onPress={() => setPostType(t)}
-                    style={[styles.typeChip, postType === t && styles.typeChipActive]}
+                    key={type}
+                    onPress={() => setPostType(type)}
+                    style={[styles.typeChip, postType === type && styles.typeChipActive]}
                   >
-                    <Text style={[styles.typeChipText, postType === t && styles.typeChipTextActive]}>
-                      {labels[t]}
+                    <Text style={[styles.typeChipText, postType === type && styles.typeChipTextActive]}>
+                      {labels[type]}
                     </Text>
                   </TouchableOpacity>
                 )
@@ -1248,7 +1292,7 @@ export default function CommunityDetailScreen() {
             <TextInput
               value={postBody}
               onChangeText={(v) => setPostBody(v.slice(0, 280))}
-              placeholder="What's happening? (e.g. Anyone for padel in 30 min?)"
+              placeholder={t('community_detail.post_placeholder')}
               placeholderTextColor={Colors.gray[400]}
               multiline
               maxLength={280}
@@ -1261,7 +1305,7 @@ export default function CommunityDetailScreen() {
               <TouchableOpacity onPress={openLocationPicker} style={styles.locBtn}>
                 <Ionicons name="map-outline" size={13} color={Colors.gray[500]} />
                 <Text style={styles.locBtnText}>
-                  {postLocation ? 'Edit meetup spot' : 'Pick meetup spot'}
+                  {postLocation ? t('community_detail.edit_meetup_spot') : t('community_detail.pick_meetup_spot')}
                 </Text>
               </TouchableOpacity>
               {postLocation && (
@@ -1276,7 +1320,7 @@ export default function CommunityDetailScreen() {
 
             {/* Expiry */}
             <View style={styles.expiryRow}>
-              <Text style={styles.expiryLabel}>Expires in:</Text>
+              <Text style={styles.expiryLabel}>{t('community_detail.expires_in')}</Text>
               {[1, 3, 6, 12, 24].map((h) => (
                 <TouchableOpacity
                   key={h}
@@ -1290,7 +1334,7 @@ export default function CommunityDetailScreen() {
 
             <View style={styles.modalActions}>
               <TouchableOpacity onPress={() => setShowPostModal(false)} style={styles.modalCancelBtn}>
-                <Text style={styles.modalCancelText}>Cancel</Text>
+                <Text style={styles.modalCancelText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={submitHappening}
@@ -1299,7 +1343,7 @@ export default function CommunityDetailScreen() {
               >
                 {posting
                   ? <ActivityIndicator size="small" color="#fff" />
-                  : <Text style={styles.modalPostText}>Post</Text>
+                  : <Text style={styles.modalPostText}>{t('community_detail.post')}</Text>
                 }
               </TouchableOpacity>
             </View>
@@ -1312,15 +1356,15 @@ export default function CommunityDetailScreen() {
             <View style={styles.modalHandle} />
             <Text style={styles.modalTitle}>
               {moderationMode === 'warning'
-                ? 'Issue warning'
+                ? t('community_detail.issue_warning')
                 : moderationMode === 'timeout'
-                  ? 'Apply timeout'
+                  ? t('community_detail.apply_timeout')
                   : moderationMode === 'removed'
-                    ? 'Remove member'
-                    : 'Ban member'}
+                    ? t('community_detail.remove_member')
+                    : t('community_detail.ban_member')}
             </Text>
             {moderationTarget && (
-              <Text style={styles.moderationTargetText}>Member: {moderationTarget.display_name}</Text>
+              <Text style={styles.moderationTargetText}>{tx('community_detail.member_label', { member: moderationTarget.display_name })}</Text>
             )}
 
             {moderationMode === 'warning' && (
@@ -1341,7 +1385,7 @@ export default function CommunityDetailScreen() {
 
             {moderationMode === 'timeout' && (
               <View style={styles.expiryRow}>
-                <Text style={styles.expiryLabel}>Duration:</Text>
+                <Text style={styles.expiryLabel}>{t('community_detail.duration')}</Text>
                 {[1, 6, 24, 72].map((hours) => (
                   <TouchableOpacity
                     key={hours}
@@ -1349,7 +1393,7 @@ export default function CommunityDetailScreen() {
                     style={[styles.expiryChip, moderationDurationHours === hours && styles.expiryChipActive]}
                   >
                     <Text style={[styles.expiryChipText, moderationDurationHours === hours && styles.expiryChipTextActive]}>
-                      {hours}h
+                      {tx('community_detail.hours_short', { hours })}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -1359,7 +1403,7 @@ export default function CommunityDetailScreen() {
             <TextInput
               value={moderationReason}
               onChangeText={setModerationReason}
-              placeholder="Write the moderation reason"
+              placeholder={t('community_detail.moderation_reason_placeholder')}
               placeholderTextColor={Colors.gray[400]}
               multiline
               style={[styles.postInput, { minHeight: 96 }]}
@@ -1367,14 +1411,14 @@ export default function CommunityDetailScreen() {
 
             <View style={styles.modalActions}>
               <TouchableOpacity onPress={() => setShowModerationModal(false)} style={styles.modalCancelBtn}>
-                <Text style={styles.modalCancelText}>Cancel</Text>
+                <Text style={styles.modalCancelText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={submitModerationAction}
                 disabled={!moderationReason.trim() || !!memberActionLoading}
                 style={[styles.modalPostBtn, (!moderationReason.trim() || !!memberActionLoading) && styles.modalPostBtnDisabled]}
               >
-                <Text style={styles.modalPostText}>Confirm</Text>
+                <Text style={styles.modalPostText}>{t('common.confirm')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1384,7 +1428,7 @@ export default function CommunityDetailScreen() {
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
             <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>Moderation History</Text>
+            <Text style={styles.modalTitle}>{t('community_detail.moderation_history')}</Text>
             {selectedMemberHistory && (
               <Text style={styles.moderationTargetText}>{selectedMemberHistory.member.display_name}</Text>
             )}
@@ -1395,19 +1439,19 @@ export default function CommunityDetailScreen() {
                 <>
                   {selectedMemberHistory.warnings.map((warning) => (
                     <View key={warning.id} style={[styles.historyCard, styles.historyCardWarning]}>
-                      <Text style={styles.historyTitle}>{warning.severity} warning</Text>
+                      <Text style={styles.historyTitle}>{tx('community_detail.warning_history_title', { severity: moderationSeverityLabel(warning.severity) })}</Text>
                       <Text style={styles.historyBody}>{warning.reason}</Text>
                       <Text style={styles.historyMeta}>{formatDate(warning.created_at)}</Text>
                     </View>
                   ))}
                   {selectedMemberHistory.sanctions.map((sanction) => (
                     <View key={sanction.id} style={[styles.historyCard, styles.historyCardDanger]}>
-                      <Text style={styles.historyTitle}>{sanction.sanction_type}</Text>
+                      <Text style={styles.historyTitle}>{moderationModeLabel(sanction.sanction_type)}</Text>
                       <Text style={styles.historyBody}>{sanction.reason}</Text>
                       <Text style={styles.historyMeta}>
-                        Started {formatDate(sanction.starts_at)}
-                        {sanction.ends_at ? ` · Ends ${formatDate(sanction.ends_at)}` : ''}
-                        {sanction.revoked_at ? ` · Revoked ${formatDate(sanction.revoked_at)}` : ''}
+                        {tx('community_detail.started_date', { date: formatDate(sanction.starts_at) })}
+                        {sanction.ends_at ? ` - ${tx('community_detail.ends_date', { date: formatDate(sanction.ends_at) })}` : ''}
+                        {sanction.revoked_at ? ` - ${tx('community_detail.revoked_date', { date: formatDate(sanction.revoked_at) })}` : ''}
                       </Text>
                       {!sanction.revoked_at && (
                         <TouchableOpacity
@@ -1415,20 +1459,20 @@ export default function CommunityDetailScreen() {
                           disabled={memberActionLoading === `revoke-sanction-${sanction.id}`}
                           style={[styles.memberActionChip, { alignSelf: 'flex-start', marginTop: Spacing.sm }]}
                         >
-                          <Text style={styles.memberActionText}>Revoke</Text>
+                          <Text style={styles.memberActionText}>{t('community_detail.revoke')}</Text>
                         </TouchableOpacity>
                       )}
                     </View>
                   ))}
                   {selectedMemberHistory.warnings.length === 0 && selectedMemberHistory.sanctions.length === 0 && (
-                    <Text style={styles.emptyPanelText}>No moderation history for this member yet.</Text>
+                    <Text style={styles.emptyPanelText}>{t('community_detail.no_moderation_history')}</Text>
                   )}
                 </>
               ) : null}
             </ScrollView>
             <View style={styles.modalActions}>
               <TouchableOpacity onPress={() => setShowHistoryModal(false)} style={styles.modalCancelBtn}>
-                <Text style={styles.modalCancelText}>Close</Text>
+                <Text style={styles.modalCancelText}>{t('community_detail.close')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1841,4 +1885,4 @@ const styles = StyleSheet.create({
   historyTitle: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.gray[900], textTransform: 'uppercase', textAlign: 'left' as const },
   historyBody: { fontSize: FontSize.sm, color: Colors.gray[800], marginTop: 4, textAlign: 'left' as const },
   historyMeta: { fontSize: FontSize.xs, color: Colors.gray[500], marginTop: 6, textAlign: 'left' as const },
-}) 
+})
