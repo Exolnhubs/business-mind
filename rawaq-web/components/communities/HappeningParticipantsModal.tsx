@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { SafeImage } from '@/components/ui/SafeImage'
 import Link from 'next/link'
+import { SafeImage } from '@/components/ui/SafeImage'
 import { Modal } from '@/components/ui/Modal'
 import { clientGetJson, isToastHandledError } from '@/lib/client-fetch'
 import { formatDate } from '@/lib/utils'
@@ -40,25 +40,22 @@ const PAGE_SIZE = 15
 
 export function HappeningParticipantsModal({ open, happeningId, happening, onClose }: Props) {
   const { user } = useAuth()
-  const isAuthor        = !!user && !!happening && happening.author_id === user.id
-  const requiresApproval = happening?.requires_approval ?? false
-  const showTabs        = isAuthor && requiresApproval
+  const isAuthor = !!user && !!happening && happening.author_id === user.id
+  const showPending = isAuthor && (happening?.requires_approval ?? false)
 
-  const [activeTab, setActiveTab]   = useState<'approved' | 'pending'>('approved')
-  const [loading, setLoading]       = useState(false)
-  const [total, setTotal]           = useState(0)
+  const [loading, setLoading] = useState(false)
+  const [total, setTotal] = useState(0)
   const [participants, setParticipants] = useState<Participant[]>([])
-  const [error, setError]           = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   const [loadingPending, setLoadingPending] = useState(false)
-  const [pendingList, setPendingList]       = useState<PendingParticipant[]>([])
-  const [actionPending, setActionPending]   = useState<string | null>(null)
+  const [pendingList, setPendingList] = useState<PendingParticipant[]>([])
+  const [actionPending, setActionPending] = useState<string | null>(null)
 
-  // Load approved list
   useEffect(() => {
-    if (!open || !happeningId || activeTab !== 'approved') return
+    if (!open || !happeningId) return
     let active = true
-    const id   = happeningId
+    const id = happeningId
 
     async function load() {
       setLoading(true)
@@ -80,13 +77,16 @@ export function HappeningParticipantsModal({ open, happeningId, happening, onClo
 
     void load()
     return () => { active = false }
-  }, [open, happeningId, activeTab])
+  }, [open, happeningId])
 
-  // Load pending list
   useEffect(() => {
-    if (!open || !happeningId || !showTabs || activeTab !== 'pending') return
+    if (!open || !happeningId || !showPending) {
+      setPendingList([])
+      return
+    }
+
     let active = true
-    const id   = happeningId
+    const id = happeningId
 
     async function load() {
       setLoadingPending(true)
@@ -97,7 +97,7 @@ export function HappeningParticipantsModal({ open, happeningId, happening, onClo
         if (!active) return
         setPendingList(json.data.pending ?? [])
       } catch {
-        // silent
+        if (active) setPendingList([])
       } finally {
         if (active) setLoadingPending(false)
       }
@@ -105,7 +105,7 @@ export function HappeningParticipantsModal({ open, happeningId, happening, onClo
 
     void load()
     return () => { active = false }
-  }, [open, happeningId, showTabs, activeTab])
+  }, [open, happeningId, showPending])
 
   async function handleApproveAction(userId: string, action: 'approve' | 'reject') {
     if (!happeningId) return
@@ -118,9 +118,7 @@ export function HappeningParticipantsModal({ open, happeningId, happening, onClo
       })
       if (res.ok) {
         setPendingList((prev) => prev.filter((p) => p.user_id !== userId))
-        if (action === 'approve') {
-          setTotal((t) => t + 1)
-        }
+        if (action === 'approve') setTotal((t) => t + 1)
       }
     } finally {
       setActionPending(null)
@@ -129,85 +127,18 @@ export function HappeningParticipantsModal({ open, happeningId, happening, onClo
 
   return (
     <Modal open={open} onClose={onClose} title="Participants">
-      {showTabs && (
-        <div className="mb-4 flex gap-1 rounded-xl bg-gray-100 p-1">
-          <button
-            onClick={() => setActiveTab('approved')}
-            className={`flex-1 rounded-lg py-1.5 text-xs font-semibold transition-colors ${
-              activeTab === 'approved' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            Approved ({total})
-          </button>
-          <button
-            onClick={() => setActiveTab('pending')}
-            className={`flex-1 rounded-lg py-1.5 text-xs font-semibold transition-colors ${
-              activeTab === 'pending' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            Pending ({pendingList.length})
-          </button>
-        </div>
-      )}
-
-      {activeTab === 'approved' ? (
-        <>
-          <p className="mb-3 text-xs text-gray-500">{total} joined</p>
-
-          {loading ? (
-            <div className="py-8 text-center text-sm text-gray-400">Loading…</div>
-          ) : error ? (
-            <div className="py-8 text-center text-sm text-red-500">{error}</div>
-          ) : participants?.length === 0 ? (
-            <div className="py-8 text-center text-sm text-gray-400">No one has joined yet.</div>
-          ) : (
-            <ul className="divide-y divide-gray-100">
-              {participants.map((p) => (
-                <li key={p.id}>
-                  <Link
-                    href={`/user/${p.id}`}
-                    onClick={onClose}
-                    className="flex items-center gap-3 py-2.5 transition-colors hover:bg-gray-50 rounded-md px-2 -mx-2"
-                  >
-                    <span className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-brand-100 text-sm font-semibold text-brand-700">
-                      {p.avatar_url
-                        ? <SafeImage src={p.avatar_url} alt="" fill sizes="36px" className="object-cover" />
-                        : p.display_name.slice(0, 1).toUpperCase()}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-semibold text-gray-900">{p.display_name}</span>
-                      <span className="block truncate text-xs text-gray-500">
-                        Joined Rawaq · {formatDate(p.platform_joined_at)}
-                      </span>
-                    </span>
-                    <span aria-hidden className="text-gray-300">›</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-
-          {total > PAGE_SIZE && happeningId && (
-            <div className="mt-4 border-t border-gray-100 pt-3 text-center">
-              <Link
-                href={`/happenings/${happeningId}/participants`}
-                onClick={onClose}
-                className="inline-flex items-center gap-1 text-sm font-semibold text-brand-600 hover:text-brand-700"
-              >
-                View all {total} participants
-                <span aria-hidden>›</span>
-              </Link>
-            </div>
-          )}
-        </>
-      ) : (
-        <>
-          <p className="mb-3 text-xs text-gray-500">{pendingList.length} pending request{pendingList.length !== 1 ? 's' : ''}</p>
+      {showPending && (
+        <section className="mb-4">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-400">
+            Pending approval ({pendingList.length})
+          </p>
 
           {loadingPending ? (
-            <div className="py-8 text-center text-sm text-gray-400">Loading…</div>
+            <div className="py-4 text-center text-sm text-gray-400">Loading...</div>
           ) : pendingList.length === 0 ? (
-            <div className="py-8 text-center text-sm text-gray-400">No pending requests.</div>
+            <div className="rounded-lg bg-gray-50 px-3 py-4 text-center text-sm text-gray-400">
+              No pending requests.
+            </div>
           ) : (
             <ul className="divide-y divide-gray-100">
               {pendingList.map((p) => (
@@ -220,7 +151,7 @@ export function HappeningParticipantsModal({ open, happeningId, happening, onClo
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-semibold text-gray-900">{p.display_name}</span>
                     <span className="block truncate text-xs text-gray-500">
-                      Requested · {formatDate(p.requested_at)}
+                      Requested - {formatDate(p.requested_at)}
                     </span>
                   </span>
                   <div className="flex shrink-0 gap-1.5">
@@ -243,7 +174,59 @@ export function HappeningParticipantsModal({ open, happeningId, happening, onClo
               ))}
             </ul>
           )}
-        </>
+
+          <div className="mt-4 border-t border-gray-100" />
+        </section>
+      )}
+
+      <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-400">
+        Confirmed participants ({total})
+      </p>
+
+      {loading ? (
+        <div className="py-8 text-center text-sm text-gray-400">Loading...</div>
+      ) : error ? (
+        <div className="py-8 text-center text-sm text-red-500">{error}</div>
+      ) : participants.length === 0 ? (
+        <div className="py-8 text-center text-sm text-gray-400">No one has joined yet.</div>
+      ) : (
+        <ul className="divide-y divide-gray-100">
+          {participants.map((p) => (
+            <li key={p.id}>
+              <Link
+                href={`/user/${p.id}`}
+                onClick={onClose}
+                className="-mx-2 flex items-center gap-3 rounded-md px-2 py-2.5 transition-colors hover:bg-gray-50"
+              >
+                <span className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-brand-100 text-sm font-semibold text-brand-700">
+                  {p.avatar_url
+                    ? <SafeImage src={p.avatar_url} alt="" fill sizes="36px" className="object-cover" />
+                    : p.display_name.slice(0, 1).toUpperCase()}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold text-gray-900">{p.display_name}</span>
+                  <span className="block truncate text-xs text-gray-500">
+                    Joined Rawaq - {formatDate(p.platform_joined_at)}
+                  </span>
+                </span>
+                <span aria-hidden className="text-gray-300">&gt;</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {total > PAGE_SIZE && happeningId && (
+        <div className="mt-4 border-t border-gray-100 pt-3 text-center">
+          <Link
+            href={`/happenings/${happeningId}/participants`}
+            onClick={onClose}
+            className="inline-flex items-center gap-1 text-sm font-semibold text-brand-600 hover:text-brand-700"
+          >
+            View all {total} participants
+            <span aria-hidden>&gt;</span>
+          </Link>
+        </div>
       )}
     </Modal>
   )

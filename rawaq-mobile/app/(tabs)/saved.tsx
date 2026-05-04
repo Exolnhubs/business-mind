@@ -8,7 +8,7 @@ import { Colors, Spacing } from '@/theme'
 import type { Event, EventCategory, EventWithOrganizer, OrganizerProfile, Profile } from '@/types/database'
 
 type SavedOrganizer = Pick<Profile, 'id' | 'display_name' | 'avatar_url'> & {
-  organizer_profile: Pick<OrganizerProfile, 'business_name' | 'business_name_ar' | 'logo_url' | 'verified'> | null
+  organizer_profile: Pick<OrganizerProfile, 'business_name' | 'business_name_ar' | 'logo_url' | 'verified' | 'organizer_type'> | null
 }
 
 async function hydrateEvents(rows: Event[]): Promise<EventWithOrganizer[]> {
@@ -20,8 +20,8 @@ async function hydrateEvents(rows: Event[]): Promise<EventWithOrganizer[]> {
       ? supabase.from('profiles').select('id, display_name, avatar_url').in('id', organizerIds)
       : Promise.resolve({ data: [] as Pick<Profile, 'id' | 'display_name' | 'avatar_url'>[] }),
     organizerIds.length
-      ? supabase.from('organizer_profiles').select('user_id, business_name, business_name_ar, logo_url, verified').in('user_id', organizerIds)
-      : Promise.resolve({ data: [] as Array<Pick<OrganizerProfile, 'user_id' | 'business_name' | 'business_name_ar' | 'logo_url' | 'verified'>> }),
+      ? supabase.from('organizer_profiles').select('user_id, business_name, business_name_ar, logo_url, verified, organizer_type').in('user_id', organizerIds)
+      : Promise.resolve({ data: [] as Array<Pick<OrganizerProfile, 'user_id' | 'business_name' | 'business_name_ar' | 'logo_url' | 'verified' | 'organizer_type'>> }),
     categoryIds.length
       ? supabase.from('event_categories').select('id, name_en, name_ar, icon').in('id', categoryIds)
       : Promise.resolve({ data: [] as Pick<EventCategory, 'id' | 'name_en' | 'name_ar' | 'icon'>[] }),
@@ -43,6 +43,7 @@ async function hydrateEvents(rows: Event[]): Promise<EventWithOrganizer[]> {
               business_name_ar: organizerProfile.business_name_ar,
               logo_url: organizerProfile.logo_url,
               verified: organizerProfile.verified,
+              organizer_type: organizerProfile.organizer_type,
             }
             : null,
         },

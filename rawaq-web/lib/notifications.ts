@@ -136,6 +136,7 @@ function getPushTitle(type: NotificationType): string {
     follow_request:           'New follow request 👤',
     follow_accepted:          'Follow request accepted ✅',
     say_hi:                   'Someone waved at you 👋',
+    happening_rsvp_request:   'New join request',
     happening_rsvp_approved:  'Join request approved 🎉',
   }
   return titles[type] ?? 'Rawaq Notification'
@@ -169,6 +170,7 @@ function getPushBody(type: NotificationType, payload: Record<string, unknown>): 
     case 'follow_request':          return `${str('actor_name')} wants to follow you`
     case 'follow_accepted':         return `${str('actor_name')} accepted your follow request`
     case 'say_hi':                  return `${str('actor_name')} waved at you 👋`
+    case 'happening_rsvp_request':  return `${str('requester_name')} requested to join your happening`
     case 'happening_rsvp_approved': return 'Your request to join a happening was approved'
     default:                        return 'You have a new notification'
   }

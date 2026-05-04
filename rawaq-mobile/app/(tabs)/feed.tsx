@@ -30,7 +30,7 @@ const PAGE_SIZE = 10
 interface Props { onExplore?: () => void }
 
 type FeedOrganizer = Pick<Profile, 'id' | 'display_name' | 'avatar_url'> & {
-  organizer_profile: Pick<OrganizerProfile, 'business_name' | 'business_name_ar' | 'logo_url' | 'verified'> | null
+  organizer_profile: Pick<OrganizerProfile, 'business_name' | 'business_name_ar' | 'logo_url' | 'verified' | 'organizer_type'> | null
 }
 
 type JoinedCommunity = Pick<Community, 'id' | 'name' | 'name_ar' | 'slug' | 'level'>
@@ -58,8 +58,8 @@ async function hydrateEvents(rows: Event[]): Promise<EventWithOrganizer[]> {
       ? supabase.from('profiles').select('id, display_name, avatar_url').in('id', organizerIds)
       : Promise.resolve({ data: [] as Pick<Profile, 'id' | 'display_name' | 'avatar_url'>[] }),
     organizerIds.length
-      ? supabase.from('organizer_profiles').select('user_id, business_name, business_name_ar, logo_url, verified').in('user_id', organizerIds)
-      : Promise.resolve({ data: [] as Array<Pick<OrganizerProfile, 'user_id' | 'business_name' | 'business_name_ar' | 'logo_url' | 'verified'>> }),
+      ? supabase.from('organizer_profiles').select('user_id, business_name, business_name_ar, logo_url, verified, organizer_type').in('user_id', organizerIds)
+      : Promise.resolve({ data: [] as Array<Pick<OrganizerProfile, 'user_id' | 'business_name' | 'business_name_ar' | 'logo_url' | 'verified' | 'organizer_type'>> }),
     categoryIds.length
       ? supabase.from('event_categories').select('id, name_en, name_ar, icon').in('id', categoryIds)
       : Promise.resolve({ data: [] as Pick<EventCategory, 'id' | 'name_en' | 'name_ar' | 'icon'>[] }),
@@ -88,6 +88,7 @@ async function hydrateEvents(rows: Event[]): Promise<EventWithOrganizer[]> {
             business_name_ar: organizerProfileByUserId.get(organizer.id)!.business_name_ar,
             logo_url: organizerProfileByUserId.get(organizer.id)!.logo_url,
             verified: organizerProfileByUserId.get(organizer.id)!.verified,
+            organizer_type: organizerProfileByUserId.get(organizer.id)!.organizer_type,
           }
           : null,
       },

@@ -37,6 +37,7 @@ const ICONS: Record<NotificationType, string> = {
   follow_request:           '👤',
   follow_accepted:          '✅',
   say_hi:                   '👋',
+  happening_rsvp_request:   '⏳',
   happening_rsvp_approved:  '🎉',
 }
 
@@ -93,6 +94,8 @@ function notificationLabel(n: Notification): { title: string; subtitle: string; 
       return { title: `${p.actor_name ?? 'Someone'} accepted your follow request`, subtitle: '', href: p.actor_id ? `/user/${p.actor_id}` : null }
     case 'say_hi':
       return { title: `${p.actor_name ?? 'Someone'} waved at you 👋`, subtitle: '', href: p.actor_id ? `/user/${p.actor_id}` : null }
+    case 'happening_rsvp_request':
+      return { title: `${p.requester_name ?? 'Someone'} requested to join your happening`, subtitle: '', href: p.happening_id ? `/happenings/${p.happening_id}` : '/communities' }
     case 'happening_rsvp_approved':
       return { title: 'Your join request was approved 🎉', subtitle: '', href: p.happening_id ? `/happenings/${p.happening_id}` : '/communities' }
     default:

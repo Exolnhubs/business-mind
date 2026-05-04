@@ -3,6 +3,7 @@ import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireAuth } from '@/lib/auth'
 import { BadRequestException, ForbiddenException, handleApiError, ok, NotFoundException } from '@/lib/errors'
 import { limiters, checkRateLimit } from '@/lib/rate-limit'
+import { sendNotification } from '@/lib/notifications'
 
 // POST /api/happenings/:id/rsvp — join a happening
 export async function POST(
@@ -17,14 +18,14 @@ export async function POST(
 
     const { data: happening } = await admin
       .from('happenings')
-      .select('id, community_id, expires_at, rsvp_count, capacity, requires_approval')
+      .select('id, author_id, community_id, expires_at, rsvp_count, capacity, requires_approval')
       .eq('id', id)
       .maybeSingle()
 
     if (!happening) throw new NotFoundException('Happening not found')
 
     const h = happening as {
-      community_id: string; expires_at: string
+      author_id: string; community_id: string; expires_at: string
       rsvp_count: number; capacity: number; requires_approval: boolean
     }
 
@@ -67,7 +68,8 @@ export async function POST(
       throw new BadRequestException('This happening is full')
     }
 
-    const newStatus: 'pending' | 'approved' = h.requires_approval ? 'pending' : 'approved'
+    const isAuthor = h.author_id === ctx.userId
+    const newStatus: 'pending' | 'approved' = h.requires_approval && !isAuthor ? 'pending' : 'approved'
 
     await admin
       .from('happening_rsvps')
@@ -81,6 +83,24 @@ export async function POST(
       .select('rsvp_count')
       .eq('id', id)
       .single()
+
+    if (newStatus === 'pending') {
+      const { data: requester } = await admin
+        .from('profiles')
+        .select('display_name')
+        .eq('id', ctx.userId)
+        .maybeSingle()
+
+      sendNotification({
+        userId: h.author_id,
+        type:   'happening_rsvp_request',
+        payload: {
+          happening_id:    id,
+          requester_id:    ctx.userId,
+          requester_name:  requester?.display_name ?? 'Someone',
+        },
+      }).catch(() => {})
+    }
 
     return ok({
       rsvp:      newStatus === 'approved',

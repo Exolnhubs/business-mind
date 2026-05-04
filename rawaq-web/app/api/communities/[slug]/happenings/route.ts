@@ -164,7 +164,7 @@ export async function POST(
 
     const expiresAt = new Date(Date.now() + parsed.expires_in_hours * 60 * 60 * 1000).toISOString()
 
-    const { data: happening, error: insertErr } = await admin
+    const { data: insertedHappening, error: insertErr } = await admin
       .from('happenings')
       .insert({
         community_id:     community.id,
@@ -182,19 +182,45 @@ export async function POST(
       .single()
 
     if (insertErr) throw insertErr
+    const happeningId = (insertedHappening as { id: string }).id
+
+    if (parsed.type === 'open_invite') {
+      const { error: rsvpErr } = await admin
+        .from('happening_rsvps')
+        .upsert(
+          { happening_id: happeningId, user_id: ctx.userId, status: 'approved' },
+          { onConflict: 'happening_id,user_id' },
+        )
+
+      if (rsvpErr) throw rsvpErr
+    }
+
+    const { data: happening, error: reloadErr } = await admin
+      .from('happenings')
+      .select(HAPPENING_SELECT)
+      .eq('id', happeningId)
+      .single()
+
+    if (reloadErr) throw reloadErr
 
     if (parsed.type === 'open_invite') {
       notifyCommunityMembers({
         communityId:   community.id,
         communityName: community.name,
         communitySlug: slug,
-        happeningId:   (happening as { id: string }).id,
+        happeningId,
         body:          parsed.body,
         authorId:      ctx.userId,
       }).catch(() => {})
     }
 
-    return ok(happening)
+    return ok({
+      ...happening,
+      user_has_rsvp:    parsed.type === 'open_invite',
+      user_rsvp_status: parsed.type === 'open_invite' ? 'approved' : null,
+      user_has_reacted: false,
+      pending_count:    0,
+    })
   } catch (err) {
     return handleApiError(err)
   }
