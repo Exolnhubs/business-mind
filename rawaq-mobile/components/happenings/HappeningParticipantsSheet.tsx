@@ -110,13 +110,13 @@ export function HappeningParticipantsSheet({ visible, happeningId, isAuthor, req
 
   function openProfile(userId: string) {
     onClose()
-    router.push(`/user/${userId}` as any)
+    router.push({ pathname: '/user/[id]', params: { id: userId } })
   }
 
   function viewAll() {
     if (!happeningId) return
     onClose()
-    router.push(`/happenings/${happeningId}/participants` as any)
+    router.push({ pathname: '/happenings/[id]/participants', params: { id: happeningId } })
   }
 
   return (
@@ -215,21 +215,28 @@ export function HappeningParticipantsSheet({ visible, happeningId, isAuthor, req
               <ScrollView contentContainerStyle={styles.list}>
                 {pendingList.map((p) => (
                   <View key={p.user_id} style={styles.pendingRow}>
-                    <View style={styles.avatar}>
-                      {p.avatar_url ? (
-                        <Image source={{ uri: p.avatar_url }} style={styles.avatarImg} />
-                      ) : (
-                        <Text style={styles.avatarFallback}>
-                          {p.display_name.slice(0, 1).toUpperCase()}
+                    <TouchableOpacity
+                      style={styles.pendingIdentity}
+                      activeOpacity={0.72}
+                      onPress={() => openProfile(p.user_id)}
+                    >
+                      <View style={styles.avatar}>
+                        {p.avatar_url ? (
+                          <Image source={{ uri: p.avatar_url }} style={styles.avatarImg} />
+                        ) : (
+                          <Text style={styles.avatarFallback}>
+                            {p.display_name.slice(0, 1).toUpperCase()}
+                          </Text>
+                        )}
+                      </View>
+                      <View style={styles.identityText}>
+                        <Text style={styles.name} numberOfLines={1}>{p.display_name}</Text>
+                        <Text style={styles.meta} numberOfLines={1}>
+                          Requested · {formatDate(p.requested_at)}
                         </Text>
-                      )}
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.name} numberOfLines={1}>{p.display_name}</Text>
-                      <Text style={styles.meta} numberOfLines={1}>
-                        Requested · {formatDate(p.requested_at)}
-                      </Text>
-                    </View>
+                      </View>
+                      <Ionicons name="chevron-forward" size={14} color={Colors.gray[400]} />
+                    </TouchableOpacity>
                     <View style={styles.pendingActions}>
                       <TouchableOpacity
                         onPress={() => handleAction(p.user_id, 'approve')}
@@ -335,6 +342,17 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: Colors.gray[100],
+  },
+  pendingIdentity: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  identityText: {
+    flex: 1,
+    minWidth: 0,
   },
   avatar: {
     width: 40, height: 40, borderRadius: 20,
