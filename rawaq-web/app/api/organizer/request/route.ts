@@ -18,7 +18,7 @@ export async function GET() {
 
     const { data } = await admin
       .from('organizer_profiles')
-      .select('id, status, verified, business_name, created_at')
+      .select('id, status, verified, business_name, organizer_type, bio, skills_tags, created_at')
       .eq('user_id', userId)
       .maybeSingle()
 

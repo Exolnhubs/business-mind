@@ -79,12 +79,20 @@ export default function ProfileScreen() {
   const [emailMsg, setEmailMsg]       = useState<{ ok: boolean; text: string } | null>(null)
 
   // Organizer request
-  const [orgRequest, setOrgRequest]         = useState<{ id: string; status: string; business_name: string } | null | undefined>(undefined) // undefined = loading
+  const [orgRequest, setOrgRequest]         = useState<{ id: string; status: string; business_name: string; organizer_type?: string } | null | undefined>(undefined) // undefined = loading
   const [showOrgForm, setShowOrgForm]       = useState(false)
   const [businessName, setBusinessName]     = useState('')
   const [orgDesc, setOrgDesc]               = useState('')
   const [orgSubmitting, setOrgSubmitting]   = useState(false)
   const [orgMsg, setOrgMsg]                 = useState<{ ok: boolean; text: string } | null>(null)
+
+  // Individual host application
+  const [showHostForm, setShowHostForm]     = useState(false)
+  const [hostDisplayName, setHostDisplayName] = useState('')
+  const [hostBio, setHostBio]               = useState('')
+  const [hostSkills, setHostSkills]         = useState('')
+  const [hostSubmitting, setHostSubmitting] = useState(false)
+  const [hostMsg, setHostMsg]               = useState<{ ok: boolean; text: string } | null>(null)
 
   // Populate form from profile
   useEffect(() => {
@@ -345,6 +353,26 @@ export default function ProfileScreen() {
       setOrgMsg({ ok: true, text: t('profile.org_request_submitted') })
     }
     setOrgSubmitting(false)
+  }
+
+  async function submitHostRequest() {
+    if (!hostDisplayName.trim() || !hostBio.trim() || !hostSkills.trim()) return
+    setHostSubmitting(true)
+    setHostMsg(null)
+    const skills = hostSkills.split(',').map((s) => s.trim()).filter(Boolean)
+    const { data, error } = await apiPost<{ applied: boolean }>('/api/individual-host/apply', {
+      display_name: hostDisplayName.trim(),
+      bio:          hostBio.trim(),
+      skills_tags:  skills,
+    })
+    if (error) {
+      setHostMsg({ ok: false, text: error })
+    } else if (data?.applied) {
+      setOrgRequest({ id: '', status: 'pending', business_name: hostDisplayName.trim(), organizer_type: 'individual' })
+      setShowHostForm(false)
+      setHostMsg({ ok: true, text: t('profile.host_request_submitted') })
+    }
+    setHostSubmitting(false)
   }
 
   async function handleSignOut() {
@@ -696,7 +724,7 @@ export default function ProfileScreen() {
         </View>
 
         {/* Become an Organizer */}
-        {profile?.role === 'user' && orgRequest !== undefined && (
+        {profile?.role === 'user' && orgRequest !== undefined && orgRequest?.organizer_type !== 'individual' && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>{t('profile.organizer_section')}</Text>
 
@@ -779,6 +807,87 @@ export default function ProfileScreen() {
             {orgMsg && orgRequest?.status === 'pending' && (
               <View style={[styles.msgBox, styles.msgOk]}>
                 <Text style={styles.msgOkText}>{orgMsg.text}</Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Become an Individual Host */}
+        {profile?.role === 'user' && (orgRequest === null || orgRequest?.organizer_type === 'individual') && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>{t('profile.become_host')}</Text>
+
+            <TouchableOpacity
+              style={[styles.row, orgRequest?.organizer_type === 'individual' && { opacity: 0.5 }]}
+              disabled={orgRequest?.organizer_type === 'individual'}
+              onPress={() => { setShowHostForm((v) => !v); setHostMsg(null) }}
+            >
+              <View style={styles.rowLeft}>
+                <Text style={styles.rowIcon}>{orgRequest?.organizer_type === 'individual' ? '⏳' : '🎯'}</Text>
+                <View>
+                  <Text style={styles.rowLabel}>
+                    {orgRequest?.organizer_type === 'individual' ? t('profile.host_pending') : t('profile.become_host')}
+                  </Text>
+                  <Text style={[styles.rowValue, { fontSize: 11 }]}>
+                    {orgRequest?.organizer_type === 'individual' ? t('profile.host_pending_sub') : t('profile.host_subtitle')}
+                  </Text>
+                </View>
+              </View>
+              {!orgRequest && <Text style={styles.rowArrow}>{showHostForm ? '∨' : '›'}</Text>}
+            </TouchableOpacity>
+
+            {showHostForm && !orgRequest && (
+              <View style={{ paddingHorizontal: Spacing.lg, paddingBottom: Spacing.md }}>
+                <View style={styles.fieldWrap}>
+                  <Text style={styles.fieldLabel}>{t('profile.host_display_name')}</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={hostDisplayName}
+                    onChangeText={setHostDisplayName}
+                    placeholder={t('profile.host_display_name_placeholder')}
+                    placeholderTextColor={Colors.gray[400]}
+                    maxLength={60}
+                  />
+                </View>
+                <View style={styles.fieldWrap}>
+                  <Text style={styles.fieldLabel}>{t('profile.host_bio')}</Text>
+                  <TextInput
+                    style={[styles.input, styles.inputMulti]}
+                    value={hostBio}
+                    onChangeText={setHostBio}
+                    placeholder={t('profile.host_bio_placeholder')}
+                    placeholderTextColor={Colors.gray[400]}
+                    multiline
+                    numberOfLines={3}
+                    maxLength={500}
+                  />
+                </View>
+                <View style={styles.fieldWrap}>
+                  <Text style={styles.fieldLabel}>{t('profile.host_skills')}</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={hostSkills}
+                    onChangeText={setHostSkills}
+                    placeholder={t('profile.host_skills_placeholder')}
+                    placeholderTextColor={Colors.gray[400]}
+                    maxLength={200}
+                  />
+                </View>
+                {hostMsg && (
+                  <View style={[styles.msgBox, hostMsg.ok ? styles.msgOk : styles.msgErr, { marginHorizontal: 0, marginTop: 0 }]}>
+                    <Text style={hostMsg.ok ? styles.msgOkText : styles.msgErrText}>{hostMsg.text}</Text>
+                  </View>
+                )}
+                <TouchableOpacity
+                  style={[styles.saveBtn, { marginHorizontal: 0, marginTop: Spacing.md }, (!hostDisplayName.trim() || !hostBio.trim() || !hostSkills.trim() || hostSubmitting) && styles.saveBtnDisabled]}
+                  onPress={submitHostRequest}
+                  disabled={!hostDisplayName.trim() || !hostBio.trim() || !hostSkills.trim() || hostSubmitting}
+                >
+                  {hostSubmitting
+                    ? <ActivityIndicator color={Colors.white} />
+                    : <Text style={styles.saveBtnText}>{t('profile.submit_request')}</Text>
+                  }
+                </TouchableOpacity>
               </View>
             )}
           </View>

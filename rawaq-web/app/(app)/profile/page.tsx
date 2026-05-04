@@ -65,11 +65,18 @@ export default function ProfilePage() {
     id: string
     status: string
     business_name: string
+    organizer_type?: string
   } | null | undefined>(undefined) // undefined = still loading
   const [showOrgForm, setShowOrgForm]           = useState(false)
   const [orgReqForm, setOrgReqForm]             = useState({ business_name: '', description: '' })
   const [submittingOrgReq, setSubmittingOrgReq] = useState(false)
   const [orgReqMsg, setOrgReqMsg]               = useState<{ ok: boolean; text: string } | null>(null)
+
+  // Individual host application
+  const [showHostForm, setShowHostForm]           = useState(false)
+  const [hostForm, setHostForm]                   = useState({ display_name: '', bio: '', skills: '' })
+  const [submittingHost, setSubmittingHost]       = useState(false)
+  const [hostMsg, setHostMsg]                     = useState<{ ok: boolean; text: string } | null>(null)
 
   // Redirect if not logged in
   useEffect(() => {
@@ -256,6 +263,30 @@ export default function ProfilePage() {
       }
     } finally {
       setSubmittingOrgReq(false)
+    }
+  }
+
+  async function submitHostRequest(e: FormEvent) {
+    e.preventDefault()
+    if (!hostForm.display_name.trim() || !hostForm.bio.trim() || !hostForm.skills.trim()) return
+    setSubmittingHost(true)
+    setHostMsg(null)
+    try {
+      const skills = hostForm.skills.split(',').map((s) => s.trim()).filter(Boolean)
+      await clientPostJson('/api/individual-host/apply', {
+        display_name: hostForm.display_name.trim(),
+        bio:          hostForm.bio.trim(),
+        skills_tags:  skills,
+      })
+      setOrgRequest({ id: '', status: 'pending', business_name: hostForm.display_name.trim(), organizer_type: 'individual' })
+      setShowHostForm(false)
+      setHostMsg({ ok: true, text: 'Application submitted! Our team will review it shortly.' })
+    } catch (error) {
+      if (!isToastHandledError(error)) {
+        setHostMsg({ ok: false, text: error instanceof Error ? error.message : 'Failed to submit application.' })
+      }
+    } finally {
+      setSubmittingHost(false)
     }
   }
 
@@ -584,7 +615,7 @@ export default function ProfilePage() {
       <PlanStatusCard planId={profile?.plan_id ?? 'user_free'} />
 
       {/* ── Become an Organizer ───────────────────────────── */}
-      {profile?.role === 'user' && orgRequest !== undefined && (
+      {profile?.role === 'user' && orgRequest !== undefined && orgRequest?.organizer_type !== 'individual' && (
         <div className="card p-6">
           <h2 className="text-base font-semibold text-gray-900 mb-1">{t('profile.become_organizer')}</h2>
 
@@ -662,6 +693,89 @@ export default function ProfilePage() {
                 </form>
               )}
             </>
+          )}
+        </div>
+      )}
+
+      {/* ── Become an Individual Host ─────────────────────── */}
+      {profile?.role === 'user' && (orgRequest === null || orgRequest?.organizer_type === 'individual') && (
+        <div className="card p-6">
+          <h2 className="text-base font-semibold text-gray-900 mb-1">Become an Individual Host</h2>
+
+          {orgRequest?.organizer_type === 'individual' ? (
+            <>
+              <p className="text-sm text-gray-500 mb-4">
+                Host small sessions — workshops, language circles, fitness classes — inside your communities.
+              </p>
+              <button type="button" disabled className="btn-primary opacity-50 cursor-not-allowed">
+                ⏳ Application Pending
+              </button>
+            </>
+          ) : !showHostForm ? (
+            <>
+              <p className="text-sm text-gray-500 mb-4">
+                Host small sessions — workshops, language circles, fitness classes — inside your communities.
+              </p>
+              <button type="button" onClick={() => { setShowHostForm(true); setHostMsg(null) }} className="btn-primary">
+                Apply as Individual Host
+              </button>
+            </>
+          ) : (
+            <form onSubmit={submitHostRequest} className="space-y-4">
+              <div>
+                <label className="label">Display Name *</label>
+                <input
+                  type="text" required minLength={2} maxLength={60}
+                  value={hostForm.display_name}
+                  onChange={(e) => setHostForm((f) => ({ ...f, display_name: e.target.value }))}
+                  className="input" placeholder="Your name as shown to attendees"
+                />
+              </div>
+              <div>
+                <label className="label">About you *</label>
+                <textarea
+                  required minLength={20} maxLength={500} rows={3}
+                  value={hostForm.bio}
+                  onChange={(e) => setHostForm((f) => ({ ...f, bio: e.target.value }))}
+                  className="input resize-none"
+                  placeholder="What do you host? What should attendees expect?"
+                />
+              </div>
+              <div>
+                <label className="label">Topics / Skills (comma-separated) *</label>
+                <input
+                  type="text" required maxLength={200}
+                  value={hostForm.skills}
+                  onChange={(e) => setHostForm((f) => ({ ...f, skills: e.target.value }))}
+                  className="input" placeholder="e.g. yoga, cooking, photography"
+                />
+              </div>
+              {hostMsg && (
+                <div className={`text-sm rounded-xl px-4 py-3 ${
+                  hostMsg.ok
+                    ? 'bg-green-50 text-green-700 border border-green-200'
+                    : 'bg-red-50 text-red-700 border border-red-200'
+                }`}>
+                  {hostMsg.text}
+                </div>
+              )}
+              <div className="flex gap-3">
+                <button
+                  type="submit"
+                  disabled={submittingHost || !hostForm.display_name.trim() || !hostForm.bio.trim() || !hostForm.skills.trim()}
+                  className="btn-primary flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {submittingHost ? <Spinner size="sm" /> : 'Submit Application'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setShowHostForm(false); setHostMsg(null) }}
+                  className="text-sm text-gray-500 hover:text-gray-700 px-3"
+                >
+                  {t('common.cancel')}
+                </button>
+              </div>
+            </form>
           )}
         </div>
       )}
