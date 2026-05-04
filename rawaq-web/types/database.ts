@@ -1318,6 +1318,10 @@ export type Database = {
         Args: { p_code: string };
         Returns: void;
       };
+      refresh_host_avg_rating: {
+        Args: { host_user_id: string };
+        Returns: void;
+      };
     };
     Enums: {
       user_role: UserRole;

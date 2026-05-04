@@ -10,6 +10,11 @@ import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { applyResolvedEventWindow } from '@/lib/events/recurrence'
 import { ensureEventOccurrences } from '@/lib/events/occurrences'
 
+type OrganizerReputationRow = {
+  organizer_type: string
+  cancellation_count: number
+}
+
 // GET /api/events/:id
 export async function GET(
   req: NextRequest,
@@ -146,6 +151,27 @@ export async function PATCH(
 
     // ── Notify attendees: event cancelled ──────────────────────────────────
     if (input.is_cancelled === true && !before?.is_cancelled) {
+      if (before?.organizer_id === ctx.userId) {
+        const { data: organizerProfile, error: organizerProfileError } = await adminClient
+          .from('organizer_profiles')
+          .select('organizer_type, cancellation_count')
+          .eq('user_id', ctx.userId)
+          .maybeSingle<OrganizerReputationRow>()
+
+        if (organizerProfileError) throw organizerProfileError
+
+        if (organizerProfile?.organizer_type === 'individual') {
+          const nextCancellationCount = organizerProfile.cancellation_count + 1
+          const { error: reputationError } = await adminClient
+            .from('organizer_profiles')
+            .update({ cancellation_count: nextCancellationCount })
+            .eq('user_id', ctx.userId)
+            .eq('organizer_type', 'individual')
+
+          if (reputationError) throw reputationError
+        }
+      }
+
       const { data: bookings } = await adminClient
         .from('bookings')
         .select('user_id')

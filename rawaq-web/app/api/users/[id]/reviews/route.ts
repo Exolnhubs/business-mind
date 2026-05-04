@@ -11,6 +11,12 @@ const ReviewSchema = z.object({
   content: z.string().max(1000).optional().nullable(),
 })
 
+async function refreshHostAvgRating(reviewedId: string) {
+  const supabase = createSupabaseAdminClient()
+  const { error } = await supabase.rpc('refresh_host_avg_rating', { host_user_id: reviewedId })
+  if (error) throw error
+}
+
 // GET /api/users/:id/reviews — list reviews for a user
 export async function GET(
   req: NextRequest,
@@ -85,6 +91,8 @@ export async function POST(
 
     if (error) throw error
 
+    await refreshHostAvgRating(reviewedId)
+
     // Notify reviewed user (fire-and-forget)
     const { data: actor } = await supabase
       .from('profiles').select('display_name').eq('id', ctx.userId).single()
@@ -121,6 +129,9 @@ export async function DELETE(
       .eq('reviewed_id', reviewedId)
 
     if (error) throw error
+
+    await refreshHostAvgRating(reviewedId)
+
     return ok({ deleted: true })
   } catch (err) {
     return handleApiError(err)
