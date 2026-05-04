@@ -270,6 +270,8 @@ export default function SceneTab() {
       <HappeningParticipantsSheet
         visible={!!selectedParticipants}
         happeningId={selectedParticipants?.id ?? null}
+        isAuthor={selectedParticipants?.author_id === user?.id}
+        requiresApproval={selectedParticipants?.requires_approval ?? false}
         onClose={() => setSelectedParticipants(null)}
       />
     </View>

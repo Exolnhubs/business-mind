@@ -157,23 +157,47 @@ export async function GET(req: NextRequest) {
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     })
 
+    const limitedHappenings = sorted.slice(0, params.limit)
+    const limitedIds = limitedHappenings.map((happening) => happening.id as string)
     const rsvpStatusMap = new Map<string, 'pending' | 'approved' | 'rejected'>()
-    let reactionSet     = new Set<string>()
-    if (ctx?.userId && sorted.length > 0) {
-      const ids = sorted.slice(0, params.limit).map((h) => h.id as string)
+    const pendingCountMap = new Map<string, number>()
+    let reactionSet = new Set<string>()
+
+    if (ctx?.userId && limitedIds.length > 0) {
       const [{ data: rsvps }, { data: reactions }] = await Promise.all([
-        admin.from('happening_rsvps').select('happening_id, status').eq('user_id', ctx.userId).in('happening_id', ids),
-        admin.from('happening_reactions').select('happening_id').eq('user_id', ctx.userId).in('happening_id', ids),
+        admin.from('happening_rsvps').select('happening_id, status').eq('user_id', ctx.userId).in('happening_id', limitedIds),
+        admin.from('happening_reactions').select('happening_id').eq('user_id', ctx.userId).in('happening_id', limitedIds),
       ])
       for (const r of (rsvps ?? []) as Array<{ happening_id: string; status: string }>) {
         rsvpStatusMap.set(r.happening_id, r.status as 'pending' | 'approved' | 'rejected')
       }
       reactionSet = new Set((reactions ?? []).map((row: { happening_id: string }) => row.happening_id))
+
+      const pendingVisibleIds = ctx.role === 'admin'
+        ? limitedIds
+        : limitedHappenings
+            .filter((happening) => happening.author_id === ctx.userId)
+            .map((happening) => happening.id as string)
+
+      if (pendingVisibleIds.length > 0) {
+        const { data: pendingRsvps, error: pendingError } = await admin
+          .from('happening_rsvps')
+          .select('happening_id')
+          .eq('status', 'pending')
+          .in('happening_id', pendingVisibleIds)
+
+        if (pendingError) throw pendingError
+
+        for (const row of (pendingRsvps ?? []) as Array<{ happening_id: string }>) {
+          pendingCountMap.set(row.happening_id, (pendingCountMap.get(row.happening_id) ?? 0) + 1)
+        }
+      }
     }
 
     return ok({
-      happenings: sorted.slice(0, params.limit).map((happening) => ({
+      happenings: limitedHappenings.map((happening) => ({
         ...happening,
+        pending_count:    pendingCountMap.get(happening.id as string) ?? 0,
         user_has_rsvp:    rsvpStatusMap.get(happening.id as string) === 'approved',
         user_rsvp_status: rsvpStatusMap.get(happening.id as string) ?? null,
         user_has_reacted: reactionSet.has(happening.id as string),

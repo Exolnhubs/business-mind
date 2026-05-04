@@ -49,6 +49,13 @@ export function HappeningDiscoveryCard({
   const timeLeft = getTimeLeft(happening.expires_at)
   const communityName = locale === 'ar' && happening.community.name_ar ? happening.community.name_ar : happening.community.name
   const textDirStyle = isRTL ? styles.rtlText : styles.ltrText
+  const pendingCount = happening.pending_count ?? 0
+  const hasParticipants = happening.rsvp_count > 0 || pendingCount > 0
+  const joinedLabel = happening.type === 'open_invite'
+    ? `${happening.rsvp_count}/${happening.capacity ?? 10} joined`
+    : happening.rsvp_count > 0
+      ? `${happening.rsvp_count} joined`
+      : 'No one joined yet'
 
   async function openLocation() {
     if (happening.lat === null || happening.lng === null) return
@@ -60,7 +67,7 @@ export function HappeningDiscoveryCard({
     <TouchableOpacity
       style={[styles.card, variant === 'rail' && styles.cardRail]}
       activeOpacity={0.86}
-      onPress={() => router.push(`/communities/${happening.community.slug}` as any)}
+      onPress={() => router.push({ pathname: '/communities/[slug]', params: { slug: happening.community.slug } })}
     >
       <View style={styles.topRow}>
         <View style={[styles.typeBadge, { backgroundColor: meta.bg }]}>
@@ -71,6 +78,39 @@ export function HappeningDiscoveryCard({
           <Text style={styles.distanceText}>{happening.distance_km} km</Text>
         ) : null}
       </View>
+
+      <TouchableOpacity
+        onPress={(e) => {
+          e.stopPropagation()
+          if (hasParticipants) onShowParticipants?.(happening)
+        }}
+        activeOpacity={0.72}
+        disabled={!hasParticipants}
+        style={styles.joinedWidget}
+      >
+        <View style={styles.joinedRow}>
+          <View style={styles.joinedIcon}>
+            <Ionicons name="people-outline" size={14} color={Colors.brand[700]} />
+          </View>
+          <Text style={[styles.joinedText, textDirStyle]} numberOfLines={1}>{joinedLabel}</Text>
+          {hasParticipants && (
+            <Ionicons name="chevron-forward" size={13} color={Colors.gray[500]} />
+          )}
+        </View>
+        {pendingCount > 0 ? (
+          <>
+            <View style={styles.joinedSeparator} />
+            <View style={styles.joinedRow}>
+              <View style={[styles.joinedIcon, styles.pendingIcon]}>
+                <Ionicons name="hourglass-outline" size={14} color="#b45309" />
+              </View>
+              <Text style={[styles.pendingText, textDirStyle]} numberOfLines={1}>
+                {pendingCount} pending approval
+              </Text>
+            </View>
+          </>
+        ) : null}
+      </TouchableOpacity>
 
       <Text style={[styles.bodyText, textDirStyle]} numberOfLines={4}>{happening.body}</Text>
 
@@ -96,27 +136,6 @@ export function HappeningDiscoveryCard({
           </Text>
           <PlanBadge planId={happening.author.plan_id} size={13} />
         </View>
-        <TouchableOpacity
-          onPress={(e) => {
-            e.stopPropagation()
-            if (happening.rsvp_count > 0) onShowParticipants?.(happening)
-          }}
-          activeOpacity={0.7}
-          disabled={happening.rsvp_count === 0}
-          style={styles.participantsRow}
-        >
-          <Ionicons name="people-outline" size={13} color={Colors.gray[600]} />
-          <Text style={[styles.participantsText, textDirStyle]}>
-            {happening.type === 'open_invite'
-              ? `${happening.rsvp_count}/${happening.capacity ?? 10} joined`
-              : happening.rsvp_count > 0
-              ? `${happening.rsvp_count} joined`
-              : 'No one joined yet'}
-          </Text>
-          {happening.rsvp_count > 0 && (
-            <Ionicons name="chevron-forward" size={12} color={Colors.gray[500]} />
-          )}
-        </TouchableOpacity>
         <View style={styles.actions}>
           <TouchableOpacity
             onPress={() => onOpenComments?.(happening)}
@@ -145,7 +164,7 @@ export function HappeningDiscoveryCard({
                   isJoined && styles.actionTextActive,
                   isPending && styles.actionTextPending,
                 ]}>
-                  {isJoined ? `In · ${happening.rsvp_count}` : isPending ? '⏳ Pending' : isFull ? 'Full' : `Join · ${happening.rsvp_count}`}
+                  {isJoined ? `In - ${happening.rsvp_count}` : isPending ? 'Pending' : isFull ? 'Full' : `Join - ${happening.rsvp_count}`}
                 </Text>
               </TouchableOpacity>
             )
@@ -155,7 +174,7 @@ export function HappeningDiscoveryCard({
             style={[styles.actionBtn, happening.user_has_reacted && styles.reactBtnActive]}
           >
             <Text style={[styles.actionText, happening.user_has_reacted && styles.reactTextActive]}>
-              Like · {happening.reaction_count}
+              Like - {happening.reaction_count}
             </Text>
           </TouchableOpacity>
         </View>
@@ -207,6 +226,50 @@ const styles = StyleSheet.create({
     color: Colors.gray[900],
     lineHeight: 20,
     fontWeight: FontWeight.semibold,
+  },
+  joinedWidget: {
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: '#ccfbf1',
+    backgroundColor: Colors.white,
+    marginBottom: Spacing.sm,
+    overflow: 'hidden',
+  },
+  joinedRow: {
+    minHeight: 34,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 7,
+  },
+  joinedIcon: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.brand[50],
+  },
+  pendingIcon: {
+    backgroundColor: '#fffbeb',
+  },
+  joinedText: {
+    flex: 1,
+    fontSize: 11,
+    color: Colors.gray[700],
+    fontWeight: FontWeight.semibold,
+  },
+  pendingText: {
+    flex: 1,
+    fontSize: 11,
+    color: '#b45309',
+    fontWeight: FontWeight.semibold,
+  },
+  joinedSeparator: {
+    height: 1,
+    backgroundColor: Colors.gray[100],
+    marginHorizontal: Spacing.sm,
   },
   metaRow: {
     flexDirection: 'row',
@@ -273,17 +336,5 @@ const styles = StyleSheet.create({
   },
   reactTextActive: {
     color: '#0f766e',
-  },
-  participantsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginBottom: Spacing.sm,
-  },
-  participantsText: {
-    flex: 1,
-    fontSize: 11,
-    color: Colors.gray[600],
-    fontWeight: FontWeight.medium,
   },
 })
