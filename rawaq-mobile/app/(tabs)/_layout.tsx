@@ -66,9 +66,9 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="happenings"
         options={{
-          title: t('tab.happenings'),
+          title: t('tab.scene'),
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'radio' : 'radio-outline'} size={24} color={color} />
+            <Ionicons name={focused ? 'sparkles' : 'sparkles-outline'} size={24} color={color} />
           ),
         }}
       />
