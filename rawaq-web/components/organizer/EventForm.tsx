@@ -2,6 +2,7 @@
 
 import { useState, useEffect, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
+import { useLocale } from '@/contexts/locale-context'
 import { createSupabaseBrowserClient } from '@/lib/supabase/client'
 import { useAuth } from '@/contexts/auth-context'
 import { Spinner } from '@/components/ui/Spinner'
@@ -101,6 +102,7 @@ function StepIndicator({ step }: { step: 1 | 2 | 3 }) {
 export function EventForm({ categories, event, initialCommunityIds = [] }: EventFormProps) {
   const { user } = useAuth()
   const router = useRouter()
+  const { locale, dir } = useLocale()
   const supabase = createSupabaseBrowserClient()
   const isEdit = !!event
 
@@ -141,7 +143,7 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
   const [attendeePlanLimit, setAttendeePlanLimit] = useState<number | null>(null)
   const [attendeePlanName, setAttendeePlanName] = useState('your current plan')
   const [showLocationPicker, setShowLocationPicker] = useState(false)
-  const [communities, setCommunities] = useState<Pick<Community, 'id' | 'name' | 'level' | 'type'>[]>([])
+  const [communities, setCommunities] = useState<Pick<Community, 'id' | 'name' | 'name_ar' | 'level' | 'type'>[]>([])
   const [selectedCommunities, setSelectedCommunities] = useState<string[]>(initialCommunityIds)
   const [visibilityType, setVisibilityType] = useState<EventVisibility>(event?.visibility_type ?? 'city')
   const [selectedLocation, setSelectedLocation] = useState<PickedLocation | null>(
@@ -159,13 +161,14 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
   )
 
   useEffect(() => {
-    fetch('/api/communities?per_page=50')
+    const country = form.country || 'SA'
+    fetch(`/api/communities?per_page=50&country=${encodeURIComponent(country)}`)
       .then((r) => r.ok ? r.json() : null)
       .then((json) => {
         if (json?.data?.data) setCommunities(json.data.data)
       })
       .catch(() => {})
-  }, [])
+  }, [form.country])
 
   useEffect(() => {
     if (!user) return
@@ -546,20 +549,24 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
           </div>
 
           {communities.length > 0 && (
-            <div>
-              <label className="label">Tag Communities (optional)</label>
+            <div dir={dir}>
+              <div className="flex items-center justify-between mb-1">
+                <label className="label">Tag Communities (optional)</label>
+                <span className="text-xs text-gray-400">{selectedCommunities.length} / 5</span>
+              </div>
               <p className="text-xs text-gray-400 mb-2">Members of tagged communities will be notified when you publish.</p>
               <div className="flex flex-wrap gap-2">
                 {communities.map((c) => {
                   const selected = selectedCommunities.includes(c.id)
+                  const atMax = !selected && selectedCommunities.length >= 5
                   return (
                     <button
                       key={c.id}
                       type="button"
                       onClick={() => {
+                        if (atMax) return
                         setSelectedCommunities((prev) => {
                           const next = selected ? prev.filter((id) => id !== c.id) : [...prev, c.id]
-                          // Auto-set visibility to match the most-specific selected community level
                           if (!selected) {
                             const levelMap: Record<string, EventVisibility> = {
                               micro: 'micro', interest: 'interest', district: 'city', city: 'city', country: 'national',
@@ -574,10 +581,12 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
                       className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${
                         selected
                           ? 'bg-brand-600 text-white border-brand-600'
-                          : 'bg-white text-gray-600 border-gray-200 hover:border-brand-300'
+                          : atMax
+                            ? 'bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed'
+                            : 'bg-white text-gray-600 border-gray-200 hover:border-brand-300'
                       }`}
                     >
-                      {c.name}
+                      {locale === 'ar' ? (c.name_ar || c.name) : c.name}
                     </button>
                   )
                 })}
@@ -920,17 +929,22 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
             </div>
 
             {communities.length > 0 && (
-              <div>
-                <label className="label">Tag Communities (optional)</label>
+              <div dir={dir}>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="label">Tag Communities (optional)</label>
+                  <span className="text-xs text-gray-400">{selectedCommunities.length} / 5</span>
+                </div>
                 <p className="text-xs text-gray-400 mb-2">Members of tagged communities will be notified when you publish.</p>
                 <div className="flex flex-wrap gap-2">
                   {communities.map((c) => {
                     const selected = selectedCommunities.includes(c.id)
+                    const atMax = !selected && selectedCommunities.length >= 5
                     return (
                       <button
                         key={c.id}
                         type="button"
                         onClick={() => {
+                          if (atMax) return
                           setSelectedCommunities((prev) => {
                             const next = selected ? prev.filter((id) => id !== c.id) : [...prev, c.id]
                             if (!selected) {
@@ -947,10 +961,12 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
                         className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${
                           selected
                             ? 'bg-brand-600 text-white border-brand-600'
-                            : 'bg-white text-gray-600 border-gray-200 hover:border-brand-300'
+                            : atMax
+                              ? 'bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed'
+                              : 'bg-white text-gray-600 border-gray-200 hover:border-brand-300'
                         }`}
                       >
-                        {c.name}
+                        {locale === 'ar' ? (c.name_ar || c.name) : c.name}
                       </button>
                     )
                   })}

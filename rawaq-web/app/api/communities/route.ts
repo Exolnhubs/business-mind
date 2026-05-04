@@ -43,6 +43,7 @@ const ListCommunitiesSchema = z.object({
   level:    z.enum(COMMUNITY_LEVELS).optional(),
   type:     z.string().optional(),
   city:     z.string().optional(),
+  country:  z.string().length(2).optional(),
   q:        z.string().max(100).optional(),
   member_only: z.coerce.boolean().optional(),
   recommended: z.coerce.boolean().optional(),
@@ -117,6 +118,7 @@ function buildCommunityCacheKey(params: {
   level?: string
   type?: string
   city?: string
+  country?: string
   q?: string
   page: number
   per_page: number
@@ -126,6 +128,7 @@ function buildCommunityCacheKey(params: {
     level: params.level ?? null,
     type: params.type ?? null,
     city: params.city ?? null,
+    country: params.country ?? null,
     q: params.q ?? null,
     page: params.page,
     per_page: params.per_page,
@@ -311,6 +314,7 @@ export async function GET(req: NextRequest) {
 
       if (params.level) query = query.eq('level', params.level)
       if (params.city) query = query.ilike('city', `%${params.city}%`)
+      if (params.country) query = query.eq('country', params.country.toUpperCase())
       if (params.type) query = query.eq('type', params.type as never)
       if (params.q) query = query.or(`name.ilike.%${params.q.trim()}%,name_ar.ilike.%${params.q.trim()}%`)
       if (params.member_only) query = query.in('id', memberIds)

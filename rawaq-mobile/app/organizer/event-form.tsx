@@ -12,6 +12,7 @@ import { supabase } from '@/lib/supabase'
 import { apiGet, apiPatch } from '@/lib/api'
 import { uploadViaApi } from '@/lib/upload'
 import { useAuth } from '@/contexts/auth-context'
+import { useLocale } from '@/contexts/locale-context'
 import { LocationPickerModal, type PickedLocation } from '@/components/communities/LocationPickerModal'
 import { OccurrenceManager } from '@/components/organizer/OccurrenceManager'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
@@ -88,6 +89,7 @@ function getCurrencyFromCountryCode(country: string | null | undefined): string 
 export default function EventFormScreen() {
   const { user }   = useAuth()
   const router     = useRouter()
+  const { locale, isRTL } = useLocale()
   const { id }     = useLocalSearchParams<{ id?: string }>()
   const insets     = useSafeAreaInsets()
   const isEdit     = !!id
@@ -191,11 +193,6 @@ export default function EventFormScreen() {
         .order('sort_order')
       setCategories((cats ?? []) as Category[])
 
-      const { data: communityData } = await apiGet<{
-        data: CommunityOption[]
-      }>('/api/communities?per_page=50')
-      setCommunities(communityData?.data ?? [])
-
       const { data: subscriptionData } = await apiGet<SubscriptionResponse>('/api/subscriptions')
       setAttendeePlanLimit(subscriptionData?.plan?.attendees_per_event ?? null)
       setAttendeePlanName(subscriptionData?.plan?.name ?? 'your current plan')
@@ -258,6 +255,13 @@ export default function EventFormScreen() {
     init()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, user])
+
+  useEffect(() => {
+    if (!user) return
+    apiGet<{ data: CommunityOption[] }>(`/api/communities?per_page=50&country=${encodeURIComponent(country)}`)
+      .then(({ data: communityData }) => { setCommunities(communityData?.data ?? []) })
+      .catch(() => {})
+  }, [country, user])
 
   function parseDate(val: string) {
     return new Date(val.includes('T') ? val : val.replace(' ', 'T'))
@@ -850,24 +854,31 @@ export default function EventFormScreen() {
 
             {communities.length > 0 && (
               <Field label="Tag Communities (optional)">
-                <Text style={styles.helperText}>
-                  Members of tagged communities will be notified when you publish.
-                </Text>
-                <View style={styles.chipRow}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <Text style={styles.helperText}>
+                    Members of tagged communities will be notified when you publish.
+                  </Text>
+                  <Text style={[styles.helperText, { marginStart: 8 }]}>
+                    {selectedCommunities.length} / 5
+                  </Text>
+                </View>
+                <View style={[styles.chipRow, isRTL && { flexDirection: 'row-reverse' }]}>
                   {communities.map((community) => {
                     const selected = selectedCommunities.includes(community.id)
+                    const atMax = !selected && selectedCommunities.length >= 5
                     return (
                       <TouchableOpacity
                         key={community.id}
-                        style={[styles.chip, selected && styles.chipActive]}
-                        onPress={() =>
+                        style={[styles.chip, selected && styles.chipActive, atMax && { opacity: 0.4 }]}
+                        onPress={() => {
+                          if (atMax) return
                           setSelectedCommunities((prev) =>
                             selected ? prev.filter((id) => id !== community.id) : [...prev, community.id],
                           )
-                        }
+                        }}
                       >
                         <Text style={[styles.chipText, selected && styles.chipTextActive]}>
-                          {community.name}
+                          {locale === 'ar' ? (community.name_ar || community.name) : community.name}
                         </Text>
                       </TouchableOpacity>
                     )
