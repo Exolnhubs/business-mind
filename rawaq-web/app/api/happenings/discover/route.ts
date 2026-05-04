@@ -157,8 +157,8 @@ export async function GET(req: NextRequest) {
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     })
 
-    let rsvpStatusMap = new Map<string, 'pending' | 'approved' | 'rejected'>()
-    let reactionSet   = new Set<string>()
+    const rsvpStatusMap = new Map<string, 'pending' | 'approved' | 'rejected'>()
+    let reactionSet     = new Set<string>()
     if (ctx?.userId && sorted.length > 0) {
       const ids = sorted.slice(0, params.limit).map((h) => h.id as string)
       const [{ data: rsvps }, { data: reactions }] = await Promise.all([

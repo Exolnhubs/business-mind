@@ -75,9 +75,9 @@ export async function GET(
     if (error) throw error
 
     // Annotate user_has_rsvp, user_rsvp_status, user_has_reacted, pending_count
-    let rsvpStatusMap = new Map<string, 'pending' | 'approved' | 'rejected'>()
-    let reactionSet   = new Set<string>()
-    let pendingCounts = new Map<string, number>()
+    const rsvpStatusMap = new Map<string, 'pending' | 'approved' | 'rejected'>()
+    let reactionSet     = new Set<string>()
+    const pendingCounts = new Map<string, number>()
 
     if (ctx?.userId && happenings?.length) {
       const ids = happenings.map((h: { id: string }) => h.id)
