@@ -388,16 +388,6 @@ export function AnimatedSplash({ onFinish }: AnimatedSplashProps) {
             )
           })}
 
-          <View style={[styles.island, { top: 12 * stage.scale, width: 120 * stage.scale, height: 34 * stage.scale, borderRadius: 20 * stage.scale }]} />
-          <View style={[styles.statusBar, { height: 54 * stage.scale, paddingHorizontal: 28 * stage.scale, paddingBottom: 8 * stage.scale }]}>
-            <Svg width={45 * stage.scale} height={18 * stage.scale} viewBox="0 0 45 18">
-              <SvgText x="0" y="14" fill={STATUS} fontSize="15" fontWeight="700">
-                10:01
-              </SvgText>
-            </Svg>
-            <StatusGlyphs />
-          </View>
-
           {FLOATERS.map((floater, index) => {
             const pulse = floaterPulses[index]
             const floaterSize = floater.size * stage.scale
