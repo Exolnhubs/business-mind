@@ -209,3 +209,17 @@ export async function getUserPlanAccess(userId: string): Promise<UserPlanAccess>
 export function getFeaturedPerMonth(plan: OrganizerPlanAccess | null): number {
   return getNumericPlanFeature(plan?.features, 'featured_per_month') ?? 0
 }
+
+export function isFreeSessionsOnly(plan: OrganizerPlanAccess | null): boolean {
+  if (!plan) return true
+  return hasPlanFeature(plan.features, 'free_sessions_only')
+}
+
+export function getPayoutHoldDays(plan: OrganizerPlanAccess | null): number {
+  return getNumericPlanFeature(plan?.features, 'payout_hold_days') ?? 7
+}
+
+export function isIndividualPlan(plan: OrganizerPlanAccess | null): boolean {
+  if (!plan) return false
+  return plan.features.organizer_type === 'individual'
+}
