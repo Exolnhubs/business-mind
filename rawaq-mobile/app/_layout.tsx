@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { AppState, Platform, I18nManager } from 'react-native'
 
 // Prevent the device OS language from forcing RTL on the entire layout.
@@ -203,6 +203,7 @@ AppState.addEventListener('change', (state) => {
 
 export default function RootLayout() {
   const [splashDone, setSplashDone] = useState(false)
+  const handleSplashDone = useCallback(() => setSplashDone(true), [])
 
   useEffect(() => {
     void apiGet('/api/events/featured', { ttlMs: 300_000 })
@@ -217,7 +218,7 @@ export default function RootLayout() {
               <AuthGate>
                 <AppNavigator
                   splashDone={splashDone}
-                  onSplashDone={() => setSplashDone(true)}
+                  onSplashDone={handleSplashDone}
                 />
               </AuthGate>
             </NavigationLoaderProvider>
