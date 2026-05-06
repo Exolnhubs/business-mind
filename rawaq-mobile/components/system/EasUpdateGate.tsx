@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react'
-import { AppState, Platform } from 'react-native'
+import { Alert, AppState, Platform } from 'react-native'
 import * as Updates from 'expo-updates'
 
 const MIN_CHECK_INTERVAL_MS = 60_000
@@ -8,6 +8,12 @@ export function EasUpdateGate() {
   const checkingRef = useRef(false)
   const reloadingRef = useRef(false)
   const lastCheckRef = useRef(0)
+
+  const reloadWithUpdate = useCallback(async () => {
+    if (reloadingRef.current) return
+    reloadingRef.current = true
+    await Updates.reloadAsync()
+  }, [])
 
   const checkAndApplyUpdate = useCallback(async (reason: string) => {
     if (Platform.OS === 'web' || !Updates.isEnabled || reloadingRef.current || checkingRef.current) {
@@ -41,14 +47,28 @@ export function EasUpdateGate() {
         return
       }
 
-      reloadingRef.current = true
-      await Updates.reloadAsync()
+      const fallbackTimer = setTimeout(() => {
+        void reloadWithUpdate()
+      }, 2500)
+
+      Alert.alert(
+        'Update ready',
+        'A critical fix has been downloaded. Rawaq will restart now.',
+        [{
+          text: 'Restart',
+          onPress: () => {
+            clearTimeout(fallbackTimer)
+            void reloadWithUpdate()
+          },
+        }],
+        { cancelable: false },
+      )
     } catch (error) {
       console.warn('[updates] check/apply failed', error)
     } finally {
       checkingRef.current = false
     }
-  }, [])
+  }, [reloadWithUpdate])
 
   useEffect(() => {
     const startupTimer = setTimeout(() => {

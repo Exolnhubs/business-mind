@@ -18,6 +18,7 @@ interface NavigationLoaderContextValue {
 
 const SHOW_DELAY_MS = 120
 const MIN_VISIBLE_MS = 180
+const MAX_PENDING_MS = 8_000
 
 const NavigationLoaderContext = createContext<NavigationLoaderContextValue | null>(null)
 
@@ -27,6 +28,7 @@ export function NavigationLoaderProvider({ children }: { children: ReactNode }) 
   const visibleSinceRef = useRef<number | null>(null)
   const showTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const maxPendingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const clearShowTimer = useCallback(() => {
     if (showTimerRef.current) {
@@ -42,9 +44,32 @@ export function NavigationLoaderProvider({ children }: { children: ReactNode }) 
     }
   }, [])
 
+  const clearMaxPendingTimer = useCallback(() => {
+    if (maxPendingTimerRef.current) {
+      clearTimeout(maxPendingTimerRef.current)
+      maxPendingTimerRef.current = null
+    }
+  }, [])
+
+  const forceClearNavigation = useCallback(() => {
+    pendingCountRef.current = 0
+    visibleSinceRef.current = null
+    clearShowTimer()
+    clearHideTimer()
+    clearMaxPendingTimer()
+    setIsVisible(false)
+  }, [clearHideTimer, clearMaxPendingTimer, clearShowTimer])
+
   const beginNavigation = useCallback(() => {
     pendingCountRef.current += 1
     clearHideTimer()
+
+    if (!maxPendingTimerRef.current) {
+      maxPendingTimerRef.current = setTimeout(() => {
+        console.warn('[navigation-loader] clearing stale navigation overlay')
+        forceClearNavigation()
+      }, MAX_PENDING_MS)
+    }
 
     if (isVisible || showTimerRef.current) {
       return
@@ -58,7 +83,7 @@ export function NavigationLoaderProvider({ children }: { children: ReactNode }) 
       visibleSinceRef.current = Date.now()
       setIsVisible(true)
     }, SHOW_DELAY_MS)
-  }, [clearHideTimer, isVisible])
+  }, [clearHideTimer, forceClearNavigation, isVisible])
 
   const endNavigation = useCallback(() => {
     pendingCountRef.current = Math.max(0, pendingCountRef.current - 1)
@@ -67,6 +92,7 @@ export function NavigationLoaderProvider({ children }: { children: ReactNode }) 
       return
     }
 
+    clearMaxPendingTimer()
     clearShowTimer()
 
     if (!isVisible) {
@@ -82,15 +108,11 @@ export function NavigationLoaderProvider({ children }: { children: ReactNode }) 
       visibleSinceRef.current = null
       setIsVisible(false)
     }, remaining)
-  }, [clearHideTimer, clearShowTimer, isVisible])
+  }, [clearHideTimer, clearMaxPendingTimer, clearShowTimer, isVisible])
 
   const resetNavigation = useCallback(() => {
-    pendingCountRef.current = 0
-    clearShowTimer()
-    clearHideTimer()
-    visibleSinceRef.current = null
-    setIsVisible(false)
-  }, [clearHideTimer, clearShowTimer])
+    forceClearNavigation()
+  }, [forceClearNavigation])
 
   const value = useMemo<NavigationLoaderContextValue>(() => ({
     isVisible,
