@@ -18,7 +18,7 @@ interface NavigationLoaderContextValue {
 
 const SHOW_DELAY_MS = 120
 const MIN_VISIBLE_MS = 180
-const MAX_PENDING_MS = 8_000
+const MAX_PENDING_MS = 3_000
 
 const NavigationLoaderContext = createContext<NavigationLoaderContextValue | null>(null)
 

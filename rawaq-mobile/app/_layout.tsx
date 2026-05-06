@@ -248,10 +248,10 @@ function AppNavigator({
       <StatusBar style={splashDone ? 'dark' : 'light'} />
       <Stack
         screenOptions={{ headerShown: false }}
-        screenListeners={{
+        screenListeners={splashDone ? {
           transitionStart: () => beginNavigation(),
           transitionEnd: () => endNavigation(),
-        }}
+        } : {}}
       >
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(tabs)" />
