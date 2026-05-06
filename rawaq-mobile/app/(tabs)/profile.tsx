@@ -47,6 +47,13 @@ const GENDER_OPTIONS: { label: string; value: 'male' | 'female' }[] = [
   { label: 'Female', value: 'female' },
 ]
 
+type OrganizerRequestState = {
+  id: string
+  status: 'pending' | 'approved' | 'rejected' | 'suspended' | string
+  business_name: string
+  organizer_type?: 'company' | 'individual' | string
+}
+
 export default function ProfileScreen() {
   const { user, profile, signOut, refreshProfile } = useAuth()
   const { t, locale, toggleLocale } = useLocale()
@@ -79,7 +86,7 @@ export default function ProfileScreen() {
   const [emailMsg, setEmailMsg]       = useState<{ ok: boolean; text: string } | null>(null)
 
   // Organizer request
-  const [orgRequest, setOrgRequest]         = useState<{ id: string; status: string; business_name: string; organizer_type?: string } | null | undefined>(undefined) // undefined = loading
+  const [orgRequest, setOrgRequest]         = useState<OrganizerRequestState | null | undefined>(undefined) // undefined = loading
   const [showOrgForm, setShowOrgForm]       = useState(false)
   const [businessName, setBusinessName]     = useState('')
   const [orgDesc, setOrgDesc]               = useState('')
@@ -122,7 +129,13 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     if (!profile || profile.role !== 'user') return
-    apiGet<{ id: string; status: string; business_name: string }>('/api/organizer/request').then(({ data }) => setOrgRequest(data))
+    apiGet<OrganizerRequestState>('/api/organizer/request').then(({ data }) => {
+      setOrgRequest(data)
+      if (data?.status === 'approved') {
+        refreshProfile().catch(() => {})
+      }
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile])
 
   async function pickAndUploadAvatar() {
@@ -417,6 +430,9 @@ export default function ProfileScreen() {
     org_pro: t('profile.plan_pro'),
     org_elite: t('profile.plan_elite'),
   }[profile?.plan_id ?? ''] ?? t('profile.plan_free')
+  const isApprovedOrganizer = profile?.role === 'organizer' || orgRequest?.status === 'approved'
+  const hasPendingCompanyRequest = orgRequest?.organizer_type !== 'individual' && orgRequest?.status === 'pending'
+  const hasPendingHostRequest = orgRequest?.organizer_type === 'individual' && orgRequest.status === 'pending'
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -724,11 +740,11 @@ export default function ProfileScreen() {
         </View>
 
         {/* Become an Organizer */}
-        {profile?.role === 'user' && orgRequest !== undefined && orgRequest?.organizer_type !== 'individual' && (
+        {profile?.role === 'user' && !isApprovedOrganizer && orgRequest !== undefined && orgRequest?.organizer_type !== 'individual' && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>{t('profile.organizer_section')}</Text>
 
-            {orgRequest?.status === 'pending' ? (
+            {hasPendingCompanyRequest ? (
               <View style={styles.row}>
                 <View style={styles.rowLeft}>
                   <Text style={styles.rowIcon}>⏳</Text>
@@ -813,23 +829,23 @@ export default function ProfileScreen() {
         )}
 
         {/* Become an Individual Host */}
-        {profile?.role === 'user' && (orgRequest === null || orgRequest?.organizer_type === 'individual') && (
+        {profile?.role === 'user' && !isApprovedOrganizer && (orgRequest === null || orgRequest?.organizer_type === 'individual') && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>{t('profile.become_host')}</Text>
 
             <TouchableOpacity
-              style={[styles.row, orgRequest?.organizer_type === 'individual' && { opacity: 0.5 }]}
-              disabled={orgRequest?.organizer_type === 'individual'}
+              style={[styles.row, hasPendingHostRequest && { opacity: 0.5 }]}
+              disabled={hasPendingHostRequest}
               onPress={() => { setShowHostForm((v) => !v); setHostMsg(null) }}
             >
               <View style={styles.rowLeft}>
-                <Text style={styles.rowIcon}>{orgRequest?.organizer_type === 'individual' ? '⏳' : '🎯'}</Text>
+                <Text style={styles.rowIcon}>{hasPendingHostRequest ? '⏳' : '🎯'}</Text>
                 <View>
                   <Text style={styles.rowLabel}>
-                    {orgRequest?.organizer_type === 'individual' ? t('profile.host_pending') : t('profile.become_host')}
+                    {hasPendingHostRequest ? t('profile.host_pending') : t('profile.become_host')}
                   </Text>
                   <Text style={[styles.rowValue, { fontSize: 11 }]}>
-                    {orgRequest?.organizer_type === 'individual' ? t('profile.host_pending_sub') : t('profile.host_subtitle')}
+                    {hasPendingHostRequest ? t('profile.host_pending_sub') : t('profile.host_subtitle')}
                   </Text>
                 </View>
               </View>
@@ -894,7 +910,7 @@ export default function ProfileScreen() {
         )}
 
         {/* Organizer links */}
-        {profile?.role === 'organizer' && (
+        {isApprovedOrganizer && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>{t('profile.organizer_section')}</Text>
             <TouchableOpacity style={styles.row} onPress={() => router.push('/organizer/dashboard')}>

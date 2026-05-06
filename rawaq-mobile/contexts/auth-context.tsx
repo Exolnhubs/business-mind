@@ -24,12 +24,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
 
-  async function fetchProfile(userId: string) {
+  async function fetchProfile(userId: string): Promise<Profile | null> {
     try {
-      const { data } = await supabase.from('profiles').select('*').eq('id', userId).single()
-      setProfile(data)
+      const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle()
+      if (error) {
+        setProfile(null)
+        return null
+      }
+      setProfile(data ?? null)
+      return data ?? null
     } catch {
       setProfile(null)
+      return null
     }
   }
 
@@ -49,7 +55,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       setSession(session)
       setUser(session?.user ?? null)
-      if (session?.user) fetchProfile(session.user.id)
+      if (session?.user) await fetchProfile(session.user.id)
+      else setProfile(null)
       setLoading(false)
     }).catch(async () => {
       apiInvalidateAll()
@@ -57,7 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false)
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    async function handleAuthStateChange(event: string, session: Session | null) {
       if (event === 'TOKEN_REFRESHED' && !session) {
         apiInvalidateAll()
         supabase.auth.signOut()
@@ -68,7 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       setSession(session)
       setUser(session?.user ?? null)
-      if (session?.user) fetchProfile(session.user.id)
+      if (session?.user) await fetchProfile(session.user.id)
       else setProfile(null)
       setLoading(false)
 
@@ -80,6 +87,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           apiPost('/api/referral/claim', { code }).catch(() => {})
         }).catch(() => {})
       }
+    }
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      void handleAuthStateChange(event, session)
     })
 
     return () => subscription.unsubscribe()

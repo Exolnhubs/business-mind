@@ -314,17 +314,28 @@ export function AnimatedSplash({ onFinish }: AnimatedSplashProps) {
       }),
     ]).start()
 
+    let fadeFallback: ReturnType<typeof setTimeout> | null = null
+    let didFinish = false
+
+    function finishOnce() {
+      if (didFinish) return
+      didFinish = true
+      onFinish()
+    }
+
     const timer = setTimeout(() => {
       Animated.timing(screenOpacity, {
         toValue: 0,
         duration: 420,
         easing: Easing.in(Easing.quad),
         useNativeDriver: true,
-      }).start(onFinish)
+      }).start(finishOnce)
+      fadeFallback = setTimeout(finishOnce, 700)
     }, EXIT_DELAY_MS)
 
     return () => {
       clearTimeout(timer)
+      if (fadeFallback) clearTimeout(fadeFallback)
       loops.forEach((loop) => loop.stop())
     }
   }, [bgPulse, dotPulses, dotsReveal, flash, floaterPulses, hero, logo, onFinish, screenOpacity, shatter])

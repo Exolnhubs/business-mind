@@ -115,17 +115,14 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     }
 
     if (user && !inAuthGroup && !inOnboarding) {
-      // Wait for profile to load before deciding on onboarding
-      if (profile === null) return
-      if (!profile.gender) {
+      if (!profile?.gender) {
         router.replace('/onboarding')
         return
       }
     }
 
     if (user && inAuthGroup) {
-      if (profile === null) return
-      if (!profile.gender) {
+      if (!profile?.gender) {
         router.replace('/onboarding')
       } else {
         router.replace('/(tabs)/home')
