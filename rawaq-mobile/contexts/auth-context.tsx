@@ -10,6 +10,8 @@ const REFERRAL_STORAGE_KEY = 'rawaq_referral_code'
 interface AuthContextValue {
   user: User | null
   profile: Profile | null
+  profileError: string | null
+  profileLoading: boolean
   session: Session | null
   loading: boolean
   signOut: () => Promise<void>
@@ -21,21 +23,29 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser]       = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
+  const [profileError, setProfileError] = useState<string | null>(null)
+  const [profileLoading, setProfileLoading] = useState(false)
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
 
   async function fetchProfile(userId: string): Promise<Profile | null> {
+    setProfileLoading(true)
+    setProfileError(null)
     try {
       const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle()
       if (error) {
+        setProfileError(error.message)
         setProfile(null)
         return null
       }
       setProfile(data ?? null)
       return data ?? null
-    } catch {
+    } catch (error) {
+      setProfileError(error instanceof Error ? error.message : 'Could not load profile')
       setProfile(null)
       return null
+    } finally {
+      setProfileLoading(false)
     }
   }
 
@@ -56,7 +66,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(session)
       setUser(session?.user ?? null)
       if (session?.user) await fetchProfile(session.user.id)
-      else setProfile(null)
+      else {
+        setProfile(null)
+        setProfileError(null)
+        setProfileLoading(false)
+      }
       setLoading(false)
     }).catch(async () => {
       apiInvalidateAll()
@@ -76,7 +90,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(session)
       setUser(session?.user ?? null)
       if (session?.user) await fetchProfile(session.user.id)
-      else setProfile(null)
+      else {
+        setProfile(null)
+        setProfileError(null)
+        setProfileLoading(false)
+      }
       setLoading(false)
 
       // On first sign-in, check if a referral code was saved from a deep link
@@ -99,7 +117,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider value={{
-      user, profile, session, loading,
+      user, profile, profileError, profileLoading, session, loading,
       signOut: async () => {
         apiInvalidateAll()
         await supabase.auth.signOut()

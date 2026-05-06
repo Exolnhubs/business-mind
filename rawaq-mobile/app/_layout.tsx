@@ -100,7 +100,7 @@ function captureReferralFromUrl(url: string) {
 }
 
 function AuthGate({ children }: { children: React.ReactNode }) {
-  const { user, profile, loading } = useAuth()
+  const { user, profile, profileError, profileLoading, loading } = useAuth()
   const segments = useSegments()
   const router = useRouter()
 
@@ -115,21 +115,29 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       return
     }
 
+    if (user && profileLoading) return
+
+    if (user && !profile && profileError) {
+      console.warn('[auth-gate] profile unavailable; staying on current route', profileError)
+      return
+    }
+
     if (user && !inAuthGroup && !inOnboarding) {
-      if (!profile?.gender) {
+      if (profile && !profile.gender) {
         router.replace('/onboarding')
         return
       }
     }
 
     if (user && inAuthGroup) {
-      if (!profile?.gender) {
+      if (!profile) return
+      if (!profile.gender) {
         router.replace('/onboarding')
       } else {
         router.replace('/(tabs)/home')
       }
     }
-  }, [user, profile, loading, segments])
+  }, [user, profile, profileError, profileLoading, loading, segments])
 
   useEffect(() => {
     if (!loading) SplashScreen.hideAsync()
