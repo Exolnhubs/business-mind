@@ -16,6 +16,7 @@ import { LocaleProvider } from '@/contexts/locale-context'
 import { NotificationProvider } from '@/contexts/notification-context'
 import { NavigationLoaderProvider, useNavigationLoader } from '@/contexts/navigation-loader-context'
 import { AnimatedSplash } from '@/components/ui/AnimatedSplash'
+import { EasUpdateGate } from '@/components/system/EasUpdateGate'
 import { ErrorToastHost } from '@/components/feedback/ErrorToast'
 import { supabase } from '@/lib/supabase'
 
@@ -212,6 +213,7 @@ export default function RootLayout() {
         <AuthProvider>
           <NotificationProvider>
             <NavigationLoaderProvider>
+              <EasUpdateGate />
               <AuthGate>
                 <AppNavigator
                   splashDone={splashDone}
