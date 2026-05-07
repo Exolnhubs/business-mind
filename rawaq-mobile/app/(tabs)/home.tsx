@@ -16,7 +16,7 @@ type Segment = 'explore' | 'foryou'
 const FAB_SIZE = 64
 const FAB_RADIUS = 22
 const FAB_COLOR = '#E8720F'
-const REST_RIGHT = -40   // peeking off-screen
+const REST_RIGHT = -26   // peeking off-screen — dots visible at screen edge
 const SNAP_RIGHT = 16    // fully on-screen
 const SNAP_THRESHOLD = -16 // drag crosses this → snap to expanded
 
