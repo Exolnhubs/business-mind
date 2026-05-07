@@ -362,6 +362,7 @@ export default function CommunitiesPage() {
         if (p === 1) {
           setCommunities(incoming)
           if (!q.trim() && lvl === 'all' && !memberOnly) {
+            // Seed the "popular" rail from the first unfiltered page
             setSuggested(incoming.filter((c) => !c.is_member).slice(0, 6))
           }
         } else {
@@ -372,7 +373,7 @@ export default function CommunitiesPage() {
       } catch (err) {
         console.error(err)
         if (controller.signal.aborted) return
-        if (p === 1) { setCommunities([]); setHasMore(false) }
+        if (p === 1) { setCommunities([]); setSuggested([]); setHasMore(false) }
       } finally {
         if (latestRef.current === rid) setLoading(false)
       }
