@@ -69,6 +69,10 @@
         {
             "path": "/api/cron/cancel-pending-bookings",
             "schedule": "0 2 * * *"
+        },
+        {
+            "path": "/api/cron/keep-warm",
+            "schedule": "*/10 * * * *"
         }
     ]
 }
