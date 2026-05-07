@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
   ActivityIndicator, Alert, TextInput, Image, Modal, Platform, Linking, KeyboardAvoidingView,
@@ -93,10 +93,11 @@ export default function EventDetailScreen() {
   const [eventCommunities, setEventCommunities] = useState<Array<Pick<Community, 'id' | 'name' | 'name_ar' | 'slug' | 'level'>>>([])
   const [groupSize, setGroupSize]   = useState(1)
   const [holders, setHolders]       = useState<{ full_name: string; date_of_birth: string; relation: string }[]>([])
+  const hasLoadedOnce = useRef(false)
 
-  const loadEventDetails = useCallback(async (isActive?: () => boolean) => {
+  const loadEventDetails = useCallback(async (isActive?: () => boolean, opts?: { skipLoadingIndicator?: boolean }) => {
     if (!id) return
-    setLoading(true)
+    if (!opts?.skipLoadingIndicator) setLoading(true)
 
     const [{ data: ev }, { data: cmts }, { data: bookingRows }, { data: waitlistRows }, { data: tts }, { data: eventCommunityRows }] = await Promise.all([
       supabase
@@ -196,13 +197,16 @@ export default function EventDetailScreen() {
       setEventCommunities([])
     }
 
+    hasLoadedOnce.current = true
     setLoading(false)
   }, [id, user])
 
   useFocusEffect(
     useCallback(() => {
       let active = true
-      void loadEventDetails(() => active)
+      // On re-focus (e.g. back-navigation), skip the loading indicator so the user
+      // sees the existing data immediately while the refresh runs silently.
+      void loadEventDetails(() => active, { skipLoadingIndicator: hasLoadedOnce.current })
       return () => {
         active = false
       }
