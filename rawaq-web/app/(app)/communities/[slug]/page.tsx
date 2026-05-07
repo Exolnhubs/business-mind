@@ -67,30 +67,30 @@ type ChildCommunityItem = Community & {
   member_status: 'active' | 'timed_out' | 'removed' | 'banned' | null
 }
 const LEVEL_ICONS: Record<CommunityLevel, string> = {
-  micro:    '🏘️',
+  micro: '🏘️',
   interest: '🎯',
   district: '🏙️',
-  city:     '🌆',
-  country:  '🌍',
+  city: '🌆',
+  country: '🌍',
 }
 
 export default function CommunityDetailPage() {
-  const { slug }   = useParams<{ slug: string }>()
-  const { user, profile }   = useAuth()
-  const router     = useRouter()
+  const { slug } = useParams<{ slug: string }>()
+  const { user, profile } = useAuth()
+  const router = useRouter()
   const cacheScopeKey = user?.id ?? null
 
   const [community, setCommunity] = useState<CommunityDetail | null>(null)
-  const [loading, setLoading]     = useState(true)
-  const [joining, setJoining]     = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [joining, setJoining] = useState(false)
   const [following, setFollowing] = useState(false)
-  const [events, setEvents]       = useState<Event[]>([])
+  const [events, setEvents] = useState<Event[]>([])
   const [eventsLoading, setEventsLoading] = useState(false)
-  const [nextCursor, setNextCursor]       = useState<string | null>(null)
+  const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [children, setChildren] = useState<ChildCommunityItem[]>([])
   const [childrenLoading, setChildrenLoading] = useState(false)
   const [childJoiningSlug, setChildJoiningSlug] = useState<string | null>(null)
-  const [showPostForm, setShowPostForm]   = useState(false)
+  const [showPostForm, setShowPostForm] = useState(false)
   const [admins, setAdmins] = useState<CommunityAdminEntry[]>([])
   const [adminsLoading, setAdminsLoading] = useState(false)
   const [reports, setReports] = useState<HappeningReportEntry[]>([])
@@ -291,12 +291,12 @@ export default function CommunityDetailPage() {
       setCommunity((prev) =>
         prev
           ? {
-              ...prev,
-              is_member: json.data?.is_member ?? !prev.is_member,
-              member_role: json.data?.member_role ?? (json.data?.is_member ? prev.member_role : null),
-              member_status: json.data?.is_member ? (json.data?.member_status ?? prev.member_status ?? 'active') : null,
-              member_count: json.data?.member_count ?? (!prev.is_member ? prev.member_count + 1 : Math.max(prev.member_count - 1, 0)),
-            }
+            ...prev,
+            is_member: json.data?.is_member ?? !prev.is_member,
+            member_role: json.data?.member_role ?? (json.data?.is_member ? prev.member_role : null),
+            member_status: json.data?.is_member ? (json.data?.member_status ?? prev.member_status ?? 'active') : null,
+            member_count: json.data?.member_count ?? (!prev.is_member ? prev.member_count + 1 : Math.max(prev.member_count - 1, 0)),
+          }
           : prev
       )
       if (json.data?.message) {
@@ -345,18 +345,18 @@ export default function CommunityDetailPage() {
       const json = child.is_member
         ? await clientDeleteJson<{ data?: MembershipMutationResponse }>(endpoint)
         : await clientPostJson<{ data?: MembershipMutationResponse }>(endpoint, {})
-        clientFetchInvalidate('/api/communities')
-        setChildren((prev) => prev.map((entry) =>
-          entry.id === child.id
-            ? {
-                ...entry,
-                is_member: json.data?.is_member ?? !entry.is_member,
-                member_role: json.data?.member_role ?? (json.data?.is_member ? entry.member_role : null),
-                member_status: json.data?.is_member ? (json.data?.member_status ?? entry.member_status ?? 'active') : null,
-                member_count: json.data?.member_count ?? (!entry.is_member ? entry.member_count + 1 : Math.max(entry.member_count - 1, 0)),
-              }
-            : entry
-        ))
+      clientFetchInvalidate('/api/communities')
+      setChildren((prev) => prev.map((entry) =>
+        entry.id === child.id
+          ? {
+            ...entry,
+            is_member: json.data?.is_member ?? !entry.is_member,
+            member_role: json.data?.member_role ?? (json.data?.is_member ? entry.member_role : null),
+            member_status: json.data?.is_member ? (json.data?.member_status ?? entry.member_status ?? 'active') : null,
+            member_count: json.data?.member_count ?? (!entry.is_member ? entry.member_count + 1 : Math.max(entry.member_count - 1, 0)),
+          }
+          : entry
+      ))
     } catch (error) {
       if (!isToastHandledError(error)) {
         window.alert(error instanceof Error ? error.message : 'Membership update failed')
@@ -598,21 +598,6 @@ export default function CommunityDetailPage() {
       })
     } finally {
       setHistoryLoading(false)
-    }
-  }
-
-  function auditActionLabel(action: string) {
-    switch (action) {
-      case 'assign_community_admin': return 'Assigned community admin'
-      case 'revoke_community_admin': return 'Revoked community admin'
-      case 'resolve_happening_report': return 'Resolved happening report'
-      case 'dismiss_happening_report': return 'Dismissed happening report'
-      case 'warn_member': return 'Warned member'
-      case 'timeout_member': return 'Timed out member'
-      case 'remove_member': return 'Removed member'
-      case 'ban_member': return 'Banned member'
-      case 'revoke_sanction': return 'Revoked sanction'
-      default: return action
     }
   }
 
@@ -1090,11 +1075,10 @@ export default function CommunityDetailPage() {
                     <button
                       onClick={() => toggleChildMembership(child)}
                       disabled={childJoiningSlug === child.slug}
-                      className={`shrink-0 rounded-lg px-2.5 py-1 text-[11px] font-semibold cursor-pointer ${
-                        child.is_member
+                      className={`shrink-0 rounded-lg px-2.5 py-1 text-[11px] font-semibold cursor-pointer ${child.is_member
                           ? 'border border-emerald-200 bg-emerald-50 text-emerald-700'
                           : 'bg-brand-600 text-white'
-                      }`}>
+                        }`}>
                       {childJoiningSlug === child.slug ? '...' : child.is_member ? 'Joined' : 'Join'}
                     </button>
                   </div>
