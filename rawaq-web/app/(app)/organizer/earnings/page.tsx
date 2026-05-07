@@ -27,6 +27,7 @@ const REASON_LABELS: Record<string, string> = {
   refund_deducted: '↩️ Refund deducted',
   payout: '🏦 Payout',
   adjustment: '⚙️ Adjustment',
+  hold_released: '✅ Hold released',
 }
 
 export default function EarningsPage() {
@@ -169,7 +170,7 @@ export default function EarningsPage() {
       await loadEarnings(true)
       setPayoutMsg({
         ok: true,
-        text: `✓ Withdrawal of ${formatCurrency(parseFloat(payoutAmount))} requested. Processing in 1-3 business days.`,
+        text: `✓ Withdrawal of ${formatWalletCurrency(parseFloat(payoutAmount))} requested. Processing in 1-3 business days.`,
       })
       setPayoutAmount('')
       setShowPayoutForm(false)
@@ -186,6 +187,8 @@ export default function EarningsPage() {
   const balance = wallet?.balance ?? 0
   const pendingAmount = pendingPayout?.amount ?? 0
   const availableToWithdraw = Math.max(0, balance - pendingAmount)
+  const walletCurrency = wallet?.currency ?? 'SAR'
+  const formatWalletCurrency = (amount: number) => formatCurrency(amount, walletCurrency)
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 space-y-6">
@@ -198,20 +201,28 @@ export default function EarningsPage() {
       </div>
 
       {/* Wallet summary */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="card p-5 bg-brand-50 border border-brand-200">
           <div className="text-2xl mb-1">💰</div>
-          <div className="text-2xl font-bold text-brand-700">{formatCurrency(availableToWithdraw)}</div>
+          <div className="text-2xl font-bold text-brand-700">{formatWalletCurrency(availableToWithdraw)}</div>
           <div className="text-xs text-gray-500 mt-0.5">Available to Withdraw</div>
           {pendingAmount > 0 && (
             <div className="text-xs text-amber-600 mt-1">
-              🔒 {formatCurrency(pendingAmount)} pending withdrawal
+              🔒 {formatWalletCurrency(pendingAmount)} pending withdrawal
             </div>
           )}
         </div>
+        {(wallet?.held_balance ?? 0) > 0 && (
+          <div className="card p-5 bg-amber-50 border border-amber-200">
+            <div className="text-2xl mb-1">🔒</div>
+            <div className="text-2xl font-bold text-amber-700">{formatWalletCurrency(wallet?.held_balance ?? 0)}</div>
+            <div className="text-xs text-gray-500 mt-0.5">Held (releases progressively)</div>
+          </div>
+        )}
+
         {[
-          { label: 'Total Earned', value: formatCurrency(wallet?.total_earned ?? 0), icon: '📈' },
-          { label: 'Total Withdrawn', value: formatCurrency(wallet?.total_withdrawn ?? 0), icon: '🏦' },
+          { label: 'Total Earned', value: formatWalletCurrency(wallet?.total_earned ?? 0), icon: '📈' },
+          { label: 'Total Withdrawn', value: formatWalletCurrency(wallet?.total_withdrawn ?? 0), icon: '🏦' },
         ].map((s) => (
           <div key={s.label} className="card p-5">
             <div className="text-2xl mb-1">{s.icon}</div>
@@ -419,7 +430,7 @@ export default function EarningsPage() {
       {pendingPayout && (
         <div className="card p-4 bg-amber-50 border border-amber-200">
           <p className="text-sm text-amber-800">
-            ⏳ Payout of <strong>{formatCurrency(pendingPayout.amount)}</strong> is currently being processed.
+            ⏳ Payout of <strong>{formatWalletCurrency(pendingPayout.amount)}</strong> is currently being processed.
           </p>
         </div>
       )}
@@ -459,10 +470,10 @@ export default function EarningsPage() {
                     </td>
                     <td className={`px-4 py-3 text-end font-semibold ${entry.type === 'credit' ? 'text-green-600' : 'text-red-500'
                       }`}>
-                      {entry.type === 'credit' ? '+' : '-'}{formatCurrency(entry.amount)}
+                      {entry.type === 'credit' ? '+' : '-'}{formatWalletCurrency(entry.amount)}
                     </td>
                     <td className="px-4 py-3 text-end text-gray-500 hidden sm:table-cell">
-                      {formatCurrency(entry.balance_after)}
+                      {formatWalletCurrency(entry.balance_after)}
                     </td>
                     <td className="px-4 py-3 text-end text-gray-400 hidden md:table-cell">
                       {new Date(entry.created_at).toLocaleDateString()}
@@ -492,7 +503,7 @@ export default function EarningsPage() {
               <tbody className="divide-y divide-gray-50">
                 {payouts.map((p) => (
                   <tr key={p.id} className="hover:bg-gray-50/50">
-                    <td className="px-4 py-3 font-semibold text-gray-900">{formatCurrency(p.amount)}</td>
+                    <td className="px-4 py-3 font-semibold text-gray-900">{formatWalletCurrency(p.amount)}</td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${p.status === 'completed' ? 'bg-green-100 text-green-700' :
                           p.status === 'pending' ? 'bg-amber-100 text-amber-700' :
