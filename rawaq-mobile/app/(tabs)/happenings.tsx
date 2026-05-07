@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, FlatList, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { apiDelete, apiGet, apiPost } from '@/lib/api'
@@ -59,6 +59,7 @@ export default function SceneTab() {
   const [activeCommunities, setActiveCommunities] = useState<ActiveCommunity[]>([])
   const [selectedHappening, setSelectedHappening] = useState<HappeningDiscoveryItem | null>(null)
   const [selectedParticipants, setSelectedParticipants] = useState<HappeningDiscoveryItem | null>(null)
+  const hasLoadedOnce = useRef(false)
 
   const visibleItems = useMemo<SceneListItem[]>(() => (
     activeTab === 'sessions'
@@ -71,7 +72,7 @@ export default function SceneTab() {
   }, [])
 
   const load = useCallback(async (force = false) => {
-    setLoading(true)
+    if (!hasLoadedOnce.current) setLoading(true)
     const [{ data: happeningsData }, { data: activeData }] = await Promise.all([
       apiGet<{ happenings: HappeningDiscoveryItem[] }>('/api/happenings/discover?limit=20', { force }),
       apiGet<{ communities: ActiveCommunity[] }>('/api/happenings/active?limit=10', { force }),
@@ -84,6 +85,7 @@ export default function SceneTab() {
       setSessions([])
       setHappenings(nextHappenings)
       setActiveCommunities(nextCommunities)
+      hasLoadedOnce.current = true
       setLoading(false)
       setRefreshing(false)
       return
@@ -109,6 +111,7 @@ export default function SceneTab() {
     setSessions(nextSessions)
     setHappenings(nextHappenings)
     setActiveCommunities(nextCommunities)
+    hasLoadedOnce.current = true
     setLoading(false)
     setRefreshing(false)
   }, [user])
