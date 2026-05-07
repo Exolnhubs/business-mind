@@ -108,7 +108,8 @@ export type WalletLedgerReason =
   | "ticket_sale"
   | "refund_deducted"
   | "payout"
-  | "adjustment";
+  | "adjustment"
+  | "hold_released";
 export type WaitlistStatus = "waiting" | "promoted" | "expired" | "cancelled";
 export type PayoutStatus = "pending" | "processing" | "completed" | "failed";
 export type RefundStatus = "pending" | "approved" | "rejected" | "completed";
@@ -396,6 +397,7 @@ export interface PaymentTransaction {
 export interface OrganizerWallet {
   organizer_id: string;
   balance: number;
+  held_balance: number;
   total_earned: number;
   total_withdrawn: number;
   currency: string;
@@ -851,10 +853,21 @@ export interface BookingWithEvent extends Booking {
 export interface OrganizerWalletRow {
   organizer_id: string;
   balance: number;
+  held_balance: number;
   total_earned: number;
   total_withdrawn: number;
   currency: string;
   updated_at: string;
+}
+
+export interface RevenueHold {
+  id: string;
+  organizer_id: string;
+  payment_transaction_id: string;
+  amount: number;
+  held_until: string;
+  released_at: string | null;
+  created_at: string;
 }
 
 export interface OrganizerBankAccount {
@@ -1219,6 +1232,12 @@ export type Database = {
         Row: R<OrganizerWalletRow>;
         Insert: R<OrganizerWalletRow>;
         Update: R<Partial<OrganizerWalletRow>>;
+        Relationships: [];
+      };
+      revenue_holds: {
+        Row: R<RevenueHold>;
+        Insert: R<Omit<RevenueHold, "id" | "created_at">>;
+        Update: R<Partial<RevenueHold>>;
         Relationships: [];
       };
       organizer_bank_accounts: {
