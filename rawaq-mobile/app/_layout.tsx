@@ -211,8 +211,18 @@ export default function RootLayout() {
   const [splashDone, setSplashDone] = useState(false)
   const handleSplashDone = useCallback(() => setSplashDone(true), [])
 
+  // Prefetch the primary data for every tab so the cache is warm before the
+  // user taps away from home. All calls are silent (no error toasts) and
+  // use a 5-minute TTL that matches the server-side cache.
   useEffect(() => {
-    void apiGet('/api/events/featured', { ttlMs: 300_000 })
+    const TTL = 300_000
+    const opts = { ttlMs: TTL, silent: true }
+    void apiGet('/api/events/featured', opts)
+    void apiGet('/api/events', opts)
+    void apiGet('/api/happenings/discover?limit=20', opts)
+    void apiGet('/api/happenings/active?limit=10', opts)
+    void apiGet('/api/communities?per_page=15', opts)
+    void apiGet('/api/organizer/request', opts)
   }, [])
 
   return (
