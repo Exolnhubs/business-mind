@@ -1,12 +1,11 @@
 import { NextRequest } from 'next/server'
 import { revalidateTag } from 'next/cache'
-import { Redis } from '@upstash/redis'
+import { redis } from '@/lib/redis'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { requireOrganizer, requireEventOwnership } from '@/lib/auth'
 import { handleApiError, ok, ForbiddenException, NotFoundException } from '@/lib/errors'
 import { getOrganizerPlanAccess, getFeaturedPerMonth } from '@/lib/plans'
 
-const redis = Redis.fromEnv()
 const FEATURED_CACHE_KEY = 'events:featured'
 
 export async function POST(

@@ -1,11 +1,9 @@
 import { NextRequest } from 'next/server'
-import { Redis } from '@upstash/redis'
+import { redis } from '@/lib/redis'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireAuth } from '@/lib/auth'
 import { handleApiError, ok, BadRequestException, RateLimitException } from '@/lib/errors'
 import { sendNotification } from '@/lib/notifications'
-
-const redis = Redis.fromEnv()
 
 // POST /api/users/:id/say-hi — rate limited to 1 per viewer per target per 24h
 export async function POST(

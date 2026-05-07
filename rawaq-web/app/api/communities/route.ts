@@ -8,9 +8,7 @@ import { writeCommunityAuditLog } from '@/lib/community-governance'
 import { generateCommunitySlug } from '@/lib/community-slug'
 import type { CommunityApprovalStatus } from '@/types/database'
 import { z } from 'zod'
-import { Redis } from '@upstash/redis'
-
-const redis = Redis.fromEnv()
+import { redis } from '@/lib/redis'
 const COMMUNITY_CACHE_TTL = 300 // 5 minutes
 
 const COMMUNITY_LEVELS = ['micro', 'interest', 'district', 'city', 'country'] as const

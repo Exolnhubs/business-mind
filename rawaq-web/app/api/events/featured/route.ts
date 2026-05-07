@@ -1,10 +1,9 @@
 import { NextRequest } from 'next/server'
-import { Redis } from '@upstash/redis'
+import { redis } from '@/lib/redis'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { handleApiError, ok } from '@/lib/errors'
 import { applyResolvedEventWindow, hasResolvedEventEnded } from '@/lib/events/recurrence'
 
-const redis = Redis.fromEnv()
 const CACHE_TTL_SECONDS = 300 // 5 minutes
 const FEATURED_CACHE_KEY = 'events:featured'
 

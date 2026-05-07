@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { Redis } from '@upstash/redis'
+import { redis } from '@/lib/redis'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireOrganizer, optionalAuth } from '@/lib/auth'
@@ -11,7 +11,6 @@ import { sendNotifications } from '@/lib/notifications'
 import { applyResolvedEventWindow, compareEventsByResolvedStartAt } from '@/lib/events/recurrence'
 import { ensureEventOccurrences } from '@/lib/events/occurrences'
 
-const redis = Redis.fromEnv()
 const EVENT_CACHE_TTL = 60 // 60 seconds
 
 type OrganizerType = 'company' | 'individual'
