@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   RefreshControl, ActivityIndicator,
@@ -167,11 +167,12 @@ export default function NotificationsScreen() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [loading, setLoading]             = useState(true)
   const [refreshing, setRefreshing]       = useState(false)
+  const hasLoadedOnce = useRef(false)
 
   async function load(isRefresh = false) {
     if (!user) return
     if (isRefresh) setRefreshing(true)
-    else           setLoading(true)
+    else if (!hasLoadedOnce.current) setLoading(true)
 
     const { data } = await supabase
       .from('notifications')
@@ -192,6 +193,7 @@ export default function NotificationsScreen() {
       resetUnread()
     }
 
+    hasLoadedOnce.current = true
     if (isRefresh) setRefreshing(false)
     else           setLoading(false)
   }
