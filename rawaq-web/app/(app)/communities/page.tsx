@@ -337,15 +337,6 @@ export default function CommunitiesPage() {
       .catch(() => {})
   }, [cacheScopeKey, user])
 
-  useEffect(() => {
-    clientGetJson<{ data: { data: CommunityWithMembership[] } }>(
-      '/api/communities?per_page=8',
-      { ttlMs: 120_000, scopeKey: cacheScopeKey },
-    )
-      .then((r) => setSuggested((r.data.data ?? []).filter((c) => !c.is_member).slice(0, 6)))
-      .catch(() => {})
-  }, [cacheScopeKey])
-
   // ── Fetch communities (real API, debounced) ────────────────
   const fetchCommunities = useCallback(
     async (p: number, lvl: CommunityLevel | 'all', q: string, memberOnly = false) => {
@@ -367,7 +358,15 @@ export default function CommunitiesPage() {
           ttlMs: 45_000, scopeKey: cacheScopeKey, signal: controller.signal,
         })
         if (latestRef.current !== rid) return
-        setCommunities((prev) => p === 1 ? json.data.data : [...prev, ...json.data.data])
+        const incoming = json.data.data
+        if (p === 1) {
+          setCommunities(incoming)
+          if (!q.trim() && lvl === 'all' && !memberOnly) {
+            setSuggested(incoming.filter((c) => !c.is_member).slice(0, 6))
+          }
+        } else {
+          setCommunities((prev) => [...prev, ...incoming])
+        }
         setHasMore(json.data.has_more)
         setPage(p)
       } catch (err) {
