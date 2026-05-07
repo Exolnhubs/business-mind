@@ -259,6 +259,7 @@ async function EventsGrid({
   const allEvents = await getCachedEventsGrid(
     { q, category, city, community, gender, free, family, hot, lat, lng, radius_km },
   )
+  // getCachedEventsGrid no longer takes excludeIds — exclusion happens after the cache hit
   const excludeSet = new Set(excludeIds)
   const resolved = excludeIds.length > 0
     ? allEvents.filter((e) => !excludeSet.has(e.id))
