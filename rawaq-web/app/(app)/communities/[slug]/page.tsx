@@ -217,9 +217,8 @@ export default function CommunityDetailPage() {
   }, [cacheScopeKey, slug])
 
   useEffect(() => {
-    if (community) void loadEvents()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [community?.id, loadEvents])
+    void loadEvents()
+  }, [loadEvents])
 
   const loadChildren = useCallback(async (force = false) => {
     setChildrenLoading(true)
@@ -237,9 +236,8 @@ export default function CommunityDetailPage() {
   }, [cacheScopeKey, slug])
 
   useEffect(() => {
-    if (community) void loadChildren()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [community?.id, loadChildren])
+    void loadChildren()
+  }, [loadChildren])
 
   useEffect(() => {
     if (!community) return
