@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import dynamic from 'next/dynamic'
 import { SafeImage } from '@/components/ui/SafeImage'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/auth-context'
@@ -22,6 +23,19 @@ import {
 } from '@/lib/client-fetch'
 import { formatDate } from '@/lib/utils'
 import type { Community, CommunityLevel, CommunityRole, Event } from '@/types/database'
+import type {
+  CommunityAdminEntry,
+  HappeningReportEntry,
+  CommunityAuditLogEntry,
+  CommunityWarningEntry,
+  CommunitySanctionEntry,
+  MemberHistoryState,
+} from '@/types/community-moderation'
+
+const CommunityModerationPanel = dynamic(
+  () => import('@/components/communities/CommunityModerationPanel').then((m) => ({ default: m.CommunityModerationPanel })),
+  { ssr: false, loading: () => null },
+)
 
 type CommunityDetail = Community & {
   is_member: boolean
@@ -44,12 +58,6 @@ type MembershipMutationResponse = {
   member_status?: 'active' | 'timed_out' | 'removed' | 'banned' | null
   message?: string
 }
-type CommunityAdminEntry = {
-  user_id: string
-  role: CommunityRole
-  joined_at: string
-  profile: { id: string; display_name: string; avatar_url: string | null } | null
-}
 type FollowMutationResponse = {
   is_following?: boolean
 }
@@ -58,50 +66,6 @@ type ChildCommunityItem = Community & {
   member_role: CommunityRole | null
   member_status: 'active' | 'timed_out' | 'removed' | 'banned' | null
 }
-type HappeningReportEntry = {
-  happening_id: string
-  reporter_id: string
-  reason: string
-  details: string | null
-  status: 'pending' | 'resolved' | 'dismissed'
-  assigned_to: string | null
-  resolved_by: string | null
-  resolved_at: string | null
-  resolution_note: string | null
-  created_at: string
-  happening: { id: string; body: string; author_id: string; created_at: string; author: { id: string; display_name: string; avatar_url: string | null } | null } | null
-  reporter: { id: string; display_name: string; avatar_url: string | null } | null
-  assignee: { id: string; display_name: string; avatar_url: string | null } | null
-  resolver: { id: string; display_name: string; avatar_url: string | null } | null
-}
-type CommunityAuditLogEntry = {
-  id: string
-  action: string
-  target_type: string
-  target_id: string
-  meta: Record<string, unknown>
-  created_at: string
-  actor_user_id: string
-  actor: { id: string; display_name: string; avatar_url: string | null } | null
-}
-type CommunityWarningEntry = {
-  id: string
-  severity: 'low' | 'medium' | 'high'
-  reason: string
-  internal_note: string | null
-  created_at: string
-}
-type CommunitySanctionEntry = {
-  id: string
-  sanction_type: 'timeout' | 'removed' | 'banned'
-  reason: string
-  starts_at: string
-  ends_at: string | null
-  revoked_at: string | null
-  revoke_note: string | null
-  created_at: string
-}
-
 const LEVEL_ICONS: Record<CommunityLevel, string> = {
   micro:    '🏘️',
   interest: '🎯',
@@ -144,11 +108,7 @@ export default function CommunityDetailPage() {
   })
   const [savingSettings, setSavingSettings] = useState(false)
   const [verifying, setVerifying] = useState(false)
-  const [selectedMemberHistory, setSelectedMemberHistory] = useState<{
-    member: CommunityDetail['recent_members'][number]
-    warnings: CommunityWarningEntry[]
-    sanctions: CommunitySanctionEntry[]
-  } | null>(null)
+  const [selectedMemberHistory, setSelectedMemberHistory] = useState<MemberHistoryState | null>(null)
   const [historyLoading, setHistoryLoading] = useState(false)
   const [memberActionLoading, setMemberActionLoading] = useState<string | null>(null)
   const [reportActionLoading, setReportActionLoading] = useState<string | null>(null)
@@ -1022,316 +982,35 @@ export default function CommunityDetailPage() {
             )}
           </div>
 
-          {/* ── MODERATION (owners & mods only, collapsible) ── */}
+          {/* Moderation (owners & mods only, loaded in its own client chunk) */}
           {(isCommunityOwner || canModerate) && (
-            <details className="group">
-              <summary className="flex cursor-pointer select-none list-none items-center gap-3 rounded-2xl border border-red-100 bg-red-50/40 px-5 py-4 hover:bg-red-50/60 transition-colors">
-                <span className="flex-1">
-                  <span className="text-base font-semibold text-gray-900">Moderation Tools</span>
-                  <span className="ml-2 text-xs text-gray-400">Members, reports, audit trail</span>
-                </span>
-                <svg className="h-5 w-5 text-gray-400 transition-transform duration-200 group-open:rotate-180"
-                  fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </summary>
-              <div className="mt-4 space-y-4">
-
-                {/* Member Management */}
-                <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h3 className="text-base font-semibold text-gray-900">Member Management</h3>
-                      <span className="text-xs text-gray-500">{community.member_count.toLocaleString()} members</span>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button onClick={exportMembersCsv}
-                        className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 cursor-pointer">
-                        Export CSV
-                      </button>
-                      {isCommunityOwner && community.timed_out_members.length > 0 && (
-                        <button onClick={removeAllTimedOutMembers} disabled={memberActionLoading === 'bulk-remove-timed-out'}
-                          className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 cursor-pointer">
-                          {memberActionLoading === 'bulk-remove-timed-out' ? 'Removing...' : 'Remove timed-out members'}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  {community.recent_members.length === 0 ? (
-                    <p className="text-sm text-gray-500">No members yet.</p>
-                  ) : (
-                    <div className="space-y-3">
-                      {community.recent_members.map((member) => (
-                        <div key={member.id} className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-brand-100 text-sm font-semibold text-brand-700">
-                            {member.avatar_url ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img src={member.avatar_url} alt="" loading="lazy" className="h-full w-full object-cover" />
-                            ) : (
-                              member.display_name.slice(0, 1).toUpperCase()
-                            )}
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium text-gray-900">{member.display_name}</p>
-                            <p className="text-xs text-gray-500">Joined {formatDate(member.joined_at)}</p>
-                            {admins.some((entry) => entry.user_id === member.id && entry.role === 'community_admin') && (
-                              <p className="text-[11px] font-semibold text-brand-600 mt-1">Community admin</p>
-                            )}
-                            {community.owner_user_id === member.id && (
-                              <p className="text-[11px] font-semibold text-amber-600 mt-1">Owner</p>
-                            )}
-                          </div>
-                          {canModerate && (
-                            <div className="ml-auto flex flex-wrap gap-2">
-                              {isCommunityOwner &&
-                                community.owner_user_id !== member.id &&
-                                !admins.some((entry) => entry.user_id === member.id && entry.role === 'owner') && (
-                                admins.some((entry) => entry.user_id === member.id && entry.role === 'community_admin') ? (
-                                  <button onClick={() => revokeCommunityAdmin(member.id)} disabled={memberActionLoading === `revoke-${member.id}`}
-                                    className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700 cursor-pointer">
-                                    Revoke admin
-                                  </button>
-                                ) : (
-                                  <button onClick={() => assignCommunityAdmin(member.id)} disabled={memberActionLoading === `assign-${member.id}`}
-                                    className="rounded-lg border border-brand-200 bg-brand-50 px-2.5 py-1 text-[11px] font-semibold text-brand-700 cursor-pointer">
-                                    Make admin
-                                  </button>
-                                )
-                              )}
-                              {community.owner_user_id !== member.id &&
-                                !admins.some((entry) => entry.user_id === member.id && entry.role === 'owner') &&
-                                member.id !== user?.id &&
-                                (isCommunityOwner || !admins.some((entry) => entry.user_id === member.id && entry.role === 'community_admin')) && (
-                                <>
-                                  <button onClick={() => issueWarning(member.id)} disabled={memberActionLoading === `warn-${member.id}`}
-                                    className="rounded-lg border border-yellow-200 bg-yellow-50 px-2.5 py-1 text-[11px] font-semibold text-yellow-700 cursor-pointer">
-                                    Warn
-                                  </button>
-                                  <button onClick={() => loadMemberHistory(member)} disabled={historyLoading && selectedMemberHistory?.member.id === member.id}
-                                    className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-700 cursor-pointer">
-                                    History
-                                  </button>
-                                  <button onClick={() => issueSanction(member.id, 'timeout')} disabled={memberActionLoading === `timeout-${member.id}`}
-                                    className="rounded-lg border border-orange-200 bg-orange-50 px-2.5 py-1 text-[11px] font-semibold text-orange-700 cursor-pointer">
-                                    Timeout
-                                  </button>
-                                  <button onClick={() => issueSanction(member.id, 'removed')} disabled={memberActionLoading === `removed-${member.id}`}
-                                    className="rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1 text-[11px] font-semibold text-gray-700 cursor-pointer">
-                                    Remove
-                                  </button>
-                                  <button onClick={() => issueSanction(member.id, 'banned')} disabled={memberActionLoading === `banned-${member.id}`}
-                                    className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] font-semibold text-red-700 cursor-pointer">
-                                    Ban
-                                  </button>
-                                </>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Moderation History */}
-                <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-5 shadow-sm">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h3 className="text-base font-semibold text-gray-900">Moderation History</h3>
-                      <p className="text-xs text-gray-500 mt-1">Warnings and sanctions for the selected member.</p>
-                    </div>
-                    {selectedMemberHistory && (
-                      <button onClick={() => setSelectedMemberHistory(null)}
-                        className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 cursor-pointer">
-                        Clear
-                      </button>
-                    )}
-                  </div>
-                  {historyLoading ? (
-                    <div className="flex justify-center py-8"><Spinner size="lg" /></div>
-                  ) : !selectedMemberHistory ? (
-                    <p className="text-sm text-gray-500">Choose a member and tap History to inspect moderation records.</p>
-                  ) : (
-                    <div className="space-y-4">
-                      <div>
-                        <p className="text-sm font-semibold text-gray-900">{selectedMemberHistory.member.display_name}</p>
-                        <p className="text-xs text-gray-500">Warnings: {selectedMemberHistory.warnings.length} · Sanctions: {selectedMemberHistory.sanctions.length}</p>
-                      </div>
-                      <div className="space-y-2">
-                        {selectedMemberHistory.warnings.map((warning) => (
-                          <div key={warning.id} className="rounded-xl border border-yellow-100 bg-yellow-50 px-4 py-3">
-                            <p className="text-xs font-semibold uppercase tracking-wide text-yellow-700">{warning.severity} warning</p>
-                            <p className="text-sm text-gray-800 mt-1">{warning.reason}</p>
-                            <p className="text-xs text-gray-500 mt-1">{formatDate(warning.created_at)}</p>
-                          </div>
-                        ))}
-                        {selectedMemberHistory.sanctions.map((sanction) => (
-                          <div key={sanction.id} className="rounded-xl border border-red-100 bg-red-50 px-4 py-3">
-                            <p className="text-xs font-semibold uppercase tracking-wide text-red-700">{sanction.sanction_type}</p>
-                            <p className="text-sm text-gray-800 mt-1">{sanction.reason}</p>
-                            <p className="text-xs text-gray-500 mt-1">
-                              Started {formatDate(sanction.starts_at)}
-                              {sanction.ends_at ? ` · Ends ${formatDate(sanction.ends_at)}` : ''}
-                              {sanction.revoked_at ? ` · Revoked ${formatDate(sanction.revoked_at)}` : ''}
-                            </p>
-                          </div>
-                        ))}
-                        {selectedMemberHistory.warnings.length === 0 && selectedMemberHistory.sanctions.length === 0 && (
-                          <p className="text-sm text-gray-500">No moderation history for this member yet.</p>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Timed-out Members */}
-                {community.timed_out_members.length > 0 && (
-                  <div className="rounded-2xl border border-orange-100 bg-orange-50 px-4 py-4">
-                    <div className="mb-3 flex items-center justify-between gap-3">
-                      <div>
-                        <h3 className="text-sm font-bold text-gray-900">Timed-out Members</h3>
-                        <p className="text-xs text-gray-500">These members are temporarily restricted.</p>
-                      </div>
-                      <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-orange-700">
-                        {community.timed_out_members.length}
-                      </span>
-                    </div>
-                    <div className="space-y-3">
-                      {community.timed_out_members.map((member) => (
-                        <div key={`timedout-${member.id}`} className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-orange-100 text-sm font-semibold text-orange-700">
-                            {member.avatar_url ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img src={member.avatar_url} alt="" loading="lazy" className="h-full w-full object-cover" />
-                            ) : (
-                              member.display_name.slice(0, 1).toUpperCase()
-                            )}
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium text-gray-900">{member.display_name}</p>
-                            <p className="text-xs text-gray-500">
-                              Timeout until {member.timeout_until ? formatDate(member.timeout_until) : 'unknown'}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Community Admins + Happening Reports */}
-                <div className="grid gap-4 md:grid-cols-2">
-                  {isCommunityOwner && (
-                    <div className="rounded-2xl border border-brand-100 bg-brand-50/60 p-5 shadow-sm">
-                      <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-base font-semibold text-gray-900">Community Admins</h3>
-                        <span className="text-xs font-semibold text-brand-700">{admins.length} roles</span>
-                      </div>
-                      {adminsLoading ? (
-                        <div className="flex justify-center py-8"><Spinner size="lg" /></div>
-                      ) : admins.length === 0 ? (
-                        <p className="text-sm text-gray-500">No community admins assigned yet.</p>
-                      ) : (
-                        <div className="space-y-3">
-                          {admins.map((entry) => (
-                            <div key={entry.user_id} className="rounded-xl border border-white/70 bg-white px-4 py-3">
-                              <div className="flex items-center justify-between gap-3">
-                                <div>
-                                  <p className="text-sm font-semibold text-gray-900">{entry.profile?.display_name ?? entry.user_id}</p>
-                                  <p className="text-xs text-gray-500">{entry.role} · joined {formatDate(entry.joined_at)}</p>
-                                </div>
-                                {entry.role === 'community_admin' && (
-                                  <button onClick={() => revokeCommunityAdmin(entry.user_id)} disabled={memberActionLoading === `revoke-${entry.user_id}`}
-                                    className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700 cursor-pointer">
-                                    Revoke
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {canModerate && (
-                    <div className="rounded-2xl border border-red-100 bg-red-50/50 p-5 shadow-sm">
-                      <div className="flex items-center justify-between mb-4">
-                        <div>
-                          <h3 className="text-base font-semibold text-gray-900">Happening Reports</h3>
-                          <p className="text-xs text-gray-500 mt-1">Community admins review these directly.</p>
-                        </div>
-                        <button onClick={() => void loadReports(true)} disabled={reportsLoading}
-                          className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 cursor-pointer">
-                          Refresh
-                        </button>
-                      </div>
-                      {reportsLoading ? (
-                        <div className="flex justify-center py-8"><Spinner size="lg" /></div>
-                      ) : reports.length === 0 ? (
-                        <p className="text-sm text-gray-500">No pending happening reports.</p>
-                      ) : (
-                        <div className="space-y-3">
-                          {reports.map((reportItem) => (
-                            <div key={`${reportItem.happening_id}:${reportItem.reporter_id}`}
-                              className="rounded-xl border border-white/70 bg-white px-4 py-3">
-                              <p className="text-sm font-semibold text-gray-900">{reportItem.reason}</p>
-                              <p className="text-xs text-gray-500 mt-1">Reporter: {reportItem.reporter?.display_name ?? reportItem.reporter_id}</p>
-                              {reportItem.happening && (
-                                <p className="text-xs text-gray-600 mt-2 line-clamp-2">{reportItem.happening.body}</p>
-                              )}
-                              {reportItem.details && <p className="text-xs text-gray-500 mt-2">{reportItem.details}</p>}
-                              <div className="mt-3 flex gap-2">
-                                <button onClick={() => updateReport(reportItem, 'resolved')}
-                                  disabled={reportActionLoading === `${reportItem.happening_id}:${reportItem.reporter_id}:resolved`}
-                                  className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 cursor-pointer">
-                                  Resolve
-                                </button>
-                                <button onClick={() => updateReport(reportItem, 'dismissed')}
-                                  disabled={reportActionLoading === `${reportItem.happening_id}:${reportItem.reporter_id}:dismissed`}
-                                  className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-700 cursor-pointer">
-                                  Dismiss
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Audit Trail */}
-                <div className="rounded-2xl border border-indigo-100 bg-indigo-50/50 p-5 shadow-sm">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h3 className="text-base font-semibold text-gray-900">Community Audit Trail</h3>
-                      <p className="text-xs text-gray-500 mt-1">Recent governance actions by owners and community admins.</p>
-                    </div>
-                    <button onClick={() => void loadAuditLogs(true)} disabled={auditLogsLoading}
-                      className="rounded-lg border border-indigo-200 bg-white px-3 py-1.5 text-xs font-semibold text-indigo-700 cursor-pointer">
-                      Refresh
-                    </button>
-                  </div>
-                  {auditLogsLoading ? (
-                    <div className="flex justify-center py-8"><Spinner size="lg" /></div>
-                  ) : auditLogs.length === 0 ? (
-                    <p className="text-sm text-gray-500">No governance actions recorded yet.</p>
-                  ) : (
-                    <div className="space-y-3">
-                      {auditLogs.map((log) => (
-                        <div key={log.id} className="rounded-xl border border-white/70 bg-white px-4 py-3">
-                          <p className="text-sm font-semibold text-gray-900">{auditActionLabel(log.action)}</p>
-                          <p className="text-xs text-gray-500 mt-1">
-                            {log.actor?.display_name ?? log.actor_user_id} · {formatDate(log.created_at)}
-                          </p>
-                          <p className="text-xs text-gray-500 mt-1">Target: {log.target_type}</p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </details>
+            <CommunityModerationPanel
+              community={community}
+              user={user}
+              admins={admins}
+              adminsLoading={adminsLoading}
+              reports={reports}
+              reportsLoading={reportsLoading}
+              auditLogs={auditLogs}
+              auditLogsLoading={auditLogsLoading}
+              memberActionLoading={memberActionLoading}
+              reportActionLoading={reportActionLoading}
+              selectedMemberHistory={selectedMemberHistory}
+              historyLoading={historyLoading}
+              isCommunityOwner={isCommunityOwner}
+              canModerate={canModerate}
+              onAssignAdmin={assignCommunityAdmin}
+              onRevokeAdmin={revokeCommunityAdmin}
+              onIssueWarning={issueWarning}
+              onIssueSanction={issueSanction}
+              onUpdateReport={updateReport}
+              onLoadMemberHistory={loadMemberHistory}
+              onExportCsv={exportMembersCsv}
+              onRemoveTimedOut={removeAllTimedOutMembers}
+              onRefreshReports={() => void loadReports(true)}
+              onRefreshAuditLogs={() => void loadAuditLogs(true)}
+              onClearMemberHistory={() => setSelectedMemberHistory(null)}
+            />
           )}
         </div>
 
