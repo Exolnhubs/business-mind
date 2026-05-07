@@ -256,10 +256,13 @@ async function EventsGrid({
 
   // Cached: pure public event data — no cookies, no auth
   const { q, category, city, community, gender, free, family, hot, lat, lng, radius_km } = searchParams
-  const resolved = await getCachedEventsGrid(
+  const allEvents = await getCachedEventsGrid(
     { q, category, city, community, gender, free, family, hot, lat, lng, radius_km },
-    excludeIds,
   )
+  const excludeSet = new Set(excludeIds)
+  const resolved = excludeIds.length > 0
+    ? allEvents.filter((e) => !excludeSet.has(e.id))
+    : allEvents
 
   // Auth + saved events: outside the cache, reads cookies
   const supabase = await createSupabaseServerClient()

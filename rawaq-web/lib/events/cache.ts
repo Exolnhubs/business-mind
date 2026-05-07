@@ -80,9 +80,12 @@ export const getCachedWeekendEvents = unstable_cache(
         .eq('is_published', true)
         .eq('is_cancelled', false)
         .eq('city', city)
+        .gte('start_at', weekendStart)
+        .lte('start_at', weekendEnd)
+        .order('start_at')
+        .limit(16)
       events = ((data ?? []) as unknown as EventWithOrganizer[])
         .map((e) => applyResolvedEventWindow(e))
-        .filter((e) => e.start_at >= weekendStart && e.start_at <= weekendEnd)
         .sort(compareEventsByResolvedStartAt)
         .slice(0, 8)
     }
@@ -110,10 +113,7 @@ export interface GridParams {
 }
 
 export const getCachedEventsGrid = unstable_cache(
-  async (
-    params: GridParams,
-    excludeIds: string[]
-  ): Promise<EventWithOrganizer[]> => {
+  async (params: GridParams): Promise<EventWithOrganizer[]> => {
     const supabase = createSupabaseCacheClient()
 
     let query = supabase
@@ -122,9 +122,6 @@ export const getCachedEventsGrid = unstable_cache(
       .eq('is_published', true)
       .eq('is_cancelled', false)
 
-    if (excludeIds.length > 0) {
-      query = query.not('id', 'in', `(${excludeIds.join(',')})`)
-    }
     if (params.q) {
       const q = params.q.replace(/'/g, "''")
       query = query.or(`title.ilike.%${q}%,title_ar.ilike.%${q}%,description.ilike.%${q}%`)
@@ -177,7 +174,7 @@ export const getCachedEventsGrid = unstable_cache(
       }
     }
 
-    const { data: events } = await query
+    const { data: events } = await query.limit(240)
 
     return ((events ?? []) as unknown as EventWithOrganizer[])
       .map((e) => applyResolvedEventWindow(e))
