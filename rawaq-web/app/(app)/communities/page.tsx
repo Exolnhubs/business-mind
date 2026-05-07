@@ -5,6 +5,7 @@ import type { CommunitiesClientProps } from './CommunitiesClient'
 // ── Server-side fetchers (cached, no auth, public data only) ─────────────────
 
 async function getServerBaseUrl(): Promise<string> {
+  if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL
   const h = await headers()
   const host = h.get('host') ?? 'localhost:3000'
   const proto = process.env.NODE_ENV === 'production' ? 'https' : 'http'

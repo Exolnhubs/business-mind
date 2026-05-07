@@ -310,7 +310,7 @@ export function CommunitiesClient({
 
   const cacheScopeKey = user?.id ?? null
   const [communities, setCommunities] = useState<CommunityWithMembership[]>(initialCommunities)
-  const [loading,      setLoading]    = useState(initialCommunities.length === 0)
+  const [loading,      setLoading]    = useState(false)
   const [level,        setLevel]      = useState<CommunityLevel | 'all'>('all')
   const [search,       setSearch]     = useState('')
   const [joinedOnly,   setJoinedOnly] = useState(false)
@@ -400,6 +400,10 @@ export function CommunitiesClient({
     // Re-fetch when: user is logged in (need is_member annotations), or when
     // any filter becomes active.
     const isInitialUnfilteredView = level === 'all' && !deferredSearch && !joinedOnly
+    // Anonymous users: skip re-fetch when server already pre-rendered the list.
+    // Logged-in users always re-fetch to get correct is_member annotations (server
+    // fetches with is_member: false). Join buttons may briefly show wrong state
+    // but the list itself is never blank — intentional tradeoff over a blank spinner.
     if (isInitialUnfilteredView && initialCommunities.length > 0 && !user) return
 
     const tid = setTimeout(
