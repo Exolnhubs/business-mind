@@ -41,6 +41,7 @@ export async function GET() {
     const wallet = walletRes.data ?? {
       organizer_id: ctx.userId,
       balance: 0,
+      held_balance: 0,
       total_earned: 0,
       total_withdrawn: 0,
       currency: 'SAR',
