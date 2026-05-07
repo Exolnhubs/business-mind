@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   ActivityIndicator, RefreshControl, TextInput, Image, Alert,
@@ -148,10 +148,12 @@ export default function PublicUserProfileScreen() {
   const isSelf     = user?.id === id
   const isLoggedIn = !!user
   const PER_PAGE   = 20
+  const hasLoadedOnce = useRef(false)
 
   // ── Profile + follow + stats loader ────────────────────────────────────────
   const load = useCallback(async (pg = 1, append = false) => {
     if (!id) return
+    if (!hasLoadedOnce.current) setLoading(true)
     const viewerId = user?.id ?? null
 
     const [
@@ -219,6 +221,7 @@ export default function PublicUserProfileScreen() {
       setViewerReview(vr ?? null)
     }
 
+    hasLoadedOnce.current = true
     setLoading(false)
     setRefreshing(false)
     setLoadingMore(false)

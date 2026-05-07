@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import {
   View, Text, StyleSheet, FlatList, ScrollView,
   ActivityIndicator, RefreshControl, TouchableOpacity, Alert,
@@ -197,6 +197,7 @@ export default function FeedScreen({ onExplore }: Props = {}) {
   const [loadingMore, setLoadingMore] = useState(false)
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(true)
+  const hasLoadedOnce = useRef(false)
 
   const loadJoinedCommunities = useCallback(async (force = false) => {
     if (!user) {
@@ -383,6 +384,7 @@ export default function FeedScreen({ onExplore }: Props = {}) {
       setSavedLoading(false)
       return
     }
+    if (!hasLoadedOnce.current) setLoading(true)
     const currentPage = reset ? 1 : page
 
     const { data: follows } = await supabase
@@ -395,6 +397,7 @@ export default function FeedScreen({ onExplore }: Props = {}) {
 
     if (orgIds.length === 0) {
       setEvents([])
+      hasLoadedOnce.current = true
       setLoading(false)
       setRefreshing(false)
       setLoadingMore(false)
@@ -419,6 +422,7 @@ export default function FeedScreen({ onExplore }: Props = {}) {
     setEvents(reset ? newEvents : (prev) => [...prev, ...newEvents])
     setHasMore((count ?? 0) > (from + newEvents.length))
     setPage(currentPage + 1)
+    hasLoadedOnce.current = true
     setLoading(false)
     setRefreshing(false)
     setLoadingMore(false)

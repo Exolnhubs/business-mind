@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   RefreshControl, ActivityIndicator, Alert,
@@ -63,6 +63,7 @@ export default function OrganizerDashboard() {
   const [eventsLimit,  setEventsLimit]  = useState<number | null>(3)
   const [loading,      setLoading]      = useState(true)
   const [refreshing,   setRefreshing]   = useState(false)
+  const hasLoadedOnce = useRef(false)
 
   useEffect(() => {
     if (!loading) {
@@ -101,10 +102,12 @@ export default function OrganizerDashboard() {
       setPlanId(cache.planId)
       setEventsUsed(cache.eventsUsed)
       setEventsLimit(cache.eventsLimit)
+      hasLoadedOnce.current = true
       setLoading(false)
       setRefreshing(false)
       return
     }
+    if (!hasLoadedOnce.current) setLoading(true)
 
     const monthStr = new Date().toISOString().slice(0, 7) + '-01'
     const [evRes, orgRes, profileRes, tipRes, usageRes] = await Promise.all([
@@ -172,6 +175,7 @@ export default function OrganizerDashboard() {
       eventsLimit: nextEventsLimit,
     }
 
+    hasLoadedOnce.current = true
     setLoading(false)
     setRefreshing(false)
   }, [user])

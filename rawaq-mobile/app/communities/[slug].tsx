@@ -134,6 +134,7 @@ export default function CommunityDetailScreen() {
     return t(`community_detail.severity.${severity}`)
   }
 
+  const hasLoadedOnce = useRef(false)
   const [community, setCommunity] = useState<CommunityDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [joining, setJoining] = useState(false)
@@ -210,9 +211,13 @@ export default function CommunityDetailScreen() {
   }
 
   useEffect(() => {
+    if (!hasLoadedOnce.current) setLoading(true)
     apiGet<CommunityDetail>(`/api/communities/${slug}`)
       .then(({ data }) => { if (data) setCommunity(data); else router.back() })
-      .finally(() => setLoading(false))
+      .finally(() => {
+        hasLoadedOnce.current = true
+        setLoading(false)
+      })
   }, [slug])
 
   async function loadEvents(cursor?: string) {

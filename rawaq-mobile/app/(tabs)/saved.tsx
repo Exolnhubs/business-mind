@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { View, FlatList, StyleSheet, RefreshControl } from 'react-native'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/auth-context'
@@ -71,6 +71,7 @@ export default function SavedScreen() {
   const [events, setEvents]         = useState<EventWithOrganizer[]>([])
   const [loading, setLoading]       = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const hasLoadedOnce = useRef(false)
 
   const fetchSaved = useCallback(async () => {
     if (!user) {
@@ -79,6 +80,7 @@ export default function SavedScreen() {
       setRefreshing(false)
       return
     }
+    if (!hasLoadedOnce.current) setLoading(true)
 
     const { data } = await supabase
       .from('saved_events')
@@ -89,6 +91,7 @@ export default function SavedScreen() {
     const eventIds = (data ?? []).map((saved) => saved.event_id)
     if (eventIds.length === 0) {
       setEvents([])
+      hasLoadedOnce.current = true
       setLoading(false)
       setRefreshing(false)
       return
@@ -106,6 +109,7 @@ export default function SavedScreen() {
       .filter((event): event is EventWithOrganizer => Boolean(event))
 
     setEvents(list)
+    hasLoadedOnce.current = true
     setLoading(false)
     setRefreshing(false)
   }, [user])

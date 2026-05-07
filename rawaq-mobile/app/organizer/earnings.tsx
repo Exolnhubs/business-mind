@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   ActivityIndicator, RefreshControl, Alert, TextInput,
@@ -92,6 +92,7 @@ export default function EarningsScreen() {
   const [bankAccount, setBankAccount] = useState<BankAccount | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const hasLoadedOnce = useRef(false)
 
   // Modal state
   const [modalMode, setModalMode] = useState<ModalMode>('payout')
@@ -145,7 +146,7 @@ export default function EarningsScreen() {
       return
     }
 
-    if (isRefresh) setRefreshing(true); else setLoading(true)
+    if (isRefresh) setRefreshing(true); else if (!hasLoadedOnce.current) setLoading(true)
 
     const [
       { data: walletData },
@@ -206,6 +207,7 @@ export default function EarningsScreen() {
       bankAccount: nextBankAccount,
     }
 
+    hasLoadedOnce.current = true
     if (isRefresh) setRefreshing(false); else setLoading(false)
   }
 
