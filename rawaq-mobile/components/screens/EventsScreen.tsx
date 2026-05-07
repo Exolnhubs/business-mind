@@ -242,6 +242,7 @@ export default function EventsScreen() {
   const lastDiscoveryLoadRef = useRef(0)
   const lastEventsLoadRef = useRef(0)
   const latestEventsRequestRef = useRef(0)
+  const hasLoadedOnce = useRef(false)
   const isDefaultFeed = !debouncedSearch && !freeOnly && !nearMe && !communitySlug
   const showRecommendationRails = isDefaultFeed
   const savedEventsList = useMemo(
@@ -338,6 +339,7 @@ export default function EventsScreen() {
     setCity('All')
     lastDiscoveryLoadRef.current = 0
     lastEventsLoadRef.current = 0
+    hasLoadedOnce.current = false
   }, [routeCommunitySlug, routeResetToken])
 
   const loadDiscoveryMetadata = useCallback(async (force = false) => {
@@ -585,7 +587,7 @@ export default function EventsScreen() {
   const fetchEvents = useCallback(async (force = false) => {
     const requestId = ++latestEventsRequestRef.current
     const geoActive = nearMe ? geoCoords : null
-    setLoading(true)
+    if (!hasLoadedOnce.current) setLoading(true)
     const eventSelect = `
       *,
       organizer:profiles!organizer_id(
@@ -895,6 +897,7 @@ export default function EventsScreen() {
       .slice(0, 6)
     setSavedInspiredEvents(filteredSavedEvents)
 
+    hasLoadedOnce.current = true
     setLoading(false)
     setRefreshing(false)
   }, [debouncedSearch, categoryId, city, freeOnly, nearMe, geoCoords, radiusKm, communitySlug, showRecommendationRails, user, weekendCoords, weekendRadiusKm, joinedCommunities, fallbackSearchEvents])

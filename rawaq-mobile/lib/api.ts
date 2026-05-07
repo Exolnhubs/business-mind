@@ -277,7 +277,7 @@ export async function apiPost<T = unknown>(
 
   if (attempt.res && attempt.res.ok) {
     const json = await parseJsonSafe(attempt.res)
-    await apiInvalidateAll()
+    await apiInvalidate(path.split('/').slice(0, 3).join('/'))
     return { data: (json.data as T | undefined) ?? null, error: null }
   }
 
@@ -318,7 +318,7 @@ export async function apiPatch<T = unknown>(
 
   if (attempt.res && attempt.res.ok) {
     const json = await parseJsonSafe(attempt.res)
-    await apiInvalidateAll()
+    await apiInvalidate(path.split('/').slice(0, 3).join('/'))
     return { data: (json.data as T | undefined) ?? null, error: null }
   }
 
@@ -356,7 +356,7 @@ export async function apiDelete<T = unknown>(
 
   if (attempt.res && attempt.res.ok) {
     const json = await parseJsonSafe(attempt.res)
-    await apiInvalidateAll()
+    await apiInvalidate(path.split('/').slice(0, 3).join('/'))
     return { data: (json.data as T | undefined) ?? null, error: null }
   }
 

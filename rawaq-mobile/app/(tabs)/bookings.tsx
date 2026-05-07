@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import {
   View, Text, FlatList, StyleSheet,
   TouchableOpacity, RefreshControl, Alert, Modal,
@@ -29,6 +29,10 @@ type BookingListRow = Pick<
   event: Pick<Event, 'id' | 'title' | 'title_ar' | 'start_at' | 'end_at' | 'event_frequency' | 'cover_image_url' | 'city' | 'is_free' | 'price' | 'is_cancelled'> | null
 }
 
+const BOOKINGS_CACHE_TTL_MS = 90_000
+type BookingsCache = { updatedAt: number; userId: string; bookings: BookingListRow[] }
+let bookingsCache: BookingsCache | null = null
+
 function getBookingStartAt(booking: BookingListRow) {
   return booking.occurrence?.starts_at ?? booking.event?.start_at ?? null
 }
@@ -42,21 +46,33 @@ export default function BookingsScreen() {
   const [loading,     setLoading]     = useState(true)
   const [refreshing,  setRefreshing]  = useState(false)
   const [tab,         setTab]         = useState<'upcoming' | 'past'>('upcoming')
+  const hasLoadedOnce = useRef(false)
 
   // Refund modal state
   const [refundTarget, setRefundTarget] = useState<BookingListRow | null>(null)
   const [userNote,     setUserNote]     = useState('')
   const [submitting,   setSubmitting]   = useState(false)
 
-  const loadBookings = useCallback(async () => {
+  const loadBookings = useCallback(async (force = false) => {
     if (!user) { setLoading(false); return }
+    const now = Date.now()
+    if (!force && bookingsCache?.userId === user.id && now - bookingsCache.updatedAt < BOOKINGS_CACHE_TTL_MS) {
+      setBookings(bookingsCache.bookings)
+      hasLoadedOnce.current = true
+      setLoading(false)
+      setRefreshing(false)
+      return
+    }
+    if (!hasLoadedOnce.current) setLoading(true)
     const { data } = await supabase
       .from('bookings')
       .select(`id, status, ticket_id, seat, scanned_at, created_at, updated_at, user_id, event_id, notes, occurrence:event_occurrences!occurrence_id(starts_at, ends_at), event:events!event_id(id, title, title_ar, start_at, end_at, event_frequency, cover_image_url, city, is_free, price, is_cancelled)`)
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
     const nextBookings = (data ?? []) as unknown as BookingListRow[]
+    bookingsCache = { updatedAt: now, userId: user.id, bookings: nextBookings }
     setBookings(nextBookings)
+    hasLoadedOnce.current = true
     setLoading(false)
     setRefreshing(false)
   }, [user])
@@ -108,7 +124,7 @@ export default function BookingsScreen() {
         ? 'Your ticket has been cancelled and the refund has been sent to your original payment method. It may take 3-5 business days to appear.'
         : 'Your ticket has been cancelled. The refund is being reviewed and will be processed within 1-3 business days.',
     )
-    loadBookings()
+    loadBookings(true)
   }
 
   if (!user) {
@@ -165,7 +181,7 @@ export default function BookingsScreen() {
           style={styles.list}
           data={listData}
           keyExtractor={(item) => item.id}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadBookings() }} tintColor={Colors.brand[500]} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadBookings(true) }} tintColor={Colors.brand[500]} />}
           contentContainerStyle={styles.content}
           ListHeaderComponent={
             <TouchableOpacity
