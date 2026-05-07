@@ -7,7 +7,7 @@ interface SettingMeta {
   key: string
   label: string
   description: string
-  type: 'boolean' | 'number' | 'text'
+  type: 'boolean' | 'number' | 'integer' | 'text'
 }
 
 const SETTINGS_META: SettingMeta[] = [
@@ -34,6 +34,12 @@ const SETTINGS_META: SettingMeta[] = [
     label: 'Default Platform Fee (%)',
     description: 'Fallback fee applied when a plan has no explicit fee. Range: 0–100.',
     type: 'number',
+  },
+  {
+    key: 'revenue_hold_hours',
+    label: 'Revenue Hold Period (hours)',
+    description: 'Hours ticket-sale revenue is held before it becomes withdrawable. Minimum: 1 hour.',
+    type: 'integer',
   },
 ]
 
@@ -72,6 +78,7 @@ export function SettingsEditor({ initialSettings }: Props) {
         const updates = SETTINGS_META.map(({ key, type }) => {
           let value = draft[key]
           if (type === 'number') value = parseFloat(String(value)) / 100
+          if (type === 'integer') value = Math.max(1, parseInt(String(value), 10) || 1)
           return { key, value }
         })
         // maintenance_message is text — not divided by 100
@@ -148,6 +155,20 @@ export function SettingsEditor({ initialSettings }: Props) {
                       className="w-20 border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-right"
                     />
                     <span className="text-sm text-gray-500">%</span>
+                  </div>
+                )}
+
+                {meta.type === 'integer' && (
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={typeof draft[meta.key] === 'number' ? (draft[meta.key] as number) : ''}
+                      onChange={(e) => setDraftKey(meta.key, parseInt(e.target.value, 10))}
+                      className="w-20 border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-right"
+                    />
+                    <span className="text-sm text-gray-500">hrs</span>
                   </div>
                 )}
 

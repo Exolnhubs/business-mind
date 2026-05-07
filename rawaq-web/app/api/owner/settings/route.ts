@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireOwner } from '@/lib/auth'
-import { handleApiError, ok } from '@/lib/errors'
+import { BadRequestException, handleApiError, ok } from '@/lib/errors'
 
 const PatchSettingsSchema = z.object({
   updates: z.array(z.object({
@@ -35,12 +35,24 @@ export async function PATCH(req: NextRequest) {
     const { updates } = PatchSettingsSchema.parse(body)
 
     const admin = createSupabaseAdminClient()
-    const rows = updates.map(({ key, value }) => ({
-      key,
-      value,
-      updated_at: new Date().toISOString(),
-      updated_by: ctx.userId,
-    }))
+    const rows = updates.map(({ key, value }) => {
+      let normalizedValue = value
+
+      if (key === 'revenue_hold_hours') {
+        const parsed = typeof value === 'number' ? value : Number(value)
+        if (!Number.isInteger(parsed) || parsed < 1) {
+          throw new BadRequestException('Revenue hold period must be an integer of at least 1 hour')
+        }
+        normalizedValue = parsed
+      }
+
+      return {
+        key,
+        value: normalizedValue,
+        updated_at: new Date().toISOString(),
+        updated_by: ctx.userId,
+      }
+    })
 
     const { data, error } = await admin
       .from('platform_settings')
