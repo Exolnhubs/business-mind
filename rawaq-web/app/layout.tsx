@@ -1,14 +1,28 @@
 import type { Metadata } from 'next'
 import { Barlow_Semi_Condensed, Mulish, Noto_Sans_Arabic } from 'next/font/google'
 import './globals.css'
+import dynamic from 'next/dynamic'
 import { AuthProvider } from '@/contexts/auth-context'
 import { LocaleProvider } from '@/contexts/locale-context'
 import { ErrorToastProvider } from '@/components/feedback/ErrorToast'
-import { CustomCursor } from '@/components/ui/CustomCursor'
-import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister'
-import { ChunkLoadRecovery } from '@/components/ChunkLoadRecovery'
-import { SupportChatWidget } from '@/components/support/SupportChatWidget'
 import { Analytics } from "@vercel/analytics/next"
+
+const CustomCursor = dynamic(
+  () => import('@/components/ui/CustomCursor').then(m => ({ default: m.CustomCursor })),
+  { ssr: false, loading: () => null },
+)
+const SupportChatWidget = dynamic(
+  () => import('@/components/support/SupportChatWidget').then(m => ({ default: m.SupportChatWidget })),
+  { ssr: false, loading: () => null },
+)
+const ServiceWorkerRegister = dynamic(
+  () => import('@/components/ServiceWorkerRegister').then(m => ({ default: m.ServiceWorkerRegister })),
+  { ssr: false, loading: () => null },
+)
+const ChunkLoadRecovery = dynamic(
+  () => import('@/components/ChunkLoadRecovery').then(m => ({ default: m.ChunkLoadRecovery })),
+  { ssr: false, loading: () => null },
+)
 import { SpeedInsights } from "@vercel/speed-insights/next"
 
 const displayFont = Barlow_Semi_Condensed({
