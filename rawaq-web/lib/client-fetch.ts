@@ -89,6 +89,8 @@ async function parseJsonSafe<T>(res: Response): Promise<T> {
 
 const DEFAULT_TIMEOUT_MS = 15_000
 const TRANSIENT_RETRY_DELAY_MS = 1_500
+const FETCH_TIMEOUT_ABORT_REASON = 'client-fetch-timeout'
+const EXTERNAL_ABORT_REASON = 'client-fetch-external-abort'
 
 async function fetchWithTimeout(
   input: RequestInfo,
@@ -100,14 +102,20 @@ async function fetchWithTimeout(
   let timedOut = false
   const timeoutId = setTimeout(() => {
     if (!externalSignal?.aborted) timedOut = true
-    controller.abort()
+    if (!controller.signal.aborted) controller.abort(FETCH_TIMEOUT_ABORT_REASON)
   }, timeoutMs)
 
   let externalAbortHandler: (() => void) | null = null
   if (externalSignal) {
-    if (externalSignal.aborted) controller.abort()
+    if (externalSignal.aborted) {
+      controller.abort(externalSignal.reason ?? EXTERNAL_ABORT_REASON)
+    }
     else {
-      externalAbortHandler = () => controller.abort()
+      externalAbortHandler = () => {
+        if (!controller.signal.aborted) {
+          controller.abort(externalSignal.reason ?? EXTERNAL_ABORT_REASON)
+        }
+      }
       externalSignal.addEventListener('abort', externalAbortHandler)
     }
   }

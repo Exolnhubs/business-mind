@@ -18,6 +18,9 @@ type CommunityWithMembership = Community & {
 type TrendingCommunity = CommunityWithMembership & { trending_score?: number }
 type MembershipMutationResponse = { is_member?: boolean; member_count?: number }
 
+const COMMUNITIES_LIST_ABORT_REASON = 'communities-list-request-replaced'
+const COMMUNITIES_UNMOUNT_ABORT_REASON = 'communities-list-unmounted'
+
 // ── Level config ──────────────────────────────────────────────
 const LEVEL_COLORS: Record<CommunityLevel, string> = {
   micro:    '#3dba6a',
@@ -354,7 +357,9 @@ export function CommunitiesClient({
   const fetchCommunities = useCallback(
     async (p: number, lvl: CommunityLevel | 'all', q: string, memberOnly = false) => {
       const controller = new AbortController()
-      abortRef.current?.abort()
+      if (abortRef.current && !abortRef.current.signal.aborted) {
+        abortRef.current.abort(COMMUNITIES_LIST_ABORT_REASON)
+      }
       abortRef.current = controller
       const rid = ++latestRef.current
       setLoading(true)
@@ -413,7 +418,11 @@ export function CommunitiesClient({
     return () => clearTimeout(tid)
   }, [level, deferredSearch, joinedOnly, fetchCommunities, user, initialCommunities.length])
 
-  useEffect(() => () => { abortRef.current?.abort() }, [])
+  useEffect(() => () => {
+    if (abortRef.current && !abortRef.current.signal.aborted) {
+      abortRef.current.abort(COMMUNITIES_UNMOUNT_ABORT_REASON)
+    }
+  }, [])
 
   // ── Join from trending strip ───────────────────────────────
   async function joinTrending(community: TrendingCommunity) {
