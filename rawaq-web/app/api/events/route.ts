@@ -13,26 +13,14 @@ import { ensureEventOccurrences } from '@/lib/events/occurrences'
 
 const EVENT_CACHE_TTL = 60 // 60 seconds
 
-type OrganizerType = 'company' | 'individual'
-
 type EventListRow = {
   start_at: string
   end_at: string | null
   ticket_types?: Array<{ is_active: boolean }>
-  organizer?: {
-    organizer_profile?: { organizer_type?: OrganizerType | null } | Array<{ organizer_type?: OrganizerType | null }> | null
-  } | null
 }
 
 function buildEventCacheKey(params: Record<string, unknown>): string {
   return `events:list:${JSON.stringify(params)}`
-}
-
-function getOrganizerType(event: EventListRow): OrganizerType | null {
-  const organizerProfile = Array.isArray(event.organizer?.organizer_profile)
-    ? event.organizer?.organizer_profile[0]
-    : event.organizer?.organizer_profile
-  return organizerProfile?.organizer_type ?? null
 }
 
 function buildEventKeywordSearch(search: string) {
@@ -105,6 +93,7 @@ const cached = await redis.get(cacheKey)
     if (params.organizer_id) query = query.eq('organizer_id', params.organizer_id)
     if (params.organizer_own && ctx?.userId) query = query.eq('organizer_id', ctx.userId)
     if (params.visibility) query = query.eq('visibility_type', params.visibility)
+    if (params.hosted_by !== 'all') query = query.eq('organizer_type', params.hosted_by)
 
     // Community filter: join event_communities → communities.slug
     if (params.community) {
@@ -166,7 +155,6 @@ const cached = await redis.get(cacheKey)
         ticket_types: ((event.ticket_types ?? []) as Array<{ is_active: boolean }>).filter((tt) => tt.is_active),
       }))
       .map((event) => applyResolvedEventWindow(event, now))
-      .filter((event) => params.hosted_by === 'all' || getOrganizerType(event) === params.hosted_by)
       .filter((event) => {
         const startMs = new Date(event.start_at).getTime()
         if (dateFromMs !== null && startMs < dateFromMs) return false
@@ -273,7 +261,11 @@ export async function POST(req: NextRequest) {
 
     const { data, error } = await supabase
       .from('events')
-      .insert({ ...eventInput, organizer_id: ctx.userId } as never)
+      .insert({
+        ...eventInput,
+        organizer_id: ctx.userId,
+        organizer_type: hostProfile?.organizer_type ?? 'company',
+      } as never)
       .select()
       .single()
 

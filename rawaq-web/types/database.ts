@@ -244,6 +244,7 @@ export interface Event {
   max_group_size: number | null;
   cancelled_reason: string | null;
   visibility_type: EventVisibility;
+  organizer_type: 'company' | 'individual';
   bookings_count: number;
   views_count: number;
   tips_total: number;

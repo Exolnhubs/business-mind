@@ -11,7 +11,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { Spinner } from '@/components/ui/Spinner'
 import { Colors, FontSize, FontWeight, Radius, Shadow, Spacing } from '@/theme'
 import { useLocale } from '@/contexts/locale-context'
-import type { CommunityWithMembership, EventWithOrganizer } from '@/types/database'
+import type { EventWithOrganizer } from '@/types/database'
 
 type SceneTabKey = 'sessions' | 'happenings'
 
@@ -26,26 +26,14 @@ type ActiveCommunity = {
   happening_count: number
 }
 
-type EventsResponse = {
+type SessionsFeedResponse = {
   data: EventWithOrganizer[]
+  next_cursor: string | null
 }
 
 type SceneListItem =
   | { kind: 'session'; session: EventWithOrganizer }
   | { kind: 'happening'; happening: HappeningDiscoveryItem }
-
-function dedupeAndSortSessions(sessionGroups: EventWithOrganizer[][]): EventWithOrganizer[] {
-  const byId = new Map<string, EventWithOrganizer>()
-  for (const sessions of sessionGroups) {
-    for (const session of sessions) {
-      if (!byId.has(session.id)) byId.set(session.id, session)
-    }
-  }
-
-  return [...byId.values()].sort(
-    (left, right) => new Date(left.start_at).getTime() - new Date(right.start_at).getTime(),
-  )
-}
 
 export default function SceneTab() {
   const router = useRouter()
@@ -73,6 +61,7 @@ export default function SceneTab() {
 
   const load = useCallback(async (force = false) => {
     if (!hasLoadedOnce.current) setLoading(true)
+
     const [{ data: happeningsData }, { data: activeData }] = await Promise.all([
       apiGet<{ happenings: HappeningDiscoveryItem[] }>('/api/happenings/discover?limit=20', { force }),
       apiGet<{ communities: ActiveCommunity[] }>('/api/happenings/active?limit=10', { force }),
@@ -81,32 +70,9 @@ export default function SceneTab() {
     const nextHappenings = happeningsData?.happenings ?? []
     const nextCommunities = activeData?.communities ?? []
 
-    if (!user) {
-      setSessions([])
-      setHappenings(nextHappenings)
-      setActiveCommunities(nextCommunities)
-      hasLoadedOnce.current = true
-      setLoading(false)
-      setRefreshing(false)
-      return
-    }
-
-    const { data: joinedData } = await apiGet<{ data: CommunityWithMembership[] }>(
-      '/api/communities?member_only=true&per_page=20',
-      { force },
-    )
-    const joinedCommunities = joinedData?.data ?? []
-    const sessionResults = await Promise.all(
-      joinedCommunities.map((community) =>
-        apiGet<EventsResponse>(
-          `/api/events?community=${encodeURIComponent(community.slug)}&hosted_by=individual&per_page=20`,
-          { force },
-        ),
-      ),
-    )
-    const nextSessions = dedupeAndSortSessions(
-      sessionResults.map((result) => result.data?.data ?? []),
-    )
+    const nextSessions: EventWithOrganizer[] = user
+      ? (await apiGet<SessionsFeedResponse>('/api/sessions/feed?limit=50', { force })).data?.data ?? []
+      : []
 
     setSessions(nextSessions)
     setHappenings(nextHappenings)
