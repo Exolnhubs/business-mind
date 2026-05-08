@@ -20,6 +20,11 @@ type MembershipMutationResponse = { is_member?: boolean; member_count?: number }
 
 const COMMUNITIES_LIST_ABORT_REASON = 'communities-list-request-replaced'
 const COMMUNITIES_UNMOUNT_ABORT_REASON = 'communities-list-unmounted'
+const stableNumberFormatter = new Intl.NumberFormat('en-US')
+
+function formatStableCount(value: number): string {
+  return stableNumberFormatter.format(value)
+}
 
 // ── Level config ──────────────────────────────────────────────
 const LEVEL_COLORS: Record<CommunityLevel, string> = {
@@ -160,7 +165,7 @@ function CommunityCardDark({
           <div style={{ display: 'flex', gap: 12 }}>
             <span style={{ fontSize: 11, color: 'oklch(0.52 0.015 72)', fontFamily: fb }}>
               <span style={{ color: 'oklch(0.94 0.01 82)', fontWeight: 600 }}>
-                {community.member_count.toLocaleString()}
+                {formatStableCount(community.member_count)}
               </span>{' '}
               {t('comm.member_count').replace('{n}', '').trim() || t('comm.members').replace('{n}', '').trim() || 'members'}
             </span>
@@ -276,7 +281,7 @@ function TrendingPill({
           {name}
         </div>
         <div style={{ fontSize: 10, color: 'oklch(0.52 0.015 72)' }}>
-          {community.member_count.toLocaleString()} {t('comm.members').replace('{n}', '').trim()}
+          {formatStableCount(community.member_count)} {t('comm.members').replace('{n}', '').trim()}
         </div>
       </div>
       <div style={{
