@@ -20,6 +20,9 @@ import type { Community, CommunityLevel, CommunityRole, Event, HappeningType, Ha
 type CommunityDetail = Community & {
   is_member: boolean
   is_following: boolean
+  is_host: boolean
+  viewer_host_request_status: 'pending' | 'approved' | 'rejected' | null
+  viewer_is_individual_organizer: boolean
   member_role: CommunityRole | null
   member_status: 'active' | 'timed_out' | 'removed' | 'banned' | null
   event_count: number
@@ -139,6 +142,7 @@ export default function CommunityDetailScreen() {
   const [loading, setLoading] = useState(true)
   const [joining, setJoining] = useState(false)
   const [following, setFollowing] = useState(false)
+  const [requestingHost, setRequestingHost] = useState(false)
   const [events, setEvents] = useState<EventItem[]>([])
   const [eventsLoading, setEventsLoading] = useState(false)
   const [nextCursor, setNextCursor] = useState<string | null>(null)
@@ -190,6 +194,14 @@ export default function CommunityDetailScreen() {
   const effectiveRole = memberRole ?? derivedRole ?? (hasModerationAccess ? 'community_admin' : null)
   const isCommunityOwner = effectiveRole === 'owner'
   const canModerate = effectiveRole === 'owner' || effectiveRole === 'community_admin'
+  const isIndividualOrganizer = community?.viewer_is_individual_organizer ?? false
+  const isCurrentUserHost = community?.is_host ?? false
+  const viewerHostRequestStatus = community?.viewer_host_request_status ?? null
+  const canRequestHostRole = !isCurrentUserHost
+    && !!community?.is_member
+    && memberStatus === 'active'
+    && isIndividualOrganizer
+    && !isCommunityOwner
   const canParticipateInHappenings = memberStatus ? memberStatus === 'active' : !!community?.is_member
   const isPlatformAdmin = profile?.role === 'admin'
   const directParent = community && community.ancestors.length > 0
@@ -218,7 +230,9 @@ export default function CommunityDetailScreen() {
         hasLoadedOnce.current = true
         setLoading(false)
       })
-  }, [slug])
+  // user?.id in deps: re-fetches when session loads (different cache key) so viewer-specific fields populate
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug, user?.id])
 
   async function loadEvents(cursor?: string) {
     if (eventsLoading) return
@@ -418,6 +432,30 @@ export default function CommunityDetailScreen() {
       )
     }
     setFollowing(false)
+  }
+
+  async function requestHostRole() {
+    if (!user || !community) return
+    setRequestingHost(true)
+    const { error } = await apiPost(`/api/communities/${slug}/hosts/request`, {})
+    if (error) {
+      Alert.alert(t('common.error'), error)
+    } else {
+      setCommunity((prev) => prev ? { ...prev, viewer_host_request_status: 'pending' } : prev)
+    }
+    setRequestingHost(false)
+  }
+
+  async function withdrawHostRequest() {
+    if (!user || !community) return
+    setRequestingHost(true)
+    const { error } = await apiDelete(`/api/communities/${slug}/hosts/request`)
+    if (error) {
+      Alert.alert(t('common.error'), error)
+    } else {
+      setCommunity((prev) => prev ? { ...prev, viewer_host_request_status: null } : prev)
+    }
+    setRequestingHost(false)
   }
 
   async function toggleChildMembership(child: ChildCommunityItem) {
@@ -784,6 +822,49 @@ export default function CommunityDetailScreen() {
               )
             }
           </TouchableOpacity>
+
+          {canRequestHostRole && (
+            <TouchableOpacity
+              onPress={viewerHostRequestStatus === 'pending' ? withdrawHostRequest : requestHostRole}
+              disabled={requestingHost || viewerHostRequestStatus === 'rejected'}
+              style={[
+                styles.followBtn,
+                viewerHostRequestStatus === 'pending'
+                  ? { borderColor: '#d97706', backgroundColor: '#fef9f0' }
+                  : viewerHostRequestStatus === 'rejected'
+                  ? { borderColor: '#fca5a5', backgroundColor: '#fff5f5', opacity: 0.65 }
+                  : { borderColor: '#7c3aed', backgroundColor: '#f5f3ff' },
+              ]}
+              activeOpacity={0.85}
+            >
+              {requestingHost
+                ? <ActivityIndicator size="small" color="#7c3aed" />
+                : (
+                  <View style={styles.joinBtnInner}>
+                    <Ionicons
+                      name={viewerHostRequestStatus === 'pending' ? 'hourglass-outline' : viewerHostRequestStatus === 'rejected' ? 'close-circle-outline' : 'person-add-outline'}
+                      size={18}
+                      color={viewerHostRequestStatus === 'pending' ? '#d97706' : viewerHostRequestStatus === 'rejected' ? '#ef4444' : '#7c3aed'}
+                    />
+                    <Text style={[
+                      styles.followBtnText,
+                      viewerHostRequestStatus === 'pending'
+                        ? { color: '#d97706' }
+                        : viewerHostRequestStatus === 'rejected'
+                        ? { color: '#ef4444' }
+                        : { color: '#7c3aed' },
+                    ]}>
+                      {viewerHostRequestStatus === 'pending'
+                        ? t('community_detail.request_pending_withdraw')
+                        : viewerHostRequestStatus === 'rejected'
+                        ? t('community_detail.request_rejected')
+                        : t('community_detail.request_to_host')}
+                    </Text>
+                  </View>
+                )
+              }
+            </TouchableOpacity>
+          )}
         </View>
 
         <View style={styles.section}>

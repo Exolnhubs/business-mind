@@ -68,6 +68,19 @@ export type CommunitySanctionEntry = {
   created_at: string
 }
 
+export type CommunityHostRequestEntry = {
+  id: string
+  community_id: string
+  user_id: string
+  message: string | null
+  status: 'pending' | 'approved' | 'rejected'
+  responded_by: string | null
+  responded_at: string | null
+  created_at: string
+  profile: { id: string; display_name: string; avatar_url: string | null } | null
+  organizer_profile: { plan_id: string; bio: string | null } | null
+}
+
 export type MemberHistoryState = {
   member: { id: string; display_name: string; avatar_url: string | null; joined_at: string }
   warnings: CommunityWarningEntry[]

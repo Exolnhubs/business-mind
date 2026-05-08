@@ -1399,9 +1399,10 @@ export default function EventsScreen() {
                   <Text style={styles.seeAllEventsBtnText}>{t('events.see_all_events')}</Text>
                   <Ionicons name="arrow-forward" size={16} color={Colors.brand[600]} />
                 </TouchableOpacity>
-                {user && joinedCommunities.length > 0 && (
+                {user && (joinedCommunities.length > 0 || suggestedCommunities.length > 0) && (
                   <YourCommunitiesSection
-                    communities={joinedCommunities}
+                    communities={joinedCommunities.length > 0 ? joinedCommunities : suggestedCommunities}
+                    isDiscover={joinedCommunities.length === 0}
                     onSeeAll={() => router.push('/communities' as any)}
                   />
                 )}
@@ -1755,13 +1756,15 @@ function SavedEventsRail({ events, onSeeAll }: { events: EventWithOrganizer[]; o
 
 // ── Your Communities Section ──────────────────────────────────────────────────
 
-function YourCommunitiesSection({ communities, onSeeAll }: { communities: JoinedCommunity[]; onSeeAll: () => void }) {
+function YourCommunitiesSection({ communities, isDiscover = false, onSeeAll }: { communities: JoinedCommunity[]; isDiscover?: boolean; onSeeAll: () => void }) {
   const router = useRouter()
   const { locale, t, isRTL } = useLocale()
   return (
     <View style={styles.yourCommSection}>
       <View style={styles.yourCommHeader }>
-        <Text style={[styles.yourCommTitle, { textAlign: 'left' }]}>{t('events.your_communities')}</Text>
+        <Text style={[styles.yourCommTitle, { textAlign: 'left' }]}>
+          {isDiscover ? t('events.explore_communities') : t('events.your_communities')}
+        </Text>
         <TouchableOpacity onPress={onSeeAll} hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}>
           <Text style={styles.yourCommSeeAll}>{t('events.see_all')}</Text>
         </TouchableOpacity>

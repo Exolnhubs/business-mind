@@ -336,7 +336,7 @@ const translations: Record<Locale, Record<string, string>> = {
 
     // Communities page
     'comm.heading_eyebrow': 'Rawaq Communities',
-    'comm.heading_title': 'Find your people',
+    'comm.heading_title': 'Find your',
     'comm.heading_sub': 'Explore local circles, interest groups, and city communities where events turn into real relationships.',
     'comm.my_communities': 'My Communities',
     'comm.trending': 'Trending now',

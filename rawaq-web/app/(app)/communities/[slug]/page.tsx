@@ -26,6 +26,7 @@ import type { Community, CommunityLevel, CommunityRole, Event } from '@/types/da
 import type {
   CommunityAdminEntry,
   CommunityHostEntry,
+  CommunityHostRequestEntry,
   HappeningReportEntry,
   CommunityAuditLogEntry,
   CommunityWarningEntry,
@@ -41,6 +42,9 @@ const CommunityModerationPanel = dynamic(
 type CommunityDetail = Community & {
   is_member: boolean
   is_following: boolean
+  is_host: boolean
+  viewer_host_request_status: 'pending' | 'approved' | 'rejected' | null
+  viewer_is_individual_organizer: boolean
   member_role: CommunityRole | null
   member_status: 'active' | 'timed_out' | 'removed' | 'banned' | null
   event_count: number
@@ -96,6 +100,9 @@ export default function CommunityDetailPage() {
   const [adminsLoading, setAdminsLoading] = useState(false)
   const [hosts, setHosts] = useState<CommunityHostEntry[]>([])
   const [hostsLoading, setHostsLoading] = useState(false)
+  const [hostRequests, setHostRequests] = useState<CommunityHostRequestEntry[]>([])
+  const [hostRequestsLoading, setHostRequestsLoading] = useState(false)
+  const [requestingHost, setRequestingHost] = useState(false)
   const [reports, setReports] = useState<HappeningReportEntry[]>([])
   const [reportsLoading, setReportsLoading] = useState(false)
   const [auditLogs, setAuditLogs] = useState<CommunityAuditLogEntry[]>([])
@@ -128,6 +135,14 @@ export default function CommunityDetailPage() {
   const effectiveRole = memberRole ?? derivedRole
   const isCommunityOwner = effectiveRole === 'owner'
   const canModerate = effectiveRole === 'owner' || effectiveRole === 'community_admin'
+  const isIndividualOrganizer = community?.viewer_is_individual_organizer ?? false
+  const isCurrentUserHost = community?.is_host ?? false
+  const viewerHostRequestStatus = community?.viewer_host_request_status ?? null
+  const canRequestHostRole = !isCurrentUserHost
+    && isMember
+    && memberStatus === 'active'
+    && isIndividualOrganizer
+    && !isCommunityOwner
   const canParticipateInHappenings = memberStatus ? memberStatus === 'active' : isMember
   const isPlatformAdmin = profile?.role === 'admin'
   const directParent = community && community.ancestors.length > 0
@@ -247,6 +262,22 @@ export default function CommunityDetailPage() {
     }
   }, [cacheScopeKey, isCommunityOwner, slug])
 
+  const loadHostRequests = useCallback(async (force = false) => {
+    if (!isCommunityOwner) return
+    setHostRequestsLoading(true)
+    try {
+      const json = await clientGetJson<{ data: CommunityHostRequestEntry[] }>(
+        `/api/communities/${slug}/hosts/requests`,
+        { ttlMs: 30_000, force, scopeKey: cacheScopeKey },
+      )
+      setHostRequests(json.data ?? [])
+    } catch {
+      setHostRequests([])
+    } finally {
+      setHostRequestsLoading(false)
+    }
+  }, [cacheScopeKey, isCommunityOwner, slug])
+
   const loadReports = useCallback(async (force = false) => {
     if (!canModerate) return
     setReportsLoading(true)
@@ -288,6 +319,11 @@ export default function CommunityDetailPage() {
     if (isCommunityOwner) void loadHosts()
     else setHosts([])
   }, [isCommunityOwner, loadHosts])
+
+  useEffect(() => {
+    if (isCommunityOwner) void loadHostRequests()
+    else setHostRequests([])
+  }, [isCommunityOwner, loadHostRequests])
 
   useEffect(() => {
     if (canModerate) loadReports()
@@ -452,6 +488,55 @@ export default function CommunityDetailPage() {
     } catch (error) {
       if (!isToastHandledError(error)) {
         window.alert(error instanceof Error ? error.message : 'Failed to revoke host role')
+      }
+    } finally {
+      setMemberActionLoading(null)
+    }
+  }
+
+  async function requestHostRole(message?: string) {
+    if (!user) { router.push('/login'); return }
+    setRequestingHost(true)
+    try {
+      await clientPostJson(`/api/communities/${slug}/hosts/request`, { message })
+      clientFetchInvalidate(`/api/communities/${slug}`, cacheScopeKey)
+      await loadCommunity(true)
+    } catch (error) {
+      if (!isToastHandledError(error)) {
+        window.alert(error instanceof Error ? error.message : 'Failed to submit host request')
+      }
+    } finally {
+      setRequestingHost(false)
+    }
+  }
+
+  async function withdrawHostRequest() {
+    if (!user) return
+    setRequestingHost(true)
+    try {
+      await clientDeleteJson(`/api/communities/${slug}/hosts/request`)
+      clientFetchInvalidate(`/api/communities/${slug}`, cacheScopeKey)
+      await loadCommunity(true)
+    } catch (error) {
+      if (!isToastHandledError(error)) {
+        window.alert(error instanceof Error ? error.message : 'Failed to withdraw request')
+      }
+    } finally {
+      setRequestingHost(false)
+    }
+  }
+
+  async function respondToHostRequest(requestId: string, action: 'approve' | 'reject') {
+    setMemberActionLoading(`host-req-${requestId}`)
+    try {
+      await clientPatchJson(`/api/communities/${slug}/hosts/requests/${requestId}`, { action })
+      clientFetchInvalidate(`/api/communities/${slug}/hosts`, cacheScopeKey)
+      clientFetchInvalidate(`/api/communities/${slug}/hosts/requests`, cacheScopeKey)
+      clientFetchInvalidate(`/api/communities/${slug}/audit-logs`, cacheScopeKey)
+      await Promise.all([loadHosts(true), loadHostRequests(true), loadAuditLogs(true)])
+    } catch (error) {
+      if (!isToastHandledError(error)) {
+        window.alert(error instanceof Error ? error.message : 'Failed to respond to host request')
       }
     } finally {
       setMemberActionLoading(null)
@@ -845,6 +930,35 @@ export default function CommunityDetailPage() {
               >
                 {following ? <Spinner size="sm" /> : community.is_following ? 'Following' : 'Follow updates'}
               </button>
+
+              {canRequestHostRole && (
+                <button
+                  onClick={viewerHostRequestStatus === 'pending' ? withdrawHostRequest : () => requestHostRole()}
+                  disabled={requestingHost || viewerHostRequestStatus === 'rejected'}
+                  className="flex-1 sm:flex-none rounded-xl border px-5 py-2.5 text-sm font-semibold transition-all cursor-pointer"
+                  style={viewerHostRequestStatus === 'pending' ? {
+                    borderColor: 'oklch(0.75 0.12 45 / 0.5)',
+                    background: 'oklch(0.75 0.12 45 / 0.08)',
+                    color: 'oklch(0.85 0.1 45)',
+                  } : viewerHostRequestStatus === 'rejected' ? {
+                    borderColor: 'oklch(0.6 0.15 25 / 0.3)',
+                    background: 'oklch(0.6 0.15 25 / 0.06)',
+                    color: 'oklch(0.7 0.1 25 / 0.7)',
+                  } : {
+                    borderColor: 'oklch(0.65 0.2 295 / 0.4)',
+                    background: 'oklch(0.65 0.2 295 / 0.08)',
+                    color: 'oklch(0.78 0.15 295)',
+                  }}
+                >
+                  {requestingHost
+                    ? <Spinner size="sm" />
+                    : viewerHostRequestStatus === 'pending'
+                    ? 'Request pending · Withdraw'
+                    : viewerHostRequestStatus === 'rejected'
+                    ? 'Request rejected'
+                    : 'Request to host'}
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -974,7 +1088,13 @@ export default function CommunityDetailPage() {
                 Upcoming Events
               </h2>
               <div className="flex items-center gap-3">
-                {profile?.role === 'organizer' && (
+                {isCurrentUserHost && (
+                  <Link href={`/organizer/events/new?community=${slug}`}
+                    className="text-xs font-semibold bg-violet-600 text-white px-3 py-1.5 rounded-full hover:bg-violet-700 transition-colors">
+                    + Create session
+                  </Link>
+                )}
+                {!isCurrentUserHost && !isIndividualOrganizer && profile?.role === 'organizer' && (
                   <Link href={`/organizer/events/new?community=${slug}`}
                     className="text-xs font-semibold bg-brand-600 text-white px-3 py-1.5 rounded-full hover:bg-brand-700 transition-colors">
                     + Create event
@@ -1034,6 +1154,8 @@ export default function CommunityDetailPage() {
               adminsLoading={adminsLoading}
               hosts={hosts}
               hostsLoading={hostsLoading}
+              hostRequests={hostRequests}
+              hostRequestsLoading={hostRequestsLoading}
               reports={reports}
               reportsLoading={reportsLoading}
               auditLogs={auditLogs}
@@ -1048,6 +1170,7 @@ export default function CommunityDetailPage() {
               onRevokeAdmin={revokeCommunityAdmin}
               onAssignHost={assignCommunityHost}
               onRevokeHost={revokeCommunityHost}
+              onRespondToHostRequest={respondToHostRequest}
               onIssueWarning={issueWarning}
               onIssueSanction={issueSanction}
               onUpdateReport={updateReport}

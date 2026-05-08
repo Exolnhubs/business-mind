@@ -75,10 +75,13 @@ export async function GET(
     // Membership status
     let is_member = false
     let is_following = false
+    let is_host = false
+    let viewer_host_request_status: 'pending' | 'approved' | 'rejected' | null = null
+    let viewer_is_individual_organizer = false
     let member_role: 'member' | 'community_admin' | 'owner' | null = null
     let member_status: 'active' | 'timed_out' | 'removed' | 'banned' | null = null
     if (ctx?.userId) {
-      const [{ data: mem }, { data: follow }] = await Promise.all([
+      const [{ data: mem }, { data: follow }, { data: hostGrant }] = await Promise.all([
         admin
           .from('community_memberships')
           .select('id, role, status')
@@ -91,9 +94,37 @@ export async function GET(
           .eq('community_id', community.id)
           .eq('user_id', ctx.userId)
           .maybeSingle(),
+        admin
+          .from('community_hosts')
+          .select('user_id')
+          .eq('community_id', community.id)
+          .eq('user_id', ctx.userId)
+          .maybeSingle(),
+      ])
+      const [{ data: orgProfile }, hostReqResult] = await Promise.all([
+        admin
+          .from('organizer_profiles')
+          .select('organizer_type, status')
+          .eq('user_id', ctx.userId)
+          .maybeSingle<{ organizer_type: string; status: string }>(),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (admin as any)
+          .from('community_host_requests')
+          .select('status')
+          .eq('community_id', community.id)
+          .eq('user_id', ctx.userId)
+          .maybeSingle()
+          .then(
+            (res: { data: { status: string } | null }) => res.data,
+            () => null,
+          ) as Promise<{ status: string } | null>,
       ])
       is_member = !!mem && mem.status !== 'removed' && mem.status !== 'banned'
       is_following = !!follow
+      is_host = !!hostGrant
+      viewer_host_request_status = (hostReqResult?.status as 'pending' | 'approved' | 'rejected' | null) ?? null
+      viewer_is_individual_organizer = orgProfile?.organizer_type === 'individual'
+        && orgProfile?.status === 'approved'
       member_role = (mem?.role as 'member' | 'community_admin' | 'owner' | undefined) ?? null
       member_status = (mem?.status as 'active' | 'timed_out' | 'removed' | 'banned' | undefined) ?? null
     }
@@ -253,6 +284,9 @@ export async function GET(
       ...community,
       is_member,
       is_following,
+      is_host,
+      viewer_host_request_status,
+      viewer_is_individual_organizer,
       member_role,
       member_status,
       event_count: eventCount ?? 0,

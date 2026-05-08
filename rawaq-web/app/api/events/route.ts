@@ -5,7 +5,7 @@ import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireOrganizer, optionalAuth } from '@/lib/auth'
 import { handleApiError, ok, created, ForbiddenException } from '@/lib/errors'
 import { checkRateLimit, limiters } from '@/lib/rate-limit'
-import { getOrganizerPlanAccess, isFreeSessionsOnly } from '@/lib/plans'
+import { getOrganizerPlanAccess } from '@/lib/plans'
 import { CreateEventSchema, ListEventsSchema } from '@/lib/validations/events'
 import { sendNotifications } from '@/lib/notifications'
 import { applyResolvedEventWindow, compareEventsByResolvedStartAt } from '@/lib/events/recurrence'
@@ -253,41 +253,9 @@ export async function POST(req: NextRequest) {
     if (hostProfileError) throw hostProfileError
 
     if (hostProfile?.organizer_type === 'individual') {
-      if (hostProfile.status !== 'approved') {
-        throw new ForbiddenException('Your individual host application has not been approved yet.')
-      }
-
-      const isPaidSession = !input.is_free && (input.price ?? 0) > 0
-      if (isPaidSession && isFreeSessionsOnly(plan)) {
-        throw new ForbiddenException('Your current individual host plan only allows free sessions.')
-      }
-      if (isPaidSession && !hostProfile.paid_sessions_enabled) {
-        throw new ForbiddenException(
-          'Paid sessions require identity verification. Please complete verification in your profile.'
-        )
-      }
-      if (!community_ids?.length) {
-        throw new ForbiddenException(
-          'Individual hosts must tag sessions to at least one community where they hold host role.'
-        )
-      }
-
-      const { data: hostGrants, error: grantsError } = await supabase
-        .from('community_hosts')
-        .select('community_id')
-        .eq('user_id', ctx.userId)
-        .in('community_id', community_ids)
-        .returns<Array<{ community_id: string }>>()
-
-      if (grantsError) throw grantsError
-
-      const validCommunityIds = new Set((hostGrants ?? []).map((grant) => grant.community_id))
-      const invalidCommunityIds = community_ids.filter((communityId) => !validCommunityIds.has(communityId))
-      if (invalidCommunityIds.length > 0) {
-        throw new ForbiddenException(
-          'You must hold host role in all tagged communities to post a session there.'
-        )
-      }
+      throw new ForbiddenException(
+        'Individual hosts create sessions from the community page, not here.'
+      )
     }
 
     const { data, error } = await supabase

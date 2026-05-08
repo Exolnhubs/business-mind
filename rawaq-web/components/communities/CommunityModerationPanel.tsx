@@ -5,6 +5,7 @@ import { formatDate } from '@/lib/utils'
 import type {
   CommunityAdminEntry,
   CommunityHostEntry,
+  CommunityHostRequestEntry,
   HappeningReportEntry,
   CommunityAuditLogEntry,
   MemberHistoryState,
@@ -27,6 +28,8 @@ export interface CommunityModerationPanelProps {
   adminsLoading: boolean
   hosts: CommunityHostEntry[]
   hostsLoading: boolean
+  hostRequests: CommunityHostRequestEntry[]
+  hostRequestsLoading: boolean
   reports: HappeningReportEntry[]
   reportsLoading: boolean
   auditLogs: CommunityAuditLogEntry[]
@@ -41,6 +44,7 @@ export interface CommunityModerationPanelProps {
   onRevokeAdmin: (userId: string) => void
   onAssignHost: (userId: string) => void
   onRevokeHost: (userId: string) => void
+  onRespondToHostRequest: (requestId: string, action: 'approve' | 'reject') => void
   onIssueWarning: (userId: string) => void
   onIssueSanction: (userId: string, sanctionType: 'timeout' | 'removed' | 'banned') => void
   onUpdateReport: (reportItem: HappeningReportEntry, status: 'resolved' | 'dismissed') => void
@@ -76,6 +80,8 @@ export function CommunityModerationPanel({
   adminsLoading,
   hosts,
   hostsLoading,
+  hostRequests,
+  hostRequestsLoading,
   reports,
   reportsLoading,
   auditLogs,
@@ -90,6 +96,7 @@ export function CommunityModerationPanel({
   onRevokeAdmin,
   onAssignHost,
   onRevokeHost,
+  onRespondToHostRequest,
   onIssueWarning,
   onIssueSanction,
   onUpdateReport,
@@ -373,6 +380,61 @@ export function CommunityModerationPanel({
                                   className="rounded-lg border border-violet-200 bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-700 cursor-pointer">
                                   Revoke
                                 </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {isCommunityOwner && (
+                    <div className="rounded-2xl border border-purple-100 bg-purple-50/60 p-5 shadow-sm">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h3 className="text-base font-semibold text-gray-900">Pending Host Requests</h3>
+                          <p className="text-xs text-gray-500 mt-0.5">Individual hosts requesting to join as host</p>
+                        </div>
+                        {hostRequests.length > 0 && (
+                          <span className="rounded-full bg-purple-100 px-2.5 py-1 text-xs font-semibold text-purple-700">
+                            {hostRequests.length}
+                          </span>
+                        )}
+                      </div>
+                      {hostRequestsLoading ? (
+                        <div className="flex justify-center py-8"><Spinner size="lg" /></div>
+                      ) : hostRequests.length === 0 ? (
+                        <p className="text-sm text-gray-500">No pending host requests.</p>
+                      ) : (
+                        <div className="space-y-3">
+                          {hostRequests.map((req) => (
+                            <div key={req.id} className="rounded-xl border border-white/70 bg-white px-4 py-3">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="text-sm font-semibold text-gray-900">
+                                    {req.profile?.display_name ?? req.user_id}
+                                  </p>
+                                  {req.organizer_profile?.plan_id && (
+                                    <p className="text-xs text-purple-600 font-medium mt-0.5">{req.organizer_profile.plan_id}</p>
+                                  )}
+                                  {req.message && (
+                                    <p className="text-xs text-gray-600 mt-1.5 line-clamp-2">{req.message}</p>
+                                  )}
+                                  <p className="text-xs text-gray-400 mt-1">{formatDate(req.created_at)}</p>
+                                </div>
+                                <div className="flex shrink-0 gap-2">
+                                  <button
+                                    onClick={() => onRespondToHostRequest(req.id, 'approve')}
+                                    className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 cursor-pointer"
+                                  >
+                                    Approve
+                                  </button>
+                                  <button
+                                    onClick={() => onRespondToHostRequest(req.id, 'reject')}
+                                    className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] font-semibold text-red-700 cursor-pointer"
+                                  >
+                                    Reject
+                                  </button>
+                                </div>
                               </div>
                             </div>
                           ))}

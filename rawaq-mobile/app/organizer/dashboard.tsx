@@ -63,6 +63,7 @@ export default function OrganizerDashboard() {
   const [eventsUsed,   setEventsUsed]   = useState(0)
   const [eventsLimit,  setEventsLimit]  = useState<number | null>(3)
   const [organizerType, setOrganizerType] = useState<'company' | 'individual' | null>(null)
+  const [hostCommunities, setHostCommunities] = useState<{ id: string; name: string; name_ar: string | null; slug: string; level: string; cover_url: string | null; member_count: number }[]>([])
   const [loading,      setLoading]      = useState(true)
   const [refreshing,   setRefreshing]   = useState(false)
   const hasLoadedOnce = useRef(false)
@@ -167,6 +168,15 @@ export default function OrganizerDashboard() {
     setEventsLimit(nextEventsLimit)
     setEventsUsed(nextEventsUsed)
     setOrganizerType(nextOrganizerType)
+
+    if (nextOrganizerType === 'individual') {
+      const { data: grants } = await supabase
+        .from('community_hosts')
+        .select('community:communities(id, name, name_ar, slug, level, cover_url, member_count)')
+        .eq('user_id', user.id)
+      type HostGrant = { community: { id: string; name: string; name_ar: string | null; slug: string; level: string; cover_url: string | null; member_count: number } }
+      setHostCommunities(((grants ?? []) as unknown as HostGrant[]).map((g) => g.community).filter(Boolean))
+    }
 
     organizerDashboardCache = {
       updatedAt: now,
@@ -287,26 +297,69 @@ export default function OrganizerDashboard() {
 
   // Individual hosts manage sessions via community pages, not this dashboard
   if (organizerType === 'individual') {
+    const LEVEL_ICON: Record<string, string> = {
+      micro: '🏘️', interest: '🎯', district: '🏙️', city: '🌆', country: '🌍',
+    }
     return (
-      <View style={styles.centered}>
-        <Text style={{ fontSize: 48, marginBottom: 12 }}>🏠</Text>
-        <Text style={styles.blockedTitle}>{t('organizer_dashboard.individual_host_title')}</Text>
-        <Text style={styles.blockedSub}>{t('organizer_dashboard.individual_host_sub')}</Text>
-        <TouchableOpacity
-          style={[styles.createBtn, { marginTop: 24, paddingHorizontal: 32 }]}
-          onPress={() => router.push('/(tabs)/profile')}
+      <SafeAreaView edges={['top']} style={styles.container}>
+        <ScrollView
+          style={styles.container}
+          contentContainerStyle={[styles.content, { paddingTop: insets.top + 8 }]}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(true) }} tintColor={Colors.brand[500]} />}
         >
-          <Text style={styles.createBtnText}>{t('organizer_dashboard.go_to_profile')}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={{ marginTop: 12 }}
-          onPress={() => router.push('/organizer/earnings')}
-        >
-          <Text style={{ color: Colors.brand[500], fontSize: FontSize.sm, fontWeight: FontWeight.medium }}>
-            {t('organizer_dashboard.view_earnings')}
-          </Text>
-        </TouchableOpacity>
-      </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+            <View>
+              <Text style={styles.headerTitle}>{t('organizer_dashboard.individual_host_title')}</Text>
+              <Text style={[styles.headerSub, { marginTop: 2 }]}>{t('organizer_dashboard.individual_host_sub')}</Text>
+            </View>
+            <TouchableOpacity onPress={() => router.push('/organizer/earnings')}>
+              <Text style={{ color: Colors.brand[500], fontSize: FontSize.sm, fontWeight: FontWeight.semibold }}>
+                {t('organizer_dashboard.view_earnings')}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {hostCommunities.length === 0 ? (
+            <View style={styles.centered}>
+              <Text style={{ fontSize: 40, marginBottom: 12 }}>🏘️</Text>
+              <Text style={[styles.blockedTitle, { marginBottom: 8 }]}>{t('organizer_dashboard.individual_host_empty_title')}</Text>
+              <Text style={[styles.blockedSub, { marginBottom: 20 }]}>{t('organizer_dashboard.individual_host_empty_sub')}</Text>
+              <TouchableOpacity
+                style={[styles.createBtn, { paddingHorizontal: 32 }]}
+                onPress={() => router.push('/communities' as any)}
+              >
+                <Text style={styles.createBtnText}>{t('organizer_dashboard.explore_communities')}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={{ gap: 10 }}>
+              {hostCommunities.map((c) => {
+                const name = locale === 'ar' && c.name_ar ? c.name_ar : c.name
+                return (
+                  <TouchableOpacity
+                    key={c.id}
+                    style={styles.hostCommunityCard}
+                    activeOpacity={0.8}
+                    onPress={() => router.push(`/communities/${c.slug}` as any)}
+                  >
+                    <View style={styles.hostCommAvatar}>
+                      <Text style={{ fontSize: 22 }}>{LEVEL_ICON[c.level] ?? '🏠'}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.hostCommName} numberOfLines={1}>{name}</Text>
+                      <Text style={styles.hostCommMeta}>{c.member_count.toLocaleString()} members · {c.level}</Text>
+                    </View>
+                    <Text style={{ color: Colors.gray[400], fontSize: 18 }}>›</Text>
+                  </TouchableOpacity>
+                )
+              })}
+              <Text style={{ textAlign: 'center', color: Colors.gray[400], fontSize: FontSize.xs, marginTop: 8 }}>
+                {t('organizer_dashboard.create_session_hint')}
+              </Text>
+            </View>
+          )}
+        </ScrollView>
+      </SafeAreaView>
     )
   }
 
@@ -516,4 +569,15 @@ const styles = StyleSheet.create({
   upgradeBadge:  { backgroundColor: Colors.brand[500], borderRadius: Radius.full, paddingHorizontal: Spacing.md, paddingVertical: 4 },
   upgradeBadgeText: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.white },
   planArrow:     { fontSize: 22, color: Colors.gray[400] },
+  hostCommunityCard: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
+    backgroundColor: Colors.white, borderRadius: Radius.lg,
+    padding: Spacing.lg, ...Shadow.card,
+  },
+  hostCommAvatar: {
+    width: 48, height: 48, borderRadius: Radius.md,
+    backgroundColor: '#f5f3ff', alignItems: 'center', justifyContent: 'center',
+  },
+  hostCommName: { fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.gray[900] },
+  hostCommMeta: { fontSize: FontSize.xs, color: Colors.gray[500], marginTop: 2 },
 })
