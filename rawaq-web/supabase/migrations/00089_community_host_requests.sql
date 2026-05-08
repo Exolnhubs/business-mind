@@ -23,5 +23,6 @@ CREATE INDEX IF NOT EXISTS idx_chr_user
 ALTER TABLE community_host_requests ENABLE ROW LEVEL SECURITY;
 
 -- Service-role (admin client) can do anything
+DROP POLICY IF EXISTS "service_role_all" ON community_host_requests;
 CREATE POLICY "service_role_all" ON community_host_requests
   AS PERMISSIVE FOR ALL TO service_role USING (true) WITH CHECK (true);
