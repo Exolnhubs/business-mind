@@ -359,7 +359,7 @@ export function CommunityModerationPanel({
                       {hostsLoading ? (
                         <div className="flex justify-center py-8"><Spinner size="lg" /></div>
                       ) : hosts.length === 0 ? (
-                        <p className="text-sm text-gray-500">No hosts assigned yet. Use "Make host" in the member list above.</p>
+                        <p className="text-sm text-gray-500">No hosts assigned yet. Use &quot;Make host&quot; in the member list above.</p>
                       ) : (
                         <div className="space-y-3">
                           {hosts.map((host) => (
