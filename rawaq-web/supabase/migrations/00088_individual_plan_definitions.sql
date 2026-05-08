@@ -1,59 +1,53 @@
--- Add ind_free, ind_basic, ind_pro rows to plan_definitions for individual hosts.
--- Uses INSERT ... ON CONFLICT DO UPDATE so re-running is safe.
+-- Widen plan_definitions.type check to include 'individual', then fix the
+-- ind_* rows that were seeded in 00082 with type='organizer' by mistake.
 
-INSERT INTO plan_definitions (
-  id, type, name, name_ar,
-  price_sar, billing_interval,
-  events_per_month, attendees_per_event,
-  platform_fee_pct, features, is_active, sort_order
-) VALUES
-  (
-    'ind_free', 'individual', 'Individual Free', 'مضيف مجاني',
-    0, 'monthly',
-    5, 30,
-    0.15,
-    '{
-      "organizer_type": "individual",
-      "free_sessions_only": true,
-      "payout_hold_days": 7,
-      "featured_per_month": 0
-    }'::jsonb,
-    true, 10
-  ),
-  (
-    'ind_basic', 'individual', 'Individual Basic', 'مضيف أساسي',
-    49, 'monthly',
-    15, 60,
-    0.12,
-    '{
-      "organizer_type": "individual",
-      "free_sessions_only": false,
-      "payout_hold_days": 3,
-      "featured_per_month": 0
-    }'::jsonb,
-    true, 11
-  ),
-  (
-    'ind_pro', 'individual', 'Individual Pro', 'مضيف احترافي',
-    99, 'monthly',
-    40, 100,
-    0.08,
-    '{
-      "organizer_type": "individual",
-      "free_sessions_only": false,
-      "payout_hold_days": 1,
-      "featured_per_month": 1
-    }'::jsonb,
-    true, 12
-  )
-ON CONFLICT (id) DO UPDATE SET
-  is_active           = EXCLUDED.is_active,
-  name                = EXCLUDED.name,
-  name_ar             = EXCLUDED.name_ar,
-  price_sar           = EXCLUDED.price_sar,
-  events_per_month    = EXCLUDED.events_per_month,
-  attendees_per_event = EXCLUDED.attendees_per_event,
-  platform_fee_pct    = EXCLUDED.platform_fee_pct,
-  features            = EXCLUDED.features,
-  sort_order          = EXCLUDED.sort_order,
-  updated_at          = now();
+-- 1. Drop old constraint, add new one that includes 'individual'
+ALTER TABLE plan_definitions
+  DROP CONSTRAINT IF EXISTS plan_definitions_type_check;
+
+ALTER TABLE plan_definitions
+  ADD CONSTRAINT plan_definitions_type_check
+    CHECK (type IN ('user', 'organizer', 'individual'));
+
+-- 2. Correct the type + metadata for all three individual-host plans
+UPDATE plan_definitions SET
+  type                = 'individual',
+  name                = 'Individual Free',
+  name_ar             = 'مضيف مجاني',
+  price_sar           = 0,
+  events_per_month    = 5,
+  attendees_per_event = 30,
+  platform_fee_pct    = 0.15,
+  features            = '{"organizer_type":"individual","free_sessions_only":true,"payout_hold_days":7,"featured_per_month":0}'::jsonb,
+  is_active           = true,
+  sort_order          = 10,
+  updated_at          = now()
+WHERE id = 'ind_free';
+
+UPDATE plan_definitions SET
+  type                = 'individual',
+  name                = 'Individual Basic',
+  name_ar             = 'مضيف أساسي',
+  price_sar           = 49,
+  events_per_month    = 15,
+  attendees_per_event = 60,
+  platform_fee_pct    = 0.12,
+  features            = '{"organizer_type":"individual","free_sessions_only":false,"payout_hold_days":3,"featured_per_month":0}'::jsonb,
+  is_active           = true,
+  sort_order          = 11,
+  updated_at          = now()
+WHERE id = 'ind_basic';
+
+UPDATE plan_definitions SET
+  type                = 'individual',
+  name                = 'Individual Pro',
+  name_ar             = 'مضيف احترافي',
+  price_sar           = 99,
+  events_per_month    = 40,
+  attendees_per_event = 100,
+  platform_fee_pct    = 0.08,
+  features            = '{"organizer_type":"individual","free_sessions_only":false,"payout_hold_days":1,"featured_per_month":1}'::jsonb,
+  is_active           = true,
+  sort_order          = 12,
+  updated_at          = now()
+WHERE id = 'ind_pro';
