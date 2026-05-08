@@ -1,4 +1,3 @@
-import { NextRequest } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { handleApiError, ok, ForbiddenException } from '@/lib/errors'
@@ -17,7 +16,7 @@ type HostCommunityRow = {
 }
 
 // GET /api/individual-host/communities — list communities where viewer is an assigned host
-export async function GET(_req: NextRequest) {
+export async function GET() {
   try {
     const ctx = await requireAuth()
     const admin = createSupabaseAdminClient()
