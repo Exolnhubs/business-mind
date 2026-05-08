@@ -81,6 +81,7 @@ export default function PlansScreen() {
   const [eventsUsed,   setEventsUsed]   = useState(0)
 
   const isOrganizer = profile?.role === 'organizer'
+  const isIndividualHost = profile?.plan_id?.startsWith('ind_')
 
   const load = useCallback(async () => {
     if (!user || !profile) return
@@ -94,12 +95,12 @@ export default function PlansScreen() {
     }
 
     setPlans(data?.plans ?? [])
-    setCurrentId(data?.plan?.id ?? (isOrganizer ? 'org_basic' : 'user_free'))
+    setCurrentId(data?.plan?.id ?? (isIndividualHost ? 'ind_free' : isOrganizer ? 'org_basic' : 'user_free'))
     setEventsUsed(data?.usage?.events_created ?? 0)
 
     setLoading(false)
     setRefreshing(false)
-  }, [user, profile, isOrganizer])
+  }, [user, profile, isOrganizer, isIndividualHost])
 
   useEffect(() => { load() }, [load])
 

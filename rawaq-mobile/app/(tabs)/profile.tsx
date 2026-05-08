@@ -431,6 +431,7 @@ export default function ProfileScreen() {
     org_elite: t('profile.plan_elite'),
   }[profile?.plan_id ?? ''] ?? t('profile.plan_free')
   const isApprovedOrganizer = profile?.role === 'organizer' || orgRequest?.status === 'approved'
+  const isIndividualHost = profile?.plan_id?.startsWith('ind_') || orgRequest?.organizer_type === 'individual'
   const hasPendingCompanyRequest = orgRequest?.organizer_type !== 'individual' && orgRequest?.status === 'pending'
   const hasPendingHostRequest = orgRequest?.organizer_type === 'individual' && orgRequest.status === 'pending'
 
@@ -927,13 +928,15 @@ export default function ProfileScreen() {
               </View>
               <Text style={styles.rowArrow}>›</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.row} onPress={() => router.push('/organizer/event-form')}>
-              <View style={styles.rowLeft}>
-                <Text style={styles.rowIcon}>➕</Text>
-                <Text style={styles.rowLabel}>{t('profile.create_event')}</Text>
-              </View>
-              <Text style={styles.rowArrow}>›</Text>
-            </TouchableOpacity>
+            {!isIndividualHost && (
+              <TouchableOpacity style={styles.row} onPress={() => router.push('/organizer/event-form')}>
+                <View style={styles.rowLeft}>
+                  <Text style={styles.rowIcon}>➕</Text>
+                  <Text style={styles.rowLabel}>{t('profile.create_event')}</Text>
+                </View>
+                <Text style={styles.rowArrow}>›</Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
 
