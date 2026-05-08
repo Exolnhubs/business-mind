@@ -133,8 +133,9 @@ export default function CommunityDetailPage() {
       : admins.find((entry) => entry.user_id === user.id)?.role ?? null
     : null
   const effectiveRole = memberRole ?? derivedRole
-  const isCommunityOwner = effectiveRole === 'owner'
-  const canModerate = effectiveRole === 'owner' || effectiveRole === 'community_admin'
+  const isPlatformAdmin = profile?.role === 'admin'
+  const isCommunityOwner = effectiveRole === 'owner' || isPlatformAdmin
+  const canModerate = isCommunityOwner || effectiveRole === 'community_admin'
   const isIndividualOrganizer = community?.viewer_is_individual_organizer ?? false
   const isCurrentUserHost = community?.is_host ?? false
   const viewerHostRequestStatus = community?.viewer_host_request_status ?? null
@@ -144,7 +145,6 @@ export default function CommunityDetailPage() {
     && isIndividualOrganizer
     && !isCommunityOwner
   const canParticipateInHappenings = memberStatus ? memberStatus === 'active' : isMember
-  const isPlatformAdmin = profile?.role === 'admin'
   const directParent = community && community.ancestors.length > 0
     ? community.ancestors[community.ancestors.length - 1]
     : null
