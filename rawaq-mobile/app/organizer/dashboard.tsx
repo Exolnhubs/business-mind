@@ -294,13 +294,13 @@ export default function OrganizerDashboard() {
         <Text style={styles.blockedSub}>{t('organizer_dashboard.individual_host_sub')}</Text>
         <TouchableOpacity
           style={[styles.createBtn, { marginTop: 24, paddingHorizontal: 32 }]}
-          onPress={() => router.push('/(tabs)/communities' as never)}
+          onPress={() => router.push('/(tabs)/profile')}
         >
-          <Text style={styles.createBtnText}>{t('organizer_dashboard.go_to_communities')}</Text>
+          <Text style={styles.createBtnText}>{t('organizer_dashboard.go_to_profile')}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={{ marginTop: 12 }}
-          onPress={() => router.push('/organizer/earnings' as never)}
+          onPress={() => router.push('/organizer/earnings')}
         >
           <Text style={{ color: Colors.brand[500], fontSize: FontSize.sm, fontWeight: FontWeight.medium }}>
             {t('organizer_dashboard.view_earnings')}
