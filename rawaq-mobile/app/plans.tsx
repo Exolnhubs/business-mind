@@ -364,6 +364,16 @@ export default function PlansScreen() {
                     <Text style={styles.darkFeatureText}>{f}</Text>
                   </View>
                 ))}
+                {plan.type === 'individual' && (
+                  <View style={styles.featureRow}>
+                    <Text style={[styles.featureCheck, { color: C_GOLD }]}>✓</Text>
+                    <Text style={styles.darkFeatureText}>
+                      {plan.community_limit === null
+                        ? 'Unlimited community hosting'
+                        : `Host in up to ${plan.community_limit} ${plan.community_limit === 1 ? 'community' : 'communities'}`}
+                    </Text>
+                  </View>
+                )}
               </View>
 
               {/* CTA */}
@@ -466,6 +476,16 @@ export default function PlansScreen() {
                   <Text style={styles.lightFeatureText}>{f}</Text>
                 </View>
               ))}
+              {plan.type === 'individual' && (
+                <View style={styles.featureRow}>
+                  <Text style={[styles.featureCheck, { color: Colors.brand[500] }]}>✓</Text>
+                  <Text style={styles.lightFeatureText}>
+                    {plan.community_limit === null
+                      ? 'Unlimited community hosting'
+                      : `Host in up to ${plan.community_limit} ${plan.community_limit === 1 ? 'community' : 'communities'}`}
+                  </Text>
+                </View>
+              )}
             </View>
 
             {/* CTA */}

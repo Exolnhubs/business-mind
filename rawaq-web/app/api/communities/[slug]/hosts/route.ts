@@ -5,12 +5,6 @@ import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { handleApiError, ok, created, BadRequestException, ForbiddenException, NotFoundException } from '@/lib/errors'
 import { requireCommunityManager, requireCommunityOwner, writeCommunityAuditLog } from '@/lib/community-governance'
 
-const PLAN_HOST_COMMUNITY_LIMIT: Record<string, number | null> = {
-  ind_free:  1,
-  ind_basic: 3,
-  ind_pro:   null,
-}
-
 const AssignHostSchema = z.object({
   user_id: z.string().uuid(),
 })
@@ -123,12 +117,12 @@ export async function POST(
     // Enforce individual host plan limits
     const { data: orgProfile } = await admin
       .from('organizer_profiles')
-      .select('plan_id, organizer_type')
+      .select('plan_id, organizer_type, plan:plan_definitions(community_limit)')
       .eq('user_id', input.user_id)
-      .maybeSingle<{ plan_id: string; organizer_type: string }>()
+      .maybeSingle<{ plan_id: string; organizer_type: string; plan: { community_limit: number | null } | null }>()
 
     if (orgProfile?.organizer_type === 'individual') {
-      const limit = PLAN_HOST_COMMUNITY_LIMIT[orgProfile.plan_id] ?? 1
+      const limit = orgProfile.plan?.community_limit ?? 1
       if (limit !== null) {
         const { count } = await admin
           .from('community_hosts')
@@ -137,7 +131,7 @@ export async function POST(
 
         if ((count ?? 0) >= limit) {
           throw new ForbiddenException(
-            `This host's ${orgProfile.plan_id} plan only allows hosting in at most ${limit} ${limit === 1 ? 'community' : 'communities'}.`,
+            `This host's plan only allows hosting in at most ${limit} ${limit === 1 ? 'community' : 'communities'}.`,
           )
         }
       }

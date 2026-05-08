@@ -11,6 +11,7 @@ const UpdatePlanSchema = z.object({
   billing_interval:    z.enum(['free', 'monthly', 'yearly']).optional(),
   events_per_month:    z.number().int().min(1).nullable().optional(),
   attendees_per_event: z.number().int().min(1).nullable().optional(),
+  community_limit:     z.number().int().min(1).nullable().optional(),
   platform_fee_pct:    z.number().min(0).max(1).optional(),
   features:            z.record(z.unknown()).optional(),
   is_active:           z.boolean().optional(),

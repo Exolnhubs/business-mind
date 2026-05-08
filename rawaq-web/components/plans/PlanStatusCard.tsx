@@ -130,6 +130,15 @@ export function PlanStatusCard({ planId }: Props) {
           {usage !== undefined && eventLimit === null && (
             <p className="text-xs text-gray-400">Unlimited events · no monthly cap</p>
           )}
+
+          {/* Individual host: community hosting limit */}
+          {plan?.type === 'individual' && (
+            <p className="text-xs text-gray-400">
+              {plan.community_limit === null
+                ? 'Unlimited community hosting'
+                : `Host in up to ${plan.community_limit} ${plan.community_limit === 1 ? 'community' : 'communities'}`}
+            </p>
+          )}
         </div>
       )}
     </div>

@@ -7,13 +7,6 @@ import {
   BadRequestException, ConflictException, ForbiddenException, NotFoundException,
 } from '@/lib/errors'
 
-// Plan-based limit: how many communities can this host be active in simultaneously?
-const PLAN_HOST_COMMUNITY_LIMIT: Record<string, number | null> = {
-  ind_free:  1,
-  ind_basic: 3,
-  ind_pro:   null, // unlimited
-}
-
 const RequestSchema = z.object({
   message: z.string().max(300).optional(),
 })
@@ -31,9 +24,9 @@ export async function POST(
     // Must be an approved individual organizer
     const { data: orgProfile } = await admin
       .from('organizer_profiles')
-      .select('organizer_type, status, plan_id')
+      .select('organizer_type, status, plan_id, plan:plan_definitions(community_limit)')
       .eq('user_id', ctx.userId)
-      .maybeSingle<{ organizer_type: string; status: string; plan_id: string }>()
+      .maybeSingle<{ organizer_type: string; status: string; plan_id: string; plan: { community_limit: number | null } | null }>()
 
     if (!orgProfile || orgProfile.organizer_type !== 'individual' || orgProfile.status !== 'approved') {
       throw new ForbiddenException('Only approved individual hosts can request community host roles')
@@ -70,8 +63,8 @@ export async function POST(
 
     if (existingHost) throw new ConflictException('You are already a host in this community')
 
-    // Check plan-based community limit
-    const limit = PLAN_HOST_COMMUNITY_LIMIT[orgProfile.plan_id] ?? 1
+    // Check plan-based community limit (read from DB, not hardcoded)
+    const limit = orgProfile.plan?.community_limit ?? 1
     if (limit !== null) {
       const { count } = await admin
         .from('community_hosts')
@@ -80,7 +73,7 @@ export async function POST(
 
       if ((count ?? 0) >= limit) {
         throw new ForbiddenException(
-          `Your ${orgProfile.plan_id} plan allows hosting in at most ${limit} ${limit === 1 ? 'community' : 'communities'}. Upgrade to host in more.`,
+          `Your plan allows hosting in at most ${limit} ${limit === 1 ? 'community' : 'communities'}. Upgrade to host in more.`,
         )
       }
     }

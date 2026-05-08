@@ -24,6 +24,7 @@ type PlanForm = {
   billing_interval: 'free' | 'monthly' | 'yearly'
   events_per_month: string
   attendees_per_event: string
+  community_limit: string
   platform_fee_pct: string
   is_active: boolean
   sort_order: string
@@ -40,6 +41,7 @@ function planToForm(plan: PlanDefinition): PlanForm {
     billing_interval:    plan.billing_interval as 'free' | 'monthly' | 'yearly',
     events_per_month:    plan.events_per_month === null ? '' : String(plan.events_per_month),
     attendees_per_event: plan.attendees_per_event === null ? '' : String(plan.attendees_per_event),
+    community_limit:     plan.community_limit === null ? '' : String(plan.community_limit),
     platform_fee_pct:    String(Math.round(plan.platform_fee_pct * 100)),
     is_active:           plan.is_active,
     sort_order:          String(plan.sort_order),
@@ -49,7 +51,7 @@ function planToForm(plan: PlanDefinition): PlanForm {
 
 const emptyForm: PlanForm = {
   name: '', name_ar: '', price_sar: '0', billing_interval: 'monthly',
-  events_per_month: '', attendees_per_event: '', platform_fee_pct: '10',
+  events_per_month: '', attendees_per_event: '', community_limit: '', platform_fee_pct: '10',
   is_active: true, sort_order: '0', features: {},
 }
 
@@ -68,6 +70,7 @@ function useSavePlan(onDone: (plan: PlanDefinition) => void) {
           billing_interval:    form.billing_interval,
           events_per_month:    form.events_per_month ? parseInt(form.events_per_month) : null,
           attendees_per_event: form.attendees_per_event ? parseInt(form.attendees_per_event) : null,
+          community_limit:     form.community_limit ? parseInt(form.community_limit) : null,
           platform_fee_pct:    (parseFloat(form.platform_fee_pct) || 0) / 100,
           is_active:           form.is_active,
           sort_order:          parseInt(form.sort_order) || 0,
@@ -157,7 +160,7 @@ export function PlanEditor({ initialPlans, initialCountryPrices }: Props) {
   const [plans, setPlans] = useState(initialPlans)
   const [allPrices, setAllPrices] = useState(initialCountryPrices)
   const [selectedId, setSelectedId] = useState<string | 'new' | null>(null)
-  const [newType, setNewType] = useState<'user' | 'organizer'>('organizer')
+  const [newType, setNewType] = useState<'user' | 'organizer' | 'individual'>('organizer')
   const [newPlanId, setNewPlanId] = useState('')
   const [form, setForm] = useState<PlanForm>(emptyForm)
 
@@ -208,6 +211,7 @@ export function PlanEditor({ initialPlans, initialCountryPrices }: Props) {
 
   const userPlans  = plans.filter((p) => p.type === 'user')
   const orgPlans   = plans.filter((p) => p.type === 'organizer')
+  const indPlans   = plans.filter((p) => p.type === 'individual')
 
   function PlanList({ items, label }: { items: PlanDefinition[]; label: string }) {
     return (
@@ -241,6 +245,7 @@ export function PlanEditor({ initialPlans, initialCountryPrices }: Props) {
       {/* Plan list sidebar */}
       <div className="w-56 shrink-0 space-y-4">
         <PlanList items={orgPlans}  label="Organizer Plans" />
+        <PlanList items={indPlans}  label="Individual Host Plans" />
         <PlanList items={userPlans} label="User Plans" />
         <button
           onClick={selectNew}
@@ -277,10 +282,11 @@ export function PlanEditor({ initialPlans, initialCountryPrices }: Props) {
                   <label className="block text-xs font-medium text-gray-600 mb-1">Type</label>
                   <select
                     value={newType}
-                    onChange={(e) => setNewType(e.target.value as 'user' | 'organizer')}
+                    onChange={(e) => setNewType(e.target.value as 'user' | 'organizer' | 'individual')}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
                   >
                     <option value="organizer">organizer</option>
+                    <option value="individual">individual</option>
                     <option value="user">user</option>
                   </select>
                 </div>
@@ -325,6 +331,13 @@ export function PlanEditor({ initialPlans, initialCountryPrices }: Props) {
                 <label className="block text-xs font-medium text-gray-600 mb-1">Attendees/Event (blank = unlimited)</label>
                 <input type="number" min="1" value={form.attendees_per_event}
                   onChange={(e) => setForm({ ...form, attendees_per_event: e.target.value })}
+                  placeholder="unlimited"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Community Hosting Limit (blank = unlimited)</label>
+                <input type="number" min="1" value={form.community_limit}
+                  onChange={(e) => setForm({ ...form, community_limit: e.target.value })}
                   placeholder="unlimited"
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
               </div>

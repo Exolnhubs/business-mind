@@ -1,6 +1,6 @@
 // Plan & subscription types — kept separate from database.ts for clarity
 
-export type PlanType = "user" | "organizer";
+export type PlanType = "user" | "organizer" | "individual";
 export type SubscriptionStatus =
   | "active"
   | "cancelled"
@@ -16,6 +16,7 @@ export interface PlanDefinition {
   billing_interval: string;
   events_per_month: number | null; // null = unlimited
   attendees_per_event: number | null; // null = unlimited
+  community_limit: number | null; // null = unlimited (individual plans only)
   platform_fee_pct: number; // 0.0000-1.0000 (e.g. 0.10 = 10%)
   features: Record<string, unknown>;
   is_active: boolean;

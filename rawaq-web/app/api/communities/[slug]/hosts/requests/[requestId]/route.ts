@@ -8,12 +8,6 @@ import {
 } from '@/lib/errors'
 import { requireCommunityOwner, writeCommunityAuditLog } from '@/lib/community-governance'
 
-const PLAN_HOST_COMMUNITY_LIMIT: Record<string, number | null> = {
-  ind_free:  1,
-  ind_basic: 3,
-  ind_pro:   null,
-}
-
 const RespondSchema = z.object({
   action: z.enum(['approve', 'reject']),
 })
@@ -47,15 +41,15 @@ export async function PATCH(
       // Check the requester's plan limit before approving
       const { data: orgProfile } = await admin
         .from('organizer_profiles')
-        .select('plan_id, status, organizer_type')
+        .select('plan_id, status, organizer_type, plan:plan_definitions(community_limit)')
         .eq('user_id', request.user_id)
-        .maybeSingle<{ plan_id: string; status: string; organizer_type: string }>()
+        .maybeSingle<{ plan_id: string; status: string; organizer_type: string; plan: { community_limit: number | null } | null }>()
 
       if (!orgProfile || orgProfile.organizer_type !== 'individual' || orgProfile.status !== 'approved') {
         throw new ForbiddenException('This user is no longer an approved individual host')
       }
 
-      const limit = PLAN_HOST_COMMUNITY_LIMIT[orgProfile.plan_id] ?? 1
+      const limit = orgProfile.plan?.community_limit ?? 1
       if (limit !== null) {
         const { count } = await admin
           .from('community_hosts')

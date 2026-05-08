@@ -6,13 +6,14 @@ import { handleApiError, ok, created } from '@/lib/errors'
 
 const CreatePlanSchema = z.object({
   id:                  z.string().min(2).max(64).regex(/^[a-z0-9_]+$/),
-  type:                z.enum(['user', 'organizer']),
+  type:                z.enum(['user', 'organizer', 'individual']),
   name:                z.string().min(1).max(80),
   name_ar:             z.string().min(1).max(80),
   price_sar:           z.number().min(0),
   billing_interval:    z.enum(['free', 'monthly', 'yearly']),
   events_per_month:    z.number().int().min(1).nullable(),
   attendees_per_event: z.number().int().min(1).nullable(),
+  community_limit:     z.number().int().min(1).nullable().optional().default(null),
   platform_fee_pct:    z.number().min(0).max(1),
   features:            z.record(z.unknown()).default({}),
   is_active:           z.boolean().default(true),
