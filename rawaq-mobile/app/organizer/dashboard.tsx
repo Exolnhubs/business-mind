@@ -42,6 +42,7 @@ type OrganizerDashboardCache = {
   planId: string
   eventsUsed: number
   eventsLimit: number | null
+  organizerType: 'company' | 'individual' | null
 }
 
 let organizerDashboardCache: OrganizerDashboardCache | null = null
@@ -61,6 +62,7 @@ export default function OrganizerDashboard() {
   const [planId,       setPlanId]       = useState('org_basic')
   const [eventsUsed,   setEventsUsed]   = useState(0)
   const [eventsLimit,  setEventsLimit]  = useState<number | null>(3)
+  const [organizerType, setOrganizerType] = useState<'company' | 'individual' | null>(null)
   const [loading,      setLoading]      = useState(true)
   const [refreshing,   setRefreshing]   = useState(false)
   const hasLoadedOnce = useRef(false)
@@ -78,9 +80,10 @@ export default function OrganizerDashboard() {
         planId,
         eventsUsed,
         eventsLimit,
+        organizerType,
       }
     }
-  }, [events, eventsLimit, eventsUsed, isBanned, loading, orgName, orgStatus, planId, suspendReason, totalTips])
+  }, [events, eventsLimit, eventsUsed, isBanned, loading, orgName, orgStatus, organizerType, planId, suspendReason, totalTips])
 
   const load = useCallback(async (force = false) => {
     if (!user) return
@@ -102,6 +105,7 @@ export default function OrganizerDashboard() {
       setPlanId(cache.planId)
       setEventsUsed(cache.eventsUsed)
       setEventsLimit(cache.eventsLimit)
+      setOrganizerType(cache.organizerType)
       hasLoadedOnce.current = true
       setLoading(false)
       setRefreshing(false)
@@ -119,7 +123,7 @@ export default function OrganizerDashboard() {
         .limit(30),
       supabase
         .from('organizer_profiles')
-        .select('business_name, plan_id, status, suspend_reason, plan:plan_definitions(events_per_month, platform_fee_pct)')
+        .select('business_name, plan_id, status, suspend_reason, organizer_type, plan:plan_definitions(events_per_month, platform_fee_pct)')
         .eq('user_id', user.id)
         .single(),
       supabase
@@ -151,6 +155,7 @@ export default function OrganizerDashboard() {
     const planData = orgRes.data?.plan as unknown as { events_per_month: number | null; platform_fee_pct: number } | null
     const nextEventsLimit = planData?.events_per_month ?? 3
     const nextEventsUsed = usageRes.data?.events_created ?? 0
+    const nextOrganizerType = (orgRes.data as { organizer_type?: 'company' | 'individual' | null })?.organizer_type ?? null
 
     setEvents(nextEvents)
     setOrgName(nextOrgName)
@@ -161,6 +166,7 @@ export default function OrganizerDashboard() {
     setPlanId(nextPlanId)
     setEventsLimit(nextEventsLimit)
     setEventsUsed(nextEventsUsed)
+    setOrganizerType(nextOrganizerType)
 
     organizerDashboardCache = {
       updatedAt: now,
@@ -173,6 +179,7 @@ export default function OrganizerDashboard() {
       planId: nextPlanId,
       eventsUsed: nextEventsUsed,
       eventsLimit: nextEventsLimit,
+      organizerType: nextOrganizerType,
     }
 
     hasLoadedOnce.current = true
@@ -211,9 +218,12 @@ export default function OrganizerDashboard() {
   const totalBookings = events.reduce((s, e) => s + e.bookings_count, 0)
   const headerTopSpacing = Math.max(Spacing.sm, Math.min(insets.top * 0.18, Spacing.md))
   const planLabel = {
-    org_basic: t('organizer_dashboard.plan_basic'),
-    org_pro: t('organizer_dashboard.plan_pro'),
-    org_elite: t('organizer_dashboard.plan_elite'),
+    org_basic:  t('organizer_dashboard.plan_basic'),
+    org_pro:    t('organizer_dashboard.plan_pro'),
+    org_elite:  t('organizer_dashboard.plan_elite'),
+    ind_free:   t('organizer_dashboard.plan_ind_free'),
+    ind_basic:  t('organizer_dashboard.plan_ind_basic'),
+    ind_pro:    t('organizer_dashboard.plan_ind_pro'),
   }[planId] ?? t('organizer_dashboard.plan_basic')
   const monthUsageLabel = eventsLimit !== null
     ? t('organizer_dashboard.events_this_month')
@@ -275,6 +285,31 @@ export default function OrganizerDashboard() {
     )
   }
 
+  // Individual hosts manage sessions via community pages, not this dashboard
+  if (organizerType === 'individual') {
+    return (
+      <View style={styles.centered}>
+        <Text style={{ fontSize: 48, marginBottom: 12 }}>🏠</Text>
+        <Text style={styles.blockedTitle}>{t('organizer_dashboard.individual_host_title')}</Text>
+        <Text style={styles.blockedSub}>{t('organizer_dashboard.individual_host_sub')}</Text>
+        <TouchableOpacity
+          style={[styles.createBtn, { marginTop: 24, paddingHorizontal: 32 }]}
+          onPress={() => router.push('/(tabs)/communities' as never)}
+        >
+          <Text style={styles.createBtnText}>{t('organizer_dashboard.go_to_communities')}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={{ marginTop: 12 }}
+          onPress={() => router.push('/organizer/earnings' as never)}
+        >
+          <Text style={{ color: Colors.brand[500], fontSize: FontSize.sm, fontWeight: FontWeight.medium }}>
+            {t('organizer_dashboard.view_earnings')}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    )
+  }
+
   return (
     <SafeAreaView edges={['top']} style={styles.container}>
     <ScrollView
@@ -320,12 +355,12 @@ export default function OrganizerDashboard() {
           </Text>
           <Text style={styles.planCardSub}>{monthUsageLabel}</Text>
         </View>
-        {planId === 'org_basic' && (
+        {(planId === 'org_basic' || planId === 'ind_free') && (
           <View style={styles.upgradeBadge}>
             <Text style={styles.upgradeBadgeText}>{t('organizer_dashboard.upgrade')}</Text>
           </View>
         )}
-        {planId !== 'org_basic' && (
+        {planId !== 'org_basic' && planId !== 'ind_free' && (
           <Text style={styles.planArrow}>›</Text>
         )}
       </TouchableOpacity>

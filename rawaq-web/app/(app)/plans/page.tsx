@@ -24,17 +24,23 @@ export default async function PlansPage() {
   const isOrganizer = profile.role === 'organizer'
 
   let currentPlanId = profile.plan_id
+  let isIndividualHost = false
   if (isOrganizer) {
     const { data: op } = await supabase
       .from('organizer_profiles')
-      .select('plan_id')
+      .select('plan_id, organizer_type')
       .eq('user_id', user.id)
       .single()
-    if (op) currentPlanId = op.plan_id
+    if (op) {
+      currentPlanId = op.plan_id
+      isIndividualHost = op.organizer_type === 'individual'
+    }
   }
 
+  const planCatalogType = isIndividualHost ? 'individual' : isOrganizer ? 'organizer' : 'user'
+
   const [{ plans }, { data: subscription }] = await Promise.all([
-    getResolvedPlanCatalog(user.id, isOrganizer ? 'organizer' : 'user'),
+    getResolvedPlanCatalog(user.id, planCatalogType),
     supabase
       .from('subscriptions')
       .select('*')
@@ -46,7 +52,7 @@ export default async function PlansPage() {
   ])
 
   let usage: { events_created: number; month: string } | null = null
-  if (isOrganizer) {
+  if (isOrganizer && !isIndividualHost) {
     const monthStr = new Date().toISOString().slice(0, 7) + '-01'
     const { data: usageData } = await supabase
       .from('organizer_monthly_usage')
@@ -64,7 +70,8 @@ export default async function PlansPage() {
         currentPlanId={currentPlanId}
         subscription={subscription as Subscription | null}
         usage={usage}
-        isOrganizer={isOrganizer}
+        isOrganizer={isOrganizer && !isIndividualHost}
+        isIndividualHost={isIndividualHost}
       />
     </div>
   )

@@ -15,7 +15,17 @@ export async function GET() {
   try {
     const ctx = await requireAuth()
     const supabase = await createSupabaseServerClient()
-    const planType = ctx.role === 'organizer' ? 'organizer' : 'user'
+
+    let planType: 'user' | 'organizer' | 'individual' = ctx.role === 'organizer' ? 'organizer' : 'user'
+    if (ctx.role === 'organizer') {
+      const { data: op } = await supabase
+        .from('organizer_profiles')
+        .select('organizer_type')
+        .eq('user_id', ctx.userId)
+        .single()
+      if (op?.organizer_type === 'individual') planType = 'individual'
+    }
+
     const catalog = await getResolvedPlanCatalog(ctx.userId, planType)
 
     if (ctx.role === 'organizer') {
@@ -117,7 +127,16 @@ export async function POST(req: Request) {
 
     const admin = createSupabaseAdminClient()
 
-    const planType = ctx.role === 'organizer' ? 'organizer' : 'user'
+    let planType: 'user' | 'organizer' | 'individual' = ctx.role === 'organizer' ? 'organizer' : 'user'
+    if (ctx.role === 'organizer') {
+      const { data: op } = await admin
+        .from('organizer_profiles')
+        .select('organizer_type')
+        .eq('user_id', ctx.userId)
+        .single()
+      if (op?.organizer_type === 'individual') planType = 'individual'
+    }
+
     const catalog = await getResolvedPlanCatalog(ctx.userId, planType)
     const plan = catalog.plans.find((item) => item.id === plan_id)
 

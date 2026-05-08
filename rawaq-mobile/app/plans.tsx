@@ -36,6 +36,7 @@ type SubscriptionPaymentResponse = {
 const PLAN_FLAGSHIP: Record<string, boolean> = {
   user_premium: true,
   org_pro: true,
+  ind_pro: true,
 }
 
 const PLAN_FEATURE_KEYS: Record<string, string[]> = {
@@ -44,6 +45,9 @@ const PLAN_FEATURE_KEYS: Record<string, string[]> = {
   org_basic:    ['plans.feature.org_basic.1', 'plans.feature.org_basic.2', 'plans.feature.org_basic.3', 'plans.feature.org_basic.4'],
   org_pro:      ['plans.feature.org_pro.1', 'plans.feature.org_pro.2', 'plans.feature.org_pro.3', 'plans.feature.org_pro.4'],
   org_elite:    ['plans.feature.org_elite.1', 'plans.feature.org_elite.2', 'plans.feature.org_elite.3', 'plans.feature.org_elite.4'],
+  ind_free:     ['plans.feature.ind_free.1', 'plans.feature.ind_free.2', 'plans.feature.ind_free.3', 'plans.feature.ind_free.4'],
+  ind_basic:    ['plans.feature.ind_basic.1', 'plans.feature.ind_basic.2', 'plans.feature.ind_basic.3', 'plans.feature.ind_basic.4'],
+  ind_pro:      ['plans.feature.ind_pro.1', 'plans.feature.ind_pro.2', 'plans.feature.ind_pro.3', 'plans.feature.ind_pro.4'],
 }
 
 type PlanAction = 'current' | 'upgrade' | 'downgrade'
@@ -288,8 +292,10 @@ export default function PlansScreen() {
         const action = getPlanAction(plan, currentId, plans)
         const features = (PLAN_FEATURE_KEYS[plan.id] ?? []).map((key) => t(key))
         const planName = locale === 'ar' ? plan.name_ar : plan.name
-        const feeSaved = isOrganizer && plan.platform_fee_pct < 0.10
-          ? Math.round((0.10 - plan.platform_fee_pct) * 100)
+        const isIndividualPlan = plan.id.startsWith('ind_')
+        const feeBaseline = isIndividualPlan ? 0.15 : 0.10
+        const feeSaved = (isOrganizer || isIndividualPlan) && plan.platform_fee_pct < feeBaseline
+          ? Math.round((feeBaseline - plan.platform_fee_pct) * 100)
           : null
 
         if (isFlagship) {
@@ -392,7 +398,7 @@ export default function PlansScreen() {
         }
 
         // Light card
-        const isElite = plan.id === 'org_elite'
+        const isElite = plan.id === 'org_elite' || plan.id === 'ind_basic'
         return (
           <View
             key={plan.id}

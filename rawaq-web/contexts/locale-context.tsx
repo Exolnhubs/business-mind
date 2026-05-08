@@ -297,8 +297,10 @@ const translations: Record<Locale, Record<string, string>> = {
     // Plans page
     'plans.title_organizer': 'Organizer plan',
     'plans.title_user': 'Your membership',
+    'plans.title_individual': 'Individual Host plan',
     'plans.subtitle_organizer': 'Publish more events and keep more of what you earn as you grow.',
     'plans.subtitle_user': 'Upgrade for unlimited saves and premium-only event access.',
+    'plans.subtitle_individual': 'Host more sessions and keep more of what you earn as you grow.',
     'plans.free_billing': 'Free · no billing',
     'plans.active': 'Active',
     'plans.updating': 'Updating…',
@@ -846,8 +848,10 @@ const translations: Record<Locale, Record<string, string>> = {
     // Plans page
     'plans.title_organizer': 'خطة المنظِّم',
     'plans.title_user': 'عضويتك',
+    'plans.title_individual': 'خطة المضيف الفردي',
     'plans.subtitle_organizer': 'انشر المزيد من الفعاليات واحتفظ بالمزيد من أرباحك مع نموك.',
     'plans.subtitle_user': 'ارقِّ حسابك للحصول على حفظ غير محدود والوصول إلى الفعاليات الحصرية.',
+    'plans.subtitle_individual': 'استضف المزيد من الجلسات واحتفظ بالمزيد من أرباحك مع نموك.',
     'plans.free_billing': 'مجاني · بدون فاتورة',
     'plans.active': 'نشط',
     'plans.updating': 'جارٍ التحديث…',

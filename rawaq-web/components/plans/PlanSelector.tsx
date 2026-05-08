@@ -10,6 +10,7 @@ import { useLocale } from '@/contexts/locale-context'
 const PLAN_FLAGSHIP: Record<string, boolean> = {
   user_premium: true,
   org_pro: true,
+  ind_pro: true,
 }
 
 const PLAN_FEATURES: Record<string, string[]> = {
@@ -148,6 +149,7 @@ interface Props {
   subscription: Subscription | null
   usage: { events_created: number; month: string } | null
   isOrganizer: boolean
+  isIndividualHost?: boolean
 }
 
 type PlanAction = 'current' | 'upgrade' | 'downgrade'
@@ -168,7 +170,7 @@ function formatPlanAmount(amount: number): string {
 
 // ── Main component ──────────────────────────────────────────────────────────
 
-export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrganizer }: Props) {
+export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrganizer, isIndividualHost }: Props) {
   const { t, locale } = useLocale()
   const searchParams = useSearchParams()
   const [activePlanId, setActivePlanId] = useState(currentPlanId)
@@ -292,10 +294,18 @@ export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrga
           className="font-display text-[2rem] font-black tracking-tight leading-none"
           style={{ color: 'var(--c-ink)' }}
         >
-          {isOrganizer ? t('plans.title_organizer') : t('plans.title_user')}
+          {isIndividualHost
+            ? t('plans.title_individual')
+            : isOrganizer
+            ? t('plans.title_organizer')
+            : t('plans.title_user')}
         </h1>
         <p className="mt-2 text-sm text-gray-500 max-w-[44ch] leading-relaxed">
-          {isOrganizer ? t('plans.subtitle_organizer') : t('plans.subtitle_user')}
+          {isIndividualHost
+            ? t('plans.subtitle_individual')
+            : isOrganizer
+            ? t('plans.subtitle_organizer')
+            : t('plans.subtitle_user')}
         </p>
       </div>
 
@@ -379,8 +389,9 @@ export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrga
           const action = getPlanAction(plan, activePlanId, plans)
           const features = (locale === 'ar' ? PLAN_FEATURES_AR[plan.id] : PLAN_FEATURES[plan.id]) ?? []
           const planName = locale === 'ar' && plan.name_ar ? plan.name_ar : plan.name
-          const feeSavedVsBasic = isOrganizer && plan.platform_fee_pct < 0.10
-            ? Math.round((0.10 - plan.platform_fee_pct) * 100)
+          const feeBaseline = isIndividualHost ? 0.15 : 0.10
+          const feeSavedVsBasic = (isOrganizer || isIndividualHost) && plan.platform_fee_pct < feeBaseline
+            ? Math.round((feeBaseline - plan.platform_fee_pct) * 100)
             : null
 
           if (isFlagship) {
@@ -427,7 +438,7 @@ export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrga
                       <span className="font-display text-4xl font-black text-white">{t('plans.free')}</span>
                     )}
                   </div>
-                  {plan.type === 'organizer' && (
+                  {(plan.type === 'organizer' || plan.type === 'individual') && (
                     <p className="text-[12px] text-white/35 mt-1.5">
                       {t('plans.platform_fee').replace('{n}', (plan.platform_fee_pct * 100).toFixed(0))}
                     </p>

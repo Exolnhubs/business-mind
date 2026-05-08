@@ -1,6 +1,6 @@
 // Plan & subscription types — kept separate from database.ts for clarity
 
-export type PlanType = "user" | "organizer";
+export type PlanType = "user" | "organizer" | "individual";
 export type SubscriptionStatus =
   | "active"
   | "cancelled"

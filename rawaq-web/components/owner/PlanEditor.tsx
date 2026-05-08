@@ -57,7 +57,7 @@ function useSavePlan(onDone: (plan: PlanDefinition) => void) {
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
 
-  async function save(planId: string | null, type: 'user' | 'organizer', form: PlanForm, newId?: string) {
+  async function save(planId: string | null, type: 'user' | 'organizer' | 'individual', form: PlanForm, newId?: string) {
     setError(null)
     startTransition(async () => {
       try {

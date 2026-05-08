@@ -140,7 +140,7 @@ export function getSaveLimit(plan: UserPlanAccess | null): number | null {
   return getNumericPlanFeature(plan.features, 'saves_limit')
 }
 
-export async function getResolvedPlanCatalog(userId: string, type: 'user' | 'organizer'): Promise<ResolvedPlanCatalog> {
+export async function getResolvedPlanCatalog(userId: string, type: 'user' | 'organizer' | 'individual'): Promise<ResolvedPlanCatalog> {
   const admin = createSupabaseAdminClient()
   const country = await resolveCountryCode(userId)
 
