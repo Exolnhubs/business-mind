@@ -1,5 +1,5 @@
 -- Add ind_free, ind_basic, ind_pro rows to plan_definitions for individual hosts.
--- Uses INSERT ... ON CONFLICT DO NOTHING so re-running is safe.
+-- Uses INSERT ... ON CONFLICT DO UPDATE so re-running is safe.
 
 INSERT INTO plan_definitions (
   id, type, name, name_ar,
@@ -47,13 +47,13 @@ INSERT INTO plan_definitions (
     true, 12
   )
 ON CONFLICT (id) DO UPDATE SET
-  is_active        = EXCLUDED.is_active,
-  name             = EXCLUDED.name,
-  name_ar          = EXCLUDED.name_ar,
-  price_sar        = EXCLUDED.price_sar,
-  events_per_month = EXCLUDED.events_per_month,
+  is_active           = EXCLUDED.is_active,
+  name                = EXCLUDED.name,
+  name_ar             = EXCLUDED.name_ar,
+  price_sar           = EXCLUDED.price_sar,
+  events_per_month    = EXCLUDED.events_per_month,
   attendees_per_event = EXCLUDED.attendees_per_event,
-  platform_fee_pct = EXCLUDED.platform_fee_pct,
-  features         = EXCLUDED.features,
-  sort_order       = EXCLUDED.sort_order,
-  updated_at       = now();
+  platform_fee_pct    = EXCLUDED.platform_fee_pct,
+  features            = EXCLUDED.features,
+  sort_order          = EXCLUDED.sort_order,
+  updated_at          = now();
