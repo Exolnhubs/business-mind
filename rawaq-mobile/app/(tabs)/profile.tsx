@@ -373,14 +373,14 @@ export default function ProfileScreen() {
     setHostSubmitting(true)
     setHostMsg(null)
     const skills = hostSkills.split(',').map((s) => s.trim()).filter(Boolean)
-    const { data, error } = await apiPost<{ applied: boolean }>('/api/individual-host/apply', {
+    const { error } = await apiPost('/api/individual-host/apply', {
       display_name: hostDisplayName.trim(),
       bio:          hostBio.trim(),
       skills_tags:  skills,
     })
     if (error) {
       setHostMsg({ ok: false, text: error })
-    } else if (data?.applied) {
+    } else {
       setOrgRequest({ id: '', status: 'pending', business_name: hostDisplayName.trim(), organizer_type: 'individual' })
       setShowHostForm(false)
       setHostMsg({ ok: true, text: t('profile.host_request_submitted') })

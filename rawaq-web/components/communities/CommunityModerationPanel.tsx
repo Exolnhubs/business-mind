@@ -4,6 +4,7 @@ import { Spinner } from '@/components/ui/Spinner'
 import { formatDate } from '@/lib/utils'
 import type {
   CommunityAdminEntry,
+  CommunityHostEntry,
   HappeningReportEntry,
   CommunityAuditLogEntry,
   MemberHistoryState,
@@ -24,6 +25,8 @@ export interface CommunityModerationPanelProps {
   user: { id: string } | null
   admins: CommunityAdminEntry[]
   adminsLoading: boolean
+  hosts: CommunityHostEntry[]
+  hostsLoading: boolean
   reports: HappeningReportEntry[]
   reportsLoading: boolean
   auditLogs: CommunityAuditLogEntry[]
@@ -36,6 +39,8 @@ export interface CommunityModerationPanelProps {
   canModerate: boolean
   onAssignAdmin: (userId: string) => void
   onRevokeAdmin: (userId: string) => void
+  onAssignHost: (userId: string) => void
+  onRevokeHost: (userId: string) => void
   onIssueWarning: (userId: string) => void
   onIssueSanction: (userId: string, sanctionType: 'timeout' | 'removed' | 'banned') => void
   onUpdateReport: (reportItem: HappeningReportEntry, status: 'resolved' | 'dismissed') => void
@@ -51,6 +56,8 @@ function auditActionLabel(action: string): string {
   switch (action) {
     case 'assign_community_admin': return 'Assigned community admin'
     case 'revoke_community_admin': return 'Revoked community admin'
+    case 'assign_host_role': return 'Assigned host role'
+    case 'revoke_host_role': return 'Revoked host role'
     case 'resolve_happening_report': return 'Resolved happening report'
     case 'dismiss_happening_report': return 'Dismissed happening report'
     case 'warn_member': return 'Warned member'
@@ -67,6 +74,8 @@ export function CommunityModerationPanel({
   user,
   admins,
   adminsLoading,
+  hosts,
+  hostsLoading,
   reports,
   reportsLoading,
   auditLogs,
@@ -79,6 +88,8 @@ export function CommunityModerationPanel({
   canModerate,
   onAssignAdmin,
   onRevokeAdmin,
+  onAssignHost,
+  onRevokeHost,
   onIssueWarning,
   onIssueSanction,
   onUpdateReport,
@@ -143,6 +154,9 @@ export function CommunityModerationPanel({
                             {admins.some((entry) => entry.user_id === member.id && entry.role === 'community_admin') && (
                               <p className="text-[11px] font-semibold text-brand-600 mt-1">Community admin</p>
                             )}
+                            {hosts.some((h) => h.user_id === member.id) && (
+                              <p className="text-[11px] font-semibold text-violet-600 mt-1">Host</p>
+                            )}
                             {community.owner_user_id === member.id && (
                               <p className="text-[11px] font-semibold text-amber-600 mt-1">Owner</p>
                             )}
@@ -161,6 +175,20 @@ export function CommunityModerationPanel({
                                   <button onClick={() => onAssignAdmin(member.id)} disabled={memberActionLoading === `assign-${member.id}`}
                                     className="rounded-lg border border-brand-200 bg-brand-50 px-2.5 py-1 text-[11px] font-semibold text-brand-700 cursor-pointer">
                                     Make admin
+                                  </button>
+                                )
+                              )}
+                              {isCommunityOwner &&
+                                community.owner_user_id !== member.id && (
+                                hosts.some((h) => h.user_id === member.id) ? (
+                                  <button onClick={() => onRevokeHost(member.id)} disabled={memberActionLoading === `revoke-host-${member.id}`}
+                                    className="rounded-lg border border-violet-200 bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-700 cursor-pointer">
+                                    Revoke host
+                                  </button>
+                                ) : (
+                                  <button onClick={() => onAssignHost(member.id)} disabled={memberActionLoading === `assign-host-${member.id}`}
+                                    className="rounded-lg border border-violet-200 bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-700 cursor-pointer">
+                                    Make host
                                   </button>
                                 )
                               )}
@@ -285,7 +313,7 @@ export function CommunityModerationPanel({
                   </div>
                 )}
 
-                {/* Community Admins + Happening Reports */}
+                {/* Community Admins + Community Hosts + Happening Reports */}
                 <div className="grid gap-4 md:grid-cols-2">
                   {isCommunityOwner && (
                     <div className="rounded-2xl border border-brand-100 bg-brand-50/60 p-5 shadow-sm">
@@ -312,6 +340,39 @@ export function CommunityModerationPanel({
                                     Revoke
                                   </button>
                                 )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {isCommunityOwner && (
+                    <div className="rounded-2xl border border-violet-100 bg-violet-50/60 p-5 shadow-sm">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h3 className="text-base font-semibold text-gray-900">Community Hosts</h3>
+                          <p className="text-xs text-gray-500 mt-0.5">Can create sessions inside this community</p>
+                        </div>
+                        <span className="text-xs font-semibold text-violet-700">{hosts.length} hosts</span>
+                      </div>
+                      {hostsLoading ? (
+                        <div className="flex justify-center py-8"><Spinner size="lg" /></div>
+                      ) : hosts.length === 0 ? (
+                        <p className="text-sm text-gray-500">No hosts assigned yet. Use "Make host" in the member list above.</p>
+                      ) : (
+                        <div className="space-y-3">
+                          {hosts.map((host) => (
+                            <div key={host.user_id} className="rounded-xl border border-white/70 bg-white px-4 py-3">
+                              <div className="flex items-center justify-between gap-3">
+                                <div>
+                                  <p className="text-sm font-semibold text-gray-900">{host.profile?.display_name ?? host.user_id}</p>
+                                  <p className="text-xs text-gray-500">Host · granted {formatDate(host.granted_at)}</p>
+                                </div>
+                                <button onClick={() => onRevokeHost(host.user_id)} disabled={memberActionLoading === `revoke-host-${host.user_id}`}
+                                  className="rounded-lg border border-violet-200 bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-700 cursor-pointer">
+                                  Revoke
+                                </button>
                               </div>
                             </div>
                           ))}

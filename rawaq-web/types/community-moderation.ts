@@ -7,6 +7,14 @@ export type CommunityAdminEntry = {
   profile: { id: string; display_name: string; avatar_url: string | null } | null
 }
 
+export type CommunityHostEntry = {
+  user_id: string
+  role: 'host'
+  granted_at: string
+  granted_by: string | null
+  profile: { id: string; display_name: string; avatar_url: string | null } | null
+}
+
 export type HappeningReportEntry = {
   happening_id: string
   reporter_id: string

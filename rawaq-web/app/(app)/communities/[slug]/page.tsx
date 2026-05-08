@@ -25,6 +25,7 @@ import { formatDate } from '@/lib/utils'
 import type { Community, CommunityLevel, CommunityRole, Event } from '@/types/database'
 import type {
   CommunityAdminEntry,
+  CommunityHostEntry,
   HappeningReportEntry,
   CommunityAuditLogEntry,
   CommunityWarningEntry,
@@ -93,6 +94,8 @@ export default function CommunityDetailPage() {
   const [showPostForm, setShowPostForm] = useState(false)
   const [admins, setAdmins] = useState<CommunityAdminEntry[]>([])
   const [adminsLoading, setAdminsLoading] = useState(false)
+  const [hosts, setHosts] = useState<CommunityHostEntry[]>([])
+  const [hostsLoading, setHostsLoading] = useState(false)
   const [reports, setReports] = useState<HappeningReportEntry[]>([])
   const [reportsLoading, setReportsLoading] = useState(false)
   const [auditLogs, setAuditLogs] = useState<CommunityAuditLogEntry[]>([])
@@ -228,6 +231,22 @@ export default function CommunityDetailPage() {
     }
   }, [cacheScopeKey, isMember, slug, user])
 
+  const loadHosts = useCallback(async (force = false) => {
+    if (!isCommunityOwner) return
+    setHostsLoading(true)
+    try {
+      const json = await clientGetJson<{ data: CommunityHostEntry[] }>(
+        `/api/communities/${slug}/hosts`,
+        { ttlMs: 60_000, force, scopeKey: cacheScopeKey },
+      )
+      setHosts(json.data ?? [])
+    } catch {
+      setHosts([])
+    } finally {
+      setHostsLoading(false)
+    }
+  }, [cacheScopeKey, isCommunityOwner, slug])
+
   const loadReports = useCallback(async (force = false) => {
     if (!canModerate) return
     setReportsLoading(true)
@@ -264,6 +283,11 @@ export default function CommunityDetailPage() {
     if (user && isMember) loadAdmins()
     else setAdmins([])
   }, [isMember, loadAdmins, user])
+
+  useEffect(() => {
+    if (isCommunityOwner) void loadHosts()
+    else setHosts([])
+  }, [isCommunityOwner, loadHosts])
 
   useEffect(() => {
     if (canModerate) loadReports()
@@ -394,6 +418,40 @@ export default function CommunityDetailPage() {
     } catch (error) {
       if (!isToastHandledError(error)) {
         window.alert(error instanceof Error ? error.message : 'Failed to revoke community admin')
+      }
+    } finally {
+      setMemberActionLoading(null)
+    }
+  }
+
+  async function assignCommunityHost(userId: string) {
+    setMemberActionLoading(`assign-host-${userId}`)
+    try {
+      await clientPostJson(`/api/communities/${slug}/hosts`, { user_id: userId })
+      clientFetchInvalidate(`/api/communities/${slug}/hosts`, cacheScopeKey)
+      clientFetchInvalidate(`/api/communities/${slug}/audit-logs`, cacheScopeKey)
+      await loadHosts(true)
+      await loadAuditLogs(true)
+    } catch (error) {
+      if (!isToastHandledError(error)) {
+        window.alert(error instanceof Error ? error.message : 'Failed to assign host role')
+      }
+    } finally {
+      setMemberActionLoading(null)
+    }
+  }
+
+  async function revokeCommunityHost(userId: string) {
+    setMemberActionLoading(`revoke-host-${userId}`)
+    try {
+      await clientDeleteJson(`/api/communities/${slug}/hosts/${userId}`)
+      clientFetchInvalidate(`/api/communities/${slug}/hosts`, cacheScopeKey)
+      clientFetchInvalidate(`/api/communities/${slug}/audit-logs`, cacheScopeKey)
+      await loadHosts(true)
+      await loadAuditLogs(true)
+    } catch (error) {
+      if (!isToastHandledError(error)) {
+        window.alert(error instanceof Error ? error.message : 'Failed to revoke host role')
       }
     } finally {
       setMemberActionLoading(null)
@@ -916,7 +974,7 @@ export default function CommunityDetailPage() {
                 Upcoming Events
               </h2>
               <div className="flex items-center gap-3">
-                {user?.role === 'organizer' && (
+                {profile?.role === 'organizer' && (
                   <Link href={`/organizer/events/new?community=${slug}`}
                     className="text-xs font-semibold bg-brand-600 text-white px-3 py-1.5 rounded-full hover:bg-brand-700 transition-colors">
                     + Create event
@@ -974,6 +1032,8 @@ export default function CommunityDetailPage() {
               user={user}
               admins={admins}
               adminsLoading={adminsLoading}
+              hosts={hosts}
+              hostsLoading={hostsLoading}
               reports={reports}
               reportsLoading={reportsLoading}
               auditLogs={auditLogs}
@@ -986,6 +1046,8 @@ export default function CommunityDetailPage() {
               canModerate={canModerate}
               onAssignAdmin={assignCommunityAdmin}
               onRevokeAdmin={revokeCommunityAdmin}
+              onAssignHost={assignCommunityHost}
+              onRevokeHost={revokeCommunityHost}
               onIssueWarning={issueWarning}
               onIssueSanction={issueSanction}
               onUpdateReport={updateReport}

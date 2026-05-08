@@ -14,6 +14,8 @@ export interface OrganizerWithUser {
   business_name: string
   business_name_ar: string | null
   description: string | null
+  bio: string | null
+  organizer_type: 'company' | 'individual' | null
   status: OrganizerStatus
   suspend_reason: string | null
   created_at: string
@@ -44,16 +46,30 @@ export function OrganizerApprovalList({ organizers }: OrganizerApprovalListProps
   const [suspendReason, setSuspendReason] = useState<Record<string, string>>({})
   const [showReasonFor, setShowReasonFor] = useState<string | null>(null)
 
-  async function updateStatus(orgId: string, status: OrganizerStatus, reason?: string) {
+  async function updateStatus(
+    orgId: string,
+    orgType: 'company' | 'individual' | null,
+    status: OrganizerStatus,
+    reason?: string,
+  ) {
     setLoadingId(orgId)
-    await supabase
-      .from('organizer_profiles')
-      .update({
-        status,
-        reviewed_at: new Date().toISOString(),
-        suspend_reason: status === 'suspended' ? (reason ?? null) : null,
+    if (orgType === 'individual') {
+      // Must go through the API — it updates profiles.role, clears cache, and sends notification
+      await fetch(`/api/admin/individual-hosts/${orgId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status, note: reason ?? undefined }),
       })
-      .eq('id', orgId)
+    } else {
+      await supabase
+        .from('organizer_profiles')
+        .update({
+          status,
+          reviewed_at: new Date().toISOString(),
+          suspend_reason: status === 'suspended' ? (reason ?? null) : null,
+        })
+        .eq('id', orgId)
+    }
     setShowReasonFor(null)
     router.refresh()
     setLoadingId(null)
@@ -82,12 +98,17 @@ export function OrganizerApprovalList({ organizers }: OrganizerApprovalListProps
                 <div className="flex items-center gap-2 flex-wrap">
                   <p className="font-semibold text-gray-900 text-sm">{org.business_name}</p>
                   <Badge variant={badge.variant}>{badge.label}</Badge>
+                  {org.organizer_type === 'individual' && (
+                    <Badge variant="gray">Individual Host</Badge>
+                  )}
                 </div>
                 <p className="text-xs text-gray-500 mt-0.5">
                   {org.user?.display_name} · {org.user?.city ?? 'Unknown city'} · Applied {formatDate(org.created_at)}
                 </p>
-                {org.description && (
-                  <p className="text-xs text-gray-600 mt-1 line-clamp-2">{org.description}</p>
+                {(org.organizer_type === 'individual' ? org.bio : org.description) && (
+                  <p className="text-xs text-gray-600 mt-1 line-clamp-2">
+                    {org.organizer_type === 'individual' ? org.bio : org.description}
+                  </p>
                 )}
                 {org.status === 'suspended' && org.suspend_reason && (
                   <p className="text-xs text-red-600 mt-1 bg-red-50 rounded px-2 py-1">
@@ -101,14 +122,14 @@ export function OrganizerApprovalList({ organizers }: OrganizerApprovalListProps
                 {org.status === 'pending' && (
                   <>
                     <button
-                      onClick={() => updateStatus(org.id, 'approved')}
+                      onClick={() => updateStatus(org.id, org.organizer_type, 'approved')}
                       disabled={isLoading}
                       className="btn-primary text-xs px-3 py-1.5"
                     >
                       {isLoading ? <Spinner size="sm" /> : '✓ Approve'}
                     </button>
                     <button
-                      onClick={() => updateStatus(org.id, 'rejected')}
+                      onClick={() => updateStatus(org.id, org.organizer_type, 'rejected')}
                       disabled={isLoading}
                       className="btn-danger text-xs px-3 py-1.5"
                     >
@@ -129,7 +150,7 @@ export function OrganizerApprovalList({ organizers }: OrganizerApprovalListProps
 
                 {org.status === 'suspended' && (
                   <button
-                    onClick={() => updateStatus(org.id, 'approved')}
+                    onClick={() => updateStatus(org.id, org.organizer_type, 'approved')}
                     disabled={isLoading}
                     className="btn-primary text-xs px-3 py-1.5"
                   >
@@ -139,7 +160,7 @@ export function OrganizerApprovalList({ organizers }: OrganizerApprovalListProps
 
                 {org.status === 'rejected' && (
                   <button
-                    onClick={() => updateStatus(org.id, 'approved')}
+                    onClick={() => updateStatus(org.id, org.organizer_type, 'approved')}
                     disabled={isLoading}
                     className="btn-primary text-xs px-3 py-1.5"
                   >
@@ -160,7 +181,7 @@ export function OrganizerApprovalList({ organizers }: OrganizerApprovalListProps
                   className="input flex-1 text-xs py-1.5"
                 />
                 <button
-                  onClick={() => updateStatus(org.id, 'suspended', suspendReason[org.id])}
+                  onClick={() => updateStatus(org.id, org.organizer_type, 'suspended', suspendReason[org.id])}
                   disabled={isLoading}
                   className="btn-danger text-xs px-3 py-1.5 shrink-0"
                 >
