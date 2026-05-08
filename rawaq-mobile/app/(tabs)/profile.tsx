@@ -85,6 +85,9 @@ export default function ProfileScreen() {
   const [emailChanging, setEmailChanging] = useState(false)
   const [emailMsg, setEmailMsg]       = useState<{ ok: boolean; text: string } | null>(null)
 
+  // Organizer type for approved organizers (fetched separately — auth context only has profiles table)
+  const [organizerType, setOrganizerType]   = useState<'company' | 'individual' | null>(null)
+
   // Organizer request
   const [orgRequest, setOrgRequest]         = useState<OrganizerRequestState | null | undefined>(undefined) // undefined = loading
   const [showOrgForm, setShowOrgForm]       = useState(false)
@@ -137,6 +140,18 @@ export default function ProfileScreen() {
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile])
+
+  // For already-approved organizers, profiles.plan_id is the user-tier plan (e.g. user_premium),
+  // not the organizer-tier plan — fetch organizer_type directly from organizer_profiles.
+  useEffect(() => {
+    if (!profile || profile.role !== 'organizer' || !user) return
+    supabase
+      .from('organizer_profiles')
+      .select('organizer_type')
+      .eq('user_id', user.id)
+      .maybeSingle()
+      .then(({ data }) => setOrganizerType((data?.organizer_type as 'company' | 'individual') ?? null))
+  }, [profile, user])
 
   async function pickAndUploadAvatar() {
     if (!user) return
@@ -431,7 +446,7 @@ export default function ProfileScreen() {
     org_elite: t('profile.plan_elite'),
   }[profile?.plan_id ?? ''] ?? t('profile.plan_free')
   const isApprovedOrganizer = profile?.role === 'organizer' || orgRequest?.status === 'approved'
-  const isIndividualHost = profile?.plan_id?.startsWith('ind_') || orgRequest?.organizer_type === 'individual'
+  const isIndividualHost = organizerType === 'individual' || orgRequest?.organizer_type === 'individual'
   const hasPendingCompanyRequest = orgRequest?.organizer_type !== 'individual' && orgRequest?.status === 'pending'
   const hasPendingHostRequest = orgRequest?.organizer_type === 'individual' && orgRequest.status === 'pending'
 

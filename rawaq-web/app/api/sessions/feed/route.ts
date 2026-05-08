@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
-import { requireAuth, optionalAuth } from '@/lib/auth'
+import { requireAuth } from '@/lib/auth'
 import { handleApiError, ok } from '@/lib/errors'
 import { applyResolvedEventWindow, compareEventsByResolvedStartAt } from '@/lib/events/recurrence'
 
@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
       const eventIds = (ecRows ?? []).map((r) => r.event_id)
       if (!eventIds.length) return ok({ data: [] })
 
-      let q = admin
+      const q = admin
         .from('events')
         .select(SESSION_SELECT)
         .in('id', eventIds)

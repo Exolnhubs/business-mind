@@ -6,6 +6,7 @@ import {
 import { useRouter } from 'expo-router'
 import * as WebBrowser from 'expo-web-browser'
 import { apiGet, apiPost } from '@/lib/api'
+import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/auth-context'
 import { useLocale } from '@/contexts/locale-context'
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/theme'
@@ -81,7 +82,18 @@ export default function PlansScreen() {
   const [eventsUsed,   setEventsUsed]   = useState(0)
 
   const isOrganizer = profile?.role === 'organizer'
-  const isIndividualHost = profile?.plan_id?.startsWith('ind_')
+  const [organizerType, setOrganizerType] = useState<'company' | 'individual' | null>(null)
+  const isIndividualHost = organizerType === 'individual'
+
+  useEffect(() => {
+    if (!isOrganizer || !user) return
+    supabase
+      .from('organizer_profiles')
+      .select('organizer_type')
+      .eq('user_id', user.id)
+      .maybeSingle()
+      .then(({ data }) => setOrganizerType((data?.organizer_type as 'company' | 'individual') ?? null))
+  }, [isOrganizer, user])
 
   const load = useCallback(async () => {
     if (!user || !profile) return
