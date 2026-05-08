@@ -90,7 +90,7 @@ export default function EventFormScreen() {
   const { user }   = useAuth()
   const router     = useRouter()
   const { locale, isRTL } = useLocale()
-  const { id }     = useLocalSearchParams<{ id?: string }>()
+  const { id, community: preselectedCommunityId } = useLocalSearchParams<{ id?: string; community?: string }>()
   const insets     = useSafeAreaInsets()
   const isEdit     = !!id
   const headerTopSpacing = Math.max(Spacing.sm, Math.min(insets.top * 0.18, Spacing.md))
@@ -249,12 +249,15 @@ export default function EventFormScreen() {
         }
         setLoading(false)
       } else {
+        if (preselectedCommunityId) {
+          setSelectedCommunities([preselectedCommunityId])
+        }
         setLoading(false)
       }
     }
     init()
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, user])
+  }, [id, user, preselectedCommunityId])
 
   useEffect(() => {
     if (!user) return
