@@ -1014,12 +1014,22 @@ export default function CommunityDetailScreen() {
                 <Text style={styles.sectionTitle}>{t('community_detail.upcoming_events')}</Text>
                 <Text style={styles.sectionSub}>{t('community_detail.upcoming_events_sub')}</Text>
               </View>
-              <TouchableOpacity
-                onPress={() => router.push({ pathname: '/(tabs)/home', params: { community: slug, reset: String(Date.now()) } } as any)}
-                style={styles.sectionLinkButton}
-              >
-                <Text style={styles.sectionLink}>{t('community_detail.view_all')}</Text>
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                {isCurrentUserHost && (
+                  <TouchableOpacity
+                    onPress={() => router.push(`/organizer/event-form?community=${community.id}` as any)}
+                    style={[styles.sectionLinkButton, { backgroundColor: Colors.brand[600], paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 }]}
+                  >
+                    <Text style={{ color: '#fff', fontSize: FontSize.xs, fontWeight: FontWeight.semibold }}>+ {t('community_detail.create_session')}</Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity
+                  onPress={() => router.push({ pathname: '/(tabs)/home', params: { community: slug, reset: String(Date.now()) } } as any)}
+                  style={styles.sectionLinkButton}
+                >
+                  <Text style={styles.sectionLink}>{t('community_detail.view_all')}</Text>
+                </TouchableOpacity>
+              </View>
             </View>
 
             {eventsLoading && events.length === 0

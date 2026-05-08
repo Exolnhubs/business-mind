@@ -253,9 +253,22 @@ export async function POST(req: NextRequest) {
     if (hostProfileError) throw hostProfileError
 
     if (hostProfile?.organizer_type === 'individual') {
-      throw new ForbiddenException(
-        'Individual hosts create sessions from the community page, not here.'
-      )
+      if (!community_ids?.length) {
+        throw new ForbiddenException(
+          'Individual hosts must create sessions from a community page — select a community first.'
+        )
+      }
+      const admin = createSupabaseAdminClient()
+      const { count: hostCount } = await admin
+        .from('community_hosts')
+        .select('community_id', { count: 'exact', head: true })
+        .eq('user_id', ctx.userId)
+        .in('community_id', community_ids)
+      if ((hostCount ?? 0) === 0) {
+        throw new ForbiddenException(
+          'You can only create sessions in communities where you are an approved host.'
+        )
+      }
     }
 
     const { data, error } = await supabase

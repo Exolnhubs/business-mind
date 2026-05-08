@@ -336,26 +336,29 @@ export default function OrganizerDashboard() {
               {hostCommunities.map((c) => {
                 const name = locale === 'ar' && c.name_ar ? c.name_ar : c.name
                 return (
-                  <TouchableOpacity
-                    key={c.id}
-                    style={styles.hostCommunityCard}
-                    activeOpacity={0.8}
-                    onPress={() => router.push(`/communities/${c.slug}` as any)}
-                  >
-                    <View style={styles.hostCommAvatar}>
-                      <Text style={{ fontSize: 22 }}>{LEVEL_ICON[c.level] ?? '🏠'}</Text>
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.hostCommName} numberOfLines={1}>{name}</Text>
-                      <Text style={styles.hostCommMeta}>{c.member_count.toLocaleString()} members · {c.level}</Text>
-                    </View>
-                    <Text style={{ color: Colors.gray[400], fontSize: 18 }}>›</Text>
-                  </TouchableOpacity>
+                  <View key={c.id} style={[styles.hostCommunityCard, { flexDirection: 'row', alignItems: 'center' }]}>
+                    <TouchableOpacity
+                      style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 10 }}
+                      activeOpacity={0.8}
+                      onPress={() => router.push(`/communities/${c.slug}` as any)}
+                    >
+                      <View style={styles.hostCommAvatar}>
+                        <Text style={{ fontSize: 22 }}>{LEVEL_ICON[c.level] ?? '🏠'}</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.hostCommName} numberOfLines={1}>{name}</Text>
+                        <Text style={styles.hostCommMeta}>{c.member_count.toLocaleString()} members · {c.level}</Text>
+                      </View>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={{ backgroundColor: Colors.brand[600], paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, marginLeft: 8 }}
+                      onPress={() => router.push(`/organizer/event-form?community=${c.id}` as any)}
+                    >
+                      <Text style={{ color: '#fff', fontSize: FontSize.xs, fontWeight: FontWeight.semibold }}>+ {t('organizer_dashboard.create_session')}</Text>
+                    </TouchableOpacity>
+                  </View>
                 )
               })}
-              <Text style={{ textAlign: 'center', color: Colors.gray[400], fontSize: FontSize.xs, marginTop: 8 }}>
-                {t('organizer_dashboard.create_session_hint')}
-              </Text>
             </View>
           )}
         </ScrollView>

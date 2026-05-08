@@ -77,22 +77,23 @@ export default async function OrganizerDashboard() {
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
             {hostCommunities.map((c) => (
-              <Link
-                key={c.id}
-                href={`/communities/${c.slug}`}
-                className="group rounded-2xl border border-gray-100 bg-white p-4 shadow-sm hover:shadow-md hover:border-violet-200 transition-all flex items-center gap-4"
-              >
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-2xl">
-                  {LEVEL_ICON[c.level] ?? '🏠'}
-                </div>
-                <div className="min-w-0">
-                  <p className="font-semibold text-gray-900 truncate group-hover:text-violet-700 transition-colors">{c.name}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">{c.member_count.toLocaleString()} members · {c.level}</p>
-                </div>
-                <svg className="ml-auto h-4 w-4 text-gray-300 group-hover:text-violet-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </Link>
+              <div key={c.id} className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm hover:shadow-md hover:border-violet-200 transition-all flex items-center gap-4">
+                <Link href={`/communities/${c.slug}`} className="flex items-center gap-4 min-w-0 flex-1 group">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-2xl">
+                    {LEVEL_ICON[c.level] ?? '🏠'}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-gray-900 truncate group-hover:text-violet-700 transition-colors">{c.name}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{c.member_count.toLocaleString()} members · {c.level}</p>
+                  </div>
+                </Link>
+                <Link
+                  href={`/organizer/events/new?community=${c.slug}`}
+                  className="shrink-0 text-xs font-semibold bg-violet-600 text-white px-3 py-1.5 rounded-full hover:bg-violet-700 transition-colors whitespace-nowrap"
+                >
+                  + Create session
+                </Link>
+              </div>
             ))}
           </div>
         )}
