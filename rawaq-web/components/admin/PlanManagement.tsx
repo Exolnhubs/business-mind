@@ -34,6 +34,9 @@ const PLAN_BADGE: Record<string, string> = {
   org_basic:    'bg-gray-100 text-gray-600',
   org_pro:      'bg-blue-100 text-blue-700',
   org_elite:    'bg-amber-100 text-amber-700',
+  ind_free:     'bg-teal-50 text-teal-600',
+  ind_basic:    'bg-teal-100 text-teal-700',
+  ind_pro:      'bg-teal-200 text-teal-800',
 }
 
 function PlanBadge({ planId, planName }: { planId: string; planName: string }) {

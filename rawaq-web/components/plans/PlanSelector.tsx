@@ -555,7 +555,7 @@ export function PlanSelector({ plans, currentPlanId, subscription, usage, isOrga
                     <span className="font-display text-3xl font-black text-gray-500">{t('plans.free')}</span>
                   )}
                 </div>
-                {plan.type === 'organizer' && (
+                {(plan.type === 'organizer' || plan.type === 'individual') && (
                   <p className="text-[12px] text-gray-400 mt-1.5">
                     {t('plans.platform_fee').replace('{n}', (plan.platform_fee_pct * 100).toFixed(0))}
                   </p>

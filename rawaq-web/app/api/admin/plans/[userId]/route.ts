@@ -10,8 +10,9 @@ const AssignPlanSchema = z.object({
 
 // PATCH /api/admin/plans/[userId] — assign a plan to a user or organizer
 // The plan_id must match the target's role type:
-//   users       → user_free | user_premium
-//   organizers  → org_basic | org_pro | org_elite
+//   users              → user_free | user_premium
+//   company organizers → org_basic | org_pro | org_elite
+//   individual hosts   → ind_free | ind_basic | ind_pro
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ userId: string }> }
@@ -46,7 +47,7 @@ export async function PATCH(
     const isOrganizer = profile.role === 'organizer'
     const isUser      = profile.role === 'user'
 
-    if (isOrganizer && plan.type !== 'organizer') {
+    if (isOrganizer && !['organizer', 'individual'].includes(plan.type)) {
       throw new ForbiddenException('Cannot assign a user plan to an organizer')
     }
     if (isUser && plan.type !== 'user') {
@@ -60,6 +61,8 @@ export async function PATCH(
         .update({ plan_id })
         .eq('user_id', userId)
       if (error) throw error
+      // Mirror to profiles (denormalized source for badge and mobile plan display)
+      await admin.from('profiles').update({ plan_id }).eq('id', userId)
     } else {
       const { error } = await admin
         .from('profiles')
@@ -79,7 +82,8 @@ export async function PATCH(
       .eq('user_id', userId)
       .eq('status', 'active')
 
-    if (plan_id !== 'user_free' && plan_id !== 'org_basic') {
+    const freePlanIds = ['user_free', 'org_basic', 'ind_free']
+    if (!freePlanIds.includes(plan_id)) {
       // Create a new active subscription for paid plans
       const { error: subErr } = await admin
         .from('subscriptions')

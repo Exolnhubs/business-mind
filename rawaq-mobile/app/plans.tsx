@@ -341,7 +341,7 @@ export default function PlansScreen() {
                   <Text style={styles.darkPriceFree}>{t('plans.free')}</Text>
                 )}
               </View>
-              {plan.type === 'organizer' && (
+              {(plan.type === 'organizer' || plan.type === 'individual') && (
                 <Text style={styles.darkFeeText}>
                   {t('plans.platform_fee').replace('{fee}', (plan.platform_fee_pct * 100).toFixed(0))}
                 </Text>
@@ -443,7 +443,7 @@ export default function PlansScreen() {
                 <Text style={styles.lightPriceFree}>{t('plans.free')}</Text>
               )}
             </View>
-            {plan.type === 'organizer' && (
+            {(plan.type === 'organizer' || plan.type === 'individual') && (
               <Text style={styles.lightFeeText}>
                 {t('plans.platform_fee').replace('{fee}', (plan.platform_fee_pct * 100).toFixed(0))}
               </Text>
