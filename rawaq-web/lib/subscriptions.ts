@@ -22,8 +22,10 @@ export async function assignMembershipPlan(args: {
 
   if (planErr || !plan) throw new NotFoundException('Plan')
 
-  const expectedType = role === 'organizer' ? 'organizer' : 'user'
-  if (plan.type !== expectedType) {
+  // Organizers (both company and individual) can use 'organizer' or 'individual' plan types.
+  // Regular users can only use 'user' plan types.
+  const allowedPlanTypes = role === 'organizer' ? ['organizer', 'individual'] : ['user']
+  if (!allowedPlanTypes.includes(plan.type)) {
     throw new ForbiddenException('This plan is not available for your account type')
   }
 

@@ -162,6 +162,28 @@ export async function POST(req: Request) {
     const { gateway, method } = resolveGateway(plan.price_currency, selectedPaymentOptionId)
     const organizerId = ctx.userId
 
+    // If payment already succeeded but plan activation failed (e.g. bug on previous deploy),
+    // retry activation instead of charging again.
+    const { data: existingSucceededTx } = await admin
+      .from('payment_transactions')
+      .select('id')
+      .eq('user_id', ctx.userId)
+      .eq('type', 'subscription')
+      .eq('subscription_plan_id', plan.id)
+      .eq('status', 'succeeded')
+      .maybeSingle()
+
+    if (existingSucceededTx) {
+      const result = await assignMembershipPlan({
+        userId: ctx.userId,
+        role: ctx.role,
+        planId: plan.id,
+        paymentRef: existingSucceededTx.id,
+        isSimulated: false,
+      })
+      return ok({ plan_id: result.planId, plan_name: result.planName, free: false, transaction_id: existingSucceededTx.id })
+    }
+
     const { data: existingPendingTx } = await admin
       .from('payment_transactions')
       .select('id')
