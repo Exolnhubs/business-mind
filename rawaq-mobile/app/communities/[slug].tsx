@@ -23,6 +23,9 @@ type CommunityDetail = Community & {
   is_host: boolean
   viewer_host_request_status: 'pending' | 'approved' | 'rejected' | null
   viewer_is_individual_organizer: boolean
+  viewer_host_quota_reached: boolean
+  viewer_host_community_count: number
+  viewer_host_community_limit: number | null
   member_role: CommunityRole | null
   member_status: 'active' | 'timed_out' | 'removed' | 'banned' | null
   event_count: number
@@ -198,6 +201,9 @@ export default function CommunityDetailScreen() {
   const isIndividualOrganizer = community?.viewer_is_individual_organizer ?? false
   const isCurrentUserHost = community?.is_host ?? false
   const viewerHostRequestStatus = community?.viewer_host_request_status ?? null
+  const isQuotaReached = community?.viewer_host_quota_reached ?? false
+  const hostCommunityCount = community?.viewer_host_community_count ?? 0
+  const hostCommunityLimit = community?.viewer_host_community_limit ?? null
   const canRequestHostRole = !isCurrentUserHost
     && !!community?.is_member
     && memberStatus === 'active'
@@ -824,46 +830,59 @@ export default function CommunityDetailScreen() {
           </TouchableOpacity>
 
           {canRequestHostRole && (
-            <TouchableOpacity
-              onPress={viewerHostRequestStatus === 'pending' ? withdrawHostRequest : requestHostRole}
-              disabled={requestingHost || viewerHostRequestStatus === 'rejected'}
-              style={[
-                styles.followBtn,
-                viewerHostRequestStatus === 'pending'
-                  ? { borderColor: '#d97706', backgroundColor: '#fef9f0' }
-                  : viewerHostRequestStatus === 'rejected'
-                  ? { borderColor: '#fca5a5', backgroundColor: '#fff5f5', opacity: 0.65 }
-                  : { borderColor: '#7c3aed', backgroundColor: '#f5f3ff' },
-              ]}
-              activeOpacity={0.85}
-            >
-              {requestingHost
-                ? <ActivityIndicator size="small" color="#7c3aed" />
-                : (
-                  <View style={styles.joinBtnInner}>
-                    <Ionicons
-                      name={viewerHostRequestStatus === 'pending' ? 'hourglass-outline' : viewerHostRequestStatus === 'rejected' ? 'close-circle-outline' : 'person-add-outline'}
-                      size={18}
-                      color={viewerHostRequestStatus === 'pending' ? '#d97706' : viewerHostRequestStatus === 'rejected' ? '#ef4444' : '#7c3aed'}
-                    />
-                    <Text style={[
-                      styles.followBtnText,
-                      viewerHostRequestStatus === 'pending'
-                        ? { color: '#d97706' }
-                        : viewerHostRequestStatus === 'rejected'
-                        ? { color: '#ef4444' }
-                        : { color: '#7c3aed' },
-                    ]}>
-                      {viewerHostRequestStatus === 'pending'
-                        ? t('community_detail.request_pending_withdraw')
-                        : viewerHostRequestStatus === 'rejected'
-                        ? t('community_detail.request_rejected')
-                        : t('community_detail.request_to_host')}
-                    </Text>
-                  </View>
-                )
-              }
-            </TouchableOpacity>
+            <View>
+              <TouchableOpacity
+                onPress={viewerHostRequestStatus === 'pending' ? withdrawHostRequest : requestHostRole}
+                disabled={requestingHost || viewerHostRequestStatus === 'rejected' || isQuotaReached}
+                style={[
+                  styles.followBtn,
+                  isQuotaReached
+                    ? { borderColor: '#fca5a5', backgroundColor: '#fff5f5', opacity: 0.65 }
+                    : viewerHostRequestStatus === 'pending'
+                    ? { borderColor: '#d97706', backgroundColor: '#fef9f0' }
+                    : viewerHostRequestStatus === 'rejected'
+                    ? { borderColor: '#fca5a5', backgroundColor: '#fff5f5', opacity: 0.65 }
+                    : { borderColor: '#7c3aed', backgroundColor: '#f5f3ff' },
+                ]}
+                activeOpacity={0.85}
+              >
+                {requestingHost
+                  ? <ActivityIndicator size="small" color="#7c3aed" />
+                  : (
+                    <View style={styles.joinBtnInner}>
+                      <Ionicons
+                        name={isQuotaReached ? 'lock-closed-outline' : viewerHostRequestStatus === 'pending' ? 'hourglass-outline' : viewerHostRequestStatus === 'rejected' ? 'close-circle-outline' : 'person-add-outline'}
+                        size={18}
+                        color={isQuotaReached ? '#ef4444' : viewerHostRequestStatus === 'pending' ? '#d97706' : viewerHostRequestStatus === 'rejected' ? '#ef4444' : '#7c3aed'}
+                      />
+                      <Text style={[
+                        styles.followBtnText,
+                        isQuotaReached
+                          ? { color: '#ef4444' }
+                          : viewerHostRequestStatus === 'pending'
+                          ? { color: '#d97706' }
+                          : viewerHostRequestStatus === 'rejected'
+                          ? { color: '#ef4444' }
+                          : { color: '#7c3aed' },
+                      ]}>
+                        {isQuotaReached
+                          ? t('community_detail.host_quota_reached').replace('{n}', String(hostCommunityCount)).replace('{limit}', String(hostCommunityLimit ?? '∞'))
+                          : viewerHostRequestStatus === 'pending'
+                          ? t('community_detail.request_pending_withdraw')
+                          : viewerHostRequestStatus === 'rejected'
+                          ? t('community_detail.request_rejected')
+                          : t('community_detail.request_to_host')}
+                      </Text>
+                    </View>
+                  )
+                }
+              </TouchableOpacity>
+              {isQuotaReached && (
+                <Text style={{ fontSize: FontSize.xs, color: '#7c3aed', textAlign: 'center', marginTop: 4 }}>
+                  {t('community_detail.host_quota_upgrade')}
+                </Text>
+              )}
+            </View>
           )}
         </View>
 

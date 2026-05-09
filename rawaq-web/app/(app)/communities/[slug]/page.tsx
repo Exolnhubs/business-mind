@@ -45,6 +45,9 @@ type CommunityDetail = Community & {
   is_host: boolean
   viewer_host_request_status: 'pending' | 'approved' | 'rejected' | null
   viewer_is_individual_organizer: boolean
+  viewer_host_quota_reached: boolean
+  viewer_host_community_count: number
+  viewer_host_community_limit: number | null
   member_role: CommunityRole | null
   member_status: 'active' | 'timed_out' | 'removed' | 'banned' | null
   event_count: number
@@ -139,6 +142,9 @@ export default function CommunityDetailPage() {
   const isIndividualOrganizer = community?.viewer_is_individual_organizer ?? false
   const isCurrentUserHost = community?.is_host ?? false
   const viewerHostRequestStatus = community?.viewer_host_request_status ?? null
+  const isQuotaReached = community?.viewer_host_quota_reached ?? false
+  const hostCommunityCount = community?.viewer_host_community_count ?? 0
+  const hostCommunityLimit = community?.viewer_host_community_limit ?? null
   const canRequestHostRole = !isCurrentUserHost
     && isMember
     && memberStatus === 'active'
@@ -932,32 +938,45 @@ export default function CommunityDetailPage() {
               </button>
 
               {canRequestHostRole && (
-                <button
-                  onClick={viewerHostRequestStatus === 'pending' ? withdrawHostRequest : () => requestHostRole()}
-                  disabled={requestingHost || viewerHostRequestStatus === 'rejected'}
-                  className="flex-1 sm:flex-none rounded-xl border px-5 py-2.5 text-sm font-semibold transition-all cursor-pointer"
-                  style={viewerHostRequestStatus === 'pending' ? {
-                    borderColor: 'oklch(0.75 0.12 45 / 0.5)',
-                    background: 'oklch(0.75 0.12 45 / 0.08)',
-                    color: 'oklch(0.85 0.1 45)',
-                  } : viewerHostRequestStatus === 'rejected' ? {
-                    borderColor: 'oklch(0.6 0.15 25 / 0.3)',
-                    background: 'oklch(0.6 0.15 25 / 0.06)',
-                    color: 'oklch(0.7 0.1 25 / 0.7)',
-                  } : {
-                    borderColor: 'oklch(0.65 0.2 295 / 0.4)',
-                    background: 'oklch(0.65 0.2 295 / 0.08)',
-                    color: 'oklch(0.78 0.15 295)',
-                  }}
-                >
-                  {requestingHost
-                    ? <Spinner size="sm" />
-                    : viewerHostRequestStatus === 'pending'
-                    ? 'Request pending · Withdraw'
-                    : viewerHostRequestStatus === 'rejected'
-                    ? 'Request rejected'
-                    : 'Request to host'}
-                </button>
+                <div className="flex flex-col items-end gap-1">
+                  <button
+                    onClick={viewerHostRequestStatus === 'pending' ? withdrawHostRequest : () => requestHostRole()}
+                    disabled={requestingHost || viewerHostRequestStatus === 'rejected' || isQuotaReached}
+                    className="flex-1 sm:flex-none rounded-xl border px-5 py-2.5 text-sm font-semibold transition-all cursor-pointer disabled:cursor-not-allowed"
+                    style={isQuotaReached ? {
+                      borderColor: 'oklch(0.6 0.15 25 / 0.3)',
+                      background: 'oklch(0.6 0.15 25 / 0.04)',
+                      color: 'oklch(0.6 0.1 25 / 0.5)',
+                    } : viewerHostRequestStatus === 'pending' ? {
+                      borderColor: 'oklch(0.75 0.12 45 / 0.5)',
+                      background: 'oklch(0.75 0.12 45 / 0.08)',
+                      color: 'oklch(0.85 0.1 45)',
+                    } : viewerHostRequestStatus === 'rejected' ? {
+                      borderColor: 'oklch(0.6 0.15 25 / 0.3)',
+                      background: 'oklch(0.6 0.15 25 / 0.06)',
+                      color: 'oklch(0.7 0.1 25 / 0.7)',
+                    } : {
+                      borderColor: 'oklch(0.65 0.2 295 / 0.4)',
+                      background: 'oklch(0.65 0.2 295 / 0.08)',
+                      color: 'oklch(0.78 0.15 295)',
+                    }}
+                  >
+                    {requestingHost
+                      ? <Spinner size="sm" />
+                      : isQuotaReached
+                      ? `Plan limit reached (${hostCommunityCount}/${hostCommunityLimit ?? '∞'})`
+                      : viewerHostRequestStatus === 'pending'
+                      ? 'Request pending · Withdraw'
+                      : viewerHostRequestStatus === 'rejected'
+                      ? 'Request rejected'
+                      : 'Request to host'}
+                  </button>
+                  {isQuotaReached && (
+                    <a href="/plans" className="text-xs text-brand-600 hover:underline">
+                      Upgrade to host in more communities →
+                    </a>
+                  )}
+                </div>
               )}
             </div>
           </div>

@@ -104,9 +104,9 @@ export async function GET(
       const [{ data: orgProfile }, hostReqResult] = await Promise.all([
         admin
           .from('organizer_profiles')
-          .select('organizer_type, status')
+          .select('organizer_type, status, plan:plan_definitions(community_limit)')
           .eq('user_id', ctx.userId)
-          .maybeSingle<{ organizer_type: string; status: string }>(),
+          .maybeSingle<{ organizer_type: string; status: string; plan: { community_limit: number | null } | null }>(),
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (admin as any)
           .from('community_host_requests')
@@ -127,6 +127,31 @@ export async function GET(
         && orgProfile?.status === 'approved'
       member_role = (mem?.role as 'member' | 'community_admin' | 'owner' | undefined) ?? null
       member_status = (mem?.status as 'active' | 'timed_out' | 'removed' | 'banned' | undefined) ?? null
+    }
+
+    // Quota counts for individual hosts — allows UI to preemptively disable "Request to host"
+    let viewer_host_quota_reached = false
+    let viewer_host_community_count = 0
+    let viewer_host_community_limit: number | null = null
+
+    if (viewer_is_individual_organizer && ctx?.userId) {
+      const planLimit = (orgProfile as { plan: { community_limit: number | null } | null } | null)?.plan?.community_limit ?? 1
+      const [{ count: activeHostCount }, { count: pendingReqCount }] = await Promise.all([
+        admin
+          .from('community_hosts')
+          .select('community_id', { count: 'exact', head: true })
+          .eq('user_id', ctx.userId),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (admin as any)
+          .from('community_host_requests')
+          .select('community_id', { count: 'exact', head: true })
+          .eq('user_id', ctx.userId)
+          .eq('status', 'pending'),
+      ])
+      const total = (activeHostCount ?? 0) + (pendingReqCount ?? 0)
+      viewer_host_community_count = total
+      viewer_host_community_limit = planLimit
+      viewer_host_quota_reached = planLimit !== null && total >= planLimit
     }
 
     const canViewPendingCommunity = ctx?.role === 'admin'
@@ -287,6 +312,9 @@ export async function GET(
       is_host,
       viewer_host_request_status,
       viewer_is_individual_organizer,
+      viewer_host_quota_reached,
+      viewer_host_community_count,
+      viewer_host_community_limit,
       member_role,
       member_status,
       event_count: eventCount ?? 0,

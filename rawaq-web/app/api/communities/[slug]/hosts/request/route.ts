@@ -63,15 +63,25 @@ export async function POST(
 
     if (existingHost) throw new ConflictException('You are already a host in this community')
 
-    // Check plan-based community limit (read from DB, not hardcoded)
+    // Check plan-based community limit (read from DB, not hardcoded).
+    // Count both active host grants AND pending requests so the host sees
+    // the limit immediately rather than only when an admin tries to approve.
     const limit = orgProfile.plan?.community_limit ?? 1
     if (limit !== null) {
-      const { count } = await admin
-        .from('community_hosts')
-        .select('community_id', { count: 'exact', head: true })
-        .eq('user_id', ctx.userId)
+      const [{ count: activeCount }, { count: pendingCount }] = await Promise.all([
+        admin
+          .from('community_hosts')
+          .select('community_id', { count: 'exact', head: true })
+          .eq('user_id', ctx.userId),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (admin as any)
+          .from('community_host_requests')
+          .select('community_id', { count: 'exact', head: true })
+          .eq('user_id', ctx.userId)
+          .eq('status', 'pending'),
+      ])
 
-      if ((count ?? 0) >= limit) {
+      if ((activeCount ?? 0) + (pendingCount ?? 0) >= limit) {
         throw new ForbiddenException(
           `Your plan allows hosting in at most ${limit} ${limit === 1 ? 'community' : 'communities'}. Upgrade to host in more.`,
         )
