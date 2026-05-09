@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
         .eq('organizer_type', 'individual')
         .eq('is_published', true)
         .eq('is_cancelled', false)
-        .gte('start_at', cursor ?? now)
+        .or(`start_at.gte.${now},and(event_frequency.neq.one_time,recurrence_until.gte.${now})`)
         .order('start_at', { ascending: true })
         .limit(limit)
 
@@ -64,6 +64,7 @@ export async function GET(req: NextRequest) {
 
       const sessions = ((data ?? []) as unknown[])
         .map((s) => applyResolvedEventWindow(s as Parameters<typeof applyResolvedEventWindow>[0]))
+        .filter((s) => new Date((s as { start_at: string }).start_at).getTime() >= new Date(now).getTime())
 
       return ok({ data: sessions })
     }
@@ -95,7 +96,7 @@ export async function GET(req: NextRequest) {
       .eq('organizer_type', 'individual')
       .eq('is_published', true)
       .eq('is_cancelled', false)
-      .gte('start_at', cursor ?? now)
+      .or(`start_at.gte.${cursor ?? now},and(event_frequency.neq.one_time,recurrence_until.gte.${now})`)
       .order('start_at', { ascending: true })
       .limit(limit)
 
@@ -103,6 +104,7 @@ export async function GET(req: NextRequest) {
 
     const sessions = ((data ?? []) as unknown[])
       .map((s) => applyResolvedEventWindow(s as Parameters<typeof applyResolvedEventWindow>[0]))
+      .filter((s) => new Date((s as { start_at: string }).start_at).getTime() >= new Date(cursor ?? now).getTime())
       .sort((a, b) => compareEventsByResolvedStartAt(
         a as Parameters<typeof compareEventsByResolvedStartAt>[0],
         b as Parameters<typeof compareEventsByResolvedStartAt>[1],

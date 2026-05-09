@@ -80,6 +80,7 @@ export async function GET(
     let viewer_is_individual_organizer = false
     let member_role: 'member' | 'community_admin' | 'owner' | null = null
     let member_status: 'active' | 'timed_out' | 'removed' | 'banned' | null = null
+    let orgProfile: { organizer_type: string; status: string; plan: { community_limit: number | null } | null } | null = null
     if (ctx?.userId) {
       const [{ data: mem }, { data: follow }, { data: hostGrant }] = await Promise.all([
         admin
@@ -101,7 +102,7 @@ export async function GET(
           .eq('user_id', ctx.userId)
           .maybeSingle(),
       ])
-      const [{ data: orgProfile }, hostReqResult] = await Promise.all([
+      const [{ data: fetchedOrgProfile }, hostReqResult] = await Promise.all([
         admin
           .from('organizer_profiles')
           .select('organizer_type, status, plan:plan_definitions(community_limit)')
@@ -119,6 +120,7 @@ export async function GET(
             () => null,
           ) as Promise<{ status: string } | null>,
       ])
+      orgProfile = fetchedOrgProfile ?? null
       is_member = !!mem && mem.status !== 'removed' && mem.status !== 'banned'
       is_following = !!follow
       is_host = !!hostGrant
@@ -135,7 +137,7 @@ export async function GET(
     let viewer_host_community_limit: number | null = null
 
     if (viewer_is_individual_organizer && ctx?.userId) {
-      const planLimit = (orgProfile as { plan: { community_limit: number | null } | null } | null)?.plan?.community_limit ?? 1
+      const planLimit = orgProfile?.plan?.community_limit ?? 1
       const [{ count: activeHostCount }, { count: pendingReqCount }] = await Promise.all([
         admin
           .from('community_hosts')
