@@ -359,6 +359,9 @@ const translations: Record<Locale, Record<string, string>> = {
     'comm.empty_joined_desc': 'Communities you join will appear here so you can filter by them quickly.',
     'comm.empty_none': 'No communities found',
     'comm.empty_none_desc': 'Try a different search or filter.',
+    'comm.load_failed_title': 'Could not load communities',
+    'comm.load_failed_desc': 'This looks like a temporary connection issue. Retry to fetch the latest communities.',
+    'comm.load_failed_inline': 'Could not refresh communities. The current list is still shown.',
     'comm.load_more': 'Load more',
     'comm.level.micro': 'Micro',
     'comm.level.interest': 'Interest',
@@ -552,6 +555,9 @@ const translations: Record<Locale, Record<string, string>> = {
     ...(landingTranslationsEn as Record<string, string>),
   },
   ar: {
+    'comm.load_failed_title': '\u062a\u0639\u0630\u0631 \u062a\u062d\u0645\u064a\u0644 \u0627\u0644\u0645\u062c\u062a\u0645\u0639\u0627\u062a',
+    'comm.load_failed_desc': '\u064a\u0628\u062f\u0648 \u0623\u0646\u0647\u0627 \u0645\u0634\u0643\u0644\u0629 \u0627\u062a\u0635\u0627\u0644 \u0645\u0624\u0642\u062a\u0629. \u0623\u0639\u062f \u0627\u0644\u0645\u062d\u0627\u0648\u0644\u0629 \u0644\u062c\u0644\u0628 \u0623\u062d\u062f\u062b \u0627\u0644\u0645\u062c\u062a\u0645\u0639\u0627\u062a.',
+    'comm.load_failed_inline': '\u062a\u0639\u0630\u0631 \u062a\u062d\u062f\u064a\u062b \u0627\u0644\u0645\u062c\u062a\u0645\u0639\u0627\u062a. \u0633\u0646\u0628\u0642\u064a \u0627\u0644\u0642\u0627\u0626\u0645\u0629 \u0627\u0644\u062d\u0627\u0644\u064a\u0629 \u0645\u0639\u0631\u0648\u0636\u0629.',
     // Nav
     'nav.events': 'الفعاليات',
     'nav.communities': 'المجتمعات',

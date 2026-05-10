@@ -14,13 +14,15 @@ async function getServerBaseUrl(): Promise<string> {
 
 async function fetchServerCommunities(
   base: string,
-): Promise<Pick<CommunitiesClientProps, 'initialCommunities' | 'initialHasMore'>> {
+): Promise<Pick<CommunitiesClientProps, 'initialCommunities' | 'initialHasMore' | 'initialLoadFailed'>> {
   try {
     const res = await fetch(
       `${base}/api/communities?page=1&per_page=18`,
       { next: { revalidate: 60 } },
     )
-    if (!res.ok) return { initialCommunities: [], initialHasMore: false }
+    if (!res.ok) {
+      return { initialCommunities: [], initialHasMore: false, initialLoadFailed: true }
+    }
     const json = await res.json()
     const data = json?.data ?? {}
     return {
@@ -29,9 +31,10 @@ async function fetchServerCommunities(
         is_member: false,   // anonymous server fetch — is_member updates client-side after auth
       })),
       initialHasMore: data.has_more ?? false,
+      initialLoadFailed: false,
     }
   } catch {
-    return { initialCommunities: [], initialHasMore: false }
+    return { initialCommunities: [], initialHasMore: false, initialLoadFailed: true }
   }
 }
 
@@ -57,7 +60,7 @@ async function fetchServerTrending(base: string): Promise<CommunitiesClientProps
 export default async function CommunitiesPage() {
   const base = await getServerBaseUrl()
 
-  const [{ initialCommunities, initialHasMore }, initialTrending] = await Promise.all([
+  const [{ initialCommunities, initialHasMore, initialLoadFailed }, initialTrending] = await Promise.all([
     fetchServerCommunities(base),
     fetchServerTrending(base),
   ])
@@ -66,6 +69,7 @@ export default async function CommunitiesPage() {
     <CommunitiesClient
       initialCommunities={initialCommunities}
       initialHasMore={initialHasMore}
+      initialLoadFailed={initialLoadFailed}
       initialTrending={initialTrending}
     />
   )

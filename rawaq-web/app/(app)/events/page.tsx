@@ -5,7 +5,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { EventCardDark, EventCardDarkSkeleton } from '@/components/events/EventCardDark'
 import { EventFiltersDark } from '@/components/events/EventFiltersDark'
 import { EventsPageHeroDark } from '@/components/events/EventsPageHeroDark'
-import { EventsGridEmpty, EventsGridPagination } from '@/components/events/EventsGridFeedback'
+import { EventsGridEmpty, EventsGridError, EventsGridPagination } from '@/components/events/EventsGridFeedback'
 import { HorizontalDragScroll } from '@/components/ui/HorizontalDragScroll'
 import type { EventWithOrganizer } from '@/types/database'
 import { getCachedFeaturedEvents, getCachedEventsGrid, getCachedWeekendEvents } from '@/lib/events/cache'
@@ -118,7 +118,10 @@ function DarkEventRail({
 
 // ── Featured rail + main grid (shares excludeIds) ─────────────────────────────
 async function FeaturedRailAndGrid({ searchParams }: { searchParams: SearchParams }) {
-  const featured = await getCachedFeaturedEvents()
+  const featured = await getCachedFeaturedEvents().catch((error: unknown) => {
+    console.error('Failed to load featured events', error)
+    return [] as EventWithOrganizer[]
+  })
   const excludeIds = featured.map((e) => e.id)
 
   return (
@@ -166,6 +169,9 @@ async function WeekendRailDark({
     radiusKm,
     weekendStart: start,
     weekendEnd: end,
+  }).catch((error: unknown) => {
+    console.error('Failed to load weekend events', error)
+    return [] as EventWithOrganizer[]
   })
 
   if (!events.length) return null
@@ -258,7 +264,12 @@ async function EventsGrid({
   const { q, category, city, community, gender, free, family, hot, lat, lng, radius_km } = searchParams
   const allEvents = await getCachedEventsGrid(
     { q, category, city, community, gender, free, family, hot, lat, lng, radius_km },
-  )
+  ).catch((error: unknown) => {
+    console.error('Failed to load events grid', error)
+    const message = error instanceof Error ? error.message : 'Please refresh and try again.'
+    return <EventsGridError message={message} />
+  })
+  if (!Array.isArray(allEvents)) return allEvents
   // getCachedEventsGrid no longer takes excludeIds — exclusion happens after the cache hit
   const excludeSet = new Set(excludeIds)
   const resolved = excludeIds.length > 0

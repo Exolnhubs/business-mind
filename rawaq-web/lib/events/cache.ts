@@ -4,6 +4,18 @@ import { applyResolvedEventWindow, compareEventsByResolvedStartAt } from '@/lib/
 import type { EventWithOrganizer } from '@/types/database'
 import type { GenderType } from '@/types/database'
 
+type SupabaseQueryError = {
+  message: string
+  code?: string
+  details?: string
+  hint?: string
+}
+
+function throwIfSupabaseError(error: SupabaseQueryError | null, context: string): void {
+  if (!error) return
+  throw new Error(`${context}: ${error.message}`)
+}
+
 const EVENT_SELECT = `
   *,
   organizer:profiles!organizer_id(
@@ -21,7 +33,7 @@ export const getCachedFeaturedEvents = unstable_cache(
     const supabase = createSupabaseCacheClient()
     const now = new Date().toISOString()
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('events')
       .select(EVENT_SELECT)
       .eq('is_published', true)
@@ -29,6 +41,7 @@ export const getCachedFeaturedEvents = unstable_cache(
       .gt('featured_until', now)
       .order('featured_until', { ascending: false })
       .limit(8)
+    throwIfSupabaseError(error, 'Failed to load featured events')
 
     return ((data ?? []) as unknown as EventWithOrganizer[]).map((e) =>
       applyResolvedEventWindow(e)
@@ -54,19 +67,21 @@ export const getCachedWeekendEvents = unstable_cache(
     let events: EventWithOrganizer[] = []
 
     if (lat && lng) {
-      const { data: geoIds } = await supabase.rpc('events_within_radius', {
+      const { data: geoIds, error: geoError } = await supabase.rpc('events_within_radius', {
         user_lat: lat,
         user_lng: lng,
         radius_meters: radiusKm * 1000,
       })
+      throwIfSupabaseError(geoError, 'Failed to load weekend event locations')
       const ids = ((geoIds ?? []) as { id: string }[]).map((e) => e.id)
       if (ids.length > 0) {
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from('events')
           .select(EVENT_SELECT)
           .in('id', ids)
           .eq('is_published', true)
           .eq('is_cancelled', false)
+        throwIfSupabaseError(error, 'Failed to load weekend events')
         events = ((data ?? []) as unknown as EventWithOrganizer[])
           .map((e) => applyResolvedEventWindow(e))
           .filter((e) => e.start_at >= weekendStart && e.start_at <= weekendEnd)
@@ -74,7 +89,7 @@ export const getCachedWeekendEvents = unstable_cache(
           .slice(0, 8)
       }
     } else if (city) {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('events')
         .select(EVENT_SELECT)
         .eq('is_published', true)
@@ -84,6 +99,7 @@ export const getCachedWeekendEvents = unstable_cache(
         .lte('start_at', weekendEnd)
         .order('start_at')
         .limit(16)
+      throwIfSupabaseError(error, 'Failed to load weekend city events')
       events = ((data ?? []) as unknown as EventWithOrganizer[])
         .map((e) => applyResolvedEventWindow(e))
         .sort(compareEventsByResolvedStartAt)
@@ -132,12 +148,13 @@ export const getCachedEventsGrid = unstable_cache(
     if (params.family === 'true') query = query.eq('is_family_friendly', true)
 
     if (params.hot === 'true') {
-      const { data: hotRows } = await supabase
+      const { data: hotRows, error: hotError } = await supabase
         .from('ticket_types')
         .select('event_id')
         .eq('is_hot_offer', true)
         .eq('is_active', true)
         .gt('hot_offer_ends_at', new Date().toISOString())
+      throwIfSupabaseError(hotError, 'Failed to load hot offer events')
       const hotIds = (hotRows ?? []).map((r: { event_id: string }) => r.event_id).filter(Boolean)
       if (hotIds.length === 0) return []
       query = query.in('id', hotIds)
@@ -146,35 +163,39 @@ export const getCachedEventsGrid = unstable_cache(
     if (params.category) query = query.eq('category_id', params.category)
 
     if (params.community) {
-      const { data: community } = await supabase
+      const { data: community, error: communityError } = await supabase
         .from('communities')
         .select('id')
         .eq('slug', params.community)
         .single()
+      if (communityError && communityError.code !== 'PGRST116') {
+        throwIfSupabaseError(communityError, 'Failed to load event community')
+      }
       if (!community) return []
-      const { data: ecRows } = await supabase
+      const { data: ecRows, error: eventCommunitiesError } = await supabase
         .from('event_communities')
         .select('event_id')
         .eq('community_id', (community as { id: string }).id)
+      throwIfSupabaseError(eventCommunitiesError, 'Failed to load community events')
       const ids = (ecRows ?? []).map((r: { event_id: string }) => r.event_id)
       if (ids.length === 0) return []
       query = query.in('id', ids)
     }
 
     if (params.lat && params.lng) {
-      const { data: geoEvents } = await supabase.rpc('events_within_radius', {
+      const { data: geoEvents, error: geoError } = await supabase.rpc('events_within_radius', {
         user_lat: Number(params.lat),
         user_lng: Number(params.lng),
         radius_meters: Number(params.radius_km ?? 25) * 1000,
       })
-      if (geoEvents) {
-        const ids = (geoEvents as { id: string }[]).map((e) => e.id)
-        if (ids.length === 0) return []
-        query = query.in('id', ids)
-      }
+      throwIfSupabaseError(geoError, 'Failed to load nearby events')
+      const ids = ((geoEvents ?? []) as { id: string }[]).map((e) => e.id)
+      if (ids.length === 0) return []
+      query = query.in('id', ids)
     }
 
-    const { data: events } = await query.limit(240)
+    const { data: events, error } = await query.limit(240)
+    throwIfSupabaseError(error, 'Failed to load events grid')
 
     return ((events ?? []) as unknown as EventWithOrganizer[])
       .map((e) => applyResolvedEventWindow(e))

@@ -300,6 +300,7 @@ function TrendingPill({
 export interface CommunitiesClientProps {
   initialCommunities: CommunityWithMembership[]
   initialHasMore: boolean
+  initialLoadFailed: boolean
   initialTrending: TrendingCommunity[]
 }
 
@@ -307,6 +308,7 @@ export interface CommunitiesClientProps {
 export function CommunitiesClient({
   initialCommunities,
   initialHasMore,
+  initialLoadFailed,
   initialTrending,
 }: CommunitiesClientProps) {
   const { user } = useAuth()
@@ -324,6 +326,7 @@ export function CommunitiesClient({
   const [joinedOnly,   setJoinedOnly] = useState(false)
   const [page,         setPage]       = useState(1)
   const [hasMore,      setHasMore]    = useState(initialHasMore)
+  const [loadError,    setLoadError]  = useState(initialLoadFailed)
   const [trending,     setTrending]   = useState<TrendingCommunity[]>(initialTrending)
   const [trendingLoaded, setTrendingLoaded] = useState(true)  // already loaded from server
   const [joiningSlug,  setJoiningSlug] = useState<string | null>(null)
@@ -391,12 +394,14 @@ export function CommunitiesClient({
         } else {
           setCommunities((prev) => [...prev, ...incoming])
         }
+        setLoadError(false)
         setHasMore(json.data.has_more)
         setPage(p)
       } catch (err) {
         console.error(err)
         if (controller.signal.aborted) return
-        if (p === 1) { setCommunities([]); setSuggested([]); setHasMore(false) }
+        setLoadError(true)
+        if (p === 1) setHasMore(false)
       } finally {
         if (latestRef.current === rid) setLoading(false)
       }
@@ -713,9 +718,77 @@ export function CommunitiesClient({
           </>
         )}
 
+        {loadError && communities.length > 0 && (
+          <div
+            style={{
+              background: 'oklch(0.14 0.022 68)',
+              border: '1px solid oklch(0.72 0.16 35 / 0.32)',
+              borderRadius: 12,
+              color: 'oklch(0.88 0.09 48)',
+              fontFamily: fb,
+              fontSize: 13,
+              marginBottom: 18,
+              padding: '12px 14px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+              flexWrap: 'wrap',
+            }}
+          >
+            <span>{t('comm.load_failed_inline')}</span>
+            <button
+              onClick={() => fetchCommunities(1, level, search, joinedOnly)}
+              disabled={loading}
+              style={{
+                background: 'oklch(0.78 0.18 72 / 0.12)',
+                border: '1px solid oklch(0.78 0.18 72 / 0.30)',
+                borderRadius: 999,
+                color: 'var(--c-gold)',
+                cursor: loading ? 'default' : 'pointer',
+                fontFamily: ff,
+                fontSize: 12,
+                fontWeight: 700,
+                opacity: loading ? 0.6 : 1,
+                padding: '6px 14px',
+              }}
+            >
+              {t('errors.action.retry')}
+            </button>
+          </div>
+        )}
+
         {loading && communities.length === 0 ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '5rem 0' }}>
             <Spinner />
+          </div>
+        ) : loadError && communities.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '5rem 0' }}>
+            <div style={{ fontSize: 40, marginBottom: 16 }}>!</div>
+            <div style={{ fontFamily: ff, fontSize: 20, fontWeight: 600, color: 'oklch(0.94 0.01 82)', marginBottom: 8 }}>
+              {t('comm.load_failed_title')}
+            </div>
+            <div style={{ fontSize: 14, color: 'oklch(0.52 0.015 72)', fontFamily: fb, marginBottom: 18 }}>
+              {t('comm.load_failed_desc')}
+            </div>
+            <button
+              onClick={() => fetchCommunities(1, level, search, joinedOnly)}
+              disabled={loading}
+              style={{
+                background: 'var(--c-gold)',
+                border: 'none',
+                borderRadius: 999,
+                color: 'var(--c-ink)',
+                cursor: loading ? 'default' : 'pointer',
+                fontFamily: ff,
+                fontSize: 13,
+                fontWeight: 700,
+                opacity: loading ? 0.6 : 1,
+                padding: '9px 22px',
+              }}
+            >
+              {t('errors.action.retry')}
+            </button>
           </div>
         ) : communities.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '5rem 0' }}>
