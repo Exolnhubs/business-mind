@@ -19,12 +19,32 @@ export function EventsGridEmpty({ nearby = false }: { nearby?: boolean }) {
   return <EmptyState icon="💭" title={t('events.empty')} description={t('events.empty_sub')} />
 }
 
-export function EventsGridError({ message }: { message: string }) {
+export function EventsGridError() {
   const { t } = useLocale()
 
   return (
-    <div className="text-center py-16 text-red-500 text-sm">
-      {t('events.grid.error_prefix')} {message}
+    <div style={{ textAlign: 'center', padding: '5rem 0' }}>
+      <div style={{ fontSize: 13, color: 'oklch(0.88 0.09 48)', marginBottom: 8 }}>
+        {t('events.grid.load_failed_title')}
+      </div>
+      <div style={{ fontSize: 13, color: 'oklch(0.52 0.015 72)', marginBottom: 18 }}>
+        {t('events.grid.load_failed_desc')}
+      </div>
+      <button
+        onClick={() => window.location.reload()}
+        style={{
+          background: 'var(--c-gold)',
+          border: 'none',
+          borderRadius: 999,
+          color: 'var(--c-ink)',
+          cursor: 'pointer',
+          fontSize: 13,
+          fontWeight: 700,
+          padding: '9px 22px',
+        }}
+      >
+        {t('errors.action.retry')}
+      </button>
     </div>
   )
 }

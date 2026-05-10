@@ -266,8 +266,7 @@ async function EventsGrid({
     { q, category, city, community, gender, free, family, hot, lat, lng, radius_km },
   ).catch((error: unknown) => {
     console.error('Failed to load events grid', error)
-    const message = error instanceof Error ? error.message : 'Please refresh and try again.'
-    return <EventsGridError message={message} />
+    return <EventsGridError />
   })
   if (!Array.isArray(allEvents)) return allEvents
   // getCachedEventsGrid no longer takes excludeIds — exclusion happens after the cache hit

@@ -764,7 +764,7 @@ export function CommunitiesClient({
           </div>
         ) : loadError && communities.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '5rem 0' }}>
-            <div style={{ fontSize: 40, marginBottom: 16 }}>!</div>
+            <div aria-hidden="true" style={{ fontSize: 40, marginBottom: 16 }}>!</div>
             <div style={{ fontFamily: ff, fontSize: 20, fontWeight: 600, color: 'oklch(0.94 0.01 82)', marginBottom: 8 }}>
               {t('comm.load_failed_title')}
             </div>
