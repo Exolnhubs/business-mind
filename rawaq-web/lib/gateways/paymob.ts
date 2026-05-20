@@ -179,7 +179,6 @@ async function createIntention(
   kind: "ticket" | "donation" | "subscription",
 ): Promise<{ clientSecret: string; orderId: number }> {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://rawaq.app";
-
   const res = await fetchPaymob(
     "intention creation",
     "/v1/intention/",
@@ -213,7 +212,9 @@ async function createIntention(
           email: billingData.email,
         },
         special_reference: randomUUID(),
-        notification_url: `${appUrl}/api/webhooks/paymob`,
+        // notification_url intentionally omitted — Paymob falls back to the
+        // dashboard-configured webhook URL, which is always the production endpoint.
+        // Per-intention override would point to localhost in dev and break webhooks.
         redirection_url: `${appUrl}/api/payments/callback`,
       }),
     },
