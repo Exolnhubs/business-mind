@@ -3,24 +3,26 @@
  *
  * Supports: Card, Fawry (cash), Apple Pay, Google Pay, ValU installments
  *
- * Flow:
- *   1. POST /api/auth/tokens                    → auth_token
- *   2. POST /api/ecommerce/orders               → paymob_order_id
- *   3. POST /api/acceptance/payment_keys        → payment_key
- *   4. Redirect → https://accept.paymob.com/api/acceptance/iframes/{iframeId}?payment_token={payment_key}
+ * Checkout flow (Intentions API):
+ *   1. POST {PAYMOB_BASE_URL}/v1/intention/  → client_secret + order_id
+ *   2. Redirect → PAYMOB_CHECKOUT_URL_TEMPLATE (unified checkout)
+ *
+ * Refund / transaction-lookup still use the legacy domain (accept.paymob.com/api).
  *
  * Webhook (Transaction Processed Callback):
  *   - Paymob POSTs to NEXT_PUBLIC_APP_URL/api/webhooks/paymob
  *   - HMAC-SHA512 computed from ordered transaction fields + PAYMOB_HMAC_SECRET
  *
  * Required env vars:
- *   PAYMOB_API_KEY              — Paymob API key
- *   PAYMOB_HMAC_SECRET          — For webhook HMAC verification
- *   PAYMOB_CARD_INTEGRATION_ID  — Card payments integration
- *   PAYMOB_FAWRY_INTEGRATION_ID — Fawry cash integration
+ *   PAYMOB_BASE_URL                  — New API base (https://accept.paymobsolutions.com)
+ *   PAYMOB_SECRET_KEY                — Secret key for Intentions API + legacy auth
+ *   NEXT_PUBLIC_PAYMOB_PUBLIC_KEY    — Public key for unified checkout URL
+ *   PAYMOB_CHECKOUT_URL_TEMPLATE     — Checkout URL with {publicKey}/{clientSecret} placeholders
+ *   PAYMOB_HMAC_SECRET               — For webhook HMAC verification
+ *   PAYMOB_CARD_INTEGRATION_ID       — Card payments integration
+ *   PAYMOB_FAWRY_INTEGRATION_ID      — Fawry cash integration
  *   PAYMOB_APPLE_PAY_INTEGRATION_ID  — Apple Pay integration (optional)
  *   PAYMOB_GOOGLE_PAY_INTEGRATION_ID — Google Pay integration (optional)
- *   PAYMOB_CARD_IFRAME_ID       — Card iframe ID from Paymob dashboard
  */
 
 import { createHmac, randomUUID } from "crypto";
@@ -31,7 +33,9 @@ import type {
   PaymentMethod,
 } from "./types";
 
-const BASE_URL = "https://accept.paymob.com/api";
+const LEGACY_BASE_URL = "https://accept.paymob.com/api";
+const INTENTIONS_BASE_URL =
+  process.env.PAYMOB_BASE_URL ?? "https://accept.paymobsolutions.com";
 const PAYMOB_TIMEOUT_MS = Number(process.env.PAYMOB_TIMEOUT_MS ?? "20000");
 const PAYMOB_MAX_RETRIES = Number(process.env.PAYMOB_MAX_RETRIES ?? "1");
 
@@ -100,8 +104,9 @@ async function fetchPaymob(
   step: string,
   path: string,
   init: RequestInit,
+  baseUrl: string = LEGACY_BASE_URL,
 ): Promise<Response> {
-  const url = `${BASE_URL}${path}`;
+  const url = `${baseUrl}${path}`;
   const maxAttempts = Math.max(1, PAYMOB_MAX_RETRIES + 1);
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
@@ -156,13 +161,91 @@ function getIntegrationId(method: PaymentMethod): string {
   }
 }
 
+// ── Intention API response shape ─────────────────────────────────────────────
+
+interface PaymobIntentionResponse {
+  client_secret: string;
+  payment_keys: Array<{ order_id: number; [key: string]: unknown }>;
+}
+
+// ── Create Intention (replaces auth + order + payment_key steps) ──────────────
+
+async function createIntention(
+  amountCents: number,
+  currency: string,
+  integrationId: string,
+  billingData: Record<string, string>,
+  eventTitle: string,
+  kind: "ticket" | "donation" | "subscription",
+): Promise<{ clientSecret: string; orderId: number }> {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://rawaq.app";
+
+  const res = await fetchPaymob(
+    "intention creation",
+    "/v1/intention/",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Token ${requireEnv("PAYMOB_SECRET_KEY")}`,
+      },
+      body: JSON.stringify({
+        amount: amountCents,
+        currency,
+        payment_methods: [Number(integrationId)],
+        items: [
+          {
+            name: eventTitle.slice(0, 100),
+            amount: amountCents,
+            description:
+              kind === "donation"
+                ? "Event donation via Rawaq"
+                : kind === "subscription"
+                  ? "Membership subscription via Rawaq"
+                  : "Event ticket via Rawaq",
+            quantity: 1,
+          },
+        ],
+        billing_data: billingData,
+        customer: {
+          first_name: billingData.first_name,
+          last_name: billingData.last_name,
+          email: billingData.email,
+        },
+        special_reference: randomUUID(),
+        notification_url: `${appUrl}/api/webhooks/paymob`,
+        redirection_url: `${appUrl}/api/payments/callback`,
+      }),
+    },
+    INTENTIONS_BASE_URL,
+  );
+
+  if (!res.ok) {
+    const details = await readErrorBody(res);
+    throw new Error(
+      `Paymob intention creation failed: ${res.status}${details ? ` ${details}` : ""}`,
+    );
+  }
+
+  const data = (await res.json()) as PaymobIntentionResponse;
+
+  const orderId = data.payment_keys?.[0]?.order_id;
+  if (!orderId) {
+    throw new Error(
+      "Paymob intention response missing payment_keys[0].order_id — cannot correlate webhook",
+    );
+  }
+
+  return { clientSecret: data.client_secret, orderId };
+}
+
 // ── Step 1: Authenticate ─────────────────────────────────────────────────────
 
 async function authenticate(): Promise<string> {
   const res = await fetchPaymob("authentication", "/auth/tokens", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ api_key: requireEnv("PAYMOB_API_KEY") }),
+    body: JSON.stringify({ api_key: requireEnv("PAYMOB_SECRET_KEY") }),
   });
   if (!res.ok) {
     const details = await readErrorBody(res);
@@ -172,103 +255,6 @@ async function authenticate(): Promise<string> {
   }
   const data = await res.json();
   return data.token as string;
-}
-
-// ── Step 2: Create Order ─────────────────────────────────────────────────────
-
-async function createOrder(
-  token: string,
-  amountCents: number,
-  currency: string,
-  merchantOrderId: string,
-  eventTitle: string,
-  kind: "ticket" | "donation" | "subscription",
-): Promise<number> {
-  const res = await fetchPaymob("order creation", "/ecommerce/orders", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      auth_token: token,
-      delivery_needed: false,
-      amount_cents: amountCents,
-      currency,
-      merchant_order_id: merchantOrderId,
-      items: [
-        {
-          name: eventTitle.slice(0, 100),
-          amount_cents: amountCents,
-          description:
-            kind === "donation"
-              ? "Event donation via Rawaq"
-              : kind === "subscription"
-                ? "Membership subscription via Rawaq"
-                : "Event ticket via Rawaq",
-          quantity: 1,
-        },
-      ],
-    }),
-  });
-  if (!res.ok) {
-    const details = await readErrorBody(res);
-    throw new Error(
-      `Paymob create order failed: ${res.status}${details ? ` ${details}` : ""}`,
-    );
-  }
-  const data = await res.json();
-  return data.id as number;
-}
-
-// ── Step 3: Get Payment Key ───────────────────────────────────────────────────
-
-async function getPaymentKey(
-  token: string,
-  amountCents: number,
-  currency: string,
-  orderId: number,
-  integrationId: string,
-  billingData: PaymobBillingData,
-): Promise<string> {
-  const res = await fetchPaymob(
-    "payment key creation",
-    "/acceptance/payment_keys",
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        auth_token: token,
-        amount_cents: amountCents,
-        expiration: 3600, // 1 hour
-        order_id: orderId,
-        billing_data: billingData,
-        currency,
-        integration_id: Number(integrationId),
-        lock_order_when_paid: true,
-      }),
-    },
-  );
-  if (!res.ok) {
-    const details = await readErrorBody(res);
-    throw new Error(
-      `Paymob payment key failed: ${res.status}${details ? ` ${details}` : ""}`,
-    );
-  }
-  const data = await res.json();
-  return data.token as string;
-}
-
-interface PaymobBillingData {
-  first_name: string;
-  last_name: string;
-  email: string;
-  phone_number: string;
-  apartment: string;
-  floor: string;
-  street: string;
-  building: string;
-  city: string;
-  country: string;
-  state: string;
-  postal_code: string;
 }
 
 // ── Transaction lookup ────────────────────────────────────────────────────────
@@ -397,10 +383,9 @@ export async function initiatePaymob(
 
   const amountCents = amountInCents(amount);
   const integrationId = getIntegrationId(method);
-  const iframeId = requireEnv("PAYMOB_CARD_IFRAME_ID");
-  const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 hour
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
 
-  const billingData: PaymobBillingData = {
+  const billingData = {
     first_name: userFirstName ?? "Rawaq",
     last_name: userLastName ?? "User",
     email: userEmail ?? "customer@rawaq.app",
@@ -415,36 +400,20 @@ export async function initiatePaymob(
     postal_code: "N/A",
   };
 
-  // 3-step Paymob flow
-  // Generate a fresh UUID as merchant_order_id on every call. Paymob rejects
-  // with 422 if the same merchant_order_id is reused across attempts (e.g.
-  // retrying after a failed payment). Webhook correlation uses Paymob's own
-  // numeric order ID (stored in gateway_order_id), not merchant_order_id, so
-  // this value is only a unique label for Paymob's records.
-  const token = await authenticate();
-  const orderId = await createOrder(
-    token,
+  const { clientSecret, orderId } = await createIntention(
     amountCents,
     currency,
-    randomUUID(),
+    integrationId,
+    billingData,
     eventTitle,
     kind,
   );
-  const paymentKey = await getPaymentKey(
-    token,
-    amountCents,
-    currency,
-    orderId,
-    integrationId,
-    billingData,
-  );
 
-  const redirectUrl =
-    method === "fawry"
-      ? // Fawry: Paymob hosts the Fawry reference number display
-        `https://accept.paymob.com/api/acceptance/iframes/${iframeId}?payment_token=${paymentKey}`
-      : // Card / Apple Pay / Google Pay: Paymob hosted checkout
-        `https://accept.paymob.com/api/acceptance/iframes/${iframeId}?payment_token=${paymentKey}`;
+  const template = requireEnv("PAYMOB_CHECKOUT_URL_TEMPLATE");
+  const publicKey = requireEnv("NEXT_PUBLIC_PAYMOB_PUBLIC_KEY");
+  const redirectUrl = template
+    .replace("{publicKey}", publicKey)
+    .replace("{clientSecret}", clientSecret);
 
   return {
     gateway: "paymob",

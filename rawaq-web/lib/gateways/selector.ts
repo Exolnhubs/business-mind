@@ -106,9 +106,9 @@ const SIMULATED_OPTIONS: PaymentOption[] = [
 
 function paymobConfigured(): boolean {
   return !!(
-    process.env.PAYMOB_API_KEY &&
+    process.env.PAYMOB_SECRET_KEY &&
     process.env.PAYMOB_CARD_INTEGRATION_ID &&
-    process.env.PAYMOB_CARD_IFRAME_ID
+    process.env.PAYMOB_CHECKOUT_URL_TEMPLATE
   )
 }
 
