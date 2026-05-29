@@ -14,8 +14,8 @@ export default function TabsLayout() {
   // On Android the OS draws the navigation bar inside the app window (edge-to-edge,
   // mandatory on Android 15 / Galaxy S-series).  We must add insets.bottom to the
   // tab bar height so the bar renders above the system nav buttons, not behind them.
-  const tabBarHeight      = Platform.OS === 'ios' ? 84  : 62 + insets.bottom
-  const tabBarPaddingBottom = Platform.OS === 'ios' ? 26 : 8  + insets.bottom
+  const tabBarHeight = Platform.OS === 'ios' ? 84 : 62 + insets.bottom
+  const tabBarPaddingBottom = Platform.OS === 'ios' ? 26 : 8 + insets.bottom
 
   return (
     <Tabs
@@ -93,10 +93,10 @@ export default function TabsLayout() {
 
       {/* ── Hidden routes ───────────────────────────────────── */}
       <Tabs.Screen name="notifications" options={{ href: null }} />
-      <Tabs.Screen name="index"        options={{ href: null }} />
-      <Tabs.Screen name="feed"         options={{ href: null }} />
-      <Tabs.Screen name="chat"         options={{ href: null }} />
-      <Tabs.Screen name="saved"        options={{ href: null }} />
+      <Tabs.Screen name="index" options={{ href: null }} />
+      <Tabs.Screen name="feed" options={{ href: null }} />
+      <Tabs.Screen name="chat" options={{ href: null }} />
+      <Tabs.Screen name="saved" options={{ href: null }} />
     </Tabs>
   )
 }
