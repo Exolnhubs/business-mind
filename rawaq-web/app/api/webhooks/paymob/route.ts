@@ -17,6 +17,7 @@
  */
 
 import { NextRequest } from 'next/server'
+import * as Sentry from '@sentry/nextjs'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { verifyPaymobHmac, parsePaymobWebhook } from '@/lib/gateways/paymob'
 import { sendNotification } from '@/lib/notifications'
@@ -47,6 +48,9 @@ export async function POST(req: NextRequest) {
 
     // ── HMAC verification ────────────────────────────────────────────────────
     if (!verifyPaymobHmac(obj, hmac)) {
+      Sentry.captureException(new Error('[webhooks/paymob] HMAC verification failed'), {
+        extra: { gatewayOrderId: obj.order ?? null },
+      })
       console.error('[webhooks/paymob] HMAC verification failed')
       return new Response('invalid hmac', { status: 401 })
     }
@@ -71,8 +75,27 @@ export async function POST(req: NextRequest) {
       .single()
 
     if (txErr || !tx) {
-      console.error('[webhooks/paymob] transaction not found for gateway_order_id:', event.gatewayOrderId, 'dbErr:', txErr?.message)
-      // Return 200 to stop Paymob from retrying — we don't own this order
+      // Race-condition guard: if the gateway transaction was created within the
+      // last 10 minutes, return 500 so Paymob retries — our payments/initiate
+      // may not have committed `gateway_order_id` yet. For older orders this is
+      // a genuinely foreign event; return 200 to stop the retry loop.
+      const createdAtRaw = (obj.created_at ?? null) as string | number | null
+      const createdAtMs = createdAtRaw ? new Date(createdAtRaw).getTime() : NaN
+      const isRecent = Number.isFinite(createdAtMs)
+        ? Date.now() - createdAtMs < 10 * 60 * 1000
+        : false
+
+      Sentry.captureException(
+        new Error('[webhooks/paymob] transaction not found'),
+        { extra: { gatewayOrderId: event.gatewayOrderId, createdAt: createdAtRaw, isRecent, dbErr: txErr?.message } },
+      )
+      console.error('[webhooks/paymob] transaction not found for gateway_order_id:', event.gatewayOrderId, 'dbErr:', txErr?.message, 'isRecent:', isRecent)
+
+      if (isRecent) {
+        // Force Paymob retry — our DB write may not have landed yet.
+        return new Response('tx not yet visible', { status: 500 })
+      }
+      // Genuinely foreign or stale — stop the retry loop.
       return new Response('not found', { status: 200 })
     }
 
@@ -107,6 +130,9 @@ export async function POST(req: NextRequest) {
       .eq('id', tx.id)
 
     if (txUpdateErr) {
+      Sentry.captureException(txUpdateErr, {
+        extra: { txId: tx.id, gatewayOrderId: event.gatewayOrderId, stage: 'tx_update' },
+      })
       console.error('[webhooks/paymob] FAILED to update transaction', tx.id, 'err:', txUpdateErr.message)
       return new Response('db error', { status: 500 })
     }
@@ -116,6 +142,9 @@ export async function POST(req: NextRequest) {
       try {
         tipId = await finalizeDonationPayment(admin, tx, event.gatewayRef, donationMessage)
       } catch (tipErr) {
+        Sentry.captureException(tipErr, {
+          extra: { txId: tx.id, gatewayOrderId: event.gatewayOrderId, stage: 'donation_finalize' },
+        })
         console.error('[webhooks/paymob] FAILED to finalize donation', tx.id, tipErr)
         return new Response('donation finalize failed', { status: 500 })
       }
@@ -126,6 +155,9 @@ export async function POST(req: NextRequest) {
         .eq('id', tx.id)
 
       if (tipLinkErr) {
+        Sentry.captureException(tipLinkErr, {
+          extra: { txId: tx.id, gatewayOrderId: event.gatewayOrderId, stage: 'tip_link' },
+        })
         console.error('[webhooks/paymob] FAILED to link donation tip_id', tx.id, 'err:', tipLinkErr.message)
         return new Response('tip link failed', { status: 500 })
       }
@@ -160,6 +192,9 @@ export async function POST(req: NextRequest) {
         .update({ status: newBookingStatus as never, payment_pending_until: null } as never)
         .eq('id', tx.booking_id)
       if (bookingUpdateErr) {
+        Sentry.captureException(bookingUpdateErr, {
+          extra: { txId: tx.id, bookingId: tx.booking_id, gatewayOrderId: event.gatewayOrderId, stage: 'booking_update' },
+        })
         console.error('[webhooks/paymob] FAILED to update booking', tx.booking_id, 'err:', (bookingUpdateErr as { message?: string }).message)
         // Return 500 so Paymob retries — the transaction is already updated but
         // the booking didn't flip. Without this, Paymob marks the webhook as
@@ -187,6 +222,7 @@ export async function POST(req: NextRequest) {
 
     return new Response('ok', { status: 200 })
   } catch (err) {
+    Sentry.captureException(err, { extra: { route: '/api/webhooks/paymob' } })
     console.error('[webhooks/paymob] unexpected error:', err)
     return new Response('internal error', { status: 500 })
   }
