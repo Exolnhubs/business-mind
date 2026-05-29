@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireAuth } from '@/lib/auth'
+import { parsePerPage, parsePage } from '@/lib/pagination'
 import { handleApiError, ok, created, ForbiddenException, BadRequestException } from '@/lib/errors'
 
 const RequestPayoutSchema = z.object({
@@ -16,8 +17,8 @@ export async function GET(req: NextRequest) {
       throw new ForbiddenException('Organizer access required')
     }
 
-    const page    = Number(req.nextUrl.searchParams.get('page')     ?? 1)
-    const perPage = Number(req.nextUrl.searchParams.get('per_page') ?? 20)
+    const page    = parsePage(req.nextUrl.searchParams.get('page'))
+    const perPage = parsePerPage(req.nextUrl.searchParams.get('per_page'), 20)
     const from    = (page - 1) * perPage
 
     const admin = createSupabaseAdminClient()

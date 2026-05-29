@@ -3,6 +3,7 @@ import { requireAuth, requireEventOwnership } from '@/lib/auth'
 import { handleApiError, ok, NotFoundException } from '@/lib/errors'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { resolveAttendanceOccurrence } from '@/lib/events/occurrences'
+import { parsePerPage, parsePage } from '@/lib/pagination'
 
 // GET /api/events/:id/attendees — organizer or admin only
 export async function GET(
@@ -14,8 +15,8 @@ export async function GET(
     const ctx = await requireAuth()
     await requireEventOwnership(id, ctx)
 
-    const page = Number(req.nextUrl.searchParams.get('page') ?? 1)
-    const perPage = Number(req.nextUrl.searchParams.get('per_page') ?? 50)
+    const page = parsePage(req.nextUrl.searchParams.get('page'))
+    const perPage = parsePerPage(req.nextUrl.searchParams.get('per_page'), 50)
     const from = (page - 1) * perPage
     const requestedOccurrenceId = req.nextUrl.searchParams.get('occurrence_id')
 

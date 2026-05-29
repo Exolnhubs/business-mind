@@ -3,7 +3,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireAuth } from '@/lib/auth'
 import { handleApiError, ok, created, NotFoundException, ForbiddenException } from '@/lib/errors'
-import { paginationRange, paginatedResponse } from '@/lib/pagination'
+import { paginationRange, paginatedResponse, parsePerPage, parsePage } from '@/lib/pagination'
 import { CreateTipSchema } from '@/lib/validations/tips'
 import { sendNotification } from '@/lib/notifications'
 import { resolveGateway } from '@/lib/gateways/selector'
@@ -19,8 +19,8 @@ export async function GET(req: NextRequest) {
     const supabase = await createSupabaseServerClient()
 
     const direction = req.nextUrl.searchParams.get('direction') ?? 'sent'
-    const page = Number(req.nextUrl.searchParams.get('page') ?? 1)
-    const perPage = Number(req.nextUrl.searchParams.get('per_page') ?? 20)
+    const page = parsePage(req.nextUrl.searchParams.get('page'))
+    const perPage = parsePerPage(req.nextUrl.searchParams.get('per_page'), 20)
     const { from, to } = paginationRange(page, perPage)
 
     let query = supabase
