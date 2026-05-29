@@ -32,6 +32,7 @@ import type {
   WebhookEvent,
   PaymentMethod,
 } from "./types";
+import { requireEnv } from "@/lib/env";
 
 const LEGACY_BASE_URL = "https://accept.paymob.com/api";
 const INTENTIONS_BASE_URL =
@@ -40,12 +41,6 @@ const PAYMOB_TIMEOUT_MS = Number(process.env.PAYMOB_TIMEOUT_MS ?? "20000");
 const PAYMOB_MAX_RETRIES = Number(process.env.PAYMOB_MAX_RETRIES ?? "1");
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-
-function requireEnv(name: string): string {
-  const v = process.env[name];
-  if (!v) throw new Error(`Missing env var: ${name}`);
-  return v;
-}
 
 function amountInCents(amount: number): number {
   // Paymob expects amount in smallest currency unit (piastres for EGP)

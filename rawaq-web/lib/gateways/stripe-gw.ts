@@ -20,16 +20,11 @@
 
 import { createHmac, timingSafeEqual } from 'crypto'
 import type { InitiatePaymentParams, InitiatePaymentResult, WebhookEvent, PaymentMethod } from './types'
+import { requireEnv } from '@/lib/env'
 
 const STRIPE_API = 'https://api.stripe.com/v1'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-
-function requireEnv(name: string): string {
-  const v = process.env[name]
-  if (!v) throw new Error(`Missing env var: ${name}`)
-  return v
-}
 
 /**
  * Minimal Stripe API caller — avoids needing the stripe npm package.
