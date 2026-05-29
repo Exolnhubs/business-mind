@@ -4,21 +4,22 @@
  * Cancels a paid confirmed booking and automatically processes the refund
  * through the original payment gateway (Paymob or Stripe).
  *
- * Flow:
- *   1. Validate booking ownership, status, and that a succeeded payment exists
- *   2. Guard against duplicate refund requests
- *   3. Cancel booking → triggers capacity decrement (existing DB trigger)
- *   4. Call gateway refund API automatically
- *   5a. Gateway success → refunds.status = 'completed', tx.status = 'refunded'
- *       (trg_payment_wallet_sync trigger debits organizer wallet automatically)
- *   5b. Gateway failure / simulated / unknown gateway → refunds.status = 'pending'
- *       (falls into admin manual queue)
+ * Flow (refund-row-first ordering — money cannot move without a refund row):
+ *   1. Validate booking ownership, status, gateway tx, refund window, no duplicate
+ *   2. INSERT refund row (status='pending') as a write-ahead intent
+ *   3. Call gateway refund (or simulated auto-complete)
+ *   4a. Gateway success → update refund to 'completed', mark tx 'refunded',
+ *       cancel booking, then notify user
+ *   4b. Gateway failure → leave refund row at 'pending' (manual queue),
+ *       leave booking confirmed for manual reconciliation
  */
 
 import { NextRequest } from "next/server";
 import { z } from "zod";
+import * as Sentry from "@sentry/nextjs";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { requireAuth } from "@/lib/auth";
+import { checkRateLimit, limiters } from "@/lib/rate-limit";
 import {
   handleApiError,
   created,
@@ -40,6 +41,8 @@ export async function POST(
 ) {
   try {
     const ctx = await requireAuth();
+    await checkRateLimit(limiters.payments, ctx.userId);
+
     const { id } = await params;
     const body = await req.json().catch(() => ({}));
     const input = RequestRefundSchema.parse(body);
@@ -62,12 +65,13 @@ export async function POST(
     }
 
     // ── 1b. Enforce 24-hour refund window ─────────────────────────────────────
-    const msPerHour = 60 * 60 * 1000
-    const hoursSinceBooking = (Date.now() - new Date(booking.created_at).getTime()) / msPerHour
+    const msPerHour = 60 * 60 * 1000;
+    const hoursSinceBooking =
+      (Date.now() - new Date(booking.created_at).getTime()) / msPerHour;
     if (hoursSinceBooking > 24) {
       throw new BadRequestException(
         "Refunds are only available within 24 hours of booking. The refund window for this ticket has closed.",
-      )
+      );
     }
 
     const event = booking.event as unknown as {
@@ -116,61 +120,28 @@ export async function POST(
       );
     }
 
-    // ── 4. Cancel booking (triggers capacity decrement) ───────────────────────
-    const { error: cancelErr } = await admin
-      .from("bookings")
-      .update({ status: "cancelled" })
-      .eq("id", id);
+    // Determine whether auto-refund is even possible at the gateway level.
+    const gatewaySupportsAutoRefund =
+      !tx.is_simulated &&
+      !!tx.gateway_ref &&
+      (tx.gateway === "paymob" || tx.gateway === "fawry" || tx.gateway === "stripe");
 
-    if (cancelErr) throw cancelErr;
+    // Simulated transactions are auto-completed without a gateway call.
+    const isSimulatedAutoComplete = tx.is_simulated;
 
-    // ── 5. Attempt automatic gateway refund ──────────────────────────────────
-    let refundStatus: "pending" | "completed" = "pending";
-    let gatewayRefundRef: string | null = null;
-    let autoRefundError: string | null = null;
+    // refund_method is decided up-front based on whether auto-refund will run.
+    // 'original_payment' implies money will move via the gateway.
+    // 'manual' implies it will be queued for admin processing.
+    const refundMethod: "original_payment" | "manual" =
+      gatewaySupportsAutoRefund || isSimulatedAutoComplete
+        ? "original_payment"
+        : "manual";
 
-    if (!tx.is_simulated && tx.gateway_ref) {
-      let result: {
-        success: boolean;
-        gatewayRefundRef?: string;
-        error?: string;
-      };
-
-      if (tx.gateway === "paymob" || tx.gateway === "fawry") {
-        result = await refundPaymob(tx.gateway_ref, tx.amount);
-      } else if (tx.gateway === "stripe") {
-        result = await refundStripe(tx.gateway_ref, tx.amount);
-      } else {
-        // Unknown gateway — fall to manual queue
-        result = {
-          success: false,
-          error: `Auto-refund not supported for gateway: ${tx.gateway}`,
-        };
-      }
-
-      if (result.success) {
-        refundStatus = "completed";
-        gatewayRefundRef = result.gatewayRefundRef ?? null;
-      } else {
-        autoRefundError = result.error ?? null;
-        console.error(
-          "[bookings/refund] Gateway refund failed, falling back to manual queue:",
-          autoRefundError,
-          "bookingId:",
-          id,
-          "txId:",
-          tx.id,
-        );
-      }
-    } else if (tx.is_simulated) {
-      // Simulated transactions: auto-complete without gateway call
-      refundStatus = "completed";
-      gatewayRefundRef = `sim_refund_${Date.now()}`;
-    }
-    // else: no gateway_ref — goes to manual queue
-
-    // ── 6. Insert refund row ──────────────────────────────────────────────────
-    const { data: refund, error: refundErr } = await admin
+    // ── 4. Insert refund row as write-ahead intent (status: 'pending') ───────
+    // This MUST happen before any money moves so that a gateway-side success
+    // followed by a DB outage cannot leave us with a paid-out refund and no
+    // record of it.
+    const { data: pendingRefund, error: refundInsertErr } = await admin
       .from("refunds")
       .insert({
         payment_transaction_id: tx.id,
@@ -178,39 +149,138 @@ export async function POST(
         requested_by: ctx.userId,
         amount: tx.amount,
         user_note: input.user_note ?? null,
-        status: refundStatus,
-        refund_method:
-          refundStatus === "completed" && !tx.is_simulated
-            ? "original_payment"
-            : "manual",
-        gateway_ref: gatewayRefundRef,
-        processed_at:
-          refundStatus === "completed" ? new Date().toISOString() : null,
+        status: "pending",
+        refund_method: refundMethod,
+        gateway_ref: null,
+        processed_at: null,
         is_simulated: tx.is_simulated,
       })
       .select()
       .single();
 
-    if (refundErr) {
-      // If refund insert fails, re-confirm the booking to avoid capacity leak
-      await admin
-        .from("bookings")
-        .update({ status: "confirmed" })
-        .eq("id", id);
-      throw refundErr;
-    }
+    if (refundInsertErr) throw refundInsertErr;
 
-    // ── 7. On auto-completed refund: mark transaction as refunded ─────────────
-    // This triggers fn_sync_wallet_on_payment → debits organizer wallet.
-    if (refundStatus === "completed") {
+    // ── 5. Attempt automatic gateway refund (or simulated auto-complete) ─────
+    let refundSucceeded = false;
+    let gatewayRefundRef: string | null = null;
+    let autoRefundError: string | null = null;
+
+    if (isSimulatedAutoComplete) {
+      refundSucceeded = true;
+      gatewayRefundRef = `sim_refund_${Date.now()}`;
+    } else if (gatewaySupportsAutoRefund) {
+      let result: {
+        success: boolean;
+        gatewayRefundRef?: string;
+        error?: string;
+      };
+
+      try {
+        if (tx.gateway === "paymob" || tx.gateway === "fawry") {
+          result = await refundPaymob(tx.gateway_ref as string, tx.amount);
+        } else {
+          // stripe — checked above
+          result = await refundStripe(tx.gateway_ref as string, tx.amount);
+        }
+      } catch (gatewayErr) {
+        // Treat a thrown gateway error as a failed refund — leave row pending.
+        Sentry.captureException(gatewayErr, {
+          extra: {
+            bookingId: id,
+            txId: tx.id,
+            refundId: pendingRefund.id,
+            gateway: tx.gateway,
+            stage: "gateway_refund_threw",
+          },
+        });
+        result = {
+          success: false,
+          error: gatewayErr instanceof Error ? gatewayErr.message : "Gateway error",
+        };
+      }
+
+      if (result.success) {
+        refundSucceeded = true;
+        gatewayRefundRef = result.gatewayRefundRef ?? null;
+      } else {
+        autoRefundError = result.error ?? null;
+        Sentry.captureException(
+          new Error("[bookings/refund] Gateway refund failed"),
+          {
+            extra: {
+              bookingId: id,
+              txId: tx.id,
+              refundId: pendingRefund.id,
+              gateway: tx.gateway,
+              autoRefundError,
+            },
+          },
+        );
+        console.error(
+          "[bookings/refund] Gateway refund failed, leaving in manual queue:",
+          autoRefundError,
+          "bookingId:",
+          id,
+          "txId:",
+          tx.id,
+          "refundId:",
+          pendingRefund.id,
+        );
+      }
+    }
+    // else: manual queue — refund row already inserted as 'pending'.
+
+    // ── 6. On success: complete refund row, mark tx refunded, cancel booking ─
+    let finalRefund = pendingRefund;
+
+    if (refundSucceeded) {
+      const nowIso = new Date().toISOString();
+
+      const { data: completed, error: completeErr } = await admin
+        .from("refunds")
+        .update({
+          status: "completed",
+          gateway_ref: gatewayRefundRef,
+          processed_at: nowIso,
+          updated_at: nowIso,
+        })
+        .eq("id", pendingRefund.id)
+        .select()
+        .single();
+
+      if (completeErr) {
+        // Money has already moved at the gateway. Refund row stays 'pending'
+        // and the booking stays confirmed; admin reconciliation needed.
+        Sentry.captureException(completeErr, {
+          extra: {
+            bookingId: id,
+            txId: tx.id,
+            refundId: pendingRefund.id,
+            gatewayRefundRef,
+            stage: "refund_row_complete_failed_after_gateway_success",
+          },
+        });
+        throw completeErr;
+      }
+
+      finalRefund = completed;
+
+      // Mark transaction as refunded — triggers organizer wallet debit.
       const { error: txErr } = await admin
         .from("payment_transactions")
-        .update({ status: "refunded", updated_at: new Date().toISOString() })
+        .update({ status: "refunded", updated_at: nowIso })
         .eq("id", tx.id);
 
       if (txErr) {
-        // Non-fatal: refund row is already created, wallet debit may be missed.
-        // Log for manual reconciliation.
+        // Non-fatal: refund row already 'completed', wallet sync may be missed.
+        Sentry.captureException(txErr, {
+          extra: {
+            bookingId: id,
+            txId: tx.id,
+            refundId: pendingRefund.id,
+            stage: "tx_refunded_update_failed",
+          },
+        });
         console.error(
           "[bookings/refund] Failed to mark tx as refunded:",
           txErr.message,
@@ -218,26 +288,54 @@ export async function POST(
           tx.id,
         );
       }
+
+      // Cancel the booking — capacity decrement is triggered by this.
+      const { error: cancelErr } = await admin
+        .from("bookings")
+        .update({ status: "cancelled" })
+        .eq("id", id);
+
+      if (cancelErr) {
+        // Non-fatal: refund row is complete, money moved. Booking cancellation
+        // is a derived state that admin can fix manually.
+        Sentry.captureException(cancelErr, {
+          extra: {
+            bookingId: id,
+            txId: tx.id,
+            refundId: pendingRefund.id,
+            stage: "booking_cancel_failed_after_refund",
+          },
+        });
+        console.error(
+          "[bookings/refund] Failed to cancel booking after successful refund:",
+          (cancelErr as { message?: string }).message,
+          "bookingId:",
+          id,
+        );
+      }
+    }
+    // else: refund row stays 'pending', booking stays 'confirmed' for manual
+    //       review. No capacity decrement, no money movement at our side.
+
+    // ── 7. Notify user ────────────────────────────────────────────────────────
+    if (refundSucceeded) {
+      sendNotification({
+        userId: ctx.userId,
+        type: "booking_cancelled",
+        payload: {
+          booking_id: id,
+          event_id: booking.event_id,
+          event_title: event?.title ?? "",
+        },
+      }).catch(() => {});
     }
 
-    // ── 8. Notify user ────────────────────────────────────────────────────────
-    sendNotification({
-      userId: ctx.userId,
-      type: "booking_cancelled",
-      payload: {
-        booking_id: id,
-        event_id: booking.event_id,
-        event_title: event?.title ?? "",
-      },
-    }).catch(() => {});
-
     return created({
-      refund,
-      auto_refunded: refundStatus === "completed" && !tx.is_simulated,
-      message:
-        refundStatus === "completed"
-          ? "Your ticket has been cancelled and the refund has been processed to your original payment method."
-          : "Your ticket has been cancelled. The refund is queued for manual processing and will be completed within 1-3 business days.",
+      refund: finalRefund,
+      auto_refunded: refundSucceeded && !tx.is_simulated,
+      message: refundSucceeded
+        ? "Your ticket has been cancelled and the refund has been processed to your original payment method."
+        : "Your refund request has been received. It is queued for manual processing and will be completed within 1-3 business days.",
     });
   } catch (err) {
     return handleApiError(err);
