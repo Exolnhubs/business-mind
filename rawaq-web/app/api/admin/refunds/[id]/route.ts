@@ -16,6 +16,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireAdmin } from '@/lib/auth'
+import { logAdminAction } from '@/lib/audit'
 import { handleApiError, ok, BadRequestException, NotFoundException } from '@/lib/errors'
 
 const UpdateRefundSchema = z.object({
@@ -99,6 +100,19 @@ export async function PATCH(
           .eq('id', id)
         throw txErr
       }
+
+      // Audit log — fails loud (money has moved at this point).
+      await logAdminAction({
+        adminId:    ctx.userId,
+        action:     'complete_refund',
+        targetType: 'refund',
+        targetId:   id,
+        meta:       {
+          payment_transaction_id: refund.payment_transaction_id,
+          booking_id:             refund.booking_id,
+          amount:                 refund.amount,
+        },
+      })
     }
 
     return ok({ refund: updatedRefund })

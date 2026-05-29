@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { requireAdmin } from '@/lib/auth'
 import { delCachedProfile } from '@/lib/supabase/profile-cache'
+import { logAdminAction } from '@/lib/audit'
 import { handleApiError, ok, NotFoundException } from '@/lib/errors'
 import { sendNotification } from '@/lib/notifications'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
@@ -76,6 +77,26 @@ export async function PATCH(
         payload: { note: input.note ?? '' },
       }).catch(() => {})
     }
+
+    // Audit log for organizer state changes — fails loud.
+    const auditAction =
+      input.status === 'approved'
+        ? 'approve_organizer'
+        : input.status === 'rejected'
+          ? 'reject_organizer'
+          : 'suspend_organizer'
+
+    await logAdminAction({
+      adminId:    ctx.userId,
+      action:     auditAction,
+      targetType: 'organizer',
+      targetId:   id,
+      meta:       {
+        user_id: organizer.user_id,
+        status:  input.status,
+        note:    input.note ?? null,
+      },
+    })
 
     return ok(data)
   } catch (err) {

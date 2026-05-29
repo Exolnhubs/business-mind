@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { requireAdmin } from '@/lib/auth'
 import { delCachedProfile } from '@/lib/supabase/profile-cache'
+import { logAdminAction } from '@/lib/audit'
 import { handleApiError, ok, NotFoundException, ForbiddenException } from '@/lib/errors'
 
 const BanSchema = z.object({
@@ -46,14 +47,14 @@ export async function PATCH(
 
     await delCachedProfile(id)
 
-    // Audit log
-    await supabase.from('audit_logs').insert({
-      admin_id:    ctx.userId,
-      action:      input.is_banned ? 'ban_user' : 'unban_user',
-      target_type: 'user',
-      target_id:   id,
-      meta:        { display_name: data.display_name, role: data.role },
-    } as never)
+    // Audit log — fails loud (throws on insert failure)
+    await logAdminAction({
+      adminId:    ctx.userId,
+      action:     input.is_banned ? 'ban_user' : 'unban_user',
+      targetType: 'user',
+      targetId:   id,
+      meta:       { display_name: data.display_name, role: data.role },
+    })
 
     return ok(data)
   } catch (err) {
@@ -78,11 +79,31 @@ export async function DELETE(
     const { createSupabaseAdminClient } = await import('@/lib/supabase/admin')
     const adminClient = createSupabaseAdminClient()
 
+    // Capture identifying info BEFORE deletion so the audit log can reference it.
+    const { data: targetProfile } = await adminClient
+      .from('profiles')
+      .select('id, display_name, role')
+      .eq('id', id)
+      .maybeSingle()
+
     // Deleting auth.users cascades to profiles via FK
     const { error } = await adminClient.auth.admin.deleteUser(id)
     if (error) throw error
 
     await delCachedProfile(id)
+
+    // Audit log AFTER successful deletion — this is the highest-blast-radius
+    // admin action so we record it loudly.
+    await logAdminAction({
+      adminId:    ctx.userId,
+      action:     'delete_user',
+      targetType: 'user',
+      targetId:   id,
+      meta:       {
+        display_name: targetProfile?.display_name ?? null,
+        role:         targetProfile?.role ?? null,
+      },
+    })
 
     return ok({ deleted: true })
   } catch (err) {

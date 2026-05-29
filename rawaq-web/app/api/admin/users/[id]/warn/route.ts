@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { requireAdmin } from '@/lib/auth'
+import { logAdminAction } from '@/lib/audit'
 import { handleApiError, ok, created, NotFoundException } from '@/lib/errors'
 
 const WarnSchema = z.object({
@@ -41,14 +42,14 @@ export async function POST(
 
     if (error) throw error
 
-    // Audit log
-    await supabase.from('audit_logs').insert({
-      admin_id:    ctx.userId,
-      action:      'warn_user',
-      target_type: 'user',
-      target_id:   userId,
-      meta:        { severity: input.severity, reason: input.reason, display_name: target.display_name },
-    } as never)
+    // Audit log — fails loud
+    await logAdminAction({
+      adminId:    ctx.userId,
+      action:     'warn_user',
+      targetType: 'user',
+      targetId:   userId,
+      meta:       { severity: input.severity, reason: input.reason, display_name: target.display_name },
+    })
 
     return created(data)
   } catch (err) {

@@ -15,6 +15,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireAdmin } from '@/lib/auth'
+import { logAdminAction } from '@/lib/audit'
 import { handleApiError, ok, BadRequestException, NotFoundException } from '@/lib/errors'
 
 const UpdatePayoutSchema = z.object({
@@ -79,6 +80,21 @@ export async function PATCH(
       .single()
 
     if (updateErr) throw updateErr
+
+    // Audit log on completion — money has moved at this point.
+    if (input.status === 'completed') {
+      await logAdminAction({
+        adminId:    ctx.userId,
+        action:     'complete_payout',
+        targetType: 'payout',
+        targetId:   id,
+        meta:       {
+          organizer_id: payout.organizer_id,
+          amount:       payout.amount,
+          gateway_ref:  input.gateway_ref ?? null,
+        },
+      })
+    }
 
     return ok({ payout: updated })
   } catch (err) {
