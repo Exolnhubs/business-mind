@@ -16,6 +16,7 @@
  */
 
 import { NextRequest } from 'next/server'
+import * as Sentry from '@sentry/nextjs'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { verifyStripeSignature, parseStripeWebhook } from '@/lib/gateways/stripe-gw'
 import { sendNotification } from '@/lib/notifications'
@@ -34,6 +35,7 @@ export async function POST(req: NextRequest) {
     const signature = req.headers.get('stripe-signature') ?? ''
 
     if (!verifyStripeSignature(rawBody, signature)) {
+      Sentry.captureException(new Error('[webhooks/stripe] signature verification failed'))
       console.error('[webhooks/stripe] signature verification failed')
       return new Response('invalid signature', { status: 401 })
     }
@@ -60,6 +62,9 @@ export async function POST(req: NextRequest) {
       .single()
 
     if (txErr || !tx) {
+      Sentry.captureException(new Error('[webhooks/stripe] transaction not found'), {
+        extra: { gatewayOrderId: event.gatewayOrderId, dbErr: txErr?.message },
+      })
       console.error('[webhooks/stripe] transaction not found for session', event.gatewayOrderId)
       return new Response('not found', { status: 200 })
     }
@@ -92,6 +97,9 @@ export async function POST(req: NextRequest) {
       .eq('id', tx.id)
 
     if (txUpdateErr) {
+      Sentry.captureException(txUpdateErr, {
+        extra: { txId: tx.id, gatewayOrderId: event.gatewayOrderId, stage: 'tx_update' },
+      })
       console.error('[webhooks/stripe] FAILED to update transaction', tx.id, 'err:', txUpdateErr.message)
       return new Response('db error', { status: 500 })
     }
@@ -101,6 +109,9 @@ export async function POST(req: NextRequest) {
       try {
         tipId = await finalizeDonationPayment(admin, tx, event.gatewayRef, donationMessage)
       } catch (tipErr) {
+        Sentry.captureException(tipErr, {
+          extra: { txId: tx.id, gatewayOrderId: event.gatewayOrderId, stage: 'donation_finalize' },
+        })
         console.error('[webhooks/stripe] FAILED to finalize donation', tx.id, tipErr)
         return new Response('donation finalize failed', { status: 500 })
       }
@@ -111,6 +122,9 @@ export async function POST(req: NextRequest) {
         .eq('id', tx.id)
 
       if (tipLinkErr) {
+        Sentry.captureException(tipLinkErr, {
+          extra: { txId: tx.id, gatewayOrderId: event.gatewayOrderId, stage: 'tip_link' },
+        })
         console.error('[webhooks/stripe] FAILED to link donation tip_id', tx.id, 'err:', tipLinkErr.message)
         return new Response('tip link failed', { status: 500 })
       }
@@ -143,6 +157,7 @@ export async function POST(req: NextRequest) {
 
     return new Response('ok', { status: 200 })
   } catch (err) {
+    Sentry.captureException(err, { extra: { route: '/api/webhooks/stripe' } })
     console.error('[webhooks/stripe] unexpected error:', err)
     return new Response('internal error', { status: 500 })
   }

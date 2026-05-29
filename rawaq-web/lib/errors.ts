@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { ZodError } from 'zod'
+import * as Sentry from '@sentry/nextjs'
 
 export class ApiException extends Error {
   constructor(
@@ -94,6 +95,7 @@ export function handleApiError(error: unknown): NextResponse {
     return NextResponse.json({ error: mapped.message }, { status: mapped.status })
   }
 
+  Sentry.captureException(error)
   console.error('[API Error]', error)
   return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
 }
