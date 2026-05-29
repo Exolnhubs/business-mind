@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { handleApiError, ok, NotFoundException, ForbiddenException } from '@/lib/errors'
 import { requireAuth } from '@/lib/auth'
+import { checkRateLimit, limiters } from '@/lib/rate-limit'
 import { canUseTicketScanner, getOrganizerPlanAccess } from '@/lib/plans'
 
 function getScanOpensAt(startsAt: string) {
@@ -90,6 +91,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const ctx = await requireAuth()
+    await checkRateLimit(limiters.scan, ctx.userId)
     const { ticket_id } = await req.json()
     if (!ticket_id) throw new NotFoundException('Ticket ID')
 

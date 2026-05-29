@@ -1,11 +1,16 @@
 import { NextRequest } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { checkRateLimit, limiters } from '@/lib/rate-limit'
 import { handleApiError, ok, ForbiddenException } from '@/lib/errors'
 
 // GET /api/promo-codes/validate?code=XX&event_id=YY&order_amount=ZZ
 // Public endpoint — no auth required (used before booking)
 export async function GET(req: NextRequest) {
   try {
+    // Per-IP rate limit (endpoint is anonymous — promo-code enumeration defense).
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'anonymous'
+    await checkRateLimit(limiters.promoValidate, ip)
+
     const code        = req.nextUrl.searchParams.get('code')?.toUpperCase().trim()
     const eventId     = req.nextUrl.searchParams.get('event_id')
     const orderAmount = Number(req.nextUrl.searchParams.get('order_amount') ?? 0)

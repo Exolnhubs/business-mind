@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { requireAuth } from '@/lib/auth'
+import { checkRateLimit, limiters } from '@/lib/rate-limit'
 import { handleApiError, ok } from '@/lib/errors'
 
 const UpdateProfileSchema = z.object({
@@ -42,6 +43,7 @@ export async function GET() {
 export async function PATCH(req: NextRequest) {
   try {
     const ctx = await requireAuth()
+    await checkRateLimit(limiters.profileUpdate, ctx.userId)
     const body = await req.json()
     const input = UpdateProfileSchema.parse(body)
 

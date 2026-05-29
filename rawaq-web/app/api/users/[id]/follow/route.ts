@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireAuth } from '@/lib/auth'
+import { checkRateLimit, limiters } from '@/lib/rate-limit'
 import { handleApiError, ok, BadRequestException } from '@/lib/errors'
 import { sendNotification } from '@/lib/notifications'
 
@@ -13,6 +14,7 @@ export async function POST(
   try {
     const { id: targetId } = await params
     const ctx = await requireAuth()
+    await checkRateLimit(limiters.social, ctx.userId)
 
     if (ctx.userId === targetId) throw new BadRequestException('Cannot follow yourself')
 

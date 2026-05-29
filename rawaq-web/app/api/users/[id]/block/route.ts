@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { requireAuth } from '@/lib/auth'
+import { checkRateLimit, limiters } from '@/lib/rate-limit'
 import { handleApiError, ok, ForbiddenException } from '@/lib/errors'
 
 // POST /api/users/:id/block
@@ -11,6 +12,7 @@ export async function POST(
   try {
     const { id: blockedId } = await params
     const ctx = await requireAuth()
+    await checkRateLimit(limiters.social, ctx.userId)
 
     if (ctx.userId === blockedId) {
       throw new ForbiddenException('You cannot block yourself')

@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { requireOrganizer } from '@/lib/auth'
 import { handleApiError, ok, NotFoundException, ForbiddenException } from '@/lib/errors'
+import { checkRateLimit, limiters } from '@/lib/rate-limit'
 import { canUseTicketScanner, getOrganizerPlanAccess } from '@/lib/plans'
 import { z } from 'zod'
 
@@ -30,6 +31,7 @@ function isScannableOccurrenceStatus(status: string | null | undefined) {
 export async function POST(req: NextRequest) {
   try {
     const ctx = await requireOrganizer()
+    await checkRateLimit(limiters.scan, ctx.userId)
     const body = await req.json()
     const { ticket_id } = ScanSchema.parse(body)
 
