@@ -1,39 +1,36 @@
 # Vercel configuration
 
-Vercel only ever reads the file named **`vercel.json`**. There is no way to
-select a config by plan, and `vercel.json` cannot hold comments or unknown
-top-level keys (it is validated as strict JSON), so the two configs are kept as
-separate files and documented here.
+Vercel only reads the file named **`vercel.json`**. There is no way to select a
+config by plan, and `vercel.json` cannot hold comments or unknown top-level keys
+because it is validated as strict JSON. The deployable Hobby config is active,
+and the Pro production config is kept as a separate file for the go-live switch.
 
 | File | Plan | Crons |
 |------|------|-------|
-| **`vercel.json`** | **Production (Vercel Pro)** — active config | 3 crons at sub-hour frequency (event-reminders `* * * * *`, cancel-pending-bookings `*/10 * * * *`, keep-warm `*/3 * * * *`) |
-| `vercel.hobby.json` | Test / Hobby plan | 2 crons at daily granularity (cancel-pending-bookings `0 3 * * *`, event-reminders `0 4 * * *`) |
+| **`vercel.json`** | **Hobby plan** - active config | 2 crons at daily granularity (cancel-pending-bookings `0 3 * * *`, event-reminders `0 4 * * *`) |
+| `vercel.hobby.json` | Hobby plan backup | Same as `vercel.json` |
+| `vercel.production.json` | Production (Vercel Pro) | 3 crons at sub-hour frequency (event-reminders `* * * * *`, cancel-pending-bookings `*/10 * * * *`, keep-warm `*/3 * * * *`) |
 
-## Why a separate Hobby file
+## Why the active config is Hobby-safe
 
 The Vercel **Hobby** plan limits cron jobs to **at most 2** and to **daily
-granularity only** — the production sub-hour schedules are rejected on Hobby,
-and `keep-warm` is dropped to stay within the 2-cron cap. These daily crons are
+granularity only**. The production sub-hour schedules are rejected on Hobby, and
+`keep-warm` is dropped to stay within the 2-cron cap. These daily crons are
 effectively placeholders so a Hobby deploy succeeds; they do **not** give the
 real cadence the app needs.
 
-For true frequency on a Hobby test deploy, drive the endpoints from an external
+For true frequency on a Hobby deploy, drive the endpoints from an external
 scheduler (e.g. cron-job.org) hitting them with the `CRON_SECRET` header:
 
-- `/api/cron/event-reminders` — every minute
-- `/api/cron/cancel-pending-bookings` — every 10 minutes
-- `/api/cron/keep-warm` — every 3 minutes
+- `/api/cron/event-reminders` - every minute
+- `/api/cron/cancel-pending-bookings` - every 10 minutes
+- `/api/cron/keep-warm` - every 3 minutes
 
-## Using the Hobby config for a test deploy
+## Switching to the Pro production config
 
-`vercel.json` must remain the production config. To deploy to a Hobby project,
-overwrite it locally just before deploying and restore it afterward:
+When the project moves to a Pro plan, copy the production config over the active
+config and commit that change:
 
 ```bash
-cp vercel.hobby.json vercel.json   # use Hobby crons for the test deploy
-# ... deploy to the Hobby project ...
-git checkout vercel.json           # restore the production config
+cp vercel.production.json vercel.json
 ```
-
-Do not commit the Hobby crons over `vercel.json`.
