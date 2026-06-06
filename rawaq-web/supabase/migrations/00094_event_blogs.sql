@@ -121,19 +121,23 @@ $$;
 REVOKE ALL ON FUNCTION is_event_owner(UUID) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION is_event_owner(UUID) TO authenticated, service_role;
 
+DROP POLICY IF EXISTS "blog_posts: public read published+visible" ON event_blog_posts;
 CREATE POLICY "blog_posts: public read published+visible"
   ON event_blog_posts FOR SELECT
   USING (status = 'published' AND is_event_visible_to_caller(event_id));
 
+DROP POLICY IF EXISTS "blog_posts: owner read" ON event_blog_posts;
 CREATE POLICY "blog_posts: owner read"
   ON event_blog_posts FOR SELECT
   USING (is_event_owner(event_id) OR is_admin());
 
+DROP POLICY IF EXISTS "blog_posts: owner write" ON event_blog_posts;
 CREATE POLICY "blog_posts: owner write"
   ON event_blog_posts FOR ALL
   USING (is_event_owner(event_id) OR is_admin())
   WITH CHECK (is_event_owner(event_id) OR is_admin());
 
+DROP POLICY IF EXISTS "blog_media: public read" ON event_blog_media;
 CREATE POLICY "blog_media: public read"
   ON event_blog_media FOR SELECT
   USING (EXISTS (
@@ -143,6 +147,7 @@ CREATE POLICY "blog_media: public read"
       AND is_event_visible_to_caller(p.event_id)
   ));
 
+DROP POLICY IF EXISTS "blog_media: owner all" ON event_blog_media;
 CREATE POLICY "blog_media: owner all"
   ON event_blog_media FOR ALL
   USING (EXISTS (
@@ -165,8 +170,10 @@ ON CONFLICT (id) DO UPDATE SET
   file_size_limit = EXCLUDED.file_size_limit,
   allowed_mime_types = EXCLUDED.allowed_mime_types;
 
+DROP POLICY IF EXISTS "blog-media: public read" ON storage.objects;
 CREATE POLICY "blog-media: public read"
   ON storage.objects FOR SELECT USING (bucket_id = 'blog-media');
+DROP POLICY IF EXISTS "blog-media: auth upload" ON storage.objects;
 CREATE POLICY "blog-media: auth upload"
   ON storage.objects FOR INSERT
   WITH CHECK (
@@ -174,6 +181,7 @@ CREATE POLICY "blog-media: auth upload"
     AND auth.uid() IS NOT NULL
     AND (storage.foldername(name))[1] = auth.uid()::text
   );
+DROP POLICY IF EXISTS "blog-media: own delete" ON storage.objects;
 CREATE POLICY "blog-media: own delete"
   ON storage.objects FOR DELETE
   USING (bucket_id = 'blog-media' AND (storage.foldername(name))[1] = auth.uid()::text);
