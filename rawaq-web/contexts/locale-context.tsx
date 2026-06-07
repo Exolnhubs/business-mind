@@ -542,6 +542,16 @@ const translations: Record<Locale, Record<string, string>> = {
     'event.men_only': '♂ Men Only',
     'event.women_only': '♀ Women Only',
     'event.cancelled_badge': 'Cancelled',
+    'event.blog_link': 'Event updates ({n})',
+    // Event blog page
+    'blog.title': 'Event updates',
+    'blog.subtitle': 'Behind-the-scenes posts, previews, and announcements from the organizer.',
+    'blog.back_to_event': '← Back to event',
+    'blog.empty_title': 'No updates yet',
+    'blog.empty_desc': 'The organizer hasn\'t posted any updates for this event yet. Check back soon.',
+    'blog.open_link': 'Open link →',
+    'blog.load_failed_title': 'Could not load updates',
+    'blog.load_failed_desc': 'This looks like a temporary issue. Try refreshing the page.',
     // Support chat widget
     'support.title':           'Customer Support',
     'support.welcome':         "Hi! 👋 I'm Rawaq Support. I'm here to help you with bookings, events, account questions, or anything else.\n\nHow can I help you today?",
@@ -668,6 +678,16 @@ const translations: Record<Locale, Record<string, string>> = {
     'event.men_only': '♂ للرجال فقط',
     'event.women_only': '♀ للنساء فقط',
     'event.cancelled_badge': 'ملغاة',
+    'event.blog_link': 'مستجدات الفعالية ({n})',
+    // Event blog page
+    'blog.title': 'مستجدات الفعالية',
+    'blog.subtitle': 'منشورات من وراء الكواليس ولمحات وإعلانات من المنظم.',
+    'blog.back_to_event': '→ العودة إلى الفعالية',
+    'blog.empty_title': 'لا توجد مستجدات بعد',
+    'blog.empty_desc': 'لم ينشر المنظم أي مستجدات لهذه الفعالية بعد. عُد قريباً.',
+    'blog.open_link': 'فتح الرابط ←',
+    'blog.load_failed_title': 'تعذر تحميل المستجدات',
+    'blog.load_failed_desc': 'يبدو أنها مشكلة مؤقتة. جرّب تحديث الصفحة.',
     // Auth
     'auth.login_title': 'مرحباً بعودتك',
     'auth.login_sub': 'سجّل الدخول إلى حساب رواق',

@@ -21,6 +21,7 @@ import {
   EventBadgeFamilyFriendly,
   EventBadgeMenOnly,
   EventBadgeWomenOnly,
+  EventBlogLink,
   EventCapacityRow,
   EventCategoryName,
   EventCommentsHeading,
@@ -369,6 +370,10 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
                 }
               />
             </div>
+
+            {ev.blog_posts_count > 0 && (
+              <EventBlogLink eventId={id} count={ev.blog_posts_count} />
+            )}
 
             {spotsLeft !== null && spotsLeft > 0 && spotsLeft <= 20 && !isFull && (
               <div
