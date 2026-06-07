@@ -28,15 +28,11 @@ function readVideoDuration(file: File): Promise<number> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file)
     const video = document.createElement('video')
+    const cleanup = () => { clearTimeout(timer); URL.revokeObjectURL(url) }
+    const timer = setTimeout(() => { cleanup(); reject(new BlogUploadException('upload_failed')) }, 15000)
     video.preload = 'metadata'
-    video.onloadedmetadata = () => {
-      URL.revokeObjectURL(url)
-      resolve(video.duration)
-    }
-    video.onerror = () => {
-      URL.revokeObjectURL(url)
-      reject(new BlogUploadException('upload_failed'))
-    }
+    video.onloadedmetadata = () => { const d = video.duration; cleanup(); resolve(d) }
+    video.onerror = () => { cleanup(); reject(new BlogUploadException('upload_failed')) }
     video.src = url
   })
 }

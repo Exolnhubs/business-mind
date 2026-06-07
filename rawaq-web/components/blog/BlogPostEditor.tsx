@@ -45,6 +45,7 @@ export function BlogPostEditor({ eventId }: { eventId: string }) {
   // null = no form open; '' = creating a new post; otherwise = editing that post id
   const [editing, setEditing] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
+  const mountedRef = useRef(true)
 
   async function load() {
     setFailed(false)
@@ -53,15 +54,18 @@ export function BlogPostEditor({ eventId }: { eventId: string }) {
         `/api/events/${eventId}/blog`,
         { skipCache: true },
       )
-      setPosts(res.data ?? [])
+      if (mountedRef.current) setPosts(res.data ?? [])
     } catch (err) {
+      if (!mountedRef.current) return
       if (!isToastHandledError(err)) setFailed(true)
       setPosts((prev) => prev ?? [])
     }
   }
 
   useEffect(() => {
+    mountedRef.current = true
     void load()
+    return () => { mountedRef.current = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId])
 
