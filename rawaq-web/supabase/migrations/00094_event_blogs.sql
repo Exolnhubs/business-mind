@@ -119,7 +119,7 @@ RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS
   SELECT EXISTS (SELECT 1 FROM events e WHERE e.id = p_event_id AND e.organizer_id = auth.uid());
 $$;
 REVOKE ALL ON FUNCTION is_event_owner(UUID) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION is_event_owner(UUID) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION is_event_owner(UUID) TO anon, authenticated, service_role;
 
 DROP POLICY IF EXISTS "blog_posts: public read published+visible" ON event_blog_posts;
 CREATE POLICY "blog_posts: public read published+visible"
