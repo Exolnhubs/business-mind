@@ -235,6 +235,7 @@ export function Navbar() {
         <div className="hidden md:flex items-center gap-6">
           {navLink('/events', t('nav.events'))}
           {navLink('/communities', t('nav.communities'))}
+          {navLink('/blogs', t('nav.blogs'))}
           {user && navLink('/feed', `👥 ${t('nav.feed')}`)}
           {user && navLink('/saved', `🤍 ${t('nav.saved')}`)}
           {user && navLink('/chat', t('nav.chat'))}
@@ -288,6 +289,10 @@ export function Navbar() {
                       <Link href="/communities" onClick={() => setMenuOpen(false)}
                         className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50">
                         🏘️ {t('nav.communities')}
+                      </Link>
+                      <Link href="/blogs" onClick={() => setMenuOpen(false)}
+                        className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50">
+                        📝 {t('nav.blogs')}
                       </Link>
                       {profile?.role === 'admin' && (
                         <Link href="/admin" onClick={() => setMenuOpen(false)}

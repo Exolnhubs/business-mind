@@ -20,6 +20,7 @@ const translations: Record<Locale, Record<string, string>> = {
   en: {
     // Nav
     'nav.events': 'Events',
+    'nav.blogs': 'Blogs',
     'nav.communities': 'Communities',
     'nav.chat': 'Chat',
     'nav.login': 'Sign In',
@@ -552,6 +553,14 @@ const translations: Record<Locale, Record<string, string>> = {
     'blog.open_link': 'Open link →',
     'blog.load_failed_title': 'Could not load updates',
     'blog.load_failed_desc': 'This looks like a temporary issue. Try refreshing the page.',
+    // Blogs discovery page
+    'blogs.title': 'Blogs',
+    'blogs.subtitle': 'Top-rated event blogs — explore what\'s happening before you book.',
+    'blogs.posts_count': '{n} posts',
+    'blogs.empty_title': 'No blogs yet',
+    'blogs.empty_desc': 'Once organizers publish updates, their blogs will show up here.',
+    'blogs.load_failed_title': 'Could not load blogs',
+    'blogs.load_failed_desc': 'This looks like a temporary issue. Try refreshing the page.',
     // Organizer blog editor
     'blog.editor.title': 'Manage updates',
     'blog.editor.subtitle': 'Post behind-the-scenes updates, previews, and announcements for your attendees.',
@@ -611,6 +620,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'comm.load_failed_inline': '\u062a\u0639\u0630\u0631 \u062a\u062d\u062f\u064a\u062b \u0627\u0644\u0645\u062c\u062a\u0645\u0639\u0627\u062a. \u0633\u0646\u0628\u0642\u064a \u0627\u0644\u0642\u0627\u0626\u0645\u0629 \u0627\u0644\u062d\u0627\u0644\u064a\u0629 \u0645\u0639\u0631\u0648\u0636\u0629.',
     // Nav
     'nav.events': 'الفعاليات',
+    'nav.blogs': 'المدونات',
     'nav.communities': 'المجتمعات',
     'nav.chat': 'الدردشة',
     'nav.login': 'تسجيل الدخول',
@@ -727,6 +737,14 @@ const translations: Record<Locale, Record<string, string>> = {
     'blog.open_link': 'فتح الرابط ←',
     'blog.load_failed_title': 'تعذر تحميل المستجدات',
     'blog.load_failed_desc': 'يبدو أنها مشكلة مؤقتة. جرّب تحديث الصفحة.',
+    // Blogs discovery page
+    'blogs.title': 'المدونات',
+    'blogs.subtitle': 'أفضل مدونات الفعاليات تقييماً — اكتشف ما يحدث قبل الحجز.',
+    'blogs.posts_count': '{n} منشورات',
+    'blogs.empty_title': 'لا توجد مدونات بعد',
+    'blogs.empty_desc': 'عند نشر المنظمين للمستجدات ستظهر مدوناتهم هنا.',
+    'blogs.load_failed_title': 'تعذر تحميل المدونات',
+    'blogs.load_failed_desc': 'يبدو أنها مشكلة مؤقتة. جرّب تحديث الصفحة.',
     // Organizer blog editor
     'blog.editor.title': 'إدارة المستجدات',
     'blog.editor.subtitle': 'انشر مستجدات من وراء الكواليس ولمحات وإعلانات لحضورك.',
