@@ -80,7 +80,8 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION ensure_host_community(UUID, TEXT, TEXT, TEXT) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION ensure_host_community(UUID, TEXT, TEXT, TEXT) TO authenticated, service_role;
+-- Only the server (service-role admin client) may call this; never exposed to end users directly.
+GRANT EXECUTE ON FUNCTION ensure_host_community(UUID, TEXT, TEXT, TEXT) TO service_role;
 
 -- 4. Integrity guard: host_community_id must point to an owned host community
 CREATE OR REPLACE FUNCTION fn_validate_host_community_pointer()
