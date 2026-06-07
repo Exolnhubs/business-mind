@@ -23,6 +23,12 @@ const BUCKET_CONFIG = {
     ratePerMin:  5,
     ratePerHour: 20,
   },
+  'blog-media': {
+    bucket:      'blog-media',
+    maxBytes:    50 * 1024 * 1024,
+    ratePerMin:  5,
+    ratePerHour: 30,
+  },
 } as const
 
 type UploadType = keyof typeof BUCKET_CONFIG
@@ -41,6 +47,7 @@ const ALLOWED_MIME: Record<UploadType, string[]> = {
   avatar:         ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
   'event-cover':  ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4', 'video/quicktime', 'video/webm'],
   'comment-media':['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4', 'video/quicktime', 'video/webm'],
+  'blog-media':   ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4', 'video/quicktime', 'video/webm'],
 }
 
 // POST /api/upload/sign

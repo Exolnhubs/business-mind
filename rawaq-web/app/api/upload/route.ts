@@ -36,6 +36,17 @@ const BUCKET_CONFIG = {
     ratePerMin:       5,
     ratePerHour:      20,
   },
+  'blog-media': {
+    bucket:           'blog-media',
+    maxBytes:         50 * 1024 * 1024,
+    allowedTypes:     ['image/jpeg', 'image/png', 'image/webp', 'image/gif',
+                       'video/mp4', 'video/quicktime', 'video/webm'],
+    fileSizeLimit:    52428800,
+    allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif',
+                       'video/mp4', 'video/quicktime', 'video/webm'],
+    ratePerMin:       5,
+    ratePerHour:      30,
+  },
 } as const
 
 type UploadType = keyof typeof BUCKET_CONFIG
