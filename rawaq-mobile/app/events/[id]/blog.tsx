@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import {
   View, Text, ScrollView, StyleSheet, Image, TouchableOpacity, Linking,
 } from 'react-native'
-import { Stack, useLocalSearchParams } from 'expo-router'
+import { SafeAreaView } from 'react-native-safe-area-context'
+import { useLocalSearchParams, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { apiGet } from '@/lib/api'
 import { useLocale } from '@/contexts/locale-context'
@@ -15,6 +16,7 @@ import type { EventBlogPost, EventBlogMedia } from '@/types/database'
 export default function EventBlogScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const { t } = useLocale()
+  const router = useRouter()
   const [posts, setPosts] = useState<EventBlogPost[] | null>(null)
 
   useEffect(() => {
@@ -26,8 +28,15 @@ export default function EventBlogScreen() {
   }, [id])
 
   return (
-    <>
-      <Stack.Screen options={{ title: t('blog.title') }} />
+    <SafeAreaView edges={['top']} style={styles.safe}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={styles.headerBtn}>
+          <Ionicons name="chevron-back" size={24} color={Colors.gray[900]} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle} numberOfLines={1}>{t('blog.title')}</Text>
+        <View style={styles.headerBtn} />
+      </View>
+
       {posts === null ? (
         <View style={styles.center}><Spinner /></View>
       ) : posts.length === 0 ? (
@@ -40,7 +49,7 @@ export default function EventBlogScreen() {
           {posts.map((post) => <BlogPostCard key={post.id} post={post} />)}
         </ScrollView>
       )}
-    </>
+    </SafeAreaView>
   )
 }
 
@@ -96,6 +105,10 @@ function MediaItem({ media }: { media: EventBlogMedia }) {
 }
 
 const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: Colors.white },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.sm, paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.gray[100], backgroundColor: Colors.white },
+  headerBtn: { width: 36, height: 36, justifyContent: 'center', alignItems: 'center' },
+  headerTitle: { flex: 1, textAlign: 'center', fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.gray[900] },
   container: { flex: 1, backgroundColor: Colors.gray[50] },
   content: { padding: Spacing.md, gap: Spacing.md },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.gray[50], padding: Spacing.xl },

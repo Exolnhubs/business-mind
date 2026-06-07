@@ -2,7 +2,8 @@ import { useEffect, useState, useCallback } from 'react'
 import {
   View, Text, FlatList, StyleSheet, Image, TouchableOpacity, RefreshControl,
 } from 'react-native'
-import { Stack, useRouter } from 'expo-router'
+import { SafeAreaView } from 'react-native-safe-area-context'
+import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { apiGet } from '@/lib/api'
 import { useLocale } from '@/contexts/locale-context'
@@ -61,8 +62,15 @@ export default function BlogsScreen() {
   }, [locale, router, t])
 
   return (
-    <>
-      <Stack.Screen options={{ title: t('blogs.title') }} />
+    <SafeAreaView edges={['top']} style={styles.safe}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={styles.headerBtn}>
+          <Ionicons name="chevron-back" size={24} color={Colors.gray[900]} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle} numberOfLines={1}>{t('blogs.title')}</Text>
+        <View style={styles.headerBtn} />
+      </View>
+
       {cards === null ? (
         <View style={styles.center}><Spinner /></View>
       ) : (
@@ -70,6 +78,7 @@ export default function BlogsScreen() {
           data={cards}
           keyExtractor={(c) => c.event_id}
           renderItem={renderItem}
+          style={styles.list}
           contentContainerStyle={cards.length === 0 ? styles.emptyContainer : styles.listContent}
           refreshControl={
             <RefreshControl
@@ -83,11 +92,16 @@ export default function BlogsScreen() {
           showsVerticalScrollIndicator={false}
         />
       )}
-    </>
+    </SafeAreaView>
   )
 }
 
 const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: Colors.white },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.sm, paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.gray[100], backgroundColor: Colors.white },
+  headerBtn: { width: 36, height: 36, justifyContent: 'center', alignItems: 'center' },
+  headerTitle: { flex: 1, textAlign: 'center', fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.gray[900] },
+  list: { flex: 1, backgroundColor: Colors.gray[50] },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.gray[50] },
   listContent: { padding: Spacing.md, gap: Spacing.md, backgroundColor: Colors.gray[50] },
   emptyContainer: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: Spacing.xl, backgroundColor: Colors.gray[50] },
