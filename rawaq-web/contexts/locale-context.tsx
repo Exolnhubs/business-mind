@@ -467,6 +467,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'org.tickets': '🎟 Tickets',
     'org.attendees': 'Attendees',
     'org.analytics': '📊 Analytics',
+    'org.blog': '📝 Blog',
     'org.edit': 'Edit',
     'org.sessions': 'Sessions',
 
@@ -1138,6 +1139,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'org.tickets': '🎟 التذاكر',
     'org.attendees': 'الحضور',
     'org.analytics': '📊 التحليلات',
+    'org.blog': '📝 المدونة',
     'org.edit': 'تعديل',
     'org.sessions': 'الجلسات',
 

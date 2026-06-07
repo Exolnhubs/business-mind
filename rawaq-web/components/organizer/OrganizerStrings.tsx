@@ -222,6 +222,9 @@ export function OrganizerEventsSection({
                       <Link href={`/organizer/events/${event.id}/analytics`} className="text-xs text-gray-500 font-medium hover:underline">
                         {t('org.analytics')}
                       </Link>
+                      <Link href={`/organizer/events/${event.id}/blog`} className="text-xs text-gray-500 font-medium hover:underline">
+                        {t('org.blog')}
+                      </Link>
                       <Link href={`/organizer/events/${event.id}/edit`} className="text-xs text-brand-600 font-medium hover:underline">
                         {t('org.edit')}
                       </Link>
