@@ -70,7 +70,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   try {
     const { id } = await params
     const ctx = await requireAuth()
-    await checkRateLimit(limiters.communityCreate, ctx.userId)
+    await checkRateLimit(limiters.blogCreate, ctx.userId)
     const admin = createSupabaseAdminClient()
 
     const { data: ev } = await admin

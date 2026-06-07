@@ -35,6 +35,7 @@ export const limiters = {
   eventCreate:            sw(20,  '1 h',  'events:create'),
   referralClaim:          sw(5,   '1 h',  'referral:claim'),
   communityCreate:        sw(3,   '30 d', 'community:create'),
+  blogCreate:             sw(20,  '1 h',  'blog:create'),
   scan:                   sw(60,  '1 m',  'scan'),
   social:                 sw(30,  '1 m',  'social'),
   promoValidate:          sw(20,  '1 m',  'promo:validate'),
