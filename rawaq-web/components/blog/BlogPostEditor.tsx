@@ -50,11 +50,11 @@ export function BlogPostEditor({ eventId }: { eventId: string }) {
   async function load() {
     setFailed(false)
     try {
-      const res = await clientGetJson<{ data: EventBlogPost[] }>(
+      const res = await clientGetJson<{ data: { data: EventBlogPost[] } }>(
         `/api/events/${eventId}/blog`,
         { skipCache: true },
       )
-      if (mountedRef.current) setPosts(res.data ?? [])
+      if (mountedRef.current) setPosts(res.data?.data ?? [])
     } catch (err) {
       if (!mountedRef.current) return
       if (!isToastHandledError(err)) setFailed(true)

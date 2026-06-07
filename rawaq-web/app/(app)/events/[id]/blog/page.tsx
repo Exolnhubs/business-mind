@@ -17,8 +17,8 @@ export default function EventBlogPage({ params }: { params: Promise<{ id: string
   useEffect(() => {
     let active = true
     setFailed(false)
-    clientGetJson<{ data: EventBlogPost[] }>(`/api/events/${id}/blog`)
-      .then((res) => { if (active) setPosts(res.data ?? []) })
+    clientGetJson<{ data: { data: EventBlogPost[] } }>(`/api/events/${id}/blog`)
+      .then((res) => { if (active) setPosts(res.data?.data ?? []) })
       .catch((err) => {
         if (!active) return
         if (!isToastHandledError(err)) setFailed(true)

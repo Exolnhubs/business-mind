@@ -27,8 +27,8 @@ export default function BlogsPage() {
   useEffect(() => {
     let active = true
     setFailed(false)
-    clientGetJson<{ data: BlogCard[] }>('/api/blogs')
-      .then((res) => { if (active) setCards(res.data ?? []) })
+    clientGetJson<{ data: { data: BlogCard[] } }>('/api/blogs')
+      .then((res) => { if (active) setCards(res.data?.data ?? []) })
       .catch((err) => {
         if (!active) return
         if (!isToastHandledError(err)) setFailed(true)
