@@ -247,10 +247,50 @@ export interface Event {
   bookings_count: number;
   views_count: number;
   tips_total: number;
+  blog_posts_count: number;
   featured_at: string | null;
   featured_until: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export type BlogMediaKind = 'image' | 'video' | 'link';
+
+export interface EventBlogMedia {
+  id: string;
+  post_id: string;
+  kind: BlogMediaKind;
+  url: string;
+  title: string | null;
+  thumbnail_url: string | null;
+  caption: string | null;
+  position: number;
+}
+
+export interface EventBlogPost {
+  id: string;
+  event_id: string;
+  author_id: string;
+  title: string;
+  body: string | null;
+  status: 'draft' | 'published';
+  published_at: string | null;
+  created_at: string;
+  updated_at: string;
+  media: EventBlogMedia[];
+}
+
+export interface BlogCard {
+  event_id: string;
+  title: string;
+  title_ar: string | null;
+  cover_image_url: string | null;
+  city: string | null;
+  blog_posts_count: number;
+  organizer_name: string | null;
+  organizer_name_ar: string | null;
+  organizer_logo_url: string | null;
+  organizer_rating: number | null;
 }
 
 export interface EventOccurrence {

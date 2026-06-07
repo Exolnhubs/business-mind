@@ -4,6 +4,7 @@ import {
   TouchableOpacity, ScrollView, RefreshControl,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '@/lib/supabase'
 import { apiGet } from '@/lib/api'
@@ -47,6 +48,7 @@ function getDateRange(filter: DateFilter): { date_from: string; date_to?: string
 
 export default function EventsListScreen() {
   const insets = useSafeAreaInsets()
+  const router = useRouter()
   const { locale, t } = useLocale()
 
   const [events, setEvents] = useState<EventWithOrganizer[]>([])
@@ -125,6 +127,14 @@ export default function EventsListScreen() {
               size={18}
               color={freeOnly ? Colors.green.text : Colors.gray[500]}
             />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => router.push('/blogs' as any)}
+            style={styles.iconBtn}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityLabel={t('blogs.title')}
+          >
+            <Ionicons name="document-text-outline" size={18} color={Colors.gray[500]} />
           </TouchableOpacity>
         </View>
 

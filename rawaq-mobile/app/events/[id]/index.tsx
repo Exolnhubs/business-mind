@@ -793,6 +793,20 @@ export default function EventDetailScreen() {
               </View>
             )}
 
+            {event.blog_posts_count > 0 && (
+              <TouchableOpacity
+                style={styles.blogLink}
+                onPress={() => router.push(`/events/${id}/blog` as any)}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="document-text-outline" size={18} color={Colors.brand[600]} />
+                <Text style={styles.blogLinkText}>
+                  {t('event.blog_link').replace('{n}', String(event.blog_posts_count))}
+                </Text>
+                <Ionicons name="chevron-forward" size={16} color={Colors.brand[600]} />
+              </TouchableOpacity>
+            )}
+
             {occurrences.length > 0 && (
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Choose Session</Text>
@@ -1434,6 +1448,8 @@ const styles = StyleSheet.create({
   communityPills: { gap: Spacing.sm },
   communityPill: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs + 2, borderRadius: Radius.full, backgroundColor: Colors.brand[50], borderWidth: 1, borderColor: Colors.brand[100], marginRight: Spacing.sm },
   communityPillText: { fontSize: FontSize.xs, color: Colors.brand[700], fontWeight: FontWeight.semibold },
+  blogLink: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingHorizontal: Spacing.md, paddingVertical: Spacing.md, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.brand[100], backgroundColor: Colors.brand[50], marginBottom: Spacing.lg },
+  blogLinkText: { flex: 1, fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.brand[700] },
   sessionList: { gap: Spacing.sm },
   sessionCard: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.gray[200], backgroundColor: Colors.white, padding: Spacing.md },
   sessionCardSelected: { borderColor: Colors.brand[500], backgroundColor: Colors.brand[50] },
