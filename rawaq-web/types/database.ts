@@ -248,6 +248,7 @@ export interface Event {
   bookings_count: number;
   views_count: number;
   tips_total: number;
+  blog_posts_count: number;
   featured_at: string | null;
   featured_until: string | null;
   created_at: string;
@@ -908,6 +909,44 @@ export interface SupportTicket {
   updated_at: string;
 }
 
+// ── Event blog types ───────────────────────────────────────
+export type BlogMediaKind = 'image' | 'video' | 'link'
+
+export interface EventBlogMediaRow {
+  id: string;
+  post_id: string;
+  kind: BlogMediaKind;
+  url: string;
+  title: string | null;
+  thumbnail_url: string | null;
+  caption: string | null;
+  position: number;
+  created_at: string;
+}
+
+export interface EventBlogPostRow {
+  id: string;
+  event_id: string;
+  author_id: string;
+  title: string;
+  body: string | null;
+  status: 'draft' | 'published';
+  published_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// Convenience API shapes (used in API route responses)
+export type EventBlogMedia = {
+  id: string; post_id: string; kind: BlogMediaKind; url: string
+  title: string | null; thumbnail_url: string | null; caption: string | null; position: number
+}
+export type EventBlogPost = {
+  id: string; event_id: string; author_id: string; title: string; body: string | null
+  status: 'draft' | 'published'; published_at: string | null; created_at: string; updated_at: string
+  media: EventBlogMedia[]
+}
+
 // ── Supabase Database type (for createClient generic) ──────
 // postgrest-js GenericTable requires Row/Insert/Update to extend Record<string, unknown>.
 // TypeScript interfaces do NOT satisfy this — only mapped/object types do.
@@ -944,6 +983,7 @@ export type Database = {
             | "bookings_count"
             | "views_count"
             | "tips_total"
+            | "blog_posts_count"
             | "created_at"
             | "updated_at"
           >
@@ -1307,6 +1347,18 @@ export type Database = {
         Row: R<EventCommunity>;
         Insert: R<EventCommunity>;
         Update: R<Partial<EventCommunity>>;
+        Relationships: [];
+      };
+      event_blog_posts: {
+        Row: R<EventBlogPostRow>;
+        Insert: R<Omit<EventBlogPostRow, "id" | "created_at" | "updated_at">>;
+        Update: R<Partial<EventBlogPostRow>>;
+        Relationships: [];
+      };
+      event_blog_media: {
+        Row: R<EventBlogMediaRow>;
+        Insert: R<Omit<EventBlogMediaRow, "id" | "created_at">>;
+        Update: R<Partial<EventBlogMediaRow>>;
         Relationships: [];
       };
       platform_settings: {

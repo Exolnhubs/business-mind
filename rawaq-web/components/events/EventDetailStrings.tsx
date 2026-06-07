@@ -92,6 +92,33 @@ export function EventViewOrganizerLink({ organizerId }: { organizerId: string })
   )
 }
 
+export function EventBlogLink({ eventId, count }: { eventId: string; count: number }) {
+  const { t } = useLocale()
+  return (
+    <Link
+      href={`/events/${eventId}/blog`}
+      className="flex items-center justify-between gap-3 rounded-2xl px-4 py-3.5 transition-colors"
+      style={{ background: 'white', border: '1px solid oklch(0.92 0.010 78)' }}
+    >
+      <span className="flex items-center gap-3">
+        <span
+          className="shrink-0 rounded-lg p-1.5"
+          style={{ background: 'oklch(0.78 0.18 72 / 0.08)', color: 'var(--c-gold-dim)' }}
+        >
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden>
+            <rect x="3" y="3" width="14" height="14" rx="2" stroke="currentColor" strokeWidth="1.5" />
+            <path d="M6.5 7.5h7M6.5 10.5h7M6.5 13.5h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        </span>
+        <span className="text-sm font-semibold text-gray-900">
+          {t('event.blog_link').replace('{n}', String(count))}
+        </span>
+      </span>
+      <span aria-hidden style={{ color: 'var(--c-gold)' }}>→</span>
+    </Link>
+  )
+}
+
 export function EventCommentsHeading({ count }: { count: number }) {
   const { t } = useLocale()
   return (
