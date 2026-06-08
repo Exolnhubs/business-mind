@@ -10,6 +10,7 @@ import { sendNotification } from '@/lib/notifications'
 import { applyResolvedEventWindow } from '@/lib/events/recurrence'
 import { limiters, checkRateLimit } from '@/lib/rate-limit'
 import { validateBookingInput } from '@/lib/bookings/validate'
+import { resolveHostCommunitySuggestion } from '@/lib/host-community'
 import type { EventOccurrence } from '@/types/database'
 
 type BookingListEventShape = {
@@ -202,7 +203,11 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    return created(booking)
+    // Booking is already 'confirmed' here — hint the host-community join prompt
+    // so the client can show it without a follow-up fetch.
+    const suggested_community = await resolveHostCommunitySuggestion(admin, event.organizer_id, ctx.userId)
+
+    return created({ ...booking, suggested_community })
   } catch (err) {
     return handleApiError(err)
   }
