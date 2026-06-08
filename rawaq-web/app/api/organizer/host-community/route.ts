@@ -18,7 +18,7 @@ async function summary(admin: Admin, communityId: string | null) {
   if (!communityId) return null
   const { data } = await admin
     .from('communities')
-    .select('id, slug, name, name_ar, cover_url, member_count')
+    .select('id, slug, name, name_ar, cover_url, member_count, level, type')
     .eq('id', communityId)
     .maybeSingle()
   return data ?? null
