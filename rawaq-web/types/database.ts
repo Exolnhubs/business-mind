@@ -1410,7 +1410,7 @@ export type Database = {
         Returns: void;
       };
       ensure_host_community: {
-        Args: { p_owner: string; p_name: string; p_name_ar: string; p_country: string };
+        Args: { p_owner: string; p_name: string; p_name_ar: string | null; p_country: string };
         Returns: string;
       };
     };
