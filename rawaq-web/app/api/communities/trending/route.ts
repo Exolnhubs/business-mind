@@ -10,7 +10,7 @@ const TrendingCommunitiesSchema = z.object({
 })
 
 const COMMUNITY_SELECT =
-  'id, name, name_ar, slug, description, description_ar, level, type, city, country, cover_url, member_count, is_verified, is_private, created_by, owner_user_id, parent_community_id, created_at, updated_at'
+  'id, name, name_ar, slug, description, description_ar, level, type, city, country, cover_url, member_count, is_verified, is_private, kind, created_by, owner_user_id, parent_community_id, created_at, updated_at'
 const COMMUNITY_SELECT_LEGACY =
   'id, name, name_ar, slug, description, description_ar, level, type, city, country, cover_url, member_count, is_verified, is_private, created_by, owner_user_id, created_at, updated_at'
 
@@ -56,6 +56,7 @@ export async function GET(req: NextRequest) {
         admin
           .from('communities')
           .select(COMMUNITY_SELECT)
+          .eq('kind', 'standard')
           .order('member_count', { ascending: false })
           .limit(100),
         admin
@@ -76,10 +77,21 @@ export async function GET(req: NextRequest) {
     let communitiesData: unknown = primaryResult.data
     let communitiesError: { message?: string } | null = primaryResult.error
 
+    if (communitiesError && `${communitiesError.message ?? ''}`.includes('kind')) {
+      // DB predates the host-community migration — drop the kind column + filter.
+      const noKindResult = await admin
+        .from('communities')
+        .select(COMMUNITY_SELECT_LEGACY)
+        .order('member_count', { ascending: false })
+        .limit(100)
+      communitiesData = noKindResult.data
+      communitiesError = noKindResult.error
+    }
     if (communitiesError && `${communitiesError.message ?? ''}`.includes('parent_community_id')) {
       const legacyResult = await admin
         .from('communities')
         .select(COMMUNITY_SELECT_LEGACY)
+        .eq('kind', 'standard')
         .order('member_count', { ascending: false })
         .limit(100)
       communitiesData = legacyResult.data

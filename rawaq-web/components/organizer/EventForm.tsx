@@ -144,6 +144,7 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
   const [attendeePlanName, setAttendeePlanName] = useState('your current plan')
   const [showLocationPicker, setShowLocationPicker] = useState(false)
   const [communities, setCommunities] = useState<Pick<Community, 'id' | 'name' | 'name_ar' | 'level' | 'type'>[]>([])
+  const [hostCommunity, setHostCommunity] = useState<Pick<Community, 'id' | 'name' | 'name_ar' | 'level' | 'type'> | null>(null)
   const [selectedCommunities, setSelectedCommunities] = useState<string[]>(initialCommunityIds)
   const [visibilityType, setVisibilityType] = useState<EventVisibility>(event?.visibility_type ?? 'city')
   const [selectedLocation, setSelectedLocation] = useState<PickedLocation | null>(
@@ -169,6 +170,25 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
       })
       .catch(() => {})
   }, [form.country])
+
+  // The organizer's own host community is excluded from generic browse, so fetch
+  // it directly and offer it in the picker (only when they've enabled it).
+  useEffect(() => {
+    fetch('/api/organizer/host-community')
+      .then((r) => r.ok ? r.json() : null)
+      .then((json) => {
+        const c = json?.data?.community
+        if (json?.data?.enabled && c) {
+          setHostCommunity({ id: c.id, name: c.name, name_ar: c.name_ar, level: c.level, type: c.type })
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  // Host community first, then the browsed list (deduped).
+  const communityOptions = hostCommunity && !communities.some((c) => c.id === hostCommunity.id)
+    ? [hostCommunity, ...communities]
+    : communities
 
   useEffect(() => {
     if (!user) return
@@ -548,7 +568,7 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
             </select>
           </div>
 
-          {communities.length > 0 && (
+          {communityOptions.length > 0 && (
             <div dir={dir}>
               <div className="flex items-center justify-between mb-1">
                 <label className="label">Tag Communities (optional)</label>
@@ -556,7 +576,7 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
               </div>
               <p className="text-xs text-gray-400 mb-2">Members of tagged communities will be notified when you publish.</p>
               <div className="flex flex-wrap gap-2">
-                {communities.map((c) => {
+                {communityOptions.map((c) => {
                   const selected = selectedCommunities.includes(c.id)
                   const atMax = !selected && selectedCommunities.length >= 5
                   return (
@@ -928,7 +948,7 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
               </select>
             </div>
 
-            {communities.length > 0 && (
+            {communityOptions.length > 0 && (
               <div dir={dir}>
                 <div className="flex items-center justify-between mb-1">
                   <label className="label">Tag Communities (optional)</label>
@@ -936,7 +956,7 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
                 </div>
                 <p className="text-xs text-gray-400 mb-2">Members of tagged communities will be notified when you publish.</p>
                 <div className="flex flex-wrap gap-2">
-                  {communities.map((c) => {
+                  {communityOptions.map((c) => {
                     const selected = selectedCommunities.includes(c.id)
                     const atMax = !selected && selectedCommunities.length >= 5
                     return (
@@ -1099,7 +1119,7 @@ export function EventForm({ categories, event, initialCommunityIds = [] }: Event
               <div className="col-span-2">
                 <dt className="text-gray-500 text-xs font-medium uppercase tracking-wide">Communities</dt>
                 <dd className="text-gray-900 font-medium mt-0.5 text-sm">
-                  {communities.filter((c) => selectedCommunities.includes(c.id)).map((c) => c.name).join(', ')}
+                  {communityOptions.filter((c) => selectedCommunities.includes(c.id)).map((c) => c.name).join(', ')}
                 </dd>
               </div>
             )}

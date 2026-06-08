@@ -13,6 +13,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams, useSearchParams, useRouter } from 'next/navigation'
 import { useLocale } from '@/contexts/locale-context'
+import { HostCommunityJoinPrompt } from '@/components/community/HostCommunityJoinPrompt'
 
 type BookingStatus = 'confirmed' | 'pending' | 'cancelled' | 'waitlisted' | null
 
@@ -188,6 +189,8 @@ export default function BookingResultPage() {
             {t('booking.my_bookings')}
           </button>
         </div>
+
+        <HostCommunityJoinPrompt bookingId={id} />
       </div>
     )
   }

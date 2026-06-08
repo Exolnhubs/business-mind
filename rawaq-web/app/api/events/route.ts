@@ -247,12 +247,21 @@ export async function POST(req: NextRequest) {
         )
       }
       const admin = createSupabaseAdminClient()
-      const { count: hostCount } = await admin
-        .from('community_hosts')
-        .select('community_id', { count: 'exact', head: true })
-        .eq('user_id', ctx.userId)
-        .in('community_id', community_ids)
-      if ((hostCount ?? 0) === 0) {
+      // Authorized if the host has a host grant OR owns the community (e.g. their
+      // own host community, where ownership implies hosting rights).
+      const [{ count: hostCount }, { count: ownedCount }] = await Promise.all([
+        admin
+          .from('community_hosts')
+          .select('community_id', { count: 'exact', head: true })
+          .eq('user_id', ctx.userId)
+          .in('community_id', community_ids),
+        admin
+          .from('communities')
+          .select('id', { count: 'exact', head: true })
+          .eq('owner_user_id', ctx.userId)
+          .in('id', community_ids),
+      ])
+      if ((hostCount ?? 0) === 0 && (ownedCount ?? 0) === 0) {
         throw new ForbiddenException(
           'You can only create sessions in communities where you are an approved host.'
         )

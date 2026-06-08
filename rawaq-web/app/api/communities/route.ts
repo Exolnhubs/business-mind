@@ -67,7 +67,7 @@ const CreateCommunitySchema = z.object({
 })
 
 const COMMUNITY_LIST_SELECT =
-  'id, name, name_ar, slug, description, description_ar, level, type, city, country, cover_url, member_count, is_verified, approval_status, is_private, created_by, owner_user_id, parent_community_id, created_at, updated_at'
+  'id, name, name_ar, slug, description, description_ar, level, type, city, country, cover_url, member_count, is_verified, approval_status, is_private, kind, created_by, owner_user_id, parent_community_id, created_at, updated_at'
 const COMMUNITY_LIST_SELECT_LEGACY =
   'id, name, name_ar, slug, description, description_ar, level, type, city, country, cover_url, member_count, is_verified, is_private, created_by, owner_user_id, created_at, updated_at'
 
@@ -302,7 +302,7 @@ export async function GET(req: NextRequest) {
 
     const communitiesClient = params.member_only ? admin : supabase
 
-    const buildQuery = (selectColumns: string, includeApprovalFilter = true) => {
+    const buildQuery = (selectColumns: string, includeApprovalFilter = true, includeKindFilter = true) => {
       let query = communitiesClient
         .from('communities')
         .select(selectColumns, { count: 'exact' })
@@ -310,6 +310,11 @@ export async function GET(req: NextRequest) {
         .order('name')
         .range(queryFrom, queryTo)
 
+      // Host communities are excluded from generic browse; they only surface via
+      // member_only ("my communities"), user_id lists, direct slug, and profiles.
+      if (includeKindFilter && !params.member_only && !params.user_id) {
+        query = query.eq('kind', 'standard')
+      }
       if (params.level) query = query.eq('level', params.level)
       if (params.city) query = query.ilike('city', `%${params.city}%`)
       if (params.country) query = query.eq('country', params.country.toUpperCase())
@@ -330,6 +335,13 @@ export async function GET(req: NextRequest) {
     }
 
     let { data, count, error } = await buildQuery(COMMUNITY_LIST_SELECT)
+    if (error && `${error.message ?? ''}`.includes('kind')) {
+      // DB predates the host-community migration — drop the kind column + filter.
+      const noKindResult = await buildQuery(COMMUNITY_LIST_SELECT_LEGACY, true, false)
+      data = noKindResult.data
+      count = noKindResult.count
+      error = noKindResult.error
+    }
     if (error && `${error.message ?? ''}`.includes('parent_community_id')) {
       const legacyResult = await buildQuery(COMMUNITY_LIST_SELECT_LEGACY)
       data = legacyResult.data

@@ -198,6 +198,8 @@ export interface OrganizerProfile {
   plan_id: string;
   followers_count: number;
   suspend_reason: string | null;
+  host_community_id: string | null;
+  host_community_enabled: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -717,6 +719,8 @@ export type CommunityMembershipStatus =
 export type CommunityApprovalStatus = "approved" | "pending" | "dismissed";
 export type EventVisibility = "micro" | "interest" | "city" | "national";
 
+export type CommunityKind = 'standard' | 'host';
+
 export interface Community {
   id: string;
   name: string;
@@ -730,6 +734,7 @@ export interface Community {
   country: string;
   cover_url: string | null;
   member_count: number;
+  kind: CommunityKind;
   is_verified: boolean;
   approval_status: CommunityApprovalStatus;
   is_private: boolean;
@@ -947,6 +952,16 @@ export type EventBlogPost = {
   media: EventBlogMedia[]
 }
 
+// ── Host community types ───────────────────────────────────
+export type SuggestedCommunity = {
+  id: string
+  slug: string
+  name: string
+  name_ar: string | null
+  cover_url: string | null
+  member_count: number
+}
+
 // ── Supabase Database type (for createClient generic) ──────
 // postgrest-js GenericTable requires Row/Insert/Update to extend Record<string, unknown>.
 // TypeScript interfaces do NOT satisfy this — only mapped/object types do.
@@ -964,7 +979,7 @@ export type Database = {
       };
       organizer_profiles: {
         Row: R<OrganizerProfile>;
-        Insert: R<Omit<OrganizerProfile, "id" | "created_at" | "updated_at">>;
+        Insert: R<Omit<OrganizerProfile, "id" | "host_community_id" | "host_community_enabled" | "created_at" | "updated_at">>;
         Update: R<Partial<OrganizerProfile>>;
         Relationships: [];
       };
@@ -1296,7 +1311,7 @@ export type Database = {
       communities: {
         Row: R<Community>;
         Insert: R<
-          Omit<Community, "id" | "member_count" | "created_at" | "updated_at">
+          Omit<Community, "id" | "member_count" | "kind" | "created_at" | "updated_at">
         >;
         Update: R<Partial<Community>>;
         Relationships: [];
@@ -1393,6 +1408,10 @@ export type Database = {
       refresh_host_avg_rating: {
         Args: { host_user_id: string };
         Returns: void;
+      };
+      ensure_host_community: {
+        Args: { p_owner: string; p_name: string; p_name_ar: string | null; p_country: string };
+        Returns: string;
       };
     };
     Enums: {

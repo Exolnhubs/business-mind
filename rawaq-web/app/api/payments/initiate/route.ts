@@ -19,6 +19,7 @@ import type { InitiatePaymentParams } from '@/lib/gateways/types'
 import { sendNotification } from '@/lib/notifications'
 import { limiters, checkRateLimit } from '@/lib/rate-limit'
 import { validateBookingInput } from '@/lib/bookings/validate'
+import { resolveHostCommunitySuggestion } from '@/lib/host-community'
 
 const BodySchema = CreateBookingSchema.extend({
   payment_option_id: z.string().min(1).default('simulated'),
@@ -147,7 +148,8 @@ export async function POST(req: NextRequest) {
         bookingId: booking.id as string,
         actorName: profile.display_name ?? 'Someone',
       })
-      return created({ booking, payment: null, free: true })
+      const suggested_community = await resolveHostCommunitySuggestion(admin, event.organizer_id, ctx.userId)
+      return created({ booking, payment: null, free: true, suggested_community })
     }
 
     const organizerNet = round2(effectivePrice - platformFeeAmount)
@@ -200,7 +202,8 @@ export async function POST(req: NextRequest) {
         actorName: profile.display_name ?? 'Someone',
       })
 
-      return created({ booking, payment: { gateway: 'simulated', free: false }, free: false })
+      const suggested_community = await resolveHostCommunitySuggestion(admin, event.organizer_id, ctx.userId)
+      return created({ booking, payment: { gateway: 'simulated', free: false }, free: false, suggested_community })
     }
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://rawaq.app'

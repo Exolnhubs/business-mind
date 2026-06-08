@@ -9,6 +9,7 @@ import {
   OrganizerStatGrid,
   OrganizerEventsSection,
 } from '@/components/organizer/OrganizerStrings'
+import { HostCommunityCard } from '@/components/organizer/HostCommunityCard'
 
 export const metadata: Metadata = { title: 'Organizer Dashboard' }
 
@@ -103,6 +104,8 @@ export default async function OrganizerDashboard() {
             Open a community and tap &quot;+ Create session&quot; to add a session.
           </p>
         )}
+
+        <HostCommunityCard />
       </div>
     )
   }
@@ -145,6 +148,8 @@ export default async function OrganizerDashboard() {
           featuredQuota={featuredQuota}
         />
       </div>
+
+      <HostCommunityCard />
     </div>
   )
 }
