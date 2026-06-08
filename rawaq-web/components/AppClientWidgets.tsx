@@ -2,6 +2,11 @@
 
 import dynamic from 'next/dynamic'
 
+const NavigationProgress = dynamic(
+  () => import('@/components/ui/NavigationProgress').then((m) => ({ default: m.NavigationProgress })),
+  { ssr: false, loading: () => null },
+)
+
 const ChunkLoadRecovery = dynamic(
   () => import('@/components/ChunkLoadRecovery').then((m) => ({ default: m.ChunkLoadRecovery })),
   { ssr: false, loading: () => null },
@@ -25,6 +30,7 @@ const SupportChatWidget = dynamic(
 export function RootClientWidgets() {
   return (
     <>
+      <NavigationProgress />
       <ChunkLoadRecovery />
       <ServiceWorkerRegister />
       <CustomCursor />

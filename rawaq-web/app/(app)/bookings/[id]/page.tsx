@@ -13,6 +13,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams, useSearchParams, useRouter } from 'next/navigation'
 import { useLocale } from '@/contexts/locale-context'
+import { useNavigate } from '@/hooks/useNavigate'
 import { HostCommunityJoinPrompt } from '@/components/community/HostCommunityJoinPrompt'
 
 type BookingStatus = 'confirmed' | 'pending' | 'cancelled' | 'waitlisted' | null
@@ -35,6 +36,7 @@ export default function BookingResultPage() {
   const { id }          = useParams<{ id: string }>()
   const searchParams    = useSearchParams()
   const router          = useRouter()
+  const { navigate, isNavigating } = useNavigate()
   const { t }           = useLocale()
   const paymentHint     = searchParams.get('payment') // success | failed | pending | null
 
@@ -103,7 +105,7 @@ export default function BookingResultPage() {
       <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4 text-center p-8">
         <div className="text-4xl">⚠️</div>
         <p className="text-gray-700">{error}</p>
-        <button onClick={() => router.push('/bookings')} className="btn-primary">
+        <button onClick={() => navigate('/bookings')} disabled={isNavigating} className="btn-primary">
           {t('booking.my_bookings')}
         </button>
       </div>
@@ -142,7 +144,7 @@ export default function BookingResultPage() {
           <button onClick={() => router.back()} className="btn-primary">
             {t('booking.try_again')}
           </button>
-          <button onClick={() => router.push('/bookings')} className="btn-secondary">
+          <button onClick={() => navigate('/bookings')} disabled={isNavigating} className="btn-secondary">
             {t('booking.my_bookings')}
           </button>
         </div>
@@ -182,10 +184,10 @@ export default function BookingResultPage() {
         </p>
 
         <div className="flex gap-3">
-          <button onClick={() => router.push(`/bookings/${id}/ticket`)} className="btn-primary">
+          <button onClick={() => navigate(`/bookings/${id}/ticket`)} disabled={isNavigating} className="btn-primary">
             {t('booking.view_ticket')}
           </button>
-          <button onClick={() => router.push('/bookings')} className="btn-secondary">
+          <button onClick={() => navigate('/bookings')} disabled={isNavigating} className="btn-secondary">
             {t('booking.my_bookings')}
           </button>
         </div>
@@ -200,7 +202,7 @@ export default function BookingResultPage() {
     <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4 text-center p-8">
       <div className="text-4xl">📋</div>
       <p className="text-gray-500">Booking #{id}</p>
-      <button onClick={() => router.push(`/bookings/${id}/ticket`)} className="btn-primary">
+      <button onClick={() => navigate(`/bookings/${id}/ticket`)} disabled={isNavigating} className="btn-primary">
         {t('booking.view_ticket_plain')}
       </button>
     </div>
