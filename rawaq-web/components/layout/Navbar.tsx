@@ -286,6 +286,10 @@ export function Navbar() {
                           📊 {t('nav.dashboard')}
                         </Link>
                       )}
+                      <Link href="/events" onClick={() => setMenuOpen(false)}
+                        className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50">
+                        🎫 {t('nav.events')}
+                      </Link>
                       <Link href="/communities" onClick={() => setMenuOpen(false)}
                         className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50">
                         🏘️ {t('nav.communities')}
@@ -335,7 +339,49 @@ export function Navbar() {
               </div>
             </>
           ) : (
-            <Link href="/login" className="btn-primary text-sm">{t('nav.login')}</Link>
+            <>
+              {/* Desktop: direct login button (global routes already in top nav) */}
+              <Link href="/login" className="btn-primary text-sm hidden md:inline-flex">{t('nav.login')}</Link>
+
+              {/* Mobile: collapsible menu with the global routes + login */}
+              <div className="relative md:hidden">
+                <button
+                  onClick={() => setMenuOpen((o) => !o)}
+                  className="btn-ghost p-2"
+                  aria-label={t('nav.menu')}
+                  aria-expanded={menuOpen}
+                >
+                  <svg className="w-6 h-6 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
+                </button>
+
+                {menuOpen && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
+                    <div className="absolute end-0 mt-2 w-52 bg-white rounded-xl shadow-lg border border-gray-100 z-20 overflow-hidden animate-fade-in">
+                      <Link href="/events" onClick={() => setMenuOpen(false)}
+                        className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50">
+                        🎫 {t('nav.events')}
+                      </Link>
+                      <Link href="/communities" onClick={() => setMenuOpen(false)}
+                        className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50">
+                        🏘️ {t('nav.communities')}
+                      </Link>
+                      <Link href="/blogs" onClick={() => setMenuOpen(false)}
+                        className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50">
+                        📝 {t('nav.blogs')}
+                      </Link>
+                      <div className="border-t border-gray-100" />
+                      <Link href="/login" onClick={() => setMenuOpen(false)}
+                        className="flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-brand-600 hover:bg-brand-50">
+                        🔑 {t('nav.login')}
+                      </Link>
+                    </div>
+                  </>
+                )}
+              </div>
+            </>
           )}
         </div>
       </nav>
