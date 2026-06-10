@@ -28,7 +28,7 @@ const EVENT_SELECT = `
 
 // ── Featured events rail ──────────────────────────────────────────────────────
 
-export const getCachedFeaturedEvents = unstable_cache(
+const _getCachedFeaturedEvents = unstable_cache(
   async (): Promise<EventWithOrganizer[]> => {
     const supabase = createSupabaseCacheClient()
     const now = new Date().toISOString()
@@ -51,9 +51,25 @@ export const getCachedFeaturedEvents = unstable_cache(
   { tags: ['events', 'events-featured'], revalidate: 300 }
 )
 
+/**
+ * Public accessor. The featured rail is decorative — a transient DB hiccup
+ * (e.g. statement timeout during a cold start) must never break the page.
+ * Degrade to an empty rail and log. The underlying error stays uncached, so the
+ * next request retries instead of serving an empty list for the whole
+ * revalidate window.
+ */
+export async function getCachedFeaturedEvents(): Promise<EventWithOrganizer[]> {
+  try {
+    return await _getCachedFeaturedEvents()
+  } catch (err) {
+    console.error('[events] featured rail degraded to empty:', err)
+    return []
+  }
+}
+
 // ── Weekend rail ──────────────────────────────────────────────────────────────
 
-export const getCachedWeekendEvents = unstable_cache(
+const _getCachedWeekendEvents = unstable_cache(
   async (params: {
     city?: string
     lat?: number
@@ -112,6 +128,23 @@ export const getCachedWeekendEvents = unstable_cache(
   { tags: ['events'], revalidate: 3600 }
 )
 
+/** Public accessor — see {@link getCachedFeaturedEvents} for the degrade rationale. */
+export async function getCachedWeekendEvents(params: {
+  city?: string
+  lat?: number
+  lng?: number
+  radiusKm: number
+  weekendStart: string
+  weekendEnd: string
+}): Promise<EventWithOrganizer[]> {
+  try {
+    return await _getCachedWeekendEvents(params)
+  } catch (err) {
+    console.error('[events] weekend rail degraded to empty:', err)
+    return []
+  }
+}
+
 // ── Main events grid ──────────────────────────────────────────────────────────
 
 export interface GridParams {
@@ -128,7 +161,7 @@ export interface GridParams {
   radius_km?: string
 }
 
-export const getCachedEventsGrid = unstable_cache(
+const _getCachedEventsGrid = unstable_cache(
   async (params: GridParams): Promise<EventWithOrganizer[]> => {
     const supabase = createSupabaseCacheClient()
 
@@ -205,3 +238,13 @@ export const getCachedEventsGrid = unstable_cache(
   ['events-grid'],
   { tags: ['events'], revalidate: 300 }
 )
+
+/** Public accessor — see {@link getCachedFeaturedEvents} for the degrade rationale. */
+export async function getCachedEventsGrid(params: GridParams): Promise<EventWithOrganizer[]> {
+  try {
+    return await _getCachedEventsGrid(params)
+  } catch (err) {
+    console.error('[events] events grid degraded to empty:', err)
+    return []
+  }
+}
