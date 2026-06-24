@@ -1,0 +1,23 @@
+# Run with:  docker compose --env-file .env.local up --build
+#
+# --env-file makes the variables in .env.local available for ${...}
+# interpolation below (used for the build args), and `env_file:` injects the
+# full set into the running container at runtime.
+services:
+  server:
+    build:
+      context: .
+      args:
+        # Build-time only: inlined into the client bundle by `next build`.
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+        NEXT_PUBLIC_PAYMOB_PUBLIC_KEY: ${NEXT_PUBLIC_PAYMOB_PUBLIC_KEY}
+    # Runtime env (server-only secrets: service role key, Resend, Paymob,
+    # Stripe, Upstash, Sentry, etc.). Read fresh on each container start.
+    env_file:
+      - .env.local
+    environment:
+      NODE_ENV: production
+    ports:
+      - 3000:3000
